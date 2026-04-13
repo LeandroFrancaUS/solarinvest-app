@@ -284,6 +284,7 @@ import {
 } from './lib/api/proposalsApi'
 import {
   ClientsApiError,
+  type ConsultantEntry,
   deleteClientById,
   isClientNotFoundError,
   listClients as listClientsFromApi,
@@ -295,6 +296,7 @@ import {
   type UpsertClientInput,
   type UpdateClientInput,
 } from './lib/api/clientsApi'
+import { getFilteredClients } from './lib/clients/clientFilter'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
 import {
@@ -679,6 +681,16 @@ type ClienteRegistro = {
   ownerEmail?: string
   /** Stack user id of the owner (server-loaded, privileged views only) */
   ownerUserId?: string
+  /**
+   * Stack user ID of the user who created the record (created_by_user_id from DB).
+   * Used as the primary key for the consultant filter on the Gestão de Clientes page.
+   */
+  createdByUserId?: string | null
+  /**
+   * Soft-delete timestamp from the database (deleted_at).
+   * Null/undefined means the record is active. Deleted records must not appear in the table.
+   */
+  deletedAt?: string | null
 }
 
 
@@ -1156,6 +1168,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     ...(ownerName != null ? { ownerName } : {}),
     ...(ownerEmail != null ? { ownerEmail } : {}),
     ...(ownerUserId != null ? { ownerUserId } : {}),
+    createdByUserId: row.created_by_user_id ?? null,
+    deletedAt: row.deleted_at ?? null,
     dados: {
       nome: row.name,
       // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
@@ -2597,7 +2611,7 @@ const normalizeClienteRegistros = (
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
-      propostaSnapshot,
+      ...(propostaSnapshot !== undefined ? { propostaSnapshot } : {}),
     }
 
     return normalizado
@@ -3091,8 +3105,11 @@ type ClientesPanelProps = {
   canBackupBanco?: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
-  /** All registered consultant names for the filter dropdown (privileged users only) */
-  allConsultores?: string[]
+  /**
+   * All registered consultants from the API (privileged users only).
+   * Each entry has `id` (stack_user_id) for filtering and `name` for display.
+   */
+  allConsultores?: ConsultantEntry[]
 }
 
 type ClienteContratoPayload = {
@@ -3247,51 +3264,65 @@ function ClientesPanel({
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
+  // selectedOwner stores the consultant's stack_user_id or 'all'.
+  // Using the ID (not the display name) ensures filter correctness even when
+  // two consultants share a name or when the name changes.
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
+
+  // Build the dropdown options list: full ConsultantEntry objects sorted by name.
+  // Only shown to privileged users.
   const ownerOptions = useMemo(() => {
     if (!isPrivilegedUser) return []
-    // Prefer the full list of registered consultants (from API) so consultants
-    // without clients still appear. Fall back to names derived from loaded records.
-    const fromApi = allConsultores.filter(Boolean)
-    if (fromApi.length > 0) {
-      return [...new Set(fromApi)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    if (allConsultores.length > 0) {
+      return [...allConsultores].sort((a, b) =>
+        (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
+      )
     }
-    return Array.from(new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'Desconhecido')))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [isPrivilegedUser, registros, allConsultores])
-  const registrosFiltrados = useMemo(() => {
-    if (!normalizedSearchTerm && selectedOwner === 'all') {
-      return registros
-    }
+    // Fallback: derive from loaded registros when API list is unavailable.
+    // We can only use display name here; ID is unavailable in this path.
+    return []
+  }, [isPrivilegedUser, allConsultores])
 
-    return registros.filter((registro) => {
-      const nomeCliente = registro.dados.nome?.trim().toLowerCase()
-      const documentoCliente = registro.dados.documento?.trim().toLowerCase()
-      const matchNome = nomeCliente ? nomeCliente.includes(normalizedSearchTerm) : false
+  // Single source of truth for the visible client list:
+  //   1. getFilteredClients removes deleted records and applies the consultant filter.
+  //   2. Text search is applied on top of the already-filtered result.
+  const registrosFiltrados = useMemo(() => {
+    const byConsultor = getFilteredClients(registros, selectedOwner)
+
+    if (!normalizedSearchTerm) return byConsultor
+
+    return byConsultor.filter((registro) => {
+      const nomeCliente = registro.dados.nome?.trim().toLowerCase() ?? ''
+      const documentoCliente = registro.dados.documento?.trim().toLowerCase() ?? ''
+      const matchNome = nomeCliente.includes(normalizedSearchTerm)
       const matchDocumento = documentoCliente
-        ? documentoCliente.replace(/\D/g, '').includes(normalizedSearchTerm.replace(/\D/g, ''))
-        : false
+        .replace(/\D/g, '')
+        .includes(normalizedSearchTerm.replace(/\D/g, ''))
       // Allow searching by consultant name/email for privileged views
       const matchOwner = isPrivilegedUser
         ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
           (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
         : false
-      const ownerLabel = registro.ownerName ?? registro.ownerEmail ?? 'Desconhecido'
-      const matchSelectedOwner = selectedOwner === 'all' || ownerLabel === selectedOwner
-      if (!normalizedSearchTerm) {
-        return matchSelectedOwner
-      }
-      return (matchNome || matchDocumento || matchOwner) && matchSelectedOwner
+      return matchNome || matchDocumento || matchOwner
     })
   }, [isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
-  const totalRegistros = registros.length
+
+  // Active records (non-deleted) — used for total count, independent of search/owner filter
+  const totalAtivos = useMemo(
+    () => registros.filter((r) => r.deletedAt == null).length,
+    [registros],
+  )
   const totalResultados = registrosFiltrados.length
-  // For privileged views, how many distinct consultants are represented
+  // For privileged views, how many distinct consultants are represented among active records
   const totalConsultores = useMemo(() => {
     if (!isPrivilegedUser) return 0
-    return new Set(registros.map((r) => r.ownerName ?? r.ownerEmail ?? 'desconhecido')).size
+    return new Set(
+      registros
+        .filter((r) => r.deletedAt == null)
+        .map((r) => r.createdByUserId ?? r.ownerName ?? r.ownerEmail ?? 'desconhecido'),
+    ).size
   }, [isPrivilegedUser, registros])
 
   return (
@@ -3385,9 +3416,9 @@ function ClientesPanel({
                 onChange={(event) => setSelectedOwner(event.target.value)}
               >
                 <option value="all">Todos os consultores</option>
-                {ownerOptions.map((owner) => (
-                  <option key={owner} value={owner}>
-                    {owner}
+                {ownerOptions.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
                   </option>
                 ))}
               </select>
@@ -3395,9 +3426,9 @@ function ClientesPanel({
           ) : null}
           <div className="budget-search-summary">
             <span>
-              {totalRegistros === 0
+              {totalAtivos === 0
                 ? 'Nenhum cliente salvo até o momento.'
-                : `${totalResultados} de ${totalRegistros} cliente(s) exibidos.`}
+                : `${totalResultados} de ${totalAtivos} cliente(s) exibidos.`}
             </span>
             {(clienteSearchTerm || selectedOwner !== 'all') ? (
               <button
@@ -3412,11 +3443,11 @@ function ClientesPanel({
               </button>
             ) : null}
           </div>
-          {registros.length === 0 ? (
+          {totalAtivos === 0 ? (
             <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
           ) : registrosFiltrados.length === 0 ? (
             <p className="budget-search-empty">
-              Nenhum cliente encontrado para "<strong>{clienteSearchTerm}</strong>".
+              Nenhum cliente encontrado{clienteSearchTerm ? ` para "${clienteSearchTerm}"` : ' com o filtro selecionado'}.
             </p>
           ) : (
             <div className="budget-search-table clients-table">
@@ -5855,7 +5886,7 @@ export default function App() {
   const [lastSuccessfulApiLoadAt, setLastSuccessfulApiLoadAt] = useState<number | null>(null)
   const [lastDeleteReconciledAt, setLastDeleteReconciledAt] = useState<number | null>(null)
   const [reconciliationReady, setReconciliationReady] = useState(false)
-  const [allConsultores, setAllConsultores] = useState<string[]>([])
+  const [allConsultores, setAllConsultores] = useState<ConsultantEntry[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
@@ -12442,7 +12473,7 @@ export default function App() {
     listConsultantsFromApi()
       .then((entries) => {
         if (!cancelado) {
-          setAllConsultores(entries.map((e) => e.name).filter(Boolean))
+          setAllConsultores(entries)
         }
       })
       .catch(() => {
