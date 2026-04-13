@@ -44,11 +44,17 @@ export function deriveDirectConnectionString(connStr) {
 /**
  * Returns the connection string to use for role_admin database connections.
  * Priority:
- *   1. DATABASE_URL_ROLE_ADMIN  — explicit role-specific URL (preferred)
- *   2. ADMIN_DATABASE_URL       — alias accepted for convenience
+ *   1. DATABASE_URL_ROLE_ADMIN      — unpooled/direct (preferred; more reliable)
+ *   2. DATABASE_URL_ROLE_ADMIN_POOL — pooler (also fine; role_admin path never
+ *                                     uses sql.transaction(), so pooler works)
+ *   3. ADMIN_DATABASE_URL           — legacy alias
  */
 export function getRoleAdminConnectionString() {
-  return sanitizeString(process.env.DATABASE_URL_ROLE_ADMIN || process.env.ADMIN_DATABASE_URL)
+  return sanitizeString(
+    process.env.DATABASE_URL_ROLE_ADMIN ||
+    process.env.DATABASE_URL_ROLE_ADMIN_POOL ||
+    process.env.ADMIN_DATABASE_URL
+  )
 }
 
 export function getNeonDatabaseConfig() {
