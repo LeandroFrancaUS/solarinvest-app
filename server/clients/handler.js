@@ -1,7 +1,7 @@
 // server/clients/handler.js
 // Handles /api/clients routes with CPF deduplication and RBAC.
 
-import { getDatabaseClient } from '../database/neonClient.js'
+import { getDatabaseClient, getRoleSpecificClient } from '../database/neonClient.js'
 import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import {
@@ -48,6 +48,17 @@ function getDb(sendJson) {
 }
 
 function sqlForActor(db, actor) {
+  // When a role-specific database client is configured (e.g. DATABASE_URL_ROLE_ADMIN),
+  // connect directly as that PostgreSQL role.  Migration 0023 adds a current_user
+  // fast-path in can_access_owner() / can_write_owner() so no set_config transaction
+  // wrapper is needed — the connection role itself satisfies the RLS policies.
+  const roleClient = getRoleSpecificClient(actorRole(actor))
+  if (roleClient) {
+    return roleClient.sql
+  }
+
+  // Default path: neondb_owner connection + set_config in a transaction to inject
+  // app.current_user_id and app.current_user_role into the PostgreSQL session.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
@@ -226,9 +237,14 @@ export async function handleClientsRequest(req, res, ctx) {
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
       })
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
-      return sendJson(200, result)
+      const safeData = Array.isArray(result?.data) ? result.data : []
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })
+      return sendJson(200, { ...result, data: safeData })
     } catch (err) {
+      // Auth errors from sqlForActor (createUserScopedSql) must not become 500
+      if (err?.statusCode === 401 || err?.statusCode === 403) {
+        return handleAuthError(sendJson, err)
+      }
       console.error('[api/clients][GET] failed', {
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,

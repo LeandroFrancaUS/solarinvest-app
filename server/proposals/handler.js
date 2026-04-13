@@ -1,7 +1,7 @@
 // server/proposals/handler.js
 // HTTP route handlers for the proposals API.
 
-import { getDatabaseClient } from '../database/neonClient.js'
+import { getDatabaseClient, getRoleSpecificClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { validateCreateProposal, validateUpdateProposal } from './validators.js'
@@ -52,11 +52,17 @@ function logRoute(route, extra = {}) {
 }
 
 function sqlForActor(db, actor) {
-  // Always set RLS context (both user ID and role) for every authenticated request,
-  // including admins. The PostgreSQL RLS policies are fail-closed: when no session
-  // context is set, can_access_owner() returns false for everyone. Setting role_admin
-  // lets the DB grant admins full access through the policy logic rather than
-  // bypassing it entirely.
+  // When a role-specific database client is configured (e.g. DATABASE_URL_ROLE_ADMIN),
+  // connect directly as that PostgreSQL role.  Migration 0023 adds a current_user
+  // fast-path in can_access_owner() / can_write_owner() so no set_config transaction
+  // wrapper is needed — the connection role itself satisfies the RLS policies.
+  const roleClient = getRoleSpecificClient(actorRole(actor))
+  if (roleClient) {
+    return roleClient.sql
+  }
+
+  // Default path: neondb_owner connection + set_config in a transaction to inject
+  // app.current_user_id and app.current_user_role into the PostgreSQL session.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
