@@ -278,6 +278,12 @@ export default async function handler(req, res) {
     const method = req.method?.toUpperCase() ?? 'GET'
 
     if (pathname === '/health' || pathname === '/api/health') {
+      const diagnostics = getNeonDatabaseConfig()
+      console.info('[db-runtime]', {
+        route: pathname,
+        dbSource: diagnostics.source ?? null,
+        schema: diagnostics.schema ?? 'public',
+      })
       if (!databaseClient || !databaseConfig.connectionString) {
         sendServerError(res, 503, {
           ok: false,
