@@ -2611,7 +2611,7 @@ const normalizeClienteRegistros = (
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
       },
-      ...(propostaSnapshot !== undefined ? { propostaSnapshot } : {}),
+      ...(propostaSnapshot ? { propostaSnapshot } : {}),
     }
 
     return normalizado
@@ -3280,10 +3280,24 @@ function ClientesPanel({
         (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
       )
     }
-    // Fallback: derive from loaded registros when API list is unavailable.
-    // We can only use display name here; ID is unavailable in this path.
-    return []
-  }, [isPrivilegedUser, allConsultores])
+    // Fallback: derive consultant entries from loaded registros when the API
+    // list is unavailable.  Deduplicates by createdByUserId and uses
+    // ownerName/ownerEmail as the display label.
+    const seen = new Map<string, ConsultantEntry>()
+    for (const r of registros) {
+      if (r.deletedAt != null) continue
+      const id = r.createdByUserId ?? r.ownerUserId
+      if (!id || seen.has(id)) continue
+      seen.set(id, {
+        id,
+        name: r.ownerName ?? r.ownerEmail ?? id,
+        email: r.ownerEmail ?? null,
+      })
+    }
+    return [...seen.values()].sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
+    )
+  }, [isPrivilegedUser, allConsultores, registros])
 
   // Single source of truth for the visible client list:
   //   1. getFilteredClients removes deleted records and applies the consultant filter.
@@ -3315,6 +3329,11 @@ function ClientesPanel({
     [registros],
   )
   const totalResultados = registrosFiltrados.length
+  // Display name for the currently selected consultant filter (for empty-state messages)
+  const selectedOwnerName = useMemo(() => {
+    if (selectedOwner === 'all') return null
+    return ownerOptions.find((e) => e.id === selectedOwner)?.name ?? null
+  }, [selectedOwner, ownerOptions])
   // For privileged views, how many distinct consultants are represented among active records
   const totalConsultores = useMemo(() => {
     if (!isPrivilegedUser) return 0
@@ -3447,7 +3466,13 @@ function ClientesPanel({
             <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
           ) : registrosFiltrados.length === 0 ? (
             <p className="budget-search-empty">
-              Nenhum cliente encontrado{clienteSearchTerm ? ` para "${clienteSearchTerm}"` : ' com o filtro selecionado'}.
+              {clienteSearchTerm && selectedOwner !== 'all'
+                ? `Nenhum cliente encontrado para "${clienteSearchTerm}" no filtro de ${selectedOwnerName ?? 'consultor selecionado'}.`
+                : clienteSearchTerm
+                  ? `Nenhum cliente encontrado para "${clienteSearchTerm}".`
+                  : selectedOwnerName
+                    ? `Nenhum cliente encontrado para o consultor "${selectedOwnerName}".`
+                    : 'Nenhum cliente encontrado com o filtro selecionado.'}
             </p>
           ) : (
             <div className="budget-search-table clients-table">
