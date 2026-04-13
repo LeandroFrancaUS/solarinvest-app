@@ -81,7 +81,11 @@ align Stackframe peer dependencies with React 18.
 The app persists CRM data and workspace preferences in a Neon PostgreSQL database.
 
 Required variables:
-- `DATABASE_URL` or `DATABASE_URL_UNPOOLED`
+- `DATABASE_URL` (**preferred / padrão oficial**, pooled)
+- `DATABASE_URL_UNPOOLED` (optional, only for direct/admin use such as migrations)
+
+Legacy fallback (optional, not required for boot):
+- `PGHOST`, `PGUSER`, `PGDATABASE`, `PGPASSWORD`, `PGPORT`
 
 Test locally with:
 

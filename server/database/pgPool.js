@@ -10,8 +10,8 @@ let sqlSingleton
 function getSql() {
   if (sqlSingleton) return sqlSingleton
 
-  const { directConnectionString, connectionString } = getNeonDatabaseConfig()
-  const resolvedConnection = directConnectionString || connectionString
+  const { connectionString } = getNeonDatabaseConfig()
+  const resolvedConnection = connectionString
 
   if (!resolvedConnection) {
     throw new Error('[database] Connection string is not configured')

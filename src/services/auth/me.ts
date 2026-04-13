@@ -12,6 +12,7 @@ export async function fetchMe(
   signal?: AbortSignal,
   authHeaders?: Record<string, string>,
 ): Promise<MeResponse> {
+  console.info('[auth][me] start')
   // Combine the caller's abort signal with a hard timeout so a hung connection
   // is never treated as perpetual loading — it will throw and be counted as a
   // failure by the MAX_RETRIES logic in useAuthSession.
@@ -34,6 +35,7 @@ export async function fetchMe(
     })
 
     if (response.status === 401) {
+      console.warn('[auth][me] unauthorized')
       return { authenticated: false, authorized: false, role: null, accessStatus: null }
     }
 
@@ -41,7 +43,9 @@ export async function fetchMe(
       throw new Error(`/api/auth/me returned ${response.status}`)
     }
 
-    return response.json() as Promise<MeResponse>
+    const data = await response.json() as MeResponse
+    console.info('[auth][me] success', { authenticated: data.authenticated, source: data.authSource ?? null })
+    return data
   } finally {
     clearTimeout(timer)
   }
