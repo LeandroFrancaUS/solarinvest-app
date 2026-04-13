@@ -2,14 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { Client } from 'pg'
-import { getNeonDatabaseConfig } from '../server/database/neonConfig.js'
+import { getDatabaseConfig, getDirectDatabaseUrl } from '../server/database/getDatabaseConfig.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 function resolveConnectionString() {
-  const { directConnectionString, connectionString } = getNeonDatabaseConfig()
-  return directConnectionString || connectionString || ''
+  return getDirectDatabaseUrl() || getDatabaseConfig().connectionString
 }
 
 async function run() {
@@ -22,7 +21,7 @@ async function run() {
 
   const databaseUrl = resolveConnectionString()
   if (!databaseUrl) {
-    console.error('DATABASE_URL/NEON_DATABASE_URL is not set')
+    console.error('Database configuration missing. Set DATABASE_URL (preferred) or optional legacy PG* variables.')
     process.exit(1)
   }
 

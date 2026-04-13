@@ -110,6 +110,10 @@ export async function createClient(sql, data) {
   } = data
 
   const resolvedOwner = owner_user_id ?? created_by_user_id
+  const safeOrigin =
+    origin === 'offline_sync'
+      ? 'offline'
+      : (origin === 'online' || origin === 'offline' || origin === 'import' ? origin : 'online')
   const rows = await sql`
     INSERT INTO clients (
       name, document, cpf_normalized, cpf_raw,
@@ -123,7 +127,7 @@ export async function createClient(sql, data) {
       ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
       ${phone}, ${email}, ${city}, ${state}, ${address}, ${uc}, ${distribuidora},
       ${created_by_user_id}, ${resolvedOwner}, ${resolvedOwner}, ${resolvedOwner},
-      ${identity_status}, ${origin}, ${offline_origin_id},
+      ${identity_status}, ${safeOrigin}, ${offline_origin_id},
       ${metadata ? JSON.stringify(metadata) : null}::jsonb, now(), now()
     )
     RETURNING *
@@ -179,14 +183,30 @@ export async function updateClient(sql, clientId, data) {
  * Soft-delete a client by setting deleted_at.
  */
 export async function softDeleteClient(sql, clientId, actorUserId) {
-  const rows = await sql`
-    UPDATE clients
-    SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
-    WHERE id = ${clientId}
-      AND deleted_at IS NULL
-    RETURNING id
-  `
-  return rows[0] ?? null
+  try {
+    const rows = await sql`
+      UPDATE clients
+      SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING id
+    `
+    return rows[0] ?? null
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const missingUpdatedBy = message.includes('updated_by_user_id')
+    if (!missingUpdatedBy) {
+      throw error
+    }
+    const rows = await sql`
+      UPDATE clients
+      SET deleted_at = now(), updated_at = now()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING id
+    `
+    return rows[0] ?? null
+  }
 }
 
 /**
@@ -222,8 +242,8 @@ export async function listClients(sql, filter = {}) {
   const safeSort = allowedSortBy.includes(sortBy) ? sortBy : 'updated_at'
   const safeSortDir = allowedSortDir.includes(sortDir.toUpperCase()) ? sortDir.toUpperCase() : 'DESC'
 
-  // Only functional filters - RLS handles ownership/role access control.
-  const conditions = ['c.deleted_at IS NULL', 'c.merged_into_client_id IS NULL']
+  const baseConditions = ['c.deleted_at IS NULL']
+  const conditions = [...baseConditions, 'c.merged_into_client_id IS NULL']
   const params = []
 
   if (createdByUserId) {
@@ -248,57 +268,131 @@ export async function listClients(sql, filter = {}) {
     conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
   }
 
-  // Always JOIN app_user_profiles to return owner display name and email.
-  const joinClause = 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
-
-  // safeSort and safeSortDir are validated against allowlists above — safe to interpolate
-  const countQuery = `SELECT COUNT(*) FROM clients c ${joinClause} ${where}`
-  const dataQuery = `
-    SELECT c.*,
-      up.display_name AS owner_display_name,
-      up.email AS owner_email,
-      (SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count
-    FROM clients c
-    ${joinClause}
-    ${where}
-    ORDER BY c.${safeSort} ${safeSortDir}
-    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-  `
-
-  let countResult
-  let dataResult
-
-  try {
-    [countResult, dataResult] = await Promise.all([
-      sql(countQuery, params),
-      sql(dataQuery, [...params, limitNum, offset]),
-    ])
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const missingOptionalJoin = message.includes('app_user_profiles') || message.includes('proposals')
-    if (!missingOptionalJoin) {
-      throw error
-    }
-
-    console.warn('[clients][list] optional joins unavailable, falling back to base clients query', { message })
-
-    const basicCountQuery = `SELECT COUNT(*) FROM clients c ${where}`
-    const basicDataQuery = `
+  const buildQueries = ({
+    withMergedFilter = true,
+    withOptionalJoin = true,
+    withProposalCount = true,
+  } = {}) => {
+    const queryConditions = withMergedFilter ? conditions : baseConditions
+    const where = queryConditions.length ? `WHERE ${queryConditions.join(' AND ')}` : ''
+    const joinClause = withOptionalJoin
+      ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
+      : ''
+    const proposalCountExpr = withProposalCount
+      ? '(SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count'
+      : '0::int AS proposal_count'
+    const ownerNameExpr = withOptionalJoin ? 'up.display_name AS owner_display_name' : 'NULL::text AS owner_display_name'
+    const ownerEmailExpr = withOptionalJoin ? 'up.email AS owner_email' : 'NULL::text AS owner_email'
+    const countQuery = `SELECT COUNT(*) AS count FROM clients c ${joinClause} ${where}`
+    const dataQuery = `
       SELECT c.*,
-        NULL::text AS owner_display_name,
-        NULL::text AS owner_email,
-        0::int AS proposal_count
+        ${ownerNameExpr},
+        ${ownerEmailExpr},
+        ${proposalCountExpr}
       FROM clients c
+      ${joinClause}
       ${where}
       ORDER BY c.${safeSort} ${safeSortDir}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
+    return { countQuery, dataQuery }
+  }
 
+  let countResult
+  let dataResult
+  const full = buildQueries({ withMergedFilter: true, withOptionalJoin: true, withProposalCount: true })
+
+  try {
     ;[countResult, dataResult] = await Promise.all([
-      sql(basicCountQuery, params),
-      sql(basicDataQuery, [...params, limitNum, offset]),
+      sql(full.countQuery, params),
+      sql(full.dataQuery, [...params, limitNum, offset]),
     ])
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const code = error?.code ?? null
+    const missingMergedColumn =
+      code === '42703' || message.includes('merged_into_client_id')
+    const missingOptionalJoin =
+      message.includes('app_user_profiles') || message.includes('proposals')
+
+    const fallback = buildQueries({
+      withMergedFilter: !missingMergedColumn,
+      withOptionalJoin: !missingOptionalJoin,
+      withProposalCount: !missingOptionalJoin,
+    })
+    console.warn('[clients][list] retrying with compatibility mode', {
+      missingMergedColumn,
+      missingOptionalJoin,
+      message,
+      code,
+    })
+    try {
+      ;[countResult, dataResult] = await Promise.all([
+        sql(fallback.countQuery, params),
+        sql(fallback.dataQuery, [...params, limitNum, offset]),
+      ])
+    } catch (fallbackError) {
+      const legacyColumnsRows = await sql`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'clients'
+      `
+      const legacyColumns = new Set(legacyColumnsRows.map((row) => String(row.column_name)))
+      const legacyConditions = []
+      const legacyParams = []
+
+      if (legacyColumns.has('deleted_at')) {
+        legacyConditions.push('c.deleted_at IS NULL')
+      }
+      if (createdByUserId && legacyColumns.has('created_by_user_id')) {
+        legacyParams.push(createdByUserId)
+        legacyConditions.push(`c.created_by_user_id = $${legacyParams.length}`)
+      }
+      if (city && legacyColumns.has('city')) {
+        legacyParams.push(`%${city}%`)
+        legacyConditions.push(`c.city ILIKE $${legacyParams.length}`)
+      }
+      if (uf && legacyColumns.has('state')) {
+        legacyParams.push(uf)
+        legacyConditions.push(`c.state = $${legacyParams.length}`)
+      }
+      if (identityStatus && legacyColumns.has('identity_status')) {
+        legacyParams.push(identityStatus)
+        legacyConditions.push(`c.identity_status = $${legacyParams.length}`)
+      }
+      if (search) {
+        const legacySearchFields = ['name', 'document', 'email', 'phone'].filter((field) => legacyColumns.has(field))
+        if (legacySearchFields.length > 0) {
+          legacyParams.push(`%${search}%`)
+          const idx = legacyParams.length
+          legacyConditions.push(`(${legacySearchFields.map((field) => `c.${field} ILIKE $${idx}`).join(' OR ')})`)
+        }
+      }
+
+      const legacyWhere = legacyConditions.length ? `WHERE ${legacyConditions.join(' AND ')}` : ''
+      const legacySort = legacyColumns.has(safeSort) ? safeSort : (legacyColumns.has('updated_at') ? 'updated_at' : 'id')
+      const legacyCountQuery = `SELECT COUNT(*) AS count FROM clients c ${legacyWhere}`
+      const legacyDataQuery = `
+        SELECT c.*,
+          NULL::text AS owner_display_name,
+          NULL::text AS owner_email,
+          0::int AS proposal_count
+        FROM clients c
+        ${legacyWhere}
+        ORDER BY c.${legacySort} ${safeSortDir}
+        LIMIT $${legacyParams.length + 1} OFFSET $${legacyParams.length + 2}
+      `
+
+      console.warn('[clients][list] retrying with legacy schema mode', {
+        previousError: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        availableColumns: Array.from(legacyColumns).sort(),
+      })
+      ;[countResult, dataResult] = await Promise.all([
+        sql(legacyCountQuery, legacyParams),
+        sql(legacyDataQuery, [...legacyParams, limitNum, offset]),
+      ])
+    }
   }
 
   const total = parseInt(countResult[0]?.count ?? '0', 10)
