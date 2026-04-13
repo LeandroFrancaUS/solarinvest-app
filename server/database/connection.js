@@ -22,6 +22,18 @@ export function getCanonicalDatabaseConnection() {
     }
   }
 
+  const legacyConnectionString = buildConnectionStringFromParts()
+  if (legacyConnectionString) {
+    return {
+      connectionString: legacyConnectionString,
+      source: 'PGHOST/PGDATABASE/PGUSER/PGPASSWORD (legacy-fallback)',
+    }
+  }
+
+  return { connectionString: '', source: null }
+}
+
+export function buildConnectionStringFromParts() {
   const host = sanitizeString(process.env.PGHOST ?? process.env.PGHOST_UNPOOLED)
   const database = sanitizeString(process.env.PGDATABASE)
   const user = sanitizeString(process.env.PGUSER)
@@ -29,17 +41,14 @@ export function getCanonicalDatabaseConnection() {
   const portValue = sanitizeString(process.env.PGPORT)
   const port = portValue ? Number.parseInt(portValue, 10) : NaN
 
-  if (host && database && user && password) {
-    const encodedUser = encodeURIComponent(user)
-    const encodedPassword = encodeURIComponent(password)
-    const portSuffix = Number.isFinite(port) ? `:${port}` : ''
-    return {
-      connectionString: `postgresql://${encodedUser}:${encodedPassword}@${host}${portSuffix}/${database}`,
-      source: 'PGHOST/PGDATABASE/PGUSER/PGPASSWORD',
-    }
+  if (!host || !database || !user || !password) {
+    return null
   }
 
-  return { connectionString: '', source: null }
+  const encodedUser = encodeURIComponent(user)
+  const encodedPassword = encodeURIComponent(password)
+  const portSuffix = Number.isFinite(port) ? `:${port}` : ''
+  return `postgresql://${encodedUser}:${encodedPassword}@${host}${portSuffix}/${database}?sslmode=require&channel_binding=require`
 }
 
 export function getCanonicalDirectDatabaseConnection() {

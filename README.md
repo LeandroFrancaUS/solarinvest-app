@@ -81,13 +81,24 @@ align Stackframe peer dependencies with React 18.
 The app persists CRM data and workspace preferences in a Neon PostgreSQL database.
 
 Required variables:
-- `DATABASE_URL` or `DATABASE_URL_UNPOOLED`
+- `DATABASE_URL` (**preferred / padrão oficial**, pooled)
+- `DATABASE_URL_UNPOOLED` (optional, only for direct/admin use such as migrations)
+
+Legacy fallback (optional, not required for boot):
+- `PGHOST`, `PGUSER`, `PGDATABASE`, `PGPASSWORD`, `PGPORT`
 
 Test locally with:
 
 ```bash
 npm run test:neon
 ```
+
+Vercel/Neon deployment notes:
+- When adding DB env vars in Vercel, select the correct environment (`Production` for live).
+- Serverless runtime should use the pooled URL (`DATABASE_URL`, hostname with `-pooler`).
+- Preview deployments automatically receive branch-specific `DATABASE_URL` values from Neon integration.
+- Production deployments automatically receive production `DATABASE_URL`.
+- Keep credentials server-side only; never expose Neon secrets in browser code.
 
 ---
 

@@ -21,6 +21,15 @@ const LOCAL_STORAGE_DATA_KEYS: readonly string[] = [
   'solarinvest:vendas:v1',      // useVendasConfigStore
   'solarinvest:venda-sims:v1',  // useVendasSimulacoesStore
   'solarinvest:simulacoes:v1',  // useSimulationsStore
+  'solarinvest-clientes',
+  'solarinvest-orcamentos',
+  'solarinvest-client-server-id-map',
+  'solarinvest-proposal-server-id-map',
+  'clients-reconciliation-v1',
+  'solarinvest-crm-dataset',
+  'solarinvest-active-page',
+  'solarinvest-active-tab',
+  'solarinvest-proposal-pdf-reminder-at',
 ]
 
 function clearFormSessionStorage(): void {

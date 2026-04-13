@@ -19,6 +19,7 @@ const PERM_ADMIN      = 'role_admin'
 const PERM_COMERCIAL  = 'role_comercial'
 const PERM_OFFICE     = 'role_office'
 const PERM_FINANCEIRO = 'role_financeiro'
+const PERM_GERENTE_COMERCIAL = 'role_gerente_comercial'
 const BOOTSTRAP_ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
 const BOOTSTRAP_ADMIN_USER_ID = getBootstrapAdminUserId()
 
@@ -49,6 +50,7 @@ export async function resolveActor(req) {
       isComercial: false,
       isOffice: false,
       isFinanceiro: false,
+      isGerenteComercial: false,
       hasAnyRole: true,
     }
   }
@@ -58,11 +60,12 @@ export async function resolveActor(req) {
   if (!appUser) return null
 
   // Resolve roles from Stack Auth permissions (all four in parallel)
-  const [isAdmin, isComercial, isOffice, isFinanceiro] = await Promise.all([
+  const [isAdmin, isComercial, isOffice, isFinanceiro, isGerenteComercial] = await Promise.all([
     hasStackPermission(req, PERM_ADMIN),
     hasStackPermission(req, PERM_COMERCIAL),
     hasStackPermission(req, PERM_OFFICE),
     hasStackPermission(req, PERM_FINANCEIRO),
+    hasStackPermission(req, PERM_GERENTE_COMERCIAL),
   ])
 
   // DB fallback: if Stack Auth returned no role at all, check the DB role.
@@ -71,7 +74,12 @@ export async function resolveActor(req) {
   // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
   const normalizedEmail = (appUser.email ?? '').toLowerCase().trim()
   const isApproved = appUser.access_status === 'approved'
-  const dbRoleIsAdmin = appUser.role === 'admin' && isApproved
+  const dbRole = String(appUser.role ?? '').toLowerCase().trim()
+  const dbRoleIsAdmin = ['admin', 'role_admin', 'owner', 'role_owner'].includes(dbRole) && isApproved
+  const dbRoleIsFinanceiro = ['financeiro', 'role_financeiro'].includes(dbRole) && isApproved
+  const dbRoleIsGerenteComercial = ['gerente_comercial', 'role_gerente_comercial'].includes(dbRole) && isApproved
+  const dbRoleIsOffice = ['office', 'role_office'].includes(dbRole) && isApproved
+  const dbRoleIsComercial = ['comercial', 'role_comercial', 'user'].includes(dbRole) && isApproved
   // Bootstrap email/userId checks: only activate when the user is approved in the DB.
   // Requiring approved status means an admin can block bootstrap users by setting
   // access_status to 'blocked', making the grant revocable through normal admin flows.
@@ -83,10 +91,14 @@ export async function resolveActor(req) {
 
   // Precedence: admin > financeiro > office > comercial
   // When a user holds multiple permissions the highest-privilege one wins.
-  const resolvedAdmin      = isAdmin || dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin
-  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
-  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
-  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+  const resolvedAdmin = isAdmin || dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin
+  const resolvedFinanceiro = !resolvedAdmin && (isFinanceiro || dbRoleIsFinanceiro)
+  const resolvedGerenteComercial =
+    !resolvedAdmin && !resolvedFinanceiro && (isGerenteComercial || dbRoleIsGerenteComercial)
+  const resolvedOffice =
+    !resolvedAdmin && !resolvedFinanceiro && !resolvedGerenteComercial && (isOffice || dbRoleIsOffice)
+  const resolvedComercial =
+    !resolvedAdmin && !resolvedFinanceiro && !resolvedGerenteComercial && !resolvedOffice && (isComercial || dbRoleIsComercial)
 
   if (dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin) {
     console.info('[RBAC] resolveActor: using admin fallback', {
@@ -103,9 +115,10 @@ export async function resolveActor(req) {
     displayName: appUser.full_name ?? null,
     isAdmin: resolvedAdmin,
     isFinanceiro: resolvedFinanceiro,
+    isGerenteComercial: resolvedGerenteComercial,
     isOffice: resolvedOffice,
     isComercial: resolvedComercial,
-    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
+    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedGerenteComercial || resolvedOffice || resolvedComercial,
   }
 }
 
@@ -122,6 +135,7 @@ export function actorRole(actor) {
   if (!actor) return null
   if (actor.isAdmin)      return 'role_admin'
   if (actor.isFinanceiro) return 'role_financeiro'
+  if (actor.isGerenteComercial) return 'role_gerente_comercial'
   if (actor.isOffice)     return 'role_office'
   if (actor.isComercial)  return 'role_comercial'
   return null
@@ -153,7 +167,7 @@ export function requireProposalAuth(actor) {
  */
 export function canReadProposal(actor, proposal) {
   if (!actor) return false
-  if (actor.isAdmin || actor.isFinanceiro) return true
+  if (actor.isAdmin || actor.isFinanceiro || actor.isGerenteComercial) return true
   if (actor.isOffice) {
     return true
   }
@@ -169,7 +183,7 @@ export function canReadProposal(actor, proposal) {
  */
 export function canWriteProposals(actor) {
   if (!actor) return false
-  return actor.isAdmin || actor.isOffice || actor.isComercial
+  return actor.isAdmin || actor.isOffice || actor.isGerenteComercial || actor.isComercial
 }
 
 /**
@@ -182,7 +196,7 @@ export function canWriteProposals(actor) {
 export function canModifyProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isFinanceiro) return false
-  if (actor.isAdmin) return true
+  if (actor.isAdmin || actor.isGerenteComercial) return true
   if (actor.isOffice) {
     return proposal.owner_user_id === actor.userId
   }
@@ -199,7 +213,7 @@ export function canModifyProposal(actor, proposal) {
 export function canDeleteProposal(actor, proposal) {
   if (!actor) return false
   if (actor.isFinanceiro) return false
-  if (actor.isAdmin) return true
+  if (actor.isAdmin || actor.isGerenteComercial) return true
   if (actor.isOffice) {
     return proposal.owner_user_id === actor.userId
   }

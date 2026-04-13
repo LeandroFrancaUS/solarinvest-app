@@ -97,6 +97,22 @@ export class ClientsApiError extends Error {
   }
 }
 
+export function isClientNotFoundError(error: unknown): boolean {
+  if (error instanceof ClientsApiError) {
+    return error.status === 404 || error.code === 'NOT_FOUND'
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('Client not found') || message.includes('404') || message.includes('NOT_FOUND')
+}
+
+export function isClientsAuthError(error: unknown): boolean {
+  return error instanceof ClientsApiError && (error.status === 401 || error.status === 403)
+}
+
+export function isClientsServerError(error: unknown): boolean {
+  return error instanceof ClientsApiError && error.status >= 500
+}
+
 async function parseErrorResponse(res: Response): Promise<ClientsApiError> {
   let code = 'INTERNAL_ERROR'
   let message = `HTTP ${res.status}`
