@@ -25,7 +25,7 @@ export const pool = null
 export async function query(text, params) {
   if (!sql) {
     throw new Error(
-      'Database not configured: set DATABASE_URL (canonical) or equivalent legacy env. ' +
+      'Database configuration missing. Set DATABASE_URL (preferred) or optional legacy PG* variables. ' +
       'In bypass mode (STACK_AUTH_BYPASS=true), this code path should never be reached.'
     )
   }
