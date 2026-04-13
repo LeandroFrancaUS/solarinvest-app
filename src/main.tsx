@@ -52,7 +52,6 @@ import ReactDOM from "react-dom/client"
 import App from "./App"
 import { Boundary } from "./app/Boundary"
 import { Providers } from "./app/Providers"
-import { ensureServerStorageSync } from "./app/services/serverStorage"
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode } from "./constants/ui"
 import { perfLog, perfMeasure, perfNow } from "./utils/perf"
 import "./styles.css"
@@ -99,9 +98,6 @@ async function bootstrap() {
     )
   }
 
-  void ensureServerStorageSync().catch((error) => {
-    perfLog('BOOT', 'SERVER_STORAGE_SYNC_FAIL', { error: String(error) }, 'warn')
-  })
   await disableAnimationsInBrave()
 
   const storedDensity =
