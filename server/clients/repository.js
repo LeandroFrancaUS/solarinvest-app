@@ -166,7 +166,10 @@ export async function updateClient(sql, clientId, data, options = {}) {
   } = data
 
   // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
+  // ownerClause is a hardcoded SQL fragment (never user-derived) that appends
+  // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
+  // $14 = clientId; $15 = actorUserId (only appended when scopeByOwner)
   const ownerClause = scopeByOwner ? 'AND owner_user_id = $15' : ''
   const params = [
     name ?? null,
@@ -226,19 +229,34 @@ export async function updateClient(sql, clientId, data, options = {}) {
  */
 export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null) {
   const scopeByOwner = actorRole === 'role_comercial' && Boolean(actorUserId)
-  const ownerClause = scopeByOwner ? `AND owner_user_id = $3` : ''
-  const baseParams = [clientId, actorUserId, ...(scopeByOwner ? [actorUserId] : [])]
 
+  // Run the soft-delete.  When includeUpdatedBy is false (schema-compat retry),
+  // the param list shifts so every placeholder maps to the correct position.
   const runDelete = async (includeUpdatedBy) => {
-    const setClause = includeUpdatedBy
-      ? 'SET deleted_at = now(), updated_at = now(), updated_by_user_id = $2'
-      : 'SET deleted_at = now(), updated_at = now()'
-    return sql(
-      `UPDATE clients ${setClause}
-       WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
-       RETURNING id`,
-      baseParams,
-    )
+    if (includeUpdatedBy) {
+      // $1=id, $2=updated_by_user_id, $3=owner (when scopeByOwner)
+      const ownerClause = scopeByOwner ? 'AND owner_user_id = $3' : ''
+      const params = [clientId, actorUserId, ...(scopeByOwner ? [actorUserId] : [])]
+      return sql(
+        `UPDATE clients
+         SET deleted_at = now(), updated_at = now(), updated_by_user_id = $2
+         WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
+         RETURNING id`,
+        params,
+      )
+    } else {
+      // Retry without updated_by_user_id (column absent on older schemas).
+      // $1=id, $2=owner (when scopeByOwner)
+      const ownerClause = scopeByOwner ? 'AND owner_user_id = $2' : ''
+      const params = [clientId, ...(scopeByOwner ? [actorUserId] : [])]
+      return sql(
+        `UPDATE clients
+         SET deleted_at = now(), updated_at = now()
+         WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
+         RETURNING id`,
+        params,
+      )
+    }
   }
 
   try {
