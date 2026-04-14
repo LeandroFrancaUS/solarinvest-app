@@ -1217,8 +1217,11 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   // handleEditarCliente can pre-populate the form fields when the user loads
   // a client that was previously saved with energy data.
   const propostaSnapshot: OrcamentoSnapshotData | undefined = ep
-    ? {
-        // Minimal snapshot — all remaining fields come from mergeSnapshotWithDefaults
+    ? ({
+        // Minimal snapshot seeded with energy profile values.
+        // All unset fields are filled in by mergeSnapshotWithDefaults (spreads the
+        // createEmptySnapshot base over this object, then uses ?? to fall back to
+        // defaults for any null/undefined fields).
         activeTab: resolvedModalidade,
         settingsTab: 'painel',
         cliente: dados,
@@ -1228,7 +1231,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
-        kitBudget: null as unknown as KitBudgetState,
+        kitBudget: null,
         budgetProcessing: { isProcessing: false, error: null, progress: null, isTableCollapsed: false, ocrDpi: 150 },
         propostaImagens: [],
         ufTarifa: row.state ?? '',
@@ -1261,11 +1264,11 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         tipoEdificacaoOutro: '',
         numeroModulosManual: '',
         configuracaoUsinaObservacoes: '',
-        composicaoTelhado: null as unknown as UfvComposicaoTelhadoValores,
-        composicaoSolo: null as unknown as UfvComposicaoSoloValores,
+        composicaoTelhado: null,
+        composicaoSolo: null,
         aprovadoresText: '',
         impostosOverridesDraft: {},
-        vendasConfig: null as unknown as VendasConfig,
+        vendasConfig: null,
         vendasSimulacoes: {},
         multiUc: { ativo: false, rows: [], rateioModo: 'proporcional', energiaGeradaKWh: 0, energiaGeradaTouched: false, anoVigencia: new Date().getFullYear(), overrideEscalonamento: false, escalonamentoCustomPercent: null },
         precoPorKwp: 0,
@@ -1276,7 +1279,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         vendaForm: {
           consumo_kwh_mes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
           modelo_inversor: ep.marca_inversor ?? '',
-        } as unknown as VendaForm,
+        },
         capexManualOverride: false,
         parsedVendaPdf: null,
         estruturaTipoWarning: null,
@@ -1326,7 +1329,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         temCorresponsavelFinanceiro: false,
         corresponsavel: null,
         leasingAnexosSelecionados: [],
-        vendaSnapshot: null as unknown as VendaSnapshot,
+        vendaSnapshot: null,
         leasingSnapshot: {
           prazoContratualMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
           energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
@@ -1372,7 +1375,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
             proprietarios: [{ nome: '', cpfCnpj: '' }],
           },
         },
-      }
+      } as unknown as OrcamentoSnapshotData)
     : undefined
 
   return {
