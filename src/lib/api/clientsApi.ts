@@ -26,20 +26,50 @@ export interface ClientEnergyProfile {
   marca_inversor: string | null
 }
 
+export interface ClientLatestProposalProfile {
+  kwh_contratado: number | null
+  tarifa_atual: number | null
+  tipo_rede: string | null
+  desconto_percentual: number | null
+  ucs_beneficiarias: Array<{
+    id?: string
+    numero?: string
+    endereco?: string
+    consumoKWh?: string | number | null
+    rateioPercentual?: string | number | null
+  }>
+  indicacao: string | null
+  tem_indicacao: boolean
+}
+
 export interface ClientRow {
   id: string
   name: string
+  client_name: string | null
   document: string | null
+  client_document: string | null
   cpf_raw: string | null
   cnpj_raw: string | null
   email: string | null
+  client_email: string | null
   phone: string | null
+  client_phone: string | null
   city: string | null
+  client_city: string | null
   state: string | null
+  client_state: string | null
   address: string | null
+  client_address: string | null
   cep: string | null
+  client_cep: string | null
   uc: string | null
+  uc_geradora: string | null
+  ucBeneficiaria: string | null
+  consumptionKwhMonth: number | null
+  systemKwp: number | null
+  termMonths: number | null
   distribuidora: string | null
+  consumption_kwh_month: number | null
   metadata: Record<string, unknown> | null
   owner_user_id: string | null
   created_by_user_id: string | null
@@ -49,6 +79,8 @@ export interface ClientRow {
   owner_email: string | null
   /** Energy/commercial profile from client_energy_profile table (null if not yet set) */
   energy_profile: ClientEnergyProfile | null
+  /** Last proposal payload summary from proposals table (null if no proposal linked to client) */
+  latest_proposal_profile: ClientLatestProposalProfile | null
   created_at: string
   updated_at: string
   /** Soft-delete timestamp; null means active. The API already filters these out but the field is included for defensive use. */
@@ -84,6 +116,7 @@ export interface UpsertClientInput {
   state?: string
   address?: string
   cep?: string
+  client_cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>
@@ -101,6 +134,7 @@ export interface UpdateClientInput {
   state?: string
   address?: string
   cep?: string
+  client_cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>

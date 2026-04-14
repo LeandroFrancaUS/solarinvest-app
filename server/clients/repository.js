@@ -98,9 +98,13 @@ export async function createClient(sql, data) {
     city = null,
     state = null,
     address = null,
-    cep = null,
+    client_cep = null,
     document = null,
     uc = null,
+    uc_beneficiaria = null,
+    system_kwp = null,
+    term_months = null,
+    consumption_kwh_month = null,
     distribuidora = null,
     created_by_user_id = null,
     owner_user_id = null,
@@ -111,24 +115,55 @@ export async function createClient(sql, data) {
   } = data
 
   const resolvedOwner = owner_user_id ?? created_by_user_id
-  const rows = await sql`
+  const queryText = `
     INSERT INTO clients (
-      name, document, cpf_normalized, cpf_raw,
+      client_name, client_document, cpf_normalized, cpf_raw,
       cnpj_normalized, cnpj_raw, document_type,
-      phone, email, city, state, address, cep, uc, distribuidora,
+      client_phone, client_email, client_city, client_state, client_address, client_cep, uc_geradora, uc_beneficiaria, system_kwp, term_months, consumption_kwh_month, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
       metadata, created_at, updated_at
     ) VALUES (
-      ${name}, ${document ?? cpf_raw ?? cnpj_raw}, ${cpf_normalized}, ${cpf_raw},
-      ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
-      ${phone}, ${email}, ${city}, ${state}, ${address}, ${cep}, ${uc}, ${distribuidora},
-      ${created_by_user_id}, ${resolvedOwner}, ${resolvedOwner}, ${resolvedOwner},
-      ${identity_status}, ${origin}, ${offline_origin_id},
-      ${metadata ? JSON.stringify(metadata) : null}::jsonb, now(), now()
+      $1, $2, $3, $4,
+      $5, $6, $7,
+      $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
+      $20, $21, $22, $23,
+      $24, $25, $26,
+      $27::jsonb, now(), now()
     )
     RETURNING *
   `
+  const params = [
+    name,
+    document ?? cpf_raw ?? cnpj_raw,
+    cpf_normalized,
+    cpf_raw,
+    cnpj_normalized,
+    cnpj_raw,
+    document_type,
+    phone,
+    email,
+    city,
+    state,
+    address,
+    client_cep,
+    uc,
+    uc_beneficiaria,
+    system_kwp,
+    term_months,
+    consumption_kwh_month,
+    distribuidora,
+    created_by_user_id,
+    resolvedOwner,
+    resolvedOwner,
+    resolvedOwner,
+    identity_status,
+    origin,
+    offline_origin_id,
+    metadata ? JSON.stringify(metadata) : null,
+  ]
+  console.info('[clients][create] sql', { queryText, params })
+  const rows = await sql(queryText, params)
   return rows[0] ?? null
 }
 
@@ -157,13 +192,18 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city,
     state,
     address,
-    cep,
+    client_cep,
     uc,
+    uc_beneficiaria,
+    system_kwp,
+    term_months,
+    consumption_kwh_month,
     distribuidora,
     cpf_normalized,
     cpf_raw,
     cnpj_normalized,
     cnpj_raw,
+    client_document,
     document_type,
     identity_status,
     metadata,
@@ -174,9 +214,7 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
 
-  // Full UPDATE including cep (migration 0003).
-  // $17 = clientId; $18 = actorUserId (only appended when scopeByOwner)
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $18' : ''
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $23' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -184,13 +222,18 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city ?? null,
     state ?? null,
     address ?? null,
-    cep ?? null,
+    client_cep ?? null,
     uc ?? null,
+    uc_beneficiaria ?? null,
+    system_kwp ?? null,
+    term_months ?? null,
+    consumption_kwh_month ?? null,
     distribuidora ?? null,
     cpf_normalized ?? null,
     cpf_raw ?? null,
     cnpj_normalized ?? null,
     cnpj_raw ?? null,
+    client_document ?? null,
     document_type ?? null,
     identity_status ?? null,
     metadata ? JSON.stringify(metadata) : null,
@@ -198,107 +241,40 @@ export async function updateClient(sql, clientId, data, options = {}) {
     ...(scopeByOwner ? [actorUserId] : []),
   ]
 
-  const runUpdate = async (includeCep) => {
-    if (includeCep) {
-      return sql(
-        `UPDATE clients SET
-           name             = COALESCE($1,  name),
-           phone            = COALESCE($2,  phone),
-           email            = COALESCE($3,  email),
-           city             = COALESCE($4,  city),
-           state            = COALESCE($5,  state),
-           address          = COALESCE($6,  address),
-           cep              = COALESCE($7,  cep),
-           uc               = COALESCE($8,  uc),
-           distribuidora    = COALESCE($9,  distribuidora),
-           cpf_normalized   = COALESCE($10, cpf_normalized),
-           cpf_raw          = COALESCE($11, cpf_raw),
-           cnpj_normalized  = COALESCE($12, cnpj_normalized),
-           cnpj_raw         = COALESCE($13, cnpj_raw),
-           document_type    = COALESCE($14, document_type),
-           identity_status  = COALESCE($15, identity_status),
-           metadata         = CASE
-                                -- Merge incoming metadata with existing: new keys overwrite,
-                                -- existing keys not in the update payload are preserved.
-                                WHEN $16::jsonb IS NOT NULL
-                                THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
-                                ELSE metadata
-                              END,
-           updated_at       = now()
-         WHERE id = $17
-           AND deleted_at IS NULL
-           ${ownerClause}
-         RETURNING *`,
-        params,
-      )
-    }
-    // Fallback for schemas that do not yet have the cep column (migration 0003).
-    // Parameters shift: cep ($7) is dropped; $7 becomes uc, $8 distribuidora,
-    // $9-$15 the document/identity fields, $16 clientId, $17 actorUserId.
-    const ownerClauseFallback = scopeByOwner ? 'AND owner_user_id = $17' : ''
-    const paramsFallback = [
-      name ?? null,
-      phone ?? null,
-      email ?? null,
-      city ?? null,
-      state ?? null,
-      address ?? null,
-      uc ?? null,
-      distribuidora ?? null,
-      cpf_normalized ?? null,
-      cpf_raw ?? null,
-      cnpj_normalized ?? null,
-      cnpj_raw ?? null,
-      document_type ?? null,
-      identity_status ?? null,
-      metadata ? JSON.stringify(metadata) : null,
-      clientId,
-      ...(scopeByOwner ? [actorUserId] : []),
-    ]
-    return sql(
-      `UPDATE clients SET
-         name             = COALESCE($1,  name),
-         phone            = COALESCE($2,  phone),
-         email            = COALESCE($3,  email),
-         city             = COALESCE($4,  city),
-         state            = COALESCE($5,  state),
-         address          = COALESCE($6,  address),
-         uc               = COALESCE($7,  uc),
-         distribuidora    = COALESCE($8,  distribuidora),
-         cpf_normalized   = COALESCE($9,  cpf_normalized),
-         cpf_raw          = COALESCE($10, cpf_raw),
-         cnpj_normalized  = COALESCE($11, cnpj_normalized),
-         cnpj_raw         = COALESCE($12, cnpj_raw),
-         document_type    = COALESCE($13, document_type),
-         identity_status  = COALESCE($14, identity_status),
-         metadata         = CASE
-                              WHEN $15::jsonb IS NOT NULL
-                              THEN COALESCE(metadata, '{}'::jsonb) || $15::jsonb
-                              ELSE metadata
-                            END,
-         updated_at       = now()
-       WHERE id = $16
-         AND deleted_at IS NULL
-         ${ownerClauseFallback}
-       RETURNING *`,
-      paramsFallback,
-    )
-  }
-
-  try {
-    const rows = await runUpdate(true)
-    return rows[0] ?? null
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    const code = err?.code ?? null
-    // Retry without cep for older DB schemas that do not yet have migration 0003.
-    // PostgreSQL error 42703 = "undefined_column"; also match the specific column name.
-    const isMissingCep = code === '42703' || msg.includes('"cep"') || msg.includes("'cep'")
-    if (!isMissingCep) throw err
-    console.warn('[clients][update] retrying without cep column (schema compatibility mode)')
-    const rows = await runUpdate(false)
-    return rows[0] ?? null
-  }
+  const queryText = `UPDATE clients SET
+       client_name      = COALESCE($1,  client_name),
+       client_phone     = COALESCE($2,  client_phone),
+       client_email     = COALESCE($3,  client_email),
+       client_city      = COALESCE($4,  client_city),
+       client_state     = COALESCE($5,  client_state),
+       client_address   = COALESCE($6,  client_address),
+       client_cep       = COALESCE($7,  client_cep),
+       uc_geradora      = COALESCE($8,  uc_geradora),
+       uc_beneficiaria  = COALESCE($9,  uc_beneficiaria),
+       system_kwp       = COALESCE($10, system_kwp),
+       term_months      = COALESCE($11, term_months),
+       consumption_kwh_month = COALESCE($12, consumption_kwh_month),
+       distribuidora    = COALESCE($13, distribuidora),
+       cpf_normalized   = COALESCE($14, cpf_normalized),
+       cpf_raw          = COALESCE($15, cpf_raw),
+       cnpj_normalized  = COALESCE($16, cnpj_normalized),
+       cnpj_raw         = COALESCE($17, cnpj_raw),
+       client_document  = COALESCE($18, client_document),
+       document_type    = COALESCE($19, document_type),
+       identity_status  = COALESCE($20, identity_status),
+       metadata         = CASE
+                            WHEN $21::jsonb IS NOT NULL
+                            THEN COALESCE(metadata, '{}'::jsonb) || $21::jsonb
+                            ELSE metadata
+                          END,
+       updated_at       = now()
+     WHERE id = $22
+       AND deleted_at IS NULL
+       ${ownerClause}
+     RETURNING *`
+  console.info('[clients][update] sql', { queryText, params })
+  const rows = await sql(queryText, params)
+  return rows[0] ?? null
 }
 
 
@@ -397,6 +373,14 @@ export async function listClients(sql, filter = {}) {
   const allowedSortBy = ['updated_at', 'created_at', 'name', 'city', 'state']
   const allowedSortDir = ['ASC', 'DESC']
   const safeSort = allowedSortBy.includes(sortBy) ? sortBy : 'updated_at'
+  const sortColumnMap = {
+    updated_at: 'c.updated_at',
+    created_at: 'c.created_at',
+    name: 'c.client_name',
+    city: 'c.client_city',
+    state: 'c.client_state',
+  }
+  const safeSortExpr = sortColumnMap[safeSort] ?? 'c.updated_at'
   const safeSortDir = allowedSortDir.includes(sortDir.toUpperCase()) ? sortDir.toUpperCase() : 'DESC'
 
   const baseConditions = ['c.deleted_at IS NULL']
@@ -418,11 +402,11 @@ export async function listClients(sql, filter = {}) {
   }
   if (city) {
     params.push(`%${city}%`)
-    conditions.push(`c.city ILIKE $${params.length}`)
+    conditions.push(`c.client_city ILIKE $${params.length}`)
   }
   if (uf) {
     params.push(uf)
-    conditions.push(`c.state = $${params.length}`)
+    conditions.push(`c.client_state = $${params.length}`)
   }
   if (identityStatus) {
     params.push(identityStatus)
@@ -431,7 +415,7 @@ export async function listClients(sql, filter = {}) {
   if (search) {
     params.push(`%${search}%`)
     const idx = params.length
-    conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.uc ILIKE $${idx} OR c.city ILIKE $${idx} OR c.state ILIKE $${idx} OR c.address ILIKE $${idx} OR c.cep ILIKE $${idx} OR c.distribuidora ILIKE $${idx})`)
+    conditions.push(`(c.client_name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.client_email ILIKE $${idx} OR c.client_phone ILIKE $${idx} OR c.uc_geradora ILIKE $${idx} OR c.uc_beneficiaria ILIKE $${idx} OR c.client_city ILIKE $${idx} OR c.client_state ILIKE $${idx} OR c.client_address ILIKE $${idx} OR c.client_cep ILIKE $${idx} OR c.distribuidora ILIKE $${idx})`)
   }
 
   const buildQueries = ({
@@ -439,6 +423,7 @@ export async function listClients(sql, filter = {}) {
     withOptionalJoin = true,
     withProposalCount = true,
     withEnergyProfile = true,
+    withLatestProposalProfile = true,
   } = {}) => {
     const queryConditions = withMergedFilter ? conditions : baseConditions
     const where = queryConditions.length ? `WHERE ${queryConditions.join(' AND ')}` : ''
@@ -448,6 +433,44 @@ export async function listClients(sql, filter = {}) {
     const joinClause = withOptionalJoin
       ? `LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id ${profileJoin}`
       : profileJoin
+    const latestProposalJoin = withLatestProposalProfile
+      ? `LEFT JOIN LATERAL (
+          SELECT
+            p.updated_at,
+            COALESCE(
+              p.payload_json ->> 'kcKwhMes',
+              p.payload_json #>> '{leasingSnapshot,energiaContratadaKwhMes}',
+              p.payload_json #>> '{vendaForm,consumo_kwh_mes}',
+              p.payload_json #>> '{vendaSnapshot,parametros,consumo_kwh_mes}'
+            ) AS kc_kwh_mes_raw,
+            COALESCE(
+              p.payload_json ->> 'tarifaCheia',
+              p.payload_json #>> '{leasingSnapshot,tarifaInicial}',
+              p.payload_json #>> '{vendaSnapshot,parametros,tarifa_r_kwh}'
+            ) AS tarifa_cheia_raw,
+            COALESCE(
+              p.payload_json ->> 'tipoRede',
+              p.payload_json #>> '{leasingSnapshot,dadosTecnicos,tipoInstalacao}'
+            ) AS tipo_rede,
+            COALESCE(
+              p.payload_json ->> 'desconto',
+              p.payload_json #>> '{leasingSnapshot,descontoContratual}',
+              p.payload_json #>> '{vendaSnapshot,parametros,desconto_pct}'
+            ) AS desconto_percentual_raw,
+            COALESCE(
+              p.payload_json -> 'ucBeneficiarias',
+              p.payload_json #> '{leasingSnapshot,contrato,ucsBeneficiarias}',
+              '[]'::jsonb
+            ) AS ucs_beneficiarias,
+            p.payload_json -> 'cliente' ->> 'indicacaoNome' AS indicacao,
+            p.payload_json -> 'cliente' ->> 'temIndicacao' AS tem_indicacao_raw
+          FROM proposals p
+          WHERE p.client_id = c.id
+            AND p.deleted_at IS NULL
+          ORDER BY p.updated_at DESC, p.created_at DESC
+          LIMIT 1
+        ) lp ON TRUE`
+      : ''
     const proposalCountExpr = withProposalCount
       ? '(SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count'
       : '0::int AS proposal_count'
@@ -467,17 +490,42 @@ export async function listClients(sql, filter = {}) {
           'marca_inversor', ep.marca_inversor
         ) ELSE NULL END AS energy_profile`
       : 'NULL::json AS energy_profile'
+    const latestProposalExpr = withLatestProposalProfile
+      ? `CASE WHEN lp.updated_at IS NOT NULL THEN json_build_object(
+          'kwh_contratado', CASE WHEN lp.kc_kwh_mes_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.kc_kwh_mes_raw)::numeric ELSE NULL END,
+          'tarifa_atual', CASE WHEN lp.tarifa_cheia_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.tarifa_cheia_raw)::numeric ELSE NULL END,
+          'tipo_rede', lp.tipo_rede,
+          'desconto_percentual', CASE WHEN lp.desconto_percentual_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.desconto_percentual_raw)::numeric ELSE NULL END,
+          'ucs_beneficiarias', COALESCE(lp.ucs_beneficiarias, '[]'::jsonb),
+          'indicacao', NULLIF(lp.indicacao, ''),
+          'tem_indicacao', CASE
+            WHEN lower(COALESCE(lp.tem_indicacao_raw, '')) IN ('true', '1', 't', 'yes', 'y', 'sim') THEN true
+            ELSE false
+          END
+        ) ELSE NULL END AS latest_proposal_profile`
+      : 'NULL::json AS latest_proposal_profile'
     const countQuery = `SELECT COUNT(*) AS count FROM clients c ${joinClause} ${where}`
     const dataQuery = `
       SELECT c.*,
+        c.client_name AS name,
+        c.client_document AS document,
+        c.client_email AS email,
+        c.client_phone AS phone,
+        c.client_city AS city,
+        c.client_state AS state,
+        c.client_address AS address,
+        c.client_cep AS cep,
+        c.uc_geradora AS uc,
         ${ownerNameExpr},
         ${ownerEmailExpr},
         ${proposalCountExpr},
-        ${energyProfileExpr}
+        ${energyProfileExpr},
+        ${latestProposalExpr}
       FROM clients c
       ${joinClause}
+      ${latestProposalJoin}
       ${where}
-      ORDER BY c.${safeSort} ${safeSortDir}
+      ORDER BY ${safeSortExpr} ${safeSortDir}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `
     return { countQuery, dataQuery }
@@ -507,6 +555,7 @@ export async function listClients(sql, filter = {}) {
       withOptionalJoin: !missingOptionalJoin,
       withProposalCount: !missingOptionalJoin,
       withEnergyProfile: !missingEnergyProfile,
+      withLatestProposalProfile: !missingOptionalJoin,
     })
     console.warn('[clients][list] retrying with compatibility mode', {
       missingMergedColumn,
@@ -573,6 +622,15 @@ export async function getClientById(sql, clientId, { actorUserId = null, actorRo
     // in addition to whatever the RLS SELECT policy enforces.
     rows = await sql`
       SELECT c.*,
+        c.client_name AS name,
+        c.client_document AS document,
+        c.client_email AS email,
+        c.client_phone AS phone,
+        c.client_city AS city,
+        c.client_state AS state,
+        c.client_address AS address,
+        c.client_cep AS cep,
+        c.uc_geradora AS uc,
         up.display_name AS owner_display_name,
         up.email        AS owner_email,
         CASE WHEN ep.id IS NOT NULL THEN json_build_object(
@@ -597,6 +655,15 @@ export async function getClientById(sql, clientId, { actorUserId = null, actorRo
   } else {
     rows = await sql`
       SELECT c.*,
+        c.client_name AS name,
+        c.client_document AS document,
+        c.client_email AS email,
+        c.client_phone AS phone,
+        c.client_city AS city,
+        c.client_state AS state,
+        c.client_address AS address,
+        c.client_cep AS cep,
+        c.uc_geradora AS uc,
         up.display_name AS owner_display_name,
         up.email        AS owner_email,
         CASE WHEN ep.id IS NOT NULL THEN json_build_object(
@@ -645,7 +712,7 @@ export async function findClientByUc(sql, uc) {
   if (!uc || !uc.trim()) return null
   const rows = await sql`
     SELECT * FROM clients
-    WHERE uc = ${uc.trim()}
+    WHERE uc_geradora = ${uc.trim()}
       AND deleted_at IS NULL
       AND merged_into_client_id IS NULL
     LIMIT 1
@@ -660,7 +727,7 @@ export async function findClientByEmail(sql, email) {
   if (!email || !email.trim()) return null
   const rows = await sql`
     SELECT * FROM clients
-    WHERE lower(email) = lower(${email.trim()})
+    WHERE lower(client_email) = lower(${email.trim()})
       AND deleted_at IS NULL
       AND merged_into_client_id IS NULL
     LIMIT 1
@@ -677,8 +744,8 @@ export async function findClientByPhone(sql, phone) {
   if (!digits) return null
   const rows = await sql`
     SELECT * FROM clients
-    WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${digits}
-      AND phone IS NOT NULL
+    WHERE regexp_replace(client_phone, '[^0-9]', '', 'g') = ${digits}
+      AND client_phone IS NOT NULL
       AND deleted_at IS NULL
       AND merged_into_client_id IS NULL
     LIMIT 1
