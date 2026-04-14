@@ -40,6 +40,97 @@ function logRoute(route, extra = {}) {
   console.info('[db-runtime]', payload)
 }
 
+function firstDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined) return value
+  }
+  return undefined
+}
+
+function parseNullableNumber(raw) {
+  if (raw === null || raw === undefined || raw === '') return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+  if (typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const normalized = trimmed.includes(',')
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : trimmed
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeCep(raw) {
+  if (raw === undefined) return undefined
+  if (raw === null) return null
+  const digits = String(raw).replace(/\D/g, '')
+  return digits ? digits : null
+}
+
+function toClientWritePayload(body) {
+  const accepted = {}
+  const assign = (field, ...sources) => {
+    const value = firstDefined(...sources)
+    if (value !== undefined) accepted[field] = value
+  }
+
+  assign('name', body.client_name, body.name)
+  assign('phone', body.client_phone, body.phone)
+  assign('email', body.client_email, body.email)
+  assign('city', body.client_city, body.city)
+  assign('state', body.client_state, body.state, body.uf)
+  assign('address', body.client_address, body.address)
+  assign('document', body.client_document, body.document)
+  const normalizedCep = normalizeCep(firstDefined(body.client_cep, body.cep))
+  if (normalizedCep !== undefined) accepted.client_cep = normalizedCep
+  assign('uc', body.uc_geradora, body.ucGeradora, body.uc)
+  assign('uc_beneficiaria', body.uc_beneficiaria, body.ucBeneficiaria)
+  assign('system_kwp', body.system_kwp, body.systemKwp)
+  assign('term_months', body.term_months, body.termMonths)
+  assign('distribuidora', body.distribuidora)
+  assign('metadata', body.metadata)
+
+  const parsedConsumption = parseNullableNumber(
+    firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth),
+  )
+  if (firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth) !== undefined) {
+    accepted.consumption_kwh_month = parsedConsumption
+  }
+
+  return accepted
+}
+
+function normalizeClientResponse(row) {
+  if (!row) return row
+  return {
+    ...row,
+    name: row.client_name ?? row.name ?? null,
+    client_name: row.client_name ?? row.name ?? null,
+    document: row.client_document ?? row.document ?? null,
+    client_document: row.client_document ?? row.document ?? null,
+    email: row.client_email ?? row.email ?? null,
+    client_email: row.client_email ?? row.email ?? null,
+    phone: row.client_phone ?? row.phone ?? null,
+    client_phone: row.client_phone ?? row.phone ?? null,
+    city: row.client_city ?? row.city ?? null,
+    client_city: row.client_city ?? row.city ?? null,
+    state: row.client_state ?? row.state ?? null,
+    client_state: row.client_state ?? row.state ?? null,
+    address: row.client_address ?? row.address ?? null,
+    client_address: row.client_address ?? row.address ?? null,
+    cep: row.client_cep ?? row.cep ?? null,
+    client_cep: row.client_cep ?? row.cep ?? null,
+    uc: row.uc_geradora ?? row.uc ?? null,
+    uc_geradora: row.uc_geradora ?? row.uc ?? null,
+    ucBeneficiaria: row.uc_beneficiaria ?? null,
+    consumptionKwhMonth: row.consumption_kwh_month ?? null,
+    systemKwp: row.system_kwp ?? null,
+    termMonths: row.term_months ?? null,
+    updatedAt: row.updated_at ?? null,
+    deletedAt: row.deleted_at ?? null,
+  }
+}
+
 /**
  * Best-effort upsert of energy profile — never blocks the parent save path.
  * Errors are logged with client context to maintain observability.
@@ -140,7 +231,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
         if (body.energyProfile && typeof body.energyProfile === 'object') {
           await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
         }
-        return sendJson(200, { data: existing, deduplicated: false, idempotent: true })
+        return sendJson(200, { data: normalizeClientResponse(existing), deduplicated: false, idempotent: true })
       }
     }
 
@@ -156,7 +247,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
         if (body.energyProfile && typeof body.energyProfile === 'object') {
           await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
         }
-        return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
+        return sendJson(200, { data: normalizeClientResponse(existing), deduplicated: true, idempotent: false })
       }
     }
 
@@ -172,25 +263,20 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
         if (body.energyProfile && typeof body.energyProfile === 'object') {
           await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
         }
-        return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
+        return sendJson(200, { data: normalizeClientResponse(existing), deduplicated: true, idempotent: false })
       }
     }
 
+    const mappedBody = toClientWritePayload(body)
     const newClient = await createClient(db.sql, {
-      name: body.name.trim(),
+      ...mappedBody,
+      name: (mappedBody.name ?? body.name ?? '').trim(),
       cpf_normalized: cpfNormalized,
       cpf_raw: docType === 'cpf' ? rawDocument : (body.cpf_raw ?? null),
       cnpj_normalized: cnpjNormalized,
       cnpj_raw: docType === 'cnpj' ? rawDocument : (body.cnpj_raw ?? null),
       document_type: docType !== 'unknown' ? docType : null,
-      phone: body.phone ?? null,
-      email: body.email ?? null,
-      city: body.city ?? null,
-      state: body.state ?? body.uf ?? null,
-      address: body.address ?? null,
       document: rawDocument ?? null,
-      uc: body.uc ?? null,
-      distribuidora: body.distribuidora ?? null,
       created_by_user_id: actor.userId,
       owner_user_id: actor.userId,
       identity_status: identityStatus,
@@ -210,7 +296,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     }
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
-    return sendJson(201, { data: newClient, deduplicated: false, idempotent: false })
+    return sendJson(201, { data: normalizeClientResponse(newClient), deduplicated: false, idempotent: false })
   } catch (err) {
     console.error('[clients] upsert-by-cpf error:', err)
     return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to upsert client')
@@ -269,7 +355,7 @@ export async function handleClientsRequest(req, res, ctx) {
         actorUserId: actor.userId,
         actorRole: resolvedActorRole,
       })
-      const safeData = Array.isArray(result?.data) ? result.data : []
+      const safeData = Array.isArray(result?.data) ? result.data.map(normalizeClientResponse) : []
       console.info('[clients][list] security', {
         role: resolvedActorRole,
         userId: actor.userId,
@@ -302,7 +388,8 @@ export async function handleClientsRequest(req, res, ctx) {
     }
     let body
     try { body = await readJsonBody(req) } catch { return sendError(sendJson, 400, 'VALIDATION_ERROR', 'Invalid JSON') }
-    if (!body.name) return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
+    const hasName = firstDefined(body?.client_name, body?.name)
+    if (!hasName) return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
 
     try {
       logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId })
@@ -315,11 +402,14 @@ export async function handleClientsRequest(req, res, ctx) {
       else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       const userSql = sqlForActor(db, actor)
+      const mappedBody = toClientWritePayload(body)
       const client = await createClient(userSql, {
-        ...body,
+        ...mappedBody,
+        name: mappedBody.name,
         cpf_normalized: cpfNormalized,
         cnpj_normalized: cnpjNormalized,
         cnpj_raw: docType === 'cnpj' ? rawDoc : (body.cnpj_raw ?? null),
+        document: firstDefined(mappedBody.document, body.client_document, body.document, rawDoc),
         document_type: docType !== 'unknown' ? docType : null,
         created_by_user_id: actor.userId,
         owner_user_id: actor.userId,
@@ -328,7 +418,7 @@ export async function handleClientsRequest(req, res, ctx) {
       })
       await appendClientAuditLog(db.sql, client.id, actor.userId, actor.email ?? null, 'created', null, client)
       logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: client.id })
-      return sendJson(201, { data: client })
+      return sendJson(201, { data: normalizeClientResponse(client) })
     } catch (err) {
       console.error('[clients] create error:', err)
       return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to create client')
@@ -369,7 +459,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
         return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
       }
       logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId, success: true })
-      return sendJson(200, { data: client })
+      return sendJson(200, { data: normalizeClientResponse(client) })
     } catch (err) {
       if (err?.statusCode === 401 || err?.statusCode === 403) {
         return handleAuthError(sendJson, err)
@@ -406,13 +496,23 @@ export async function handleClientByIdRequest(req, res, ctx) {
       const cpfNormalized = (body.cpf_raw != null || docType === 'cpf') ? normalizeCpfServer(body.cpf_raw ?? rawDoc) : undefined
       const cnpjNormalized = (body.cnpj_raw != null || docType === 'cnpj') ? normalizeCnpjServer(body.cnpj_raw ?? rawDoc) : undefined
       const userSql = sqlForActor(db, actor)
-      const updated = await updateClient(userSql, clientId, {
-        ...body,
+      const mappedBody = toClientWritePayload(body)
+      const updatePayload = {
+        ...mappedBody,
         cpf_normalized: cpfNormalized,
         cnpj_normalized: cnpjNormalized,
+        client_document: firstDefined(mappedBody.document, body.client_document, body.document),
         document_type: docType !== 'unknown' ? docType : undefined,
-      }, { actorUserId: actor.userId, actorRole: resolvedActorRole })
+      }
+      console.info('[clients][update] raw payload', { clientId, payload: body })
+      console.info('[clients][update] normalized payload', { clientId, payload: updatePayload })
+      console.info('[clients][update] columns to persist', { clientId, columns: Object.keys(updatePayload) })
+      const updated = await updateClient(userSql, clientId, updatePayload, {
+        actorUserId: actor.userId,
+        actorRole: resolvedActorRole,
+      })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      console.info('[clients][update] updated-row', { clientId, updated })
       try {
         await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
       } catch (auditErr) {
@@ -422,10 +522,17 @@ export async function handleClientByIdRequest(req, res, ctx) {
         await tryUpsertEnergyProfile(userSql, updated.id, body.energyProfile)
       }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
-      return sendJson(200, { data: updated })
+      return sendJson(200, { data: normalizeClientResponse(updated) })
     } catch (err) {
-      console.error('[clients] update error:', err)
-      return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to update client')
+      console.error('[clients][update] db error', {
+        clientId,
+        code: err?.code ?? null,
+        detail: err?.detail ?? null,
+        hint: err?.hint ?? null,
+        message: err instanceof Error ? err.message : String(err),
+        columns: Object.keys(toClientWritePayload(body ?? {})),
+      })
+      return sendError(sendJson, 500, 'CLIENT_UPDATE_FAILED', err?.message ?? 'Failed to update client')
     }
   }
 

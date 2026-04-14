@@ -11,9 +11,13 @@ const OPTIONAL_STRING_FIELDS = [
   'client_state',
   'client_phone',
   'client_email',
+  'client_cep',
+  'cep',
   'proposal_code',
   'owner_email',
   'owner_display_name',
+  'uc_geradora_nm',
+  'uc_beneficiaria',
 ]
 
 const OPTIONAL_NUMBER_FIELDS = [
