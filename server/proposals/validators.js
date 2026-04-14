@@ -14,6 +14,8 @@ const OPTIONAL_STRING_FIELDS = [
   'proposal_code',
   'owner_email',
   'owner_display_name',
+  'uc_geradora_nm',
+  'uc_beneficiaria',
 ]
 
 const OPTIONAL_NUMBER_FIELDS = [
