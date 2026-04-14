@@ -65,9 +65,16 @@ async function runLifecyclePatch({
     converted_by_user_id: body.is_converted_customer ? actor.userId : undefined,
   }
 
-  // Simulate upsert
+  // Simulate upsert — map well-known Postgres error codes to HTTP responses
   if (upsertError) {
-    sendError(500, 'INTERNAL_ERROR', 'Failed to update lifecycle')
+    const pgCode = upsertError.code
+    if (pgCode === '23503') {
+      sendError(404, 'NOT_FOUND', `Client ${clientIdNum} not found`)
+    } else if (pgCode === '42P01' || pgCode === '42501') {
+      sendError(503, 'SCHEMA_NOT_READY', 'Database schema is not ready. Please retry in a moment.')
+    } else {
+      sendError(500, 'INTERNAL_ERROR', 'Failed to update lifecycle')
+    }
     return responses
   }
   sendJson(200, { data: { ...upsertResult, ...payload, client_id: clientIdNum } })
@@ -208,10 +215,53 @@ describe('PATCH /api/client-management/:id/lifecycle', () => {
       clientId: '54',
       actor: adminActor,
       body: { lifecycle_status: 'contracted' },
-      upsertError: new Error('relation "public.client_lifecycle" does not exist'),
+      upsertError: new Error('unexpected DB error'),
     })
     expect(res[0].status).toBe(500)
     expect(res[0].payload.error.code).toBe('INTERNAL_ERROR')
+  })
+
+  it('FK violation (23503) returns 404 with NOT_FOUND', async () => {
+    const fkError = Object.assign(new Error('insert violates foreign key constraint'), { code: '23503' })
+    const res = await runLifecyclePatch({
+      clientId: '999',
+      actor: adminActor,
+      body: { lifecycle_status: 'contracted' },
+      upsertError: fkError,
+    })
+    expect(res[0].status).toBe(404)
+    expect(res[0].payload.error.code).toBe('NOT_FOUND')
+    expect(res[0].payload.error.message).toContain('999')
+  })
+
+  it('undefined_table (42P01) returns 503 SCHEMA_NOT_READY', async () => {
+    const tblError = Object.assign(
+      new Error('relation "public.client_lifecycle" does not exist'),
+      { code: '42P01' },
+    )
+    const res = await runLifecyclePatch({
+      clientId: '54',
+      actor: adminActor,
+      body: { lifecycle_status: 'contracted' },
+      upsertError: tblError,
+    })
+    expect(res[0].status).toBe(503)
+    expect(res[0].payload.error.code).toBe('SCHEMA_NOT_READY')
+  })
+
+  it('RLS violation (42501) returns 503 SCHEMA_NOT_READY', async () => {
+    const rlsError = Object.assign(
+      new Error('new row violates row-level security policy for table "client_lifecycle"'),
+      { code: '42501' },
+    )
+    const res = await runLifecyclePatch({
+      clientId: '54',
+      actor: adminActor,
+      body: { lifecycle_status: 'contracted' },
+      upsertError: rlsError,
+    })
+    expect(res[0].status).toBe(503)
+    expect(res[0].payload.error.code).toBe('SCHEMA_NOT_READY')
   })
 
   it('idempotent: second call with same payload returns 200 (no error)', async () => {

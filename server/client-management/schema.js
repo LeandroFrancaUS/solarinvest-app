@@ -151,12 +151,22 @@ BEGIN
   CREATE INDEX IF NOT EXISTS idx_client_energy_profile_client_id
     ON public.client_energy_profile (client_id);
 
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_uc_unique
-    ON public.clients (uc)
-    WHERE uc IS NOT NULL
-      AND btrim(uc) <> ''
-      AND deleted_at IS NULL
-      AND merged_into_client_id IS NULL;
+  -- Wrap in a nested block so duplicate-UC databases don't abort the entire
+  -- bootstrap.  If the index already exists (idempotent) or if duplicate UC
+  -- values prevent creation, we log a warning and continue — the RLS policy
+  -- updates below must not be blocked by a data-integrity check on clients.uc.
+  -- The actual unique constraint is enforced by migration 0025 when run via
+  -- the migration runner (npm run db:migrate).
+  BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_uc_unique
+      ON public.clients (uc)
+      WHERE uc IS NOT NULL
+        AND btrim(uc) <> ''
+        AND deleted_at IS NULL
+        AND merged_into_client_id IS NULL;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING '[client-management][schema] Skipped idx_clients_uc_unique: %', SQLERRM;
+  END;
 
   -- ── 0027 · core client-management tables ─────────────────────────────────
 

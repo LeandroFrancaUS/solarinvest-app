@@ -218,12 +218,27 @@ export async function handlePatchLifecycle(req, res, ctx) {
     return sendJson(200, { data: result })
   } catch (err) {
     if (err?.statusCode === 401 || err?.statusCode === 403) return handleAuthError(sendJson, err)
+    const pgCode = err?.code
     console.error('[client-management][lifecycle] error', {
       clientId: clientIdNum,
       actorUserId: actor.userId,
+      actorRole: actorRole(actor),
+      pgCode,
       errorMessage: err?.message,
       timingMs: Date.now() - t0,
     })
+    // Map well-known PostgreSQL error codes to descriptive HTTP responses.
+    // 23503 = foreign_key_violation  → client row does not exist in public.clients
+    if (pgCode === '23503') {
+      return sendError(sendJson, 404, 'NOT_FOUND', `Client ${clientIdNum} not found`)
+    }
+    // 42P01 = undefined_table         → client_lifecycle table missing (schema not ready)
+    // 42501 = insufficient_privilege  → RLS policy blocked the write (schema bootstrap may
+    //                                   not have applied migration-0028 policies yet)
+    if (pgCode === '42P01' || pgCode === '42501') {
+      return sendError(sendJson, 503, 'SCHEMA_NOT_READY',
+        'Database schema is not ready. Please retry in a moment.')
+    }
     return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to update lifecycle')
   }
 }
