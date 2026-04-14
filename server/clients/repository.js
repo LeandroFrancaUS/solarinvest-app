@@ -290,8 +290,11 @@ export async function updateClient(sql, clientId, data, options = {}) {
     return rows[0] ?? null
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
+    const code = err?.code ?? null
     // Retry without cep for older DB schemas that do not yet have migration 0003.
-    if (!msg.includes('cep')) throw err
+    // PostgreSQL error 42703 = "undefined_column"; also match the specific column name.
+    const isMissingCep = code === '42703' || msg.includes('"cep"') || msg.includes("'cep'")
+    if (!isMissingCep) throw err
     console.warn('[clients][update] retrying without cep column (schema compatibility mode)')
     const rows = await runUpdate(false)
     return rows[0] ?? null
