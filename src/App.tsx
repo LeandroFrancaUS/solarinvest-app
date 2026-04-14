@@ -17201,7 +17201,6 @@ export default function App() {
           lifecycle_status: 'contracted',
           is_converted_customer: true,
           converted_at: new Date().toISOString(),
-          converted_from_lead_at: new Date().toISOString(),
         })
         adicionarNotificacao(
           `✅ ${registro.dados.nome ?? 'Cliente'} adicionado à Gestão de Clientes.`,
