@@ -14945,6 +14945,7 @@ export default function App() {
     event.target.value = ''
     if (!arquivo || typeof window === 'undefined') return
 
+    console.log('[backup-ui] upload start', { fileName: arquivo.name, size: arquivo.size })
     setIsGerandoBackupBanco(true)
     try {
       const texto = await arquivo.text()
@@ -14955,6 +14956,7 @@ export default function App() {
         headers.Authorization = `Bearer ${token}`
         headers['x-stack-access-token'] = token
       }
+      console.log('[backup-ui] upload request-dispatched')
       const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
         method: 'POST',
         headers,
@@ -14962,19 +14964,25 @@ export default function App() {
         body: JSON.stringify({ action: 'import', payload: json }),
       })
       const payload = (await response.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; importedClients?: number; importedProposals?: number }
+        | { ok?: boolean; error?: string; importedClients?: number; failedClients?: number; importedProposals?: number; failedProposals?: number }
         | null
 
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error ?? 'Falha ao carregar backup.')
       }
-      adicionarNotificacao(
-        `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`,
-        'success',
-      )
+      const failed = (payload.failedClients ?? 0) + (payload.failedProposals ?? 0)
+      const successMsg = `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`
+      adicionarNotificacao(successMsg, 'success')
+      if (failed > 0) {
+        adicionarNotificacao(`${failed} registro(s) não puderam ser importados (verifique os logs).`, 'error')
+      }
+      console.log('[backup-ui] upload success', { importedClients: payload.importedClients, importedProposals: payload.importedProposals, failedClients: payload.failedClients, failedProposals: payload.failedProposals })
     } catch (error) {
-      console.error('Erro ao carregar backup.', error)
-      window.alert('Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.')
+      console.error('[backup-ui] upload failed', error)
+      adicionarNotificacao(
+        error instanceof Error ? error.message : 'Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.',
+        'error',
+      )
     } finally {
       setIsGerandoBackupBanco(false)
     }
@@ -14982,10 +14990,12 @@ export default function App() {
 
   const handleBackupBancoDados = useCallback(() => {
     if (typeof window === 'undefined' || isGerandoBackupBanco) return
+    console.log('[backup-ui] click')
     setIsBackupModalOpen(true)
   }, [isGerandoBackupBanco])
 
   const handleBackupModalUpload = useCallback(() => {
+    console.log('[backup-ui] upload selected')
     setIsBackupModalOpen(false)
     backupImportInputRef.current?.click()
   }, [backupImportInputRef])
@@ -14996,6 +15006,7 @@ export default function App() {
     const destinoApi: 'platform' | 'cloud' | 'local' =
       destino === 'plataforma' ? 'platform' : destino === 'nuvem' ? 'cloud' : 'local'
 
+    console.log('[backup-ui] download start', { destino: destinoApi })
     setIsGerandoBackupBanco(true)
 
     try {
@@ -15005,6 +15016,7 @@ export default function App() {
         headers.Authorization = `Bearer ${token}`
         headers['x-stack-access-token'] = token
       }
+      console.log('[backup-ui] download request-dispatched')
       const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
         method: 'POST',
         headers,
@@ -15032,6 +15044,7 @@ export default function App() {
       const fileName = payload.fileName ?? buildClientesFileName('json')
 
       if (destinoApi === 'local' || destinoApi === 'cloud') {
+        console.log('[backup-ui] download-start', { fileName })
         downloadClientesArquivo(blob, fileName)
       }
 
@@ -15052,13 +15065,17 @@ export default function App() {
         destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
       const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
       adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
+      console.log('[backup-ui] download success', { checksum: payload.checksumSha256 })
 
       if (payload.platformSaved) {
         adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
       }
     } catch (error) {
-      console.error('Erro ao gerar backup do banco.', error)
-      adicionarNotificacao('Não foi possível gerar o backup do banco. Tente novamente.', 'error')
+      console.error('[backup-ui] download failed', error)
+      adicionarNotificacao(
+        error instanceof Error ? error.message : 'Não foi possível gerar o backup do banco. Tente novamente.',
+        'error',
+      )
     } finally {
       setIsGerandoBackupBanco(false)
     }
