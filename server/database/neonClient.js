@@ -36,10 +36,17 @@ export function getDatabaseClient() {
     return null
   }
 
+  // Prefer the direct (unpooled) connection for the main client so that
+  // sql.transaction() works reliably.  The pooler endpoint can interfere
+  // with HTTP transaction batching in some Neon configurations.
+  const connectionStr = config.directConnectionString || config.connectionString
+
   clientSingleton = {
-    sql: neonFactory(config.connectionString),
+    sql: neonFactory(connectionStr),
     config,
   }
 
   return clientSingleton
 }
+
+

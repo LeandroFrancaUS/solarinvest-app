@@ -48,6 +48,10 @@ function getDb(sendJson) {
 }
 
 function sqlForActor(db, actor) {
+  // Inject app.current_user_id and app.current_user_role into the PostgreSQL
+  // session via a single sql.transaction() batch.  The main DB client prefers
+  // DATABASE_URL_UNPOOLED (direct connection) where sql.transaction() works
+  // reliably.  All access control is enforced by RLS policies in the DB.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
@@ -226,9 +230,14 @@ export async function handleClientsRequest(req, res, ctx) {
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
       })
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
-      return sendJson(200, result)
+      const safeData = Array.isArray(result?.data) ? result.data : []
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })
+      return sendJson(200, { ...result, data: safeData })
     } catch (err) {
+      // Auth errors from sqlForActor (createUserScopedSql) must not become 500
+      if (err?.statusCode === 401 || err?.statusCode === 403) {
+        return handleAuthError(sendJson, err)
+      }
       console.error('[api/clients][GET] failed', {
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,

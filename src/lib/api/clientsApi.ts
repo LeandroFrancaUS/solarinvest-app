@@ -35,6 +35,8 @@ export interface ClientRow {
   owner_email: string | null
   created_at: string
   updated_at: string
+  /** Soft-delete timestamp; null means active. The API already filters these out but the field is included for defensive use. */
+  deleted_at: string | null
 }
 
 export interface ClientListFilters {

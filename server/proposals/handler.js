@@ -52,11 +52,10 @@ function logRoute(route, extra = {}) {
 }
 
 function sqlForActor(db, actor) {
-  // Always set RLS context (both user ID and role) for every authenticated request,
-  // including admins. The PostgreSQL RLS policies are fail-closed: when no session
-  // context is set, can_access_owner() returns false for everyone. Setting role_admin
-  // lets the DB grant admins full access through the policy logic rather than
-  // bypassing it entirely.
+  // Inject app.current_user_id and app.current_user_role into the PostgreSQL
+  // session via a single sql.transaction() batch.  The main DB client prefers
+  // DATABASE_URL_UNPOOLED (direct connection) where sql.transaction() works
+  // reliably.  All access control is enforced by RLS policies in the DB.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
 }
 
