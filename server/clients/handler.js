@@ -18,6 +18,7 @@ import {
   getClientById,
   getClientProposals,
   appendClientAuditLog,
+  upsertClientEnergyProfile,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
@@ -121,6 +122,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     if (offlineOriginId) {
       const existing = await findClientByOfflineOriginId(db.sql, offlineOriginId)
       if (existing) {
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          try { await upsertClientEnergyProfile(db.sql, existing.id, body.energyProfile) } catch {}
+        }
         return sendJson(200, { data: existing, deduplicated: false, idempotent: true })
       }
     }
@@ -134,6 +138,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
           'CPF deduplication — existing client reused', null,
         )
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          try { await upsertClientEnergyProfile(db.sql, existing.id, body.energyProfile) } catch {}
+        }
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
     }
@@ -147,6 +154,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
           'CNPJ deduplication — existing client reused', null,
         )
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          try { await upsertClientEnergyProfile(db.sql, existing.id, body.energyProfile) } catch {}
+        }
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
     }
@@ -179,6 +189,10 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       'created', null, newClient,
       offlineOriginId ? 'offline_sync' : null, null,
     )
+
+    if (body.energyProfile && typeof body.energyProfile === 'object') {
+      try { await upsertClientEnergyProfile(db.sql, newClient.id, body.energyProfile) } catch {}
+    }
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
     return sendJson(201, { data: newClient, deduplicated: false, idempotent: false })
@@ -385,6 +399,9 @@ export async function handleClientByIdRequest(req, res, ctx) {
       }, { actorUserId: actor.userId, actorRole: resolvedActorRole })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
       await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      if (body.energyProfile && typeof body.energyProfile === 'object') {
+        try { await upsertClientEnergyProfile(userSql, updated.id, body.energyProfile) } catch {}
+      }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: updated })
     } catch (err) {
