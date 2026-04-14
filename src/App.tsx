@@ -1175,16 +1175,24 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   const ownerEmail = row.owner_email
   const ownerUserId = row.owner_user_id
   const ep = row.energy_profile
+  const lp = row.latest_proposal_profile
 
-  // Derive indicacao flags from the energy profile
-  const hasIndicacao = Boolean(ep?.indicacao?.trim())
+  // Derive commercial fields prioritizing latest proposal payload, then energy profile fallback.
+  const hasIndicacao = Boolean(lp?.tem_indicacao || lp?.indicacao?.trim() || ep?.indicacao?.trim())
+  const indicacaoNome = lp?.indicacao?.trim() || ep?.indicacao?.trim() || ''
   const validTipoRede: TipoRede[] = ['monofasico', 'bifasico', 'trifasico', 'nenhum']
   const resolvedTipoRede: TipoRede =
-    ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
-      ? (ep.tipo_rede as TipoRede)
-      : 'nenhum'
+    lp?.tipo_rede && validTipoRede.includes(lp.tipo_rede as TipoRede)
+      ? (lp.tipo_rede as TipoRede)
+      : ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
+        ? (ep.tipo_rede as TipoRede)
+        : 'nenhum'
   const resolvedModalidade: TabKey =
     ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
+  const resolvedKwhContratado = lp?.kwh_contratado ?? ep?.kwh_contratado ?? row.consumption_kwh_month ?? null
+  const resolvedTarifaAtual = lp?.tarifa_atual ?? ep?.tarifa_atual ?? null
+  const resolvedDesconto = lp?.desconto_percentual ?? ep?.desconto_percentual ?? null
+  const resolvedUcsBeneficiarias = Array.isArray(lp?.ucs_beneficiarias) ? lp.ucs_beneficiarias : []
 
   const dados: ClienteDados = {
     nome: row.name,
@@ -1205,7 +1213,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     cidade: row.city ?? '',
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
-    indicacaoNome: hasIndicacao ? (ep?.indicacao ?? '') : '',
+    indicacaoNome: hasIndicacao ? indicacaoNome : '',
     herdeiros: [''],
     nomeSindico: '',
     cpfSindico: '',
@@ -1216,7 +1224,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   // Build a partial proposal snapshot from the energy profile so that
   // handleEditarCliente can pre-populate the form fields when the user loads
   // a client that was previously saved with energy data.
-  const propostaSnapshot: OrcamentoSnapshotData | undefined = ep
+  const propostaSnapshot: OrcamentoSnapshotData | undefined = (ep || lp)
     ? ({
         // Minimal snapshot seeded with energy profile values.
         // All unset fields are filled in by mergeSnapshotWithDefaults (spreads the
@@ -1227,7 +1235,13 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         cliente: dados,
         clienteEmEdicaoId: row.id,
         clienteMensagens: {},
-        ucBeneficiarias: [],
+        ucBeneficiarias: resolvedUcsBeneficiarias.map((item, index) => ({
+          id: item.id ?? `lp-uc-${index + 1}`,
+          numero: typeof item.numero === 'string' ? item.numero : '',
+          endereco: typeof item.endereco === 'string' ? item.endereco : '',
+          consumoKWh: String(item.consumoKWh ?? ''),
+          rateioPercentual: String(item.rateioPercentual ?? ''),
+        })),
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
@@ -1239,10 +1253,10 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         ufsDisponiveis: [],
         distribuidorasPorUf: {},
         mesReajuste: 1,
-        kcKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-        consumoManual: ep.kwh_contratado != null && ep.kwh_contratado > 0,
-        tarifaCheia: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
-        desconto: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+        kcKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+        consumoManual: resolvedKwhContratado != null && resolvedKwhContratado > 0,
+        tarifaCheia: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
+        desconto: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
         taxaMinima: 0,
         taxaMinimaInputEmpty: false,
         encargosFixosExtras: 0,
@@ -1253,7 +1267,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         tusdTarifaRkwh: null,
         tusdAnoReferencia: new Date().getFullYear(),
         tusdOpcoesExpandidas: false,
-        leasingPrazo: ep.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
+        leasingPrazo: ep?.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
         potenciaModulo: 0,
         potenciaModuloDirty: false,
         tipoInstalacao: 'residencial',
@@ -1277,8 +1291,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         diasMes: 30,
         inflacaoAa: 0,
         vendaForm: {
-          consumo_kwh_mes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-          modelo_inversor: ep.marca_inversor ?? '',
+          consumo_kwh_mes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+          modelo_inversor: ep?.marca_inversor ?? '',
         },
         capexManualOverride: false,
         parsedVendaPdf: null,
@@ -1289,7 +1303,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         mostrarFinanciamento: false,
         mostrarGrafico: true,
         useBentoGridPdf: false,
-        prazoMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+        prazoMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
         bandeiraEncargo: 0,
         cipEncargo: 0,
         entradaRs: 0,
@@ -1331,26 +1345,26 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         leasingAnexosSelecionados: [],
         vendaSnapshot: null,
         leasingSnapshot: {
-          prazoContratualMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
-          energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-          tarifaInicial: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
-          descontoContratual: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+          prazoContratualMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+          energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+          tarifaInicial: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
+          descontoContratual: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
           inflacaoEnergiaAa: 0,
           investimentoSolarinvest: 0,
           dataInicioOperacao: '',
           responsavelSolarinvest: 'Operação, manutenção, suporte técnico, limpeza e seguro da usina.',
           valorDeMercadoEstimado: 0,
           dadosTecnicos: {
-            potenciaInstaladaKwp: ep.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
+            potenciaInstaladaKwp: ep?.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
             geracaoEstimadakWhMes: 0,
-            energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+            energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
             potenciaPlacaWp: 0,
             numeroModulos: 0,
             tipoInstalacao: '',
             areaUtilM2: 0,
           },
           projecao: {
-            mensalidadesAno: [[ep.mensalidade != null ? Number(ep.mensalidade) : 0]],
+            mensalidadesAno: [[ep?.mensalidade != null ? Number(ep.mensalidade) : 0]],
             economiaProjetada: [],
           },
           contrato: {
@@ -1365,7 +1379,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
             ucGeradoraTitularDistribuidoraAneel: '',
             ucGeradora_importarEnderecoCliente: false,
             modulosFV: '',
-            inversoresFV: ep.marca_inversor ?? '',
+            inversoresFV: ep?.marca_inversor ?? '',
             nomeCondominio: '',
             cnpjCondominio: '',
             nomeSindico: '',
@@ -3778,6 +3792,28 @@ function ClientesPanel({
                       const consumoLabel = consumoKwh
                         ? `${formatNumberBR(consumoKwh)} kWh/mês`
                         : null
+                      const tarifaAtual = registro.propostaSnapshot?.tarifaCheia
+                      const tarifaLabel =
+                        typeof tarifaAtual === 'number' && Number.isFinite(tarifaAtual) && tarifaAtual > 0
+                          ? `${formatMoneyBR(tarifaAtual)}/kWh`
+                          : null
+                      const descontoAtual = registro.propostaSnapshot?.desconto
+                      const descontoLabel =
+                        typeof descontoAtual === 'number' && Number.isFinite(descontoAtual) && descontoAtual > 0
+                          ? `${formatNumberBRWithOptions(descontoAtual, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
+                          : null
+                      const tipoRede = registro.propostaSnapshot?.tipoRede
+                      const tipoRedeLabel =
+                        tipoRede && tipoRede !== 'nenhum'
+                          ? (TIPOS_REDE.find((item) => item.value === tipoRede)?.label ?? tipoRede)
+                          : null
+                      const indicacaoLabel = registro.dados.temIndicacao
+                        ? (registro.dados.indicacaoNome?.trim() || 'Sim')
+                        : null
+                      const ucsBeneficiarias = (registro.propostaSnapshot?.ucBeneficiarias ?? [])
+                        .map((item) => item.numero?.trim())
+                        .filter((item): item is string => Boolean(item))
+                      const ucsBeneficiariasLabel = ucsBeneficiarias.length > 0 ? ucsBeneficiarias.join(', ') : null
                       const whatsappPhone = dados.telefone ? formatWhatsappPhoneNumber(dados.telefone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -3881,6 +3917,36 @@ function ClientesPanel({
                                       <div className="clients-info-field clients-info-mobile-only">
                                         <dt>Consumo</dt>
                                         <dd>{consumoLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {tarifaLabel ? (
+                                      <div className="clients-info-field">
+                                        <dt>Tarifa</dt>
+                                        <dd>{tarifaLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {tipoRedeLabel ? (
+                                      <div className="clients-info-field">
+                                        <dt>Tipo de rede</dt>
+                                        <dd>{tipoRedeLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {descontoLabel ? (
+                                      <div className="clients-info-field">
+                                        <dt>Desconto</dt>
+                                        <dd>{descontoLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {ucsBeneficiariasLabel ? (
+                                      <div className="clients-info-field">
+                                        <dt>UCs beneficiárias</dt>
+                                        <dd>{ucsBeneficiariasLabel}</dd>
+                                      </div>
+                                    ) : null}
+                                    {indicacaoLabel ? (
+                                      <div className="clients-info-field">
+                                        <dt>Indicação</dt>
+                                        <dd>{indicacaoLabel}</dd>
                                       </div>
                                     ) : null}
                                     {dados.uc ? (
@@ -5105,14 +5171,11 @@ export default function App() {
   // Incremented when auth is established so that data-load effects re-run and
   // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
   const [authSyncKey, setAuthSyncKey] = useState(0)
-  useEffect(() => {
-    ensureServerStorageSync({ timeoutMs: 4000 })
-  }, [])
   // Wire up Stack Auth Bearer token for cross-device data persistence.
   // When the user resolves, register the token provider so serverStorage
   // and proposalsApi can include Authorization: Bearer <token> in requests.
-  // If the initial ensureServerStorageSync ran unauthenticated (syncEnabled=false),
-  // setStorageTokenProvider resets the singleton so the next call re-runs with auth.
+  // Storage sync runs only after auth is available to avoid unauthenticated
+  // /api/storage calls that can generate noisy 5xx/401 logs.
   useEffect(() => {
     if (!user) return
     setStorageTokenProvider(getAccessToken)
@@ -15985,9 +16048,45 @@ export default function App() {
     return registro
   }
 
+  // IMPORTANT: keep these derived values declared before handleSalvarCliente.
+  // The save callback depends on them in both function body and dependency array;
+  // moving them below would reintroduce a TDZ crash in production bundles.
+  const clienteRegistroEmEdicao = useMemo(
+    () =>
+      clienteEmEdicaoId
+        ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
+        : null,
+    [clienteEmEdicaoId, clientesSalvos],
+  )
+  const clienteFormularioAlterado = useMemo(() => {
+    if (!clienteRegistroEmEdicao) {
+      return false
+    }
+    // Compare only the client data fields — the full proposal snapshot comparison was too
+    // expensive (cloneSnapshotData + stableStringify on the entire app state on every render).
+    // The save handler always persists the latest proposal snapshot regardless.
+    return (
+      stableStringify(cloneClienteDados(cliente)) !==
+      stableStringify(cloneClienteDados(clienteRegistroEmEdicao.dados))
+    )
+  }, [clienteRegistroEmEdicao, cliente])
+  const clienteTemDadosNaoSalvos = useMemo(() => {
+    if (clienteEmEdicaoId) {
+      return clienteFormularioAlterado
+    }
+    const clienteInicial = cloneClienteDados(CLIENTE_INICIAL)
+    const clienteAtual = cloneClienteDados(cliente)
+    return stableStringify(clienteAtual) !== stableStringify(clienteInicial)
+  }, [cliente, clienteEmEdicaoId, clienteFormularioAlterado])
+  const clienteSaveLabel =
+    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
+
   const handleSalvarCliente = useCallback(
     async (options?: { skipGuard?: boolean; silent?: boolean }) => {
     if (typeof window === 'undefined') {
+      return false
+    }
+    if (!options?.skipGuard && !clienteTemDadosNaoSalvos) {
       return false
     }
 
@@ -16300,9 +16399,9 @@ export default function App() {
       if (erroSincronizacao instanceof OneDriveIntegrationMissingError) {
         adicionarNotificacao(
           syncedToBackend
-            ? 'Cliente salvo. Configure a integração com o OneDrive para sincronizar automaticamente.'
+            ? 'Cliente salvo no banco de dados com sucesso. Configure a integração com o OneDrive para sincronização adicional.'
             : 'Cliente salvo apenas localmente (não sincronizado com o banco).',
-          syncedToBackend ? 'info' : 'error',
+          syncedToBackend ? 'success' : 'error',
         )
       } else {
         const mensagemErro =
@@ -16310,8 +16409,10 @@ export default function App() {
             ? erroSincronizacao.message
             : 'Erro desconhecido ao sincronizar com o OneDrive.'
         adicionarNotificacao(
-          `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
-          'error',
+          syncedToBackend
+            ? `Cliente salvo no banco de dados, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`
+            : `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
+          syncedToBackend ? 'info' : 'error',
         )
       }
     }
@@ -16341,6 +16442,7 @@ export default function App() {
     setClienteEmEdicaoId,
     updateClientServerIdMap,
     validateClienteParaSalvar,
+    clienteTemDadosNaoSalvos,
   ])
 
   useEffect(() => {
@@ -16436,29 +16538,6 @@ export default function App() {
       }
     }
   }, [cliente, clienteEmEdicaoId, getCurrentSnapshot, updateClientServerIdMap])
-
-
-  const clienteRegistroEmEdicao = useMemo(
-    () =>
-      clienteEmEdicaoId
-        ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
-        : null,
-    [clienteEmEdicaoId, clientesSalvos],
-  )
-  const clienteFormularioAlterado = useMemo(() => {
-    if (!clienteRegistroEmEdicao) {
-      return false
-    }
-    // Compare only the client data fields — the full proposal snapshot comparison was too
-    // expensive (cloneSnapshotData + stableStringify on the entire app state on every render).
-    // The save handler always persists the latest proposal snapshot regardless.
-    return (
-      stableStringify(cloneClienteDados(cliente)) !==
-      stableStringify(cloneClienteDados(clienteRegistroEmEdicao.dados))
-    )
-  }, [clienteRegistroEmEdicao, cliente])
-  const clienteSaveLabel =
-    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
 
   const handleExcluirCliente = useCallback(
     async (registro: ClienteRegistro) => {
@@ -22160,11 +22239,16 @@ export default function App() {
         </Field>
       </div>
       <div className="card-actions">
-        {(!clienteEmEdicaoId || clienteFormularioAlterado) && (
-          <button type="button" className="primary" onClick={handleSalvarCliente}>
-            {clienteSaveLabel}
-          </button>
-        )}
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void handleSalvarCliente()}
+          disabled={!clienteTemDadosNaoSalvos}
+          aria-disabled={!clienteTemDadosNaoSalvos}
+          title={clienteTemDadosNaoSalvos ? clienteSaveLabel : 'Nenhuma alteração pendente para salvar'}
+        >
+          {clienteSaveLabel}
+        </button>
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>

@@ -28,6 +28,8 @@ export async function createProposal(sql, ownerUserId, data) {
     capex_total = null,
     contract_value = null,
     term_months = null,
+    uc_geradora_nm = null,
+    uc_beneficiaria = null,
     payload_json = {},
   } = data
 
@@ -39,6 +41,7 @@ export async function createProposal(sql, ownerUserId, data) {
       client_name, client_document, client_city, client_state,
       client_phone, client_email,
       consumption_kwh_month, system_kwp, capex_total, contract_value, term_months,
+      uc_geradora_nm, uc_beneficiaria,
       payload_json
     ) VALUES (
       ${proposal_type}, ${proposal_code}, ${version}, ${status},
@@ -47,6 +50,7 @@ export async function createProposal(sql, ownerUserId, data) {
       ${client_name}, ${client_document}, ${client_city}, ${client_state},
       ${client_phone}, ${client_email},
       ${consumption_kwh_month}, ${system_kwp}, ${capex_total}, ${contract_value}, ${term_months},
+      ${uc_geradora_nm}, ${uc_beneficiaria},
       ${JSON.stringify(payload_json)}::jsonb
     )
     RETURNING *
@@ -158,6 +162,8 @@ export async function updateProposal(sql, id, data) {
     capex_total,
     contract_value,
     term_months,
+    uc_geradora_nm,
+    uc_beneficiaria,
     payload_json,
   } = data
 
@@ -188,6 +194,8 @@ export async function updateProposal(sql, id, data) {
   if ('capex_total' in data) addField('capex_total', capex_total)
   if ('contract_value' in data) addField('contract_value', contract_value)
   if ('term_months' in data) addField('term_months', term_months)
+  if ('uc_geradora_nm' in data) addField('uc_geradora_nm', uc_geradora_nm)
+  if ('uc_beneficiaria' in data) addField('uc_beneficiaria', uc_beneficiaria)
   if ('payload_json' in data) {
     setClauses.push(`payload_json = $${paramIndex++}::jsonb`)
     values.push(JSON.stringify(payload_json))

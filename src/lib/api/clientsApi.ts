@@ -26,6 +26,22 @@ export interface ClientEnergyProfile {
   marca_inversor: string | null
 }
 
+export interface ClientLatestProposalProfile {
+  kwh_contratado: number | null
+  tarifa_atual: number | null
+  tipo_rede: string | null
+  desconto_percentual: number | null
+  ucs_beneficiarias: Array<{
+    id?: string
+    numero?: string
+    endereco?: string
+    consumoKWh?: string | number | null
+    rateioPercentual?: string | number | null
+  }>
+  indicacao: string | null
+  tem_indicacao: boolean
+}
+
 export interface ClientRow {
   id: string
   name: string
@@ -40,6 +56,7 @@ export interface ClientRow {
   cep: string | null
   uc: string | null
   distribuidora: string | null
+  consumption_kwh_month: number | null
   metadata: Record<string, unknown> | null
   owner_user_id: string | null
   created_by_user_id: string | null
@@ -49,6 +66,8 @@ export interface ClientRow {
   owner_email: string | null
   /** Energy/commercial profile from client_energy_profile table (null if not yet set) */
   energy_profile: ClientEnergyProfile | null
+  /** Last proposal payload summary from proposals table (null if no proposal linked to client) */
+  latest_proposal_profile: ClientLatestProposalProfile | null
   created_at: string
   updated_at: string
   /** Soft-delete timestamp; null means active. The API already filters these out but the field is included for defensive use. */
