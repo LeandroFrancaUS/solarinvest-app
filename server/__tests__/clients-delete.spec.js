@@ -36,11 +36,11 @@ function makeCtx(overrides = {}) {
 // ---------------------------------------------------------------------------
 
 async function runDeleteBranch({ actor, clientId, softDeleteResult, existsResult, db, res, sendJson }) {
-  const sendError = (sj, statusCode, code, message) => sj(statusCode, { error: { code, message } })
+  const sendError = (sendJsonFn, statusCode, code, message) => sendJsonFn(statusCode, { error: { code, message } })
 
   // Guard: financeiro read-only
   if (actor.isFinanceiro && !actor.isAdmin) {
-    sendJson(403, { error: { code: 'FORBIDDEN', message: 'Read-only role' } })
+    sendError(sendJson, 403, 'FORBIDDEN', 'Read-only role')
     return
   }
 
