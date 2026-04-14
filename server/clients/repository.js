@@ -375,6 +375,50 @@ export async function getClientProposals(sql, clientId) {
 }
 
 /**
+ * Fetch a single client by ID, respecting RLS context.
+ *
+ * For role_comercial callers, an additional application-layer owner_user_id
+ * filter is added as defense-in-depth (mirrors the behavior in listClients).
+ *
+ * Returns the client row or null when not found / not accessible.
+ *
+ * @param {Function} sql         - user-scoped sql handle from createUserScopedSql
+ * @param {string}   clientId    - UUID of the client
+ * @param {object}   [options]
+ * @param {string}   [options.actorUserId]  - Stack Auth user ID of the requester
+ * @param {string}   [options.actorRole]    - canonical role (e.g. 'role_comercial')
+ */
+export async function getClientById(sql, clientId, { actorUserId = null, actorRole: role = null } = {}) {
+  const isComercial = role === 'role_comercial'
+  let rows
+  if (isComercial && actorUserId) {
+    // Defense-in-depth: for comercial callers, scope by owner at the SQL layer
+    // in addition to whatever the RLS SELECT policy enforces.
+    rows = await sql`
+      SELECT c.*,
+        up.display_name AS owner_display_name,
+        up.email        AS owner_email
+      FROM clients c
+      LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id
+      WHERE c.id = ${clientId}
+        AND c.deleted_at IS NULL
+        AND c.owner_user_id = ${actorUserId}
+    `
+  } else {
+    rows = await sql`
+      SELECT c.*,
+        up.display_name AS owner_display_name,
+        up.email        AS owner_email
+      FROM clients c
+      LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id
+      WHERE c.id = ${clientId}
+        AND c.deleted_at IS NULL
+    `
+  }
+  return rows[0] ?? null
+}
+
+/**
  * Append to client audit log.
  */
 export async function appendClientAuditLog(sql, clientId, actorUserId, actorEmail, action, oldValue, newValue, reason = null, adminId = null) {

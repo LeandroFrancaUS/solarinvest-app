@@ -15,6 +15,7 @@ import {
   updateClient,
   softDeleteClient,
   listClients,
+  getClientById,
   getClientProposals,
   appendClientAuditLog,
 } from './repository.js'
@@ -205,13 +206,19 @@ export async function handleClientsRequest(req, res, ctx) {
     const q = requestUrl.searchParams
     const page = q.get('page') ?? 1
     const limit = q.get('limit') ?? 20
-    console.info('[api/clients][GET] start', {
+    const resolvedActorRole = actorRole(actor)
+    const isComercialActor = resolvedActorRole === 'role_comercial'
+    console.info('[clients][list] start', {
       page,
       limit,
-      userId: actor?.userId ?? null,
-      resolvedRole: actorRole(actor),
-      email: actor?.email ?? null,
+      actorUserId: actor?.userId ?? null,
+      actorRole: resolvedActorRole,
     })
+    if (isComercialActor) {
+      console.info('[clients][list] scoped-by-owner', { actorUserId: actor.userId })
+    } else {
+      console.info('[clients][list] admin-access', { actorRole: resolvedActorRole })
+    }
     console.info('[api/clients][GET] db-config', {
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
       hasUnpooledUrl: Boolean(process.env.DATABASE_URL_UNPOOLED || process.env.NEON_DATABASE_URL_UNPOOLED),
@@ -219,7 +226,7 @@ export async function handleClientsRequest(req, res, ctx) {
     })
     try {
       const userSql = sqlForActor(db, actor)
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, actorRole: actorRole(actor), page, limit })
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, page, limit })
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
@@ -231,9 +238,10 @@ export async function handleClientsRequest(req, res, ctx) {
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
         actorUserId: actor.userId,
-        actorRole: actorRole(actor),
+        actorRole: resolvedActorRole,
       })
       const safeData = Array.isArray(result?.data) ? result.data : []
+      console.info('[clients][list] success', { actorUserId: actor.userId, actorRole: resolvedActorRole, count: safeData.length })
       logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })
       return sendJson(200, { ...result, data: safeData })
     } catch (err) {
@@ -241,7 +249,8 @@ export async function handleClientsRequest(req, res, ctx) {
       if (err?.statusCode === 401 || err?.statusCode === 403) {
         return handleAuthError(sendJson, err)
       }
-      console.error('[api/clients][GET] failed', {
+      console.error('[clients][list] failed', {
+        actorUserId: actor?.userId ?? null,
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
         code: err?.code ?? null,
@@ -307,6 +316,32 @@ export async function handleClientByIdRequest(req, res, ctx) {
     requireClientAuth(actor)
   } catch (err) {
     return handleAuthError(sendJson, err)
+  }
+
+  if (method === 'GET' && !subpath) {
+    // GET /api/clients/:id — fetch a single client
+    try {
+      const userSql = sqlForActor(db, actor)
+      const resolvedActorRole = actorRole(actor)
+      logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId })
+      const client = await getClientById(userSql, clientId, {
+        actorUserId: actor.userId,
+        actorRole: resolvedActorRole,
+      })
+      if (!client) {
+        // Return 404 for both "not found" and "access denied" to avoid
+        // revealing existence of records the caller cannot read.
+        return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      }
+      logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId, success: true })
+      return sendJson(200, { data: client })
+    } catch (err) {
+      if (err?.statusCode === 401 || err?.statusCode === 403) {
+        return handleAuthError(sendJson, err)
+      }
+      console.error('[clients] get-by-id error:', err)
+      return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to get client')
+    }
   }
 
   if (method === 'GET' && subpath === 'proposals') {
