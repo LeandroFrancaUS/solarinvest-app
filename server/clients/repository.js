@@ -98,6 +98,7 @@ export async function createClient(sql, data) {
     city = null,
     state = null,
     address = null,
+    cep = null,
     document = null,
     uc = null,
     distribuidora = null,
@@ -114,14 +115,14 @@ export async function createClient(sql, data) {
     INSERT INTO clients (
       name, document, cpf_normalized, cpf_raw,
       cnpj_normalized, cnpj_raw, document_type,
-      phone, email, city, state, address, uc, distribuidora,
+      phone, email, city, state, address, cep, uc, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
       metadata, created_at, updated_at
     ) VALUES (
       ${name}, ${document ?? cpf_raw ?? cnpj_raw}, ${cpf_normalized}, ${cpf_raw},
       ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
-      ${phone}, ${email}, ${city}, ${state}, ${address}, ${uc}, ${distribuidora},
+      ${phone}, ${email}, ${city}, ${state}, ${address}, ${cep}, ${uc}, ${distribuidora},
       ${created_by_user_id}, ${resolvedOwner}, ${resolvedOwner}, ${resolvedOwner},
       ${identity_status}, ${origin}, ${offline_origin_id},
       ${metadata ? JSON.stringify(metadata) : null}::jsonb, now(), now()
@@ -156,6 +157,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city,
     state,
     address,
+    cep,
+    uc,
+    distribuidora,
     cpf_normalized,
     cpf_raw,
     cnpj_normalized,
@@ -169,8 +173,8 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // ownerClause is a hardcoded SQL fragment (never user-derived) that appends
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
-  // $14 = clientId; $15 = actorUserId (only appended when scopeByOwner)
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $15' : ''
+  // $17 = clientId; $18 = actorUserId (only appended when scopeByOwner)
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $18' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -178,6 +182,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city ?? null,
     state ?? null,
     address ?? null,
+    cep ?? null,
+    uc ?? null,
+    distribuidora ?? null,
     cpf_normalized ?? null,
     cpf_raw ?? null,
     cnpj_normalized ?? null,
@@ -196,15 +203,22 @@ export async function updateClient(sql, clientId, data, options = {}) {
        city             = COALESCE($4,  city),
        state            = COALESCE($5,  state),
        address          = COALESCE($6,  address),
-       cpf_normalized   = COALESCE($7,  cpf_normalized),
-       cpf_raw          = COALESCE($8,  cpf_raw),
-       cnpj_normalized  = COALESCE($9,  cnpj_normalized),
-       cnpj_raw         = COALESCE($10, cnpj_raw),
-       document_type    = COALESCE($11, document_type),
-       identity_status  = COALESCE($12, identity_status),
-       metadata         = COALESCE($13::jsonb, metadata),
+       cep              = COALESCE($7,  cep),
+       uc               = COALESCE($8,  uc),
+       distribuidora    = COALESCE($9,  distribuidora),
+       cpf_normalized   = COALESCE($10, cpf_normalized),
+       cpf_raw          = COALESCE($11, cpf_raw),
+       cnpj_normalized  = COALESCE($12, cnpj_normalized),
+       cnpj_raw         = COALESCE($13, cnpj_raw),
+       document_type    = COALESCE($14, document_type),
+       identity_status  = COALESCE($15, identity_status),
+       metadata         = CASE
+                            WHEN $16::jsonb IS NOT NULL
+                            THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
+                            ELSE metadata
+                          END,
        updated_at       = now()
-     WHERE id = $14
+     WHERE id = $17
        AND deleted_at IS NULL
        ${ownerClause}
      RETURNING *`,

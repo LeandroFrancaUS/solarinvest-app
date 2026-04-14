@@ -37,6 +37,7 @@ export interface ClientRow {
   city: string | null
   state: string | null
   address: string | null
+  cep: string | null
   uc: string | null
   distribuidora: string | null
   metadata: Record<string, unknown> | null
@@ -82,6 +83,7 @@ export interface UpsertClientInput {
   city?: string
   state?: string
   address?: string
+  cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>
@@ -98,6 +100,7 @@ export interface UpdateClientInput {
   city?: string
   state?: string
   address?: string
+  cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>

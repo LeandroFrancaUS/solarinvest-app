@@ -1191,14 +1191,14 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
     // when the formatted field was not set (older records).
     documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
-    rg: '',
-    estadoCivil: '',
-    nacionalidade: '',
-    profissao: '',
+    rg: (row.metadata?.rg as string | undefined) ?? '',
+    estadoCivil: (row.metadata?.estado_civil as string | undefined) ?? '',
+    nacionalidade: (row.metadata?.nacionalidade as string | undefined) ?? '',
+    profissao: (row.metadata?.profissao as string | undefined) ?? '',
     representanteLegal: '',
     email: row.email ?? '',
     telefone: row.phone ?? '',
-    cep: '',
+    cep: row.cep ?? '',
     distribuidora: row.distribuidora ?? '',
     uc: row.uc ?? '',
     endereco: row.address ?? '',
@@ -15791,7 +15791,6 @@ export default function App() {
       activeTab: tab,
       settingsTab,
       cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
-      carregarClientesPrioritarios,
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
@@ -16076,9 +16075,16 @@ export default function App() {
       ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
       ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
       ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
+      ...(dadosClonados?.cep?.trim() ? { cep: dadosClonados.cep.replace(/\D/g, '').trim() } : {}),
       ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
       ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
-      metadata: { source: 'manual_save' },
+      metadata: {
+        source: 'manual_save',
+        ...(dadosClonados?.rg?.trim() ? { rg: dadosClonados.rg.trim() } : {}),
+        ...(dadosClonados?.estadoCivil?.trim() ? { estado_civil: dadosClonados.estadoCivil.trim() } : {}),
+        ...(dadosClonados?.nacionalidade?.trim() ? { nacionalidade: dadosClonados.nacionalidade.trim() } : {}),
+        ...(dadosClonados?.profissao?.trim() ? { profissao: dadosClonados.profissao.trim() } : {}),
+      },
       energyProfile,
     }
     if (documentDigits.length === 11) {
