@@ -62,6 +62,7 @@ import {
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
+import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -616,6 +617,16 @@ export default async function handler(req, res) {
       if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
       await handleAuthReconcileUser(req, res, { sendJson, userId: reconcileUserMatch[1] })
+      return
+    }
+
+    // ── Cron: purge soft-deleted clients past retention window ────────────────
+    // GET /api/internal/purge-deleted-clients — Vercel cron endpoint
+    // Protected by Authorization: Bearer <CRON_SECRET>
+    if (pathname === '/api/internal/purge-deleted-clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePurgeDeletedClientsRequest(req, res, { sendJson, requestUrl })
       return
     }
 
