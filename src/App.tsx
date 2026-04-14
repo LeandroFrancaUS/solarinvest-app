@@ -322,7 +322,7 @@ import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientManagementPage } from './components/client-management/ClientManagementPage'
-import { setClientManagementTokenProvider } from './lib/api/clientManagementApi'
+import { setClientManagementTokenProvider, patchClientLifecycle } from './lib/api/clientManagementApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -3167,6 +3167,7 @@ type ClientesPanelProps = {
   onClose: () => void
   onEditar: (registro: ClienteRegistro) => void
   onExcluir: (registro: ClienteRegistro) => void
+  onNegocioFechado?: (registro: ClienteRegistro) => void
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
@@ -3323,6 +3324,7 @@ function ClientesPanel({
   onClose,
   onEditar,
   onExcluir,
+  onNegocioFechado,
   onExportarCsv,
   onExportarJson,
   onImportar,
@@ -3672,6 +3674,17 @@ function ClientesPanel({
                                 >
                                   <span aria-hidden="true">📁</span>
                                 </button>
+                                {isPrivilegedUser && onNegocioFechado ? (
+                                  <button
+                                    type="button"
+                                    className="clients-table-action"
+                                    onClick={() => onNegocioFechado(registro)}
+                                    aria-label="Negócio fechado — exportar para Gestão de Clientes"
+                                    title="Negócio fechado — exportar para Gestão de Clientes"
+                                  >
+                                    <span aria-hidden="true">🤝</span>
+                                  </button>
+                                ) : null}
                                 <button
                                   type="button"
                                   className="clients-table-action danger"
@@ -17166,6 +17179,40 @@ export default function App() {
     ],
   )
 
+  /**
+   * Mark a client as "negócio fechado" — sets lifecycle_status=contracted and
+   * is_converted_customer=true via the /api/client-management/:id/lifecycle endpoint.
+   * The client record remains visible in the Ver Clientes list; it also becomes
+   * available in the Gestão de Clientes section.
+   * Only privileged users (admin/office/financeiro) have this action visible and
+   * are authorised to call the endpoint.
+   */
+  const handleNegocioFechado = useCallback(
+    async (registro: ClienteRegistro) => {
+      // For API-loaded clients, registro.id is the server DB id.
+      // For any local-only client that has since been synced, fall back to the map.
+      const serverId = clientServerIdMapRef.current[registro.id] ?? registro.id
+      if (!serverId) {
+        adicionarNotificacao('Não foi possível identificar o ID do cliente no servidor.', 'error')
+        return
+      }
+      try {
+        await patchClientLifecycle(serverId, {
+          lifecycle_status: 'contracted',
+          is_converted_customer: true,
+        })
+        adicionarNotificacao(
+          `✅ ${registro.dados.nome ?? 'Cliente'} adicionado à Gestão de Clientes.`,
+          'success',
+        )
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+        adicionarNotificacao(`Falha ao marcar negócio fechado: ${msg}`, 'error')
+      }
+    },
+    [adicionarNotificacao],
+  )
+
   const carregarOrcamentoParaEdicao = useCallback(
     async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
       // Try to load complete snapshot from proposalStore first
@@ -28318,6 +28365,7 @@ export default function App() {
       onClose={fecharClientesPainel}
       onEditar={handleEditarCliente}
       onExcluir={handleExcluirCliente}
+      onNegocioFechado={isAdmin || isOffice || isFinanceiro ? handleNegocioFechado : undefined}
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
