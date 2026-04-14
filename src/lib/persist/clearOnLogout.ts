@@ -21,6 +21,10 @@ const LOCAL_STORAGE_DATA_KEYS: readonly string[] = [
   'solarinvest:vendas:v1',      // useVendasConfigStore
   'solarinvest:venda-sims:v1',  // useVendasSimulacoesStore
   'solarinvest:simulacoes:v1',  // useSimulationsStore
+  // Client and proposal caches: must be cleared on logout so a subsequent
+  // user on the same device does not inherit data from the previous session.
+  'solarinvest-clientes',       // CLIENTES_STORAGE_KEY — API-sourced client list
+  'solarinvest-orcamentos',     // BUDGETS_STORAGE_KEY  — API-sourced proposal list
 ]
 
 function clearFormSessionStorage(): void {

@@ -208,11 +208,11 @@ export async function handleClientsRequest(req, res, ctx) {
     const limit = q.get('limit') ?? 20
     const resolvedActorRole = actorRole(actor)
     const isComercialActor = resolvedActorRole === 'role_comercial'
-    console.info('[clients][list] start', {
-      page,
-      limit,
-      actorUserId: actor?.userId ?? null,
-      actorRole: resolvedActorRole,
+    const isScoped = isComercialActor
+    console.info('[clients][list] security', {
+      role: resolvedActorRole,
+      userId: actor?.userId ?? null,
+      scoped: isScoped,
     })
     if (isComercialActor) {
       console.info('[clients][list] scoped-by-owner', { actorUserId: actor.userId })
@@ -241,7 +241,12 @@ export async function handleClientsRequest(req, res, ctx) {
         actorRole: resolvedActorRole,
       })
       const safeData = Array.isArray(result?.data) ? result.data : []
-      console.info('[clients][list] success', { actorUserId: actor.userId, actorRole: resolvedActorRole, count: safeData.length })
+      console.info('[clients][list] security', {
+        role: resolvedActorRole,
+        userId: actor.userId,
+        scoped: isComercialActor,
+        count: safeData.length,
+      })
       logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })
       return sendJson(200, { ...result, data: safeData })
     } catch (err) {
@@ -318,11 +323,12 @@ export async function handleClientByIdRequest(req, res, ctx) {
     return handleAuthError(sendJson, err)
   }
 
+  const resolvedActorRole = actorRole(actor)
+
   if (method === 'GET' && !subpath) {
     // GET /api/clients/:id — fetch a single client
     try {
       const userSql = sqlForActor(db, actor)
-      const resolvedActorRole = actorRole(actor)
       logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId })
       const client = await getClientById(userSql, clientId, {
         actorUserId: actor.userId,
@@ -376,7 +382,7 @@ export async function handleClientByIdRequest(req, res, ctx) {
         cpf_normalized: cpfNormalized,
         cnpj_normalized: cnpjNormalized,
         document_type: docType !== 'unknown' ? docType : undefined,
-      })
+      }, { actorUserId: actor.userId, actorRole: resolvedActorRole })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
       await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
@@ -396,11 +402,13 @@ export async function handleClientByIdRequest(req, res, ctx) {
       logRoute('/api/clients/:id', { method: 'DELETE', actorUserId: actor.userId, clientId })
       console.info('[api/clients][DELETE] start', { id: clientId, actorUserId: actor.userId, actorRole: actorRole(actor) })
       const userSql = sqlForActor(db, actor)
-      const deleted = await softDeleteClient(userSql, clientId, actor.userId)
+      const deleted = await softDeleteClient(userSql, clientId, actor.userId, resolvedActorRole)
 
       if (!deleted) {
-        // UPDATE returned 0 rows — could be "truly absent" or "RLS silently blocked".
-        // Distinguish by re-checking with a service-level bypass query (no RLS context).
+        // UPDATE returned 0 rows — could be "truly absent" or "RLS/app-layer silently blocked".
+        // Distinguish by re-checking with a service-level bypass query (intentional db.sql
+        // direct access — no RLS context set so we see the record regardless of ownership,
+        // solely to decide between 404 "absent" vs 403 "forbidden").
         const existsRows = await db.sql`
           SELECT 1
           FROM clients
