@@ -67,6 +67,22 @@ import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
+import {
+  handleListManagedClients,
+  handleGetClientDetail,
+  handlePatchLifecycle,
+  handleContractsRequest,
+  handlePatchContract,
+  handlePatchProject,
+  handlePatchBilling,
+  handleInstallmentsRequest,
+  handleNotesRequest,
+  handleRemindersRequest,
+  handlePortfolioSummary,
+  handlePortfolioUpcomingBillings,
+  handlePortfolioStatusBreakdown,
+  handlePortfolioAlerts,
+} from './client-management/handler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -694,6 +710,139 @@ export default async function handler(req, res) {
       const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
       const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
       await handleClientByIdRequest(req, res, clientsCtx)
+      return
+    }
+
+    // ── Client Management API (Gestão de Clientes V2) ────────────────────────
+    // Restricted to role_admin, role_office, role_financeiro — NOT role_comercial.
+
+    // GET  /api/client-management        — list converted/managed clients
+    if (pathname === '/api/client-management' && method === 'GET') {
+      await handleListManagedClients(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // GET /api/client-management/:clientId  — full consolidated client detail
+    const cmDetailMatch = pathname.match(/^\/api\/client-management\/(\d+)$/)
+    if (cmDetailMatch && method === 'GET') {
+      await handleGetClientDetail(req, res, { clientId: cmDetailMatch[1], sendJson })
+      return
+    }
+
+    // PATCH /api/client-management/:clientId/lifecycle
+    const cmLifecycleMatch = pathname.match(/^\/api\/client-management\/(\d+)\/lifecycle$/)
+    if (cmLifecycleMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      await handlePatchLifecycle(req, res, { clientId: cmLifecycleMatch[1], readJsonBody, sendJson })
+      return
+    }
+
+    // GET/POST /api/client-management/:clientId/contracts
+    const cmContractsMatch = pathname.match(/^\/api\/client-management\/(\d+)\/contracts$/)
+    if (cmContractsMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      await handleContractsRequest(req, res, { method, clientId: cmContractsMatch[1], readJsonBody, sendJson })
+      return
+    }
+
+    // PATCH /api/client-management/:clientId/contracts/:contractId
+    const cmContractPatchMatch = pathname.match(/^\/api\/client-management\/(\d+)\/contracts\/(\d+)$/)
+    if (cmContractPatchMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      await handlePatchContract(req, res, {
+        clientId: cmContractPatchMatch[1],
+        contractId: cmContractPatchMatch[2],
+        readJsonBody,
+        sendJson,
+      })
+      return
+    }
+
+    // PATCH /api/client-management/:clientId/project
+    const cmProjectMatch = pathname.match(/^\/api\/client-management\/(\d+)\/project$/)
+    if (cmProjectMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      await handlePatchProject(req, res, { clientId: cmProjectMatch[1], readJsonBody, sendJson })
+      return
+    }
+
+    // PATCH /api/client-management/:clientId/billing
+    const cmBillingMatch = pathname.match(/^\/api\/client-management\/(\d+)\/billing$/)
+    if (cmBillingMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      await handlePatchBilling(req, res, { clientId: cmBillingMatch[1], readJsonBody, sendJson })
+      return
+    }
+
+    // GET /api/client-management/:clientId/installments
+    // PATCH /api/client-management/:clientId/installments/:installmentId
+    const cmInstallmentsMatch = pathname.match(/^\/api\/client-management\/(\d+)\/installments(?:\/(\d+))?$/)
+    if (cmInstallmentsMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,OPTIONS'); sendNoContent(res); return }
+      await handleInstallmentsRequest(req, res, {
+        method,
+        clientId: cmInstallmentsMatch[1],
+        installmentId: cmInstallmentsMatch[2] ?? null,
+        readJsonBody,
+        sendJson,
+        requestUrl,
+      })
+      return
+    }
+
+    // GET/POST /api/client-management/:clientId/notes
+    const cmNotesMatch = pathname.match(/^\/api\/client-management\/(\d+)\/notes$/)
+    if (cmNotesMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      await handleNotesRequest(req, res, {
+        method,
+        clientId: cmNotesMatch[1],
+        readJsonBody,
+        sendJson,
+        requestUrl,
+      })
+      return
+    }
+
+    // GET/POST /api/client-management/:clientId/reminders
+    // PATCH    /api/client-management/:clientId/reminders/:reminderId
+    const cmRemindersMatch = pathname.match(/^\/api\/client-management\/(\d+)\/reminders(?:\/(\d+))?$/)
+    if (cmRemindersMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,PATCH,OPTIONS'); sendNoContent(res); return }
+      await handleRemindersRequest(req, res, {
+        method,
+        clientId: cmRemindersMatch[1],
+        reminderId: cmRemindersMatch[2] ?? null,
+        readJsonBody,
+        sendJson,
+        requestUrl,
+      })
+      return
+    }
+
+    // ── Dashboard Portfolio API ────────────────────────────────────────────────
+
+    // GET /api/dashboard/portfolio/summary
+    if (pathname === '/api/dashboard/portfolio/summary' && method === 'GET') {
+      await handlePortfolioSummary(req, res, { sendJson })
+      return
+    }
+
+    // GET /api/dashboard/portfolio/upcoming-billings
+    if (pathname === '/api/dashboard/portfolio/upcoming-billings' && method === 'GET') {
+      await handlePortfolioUpcomingBillings(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // GET /api/dashboard/portfolio/status-breakdown
+    if (pathname === '/api/dashboard/portfolio/status-breakdown' && method === 'GET') {
+      await handlePortfolioStatusBreakdown(req, res, { sendJson })
+      return
+    }
+
+    // GET /api/dashboard/portfolio/alerts
+    if (pathname === '/api/dashboard/portfolio/alerts' && method === 'GET') {
+      await handlePortfolioAlerts(req, res, { sendJson })
       return
     }
 

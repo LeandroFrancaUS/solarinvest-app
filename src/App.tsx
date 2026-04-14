@@ -186,6 +186,7 @@ import './styles/toast.css'
 import './styles/bulk-import.css'
 import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
+import './styles/client-management.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
@@ -320,6 +321,8 @@ import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
+import { ClientManagementPage } from './components/client-management/ClientManagementPage'
+import { setClientManagementTokenProvider } from './lib/api/clientManagementApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -379,7 +382,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'gestao-clientes'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -4939,6 +4942,7 @@ export default function App() {
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
     setAdminUsersTokenProvider(getAccessToken)
+    setClientManagementTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Silently migrate any locally-stored clients/proposals to Neon.
@@ -5052,7 +5056,8 @@ export default function App() {
       storedPage === 'clientes' ||
       storedPage === 'settings' ||
       storedPage === 'simulacoes' ||
-      storedPage === 'admin-users'
+      storedPage === 'admin-users' ||
+      storedPage === 'gestao-clientes'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -5259,8 +5264,10 @@ export default function App() {
       setActivePage('app')
     } else if (activePage === 'dashboard' && !canSeeDashboardEffective) {
       setActivePage('app')
+    } else if (activePage === 'gestao-clientes' && !(isAdmin || isOffice || isFinanceiro)) {
+      setActivePage('app')
     }
-  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, isAdmin, isOffice, isFinanceiro, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -19337,6 +19344,12 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
+  const abrirGestaoClientes = useCallback(async () => {
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('gestao-clientes')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('crm')
@@ -25975,31 +25988,35 @@ export default function App() {
       ? undefined
       : activePage === 'crm'
         ? 'CRM Gestão de Relacionamento e Operações'
-        : activePage === 'consultar'
-          ? 'Consulta de orçamentos salvos'
-          : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
-            : activePage === 'simulacoes'
-              ? 'Simulações financeiras, risco e aprovação interna'
-              : activePage === 'settings'
-                ? 'Preferências e integrações da proposta'
-                : undefined
+        : activePage === 'gestao-clientes'
+          ? 'Clientes convertidos e carteira ativa'
+          : activePage === 'consultar'
+            ? 'Consulta de orçamentos salvos'
+            : activePage === 'clientes'
+              ? 'Gestão de clientes salvos'
+              : activePage === 'simulacoes'
+                ? 'Simulações financeiras, risco e aprovação interna'
+                : activePage === 'settings'
+                  ? 'Preferências e integrações da proposta'
+                  : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
       : activePage === 'crm'
         ? 'Central CRM'
-        : activePage === 'consultar'
-          ? 'Consultar'
-          : activePage === 'clientes'
-            ? 'Clientes'
-            : activePage === 'simulacoes'
-              ? 'Simulações'
-              : activePage === 'settings'
-                ? 'Configurações'
-                : activeTab === 'vendas'
-                  ? 'Vendas'
-                  : 'Leasing'
+        : activePage === 'gestao-clientes'
+          ? 'Gestão de Clientes'
+          : activePage === 'consultar'
+            ? 'Consultar'
+            : activePage === 'clientes'
+              ? 'Clientes'
+              : activePage === 'simulacoes'
+                ? 'Simulações'
+                : activePage === 'settings'
+                  ? 'Configurações'
+                  : activeTab === 'vendas'
+                    ? 'Vendas'
+                    : 'Leasing'
   const topbarSubtitle = contentSubtitle
   const isSimulacoesMobile = isMobileViewport && activePage === 'simulacoes'
   const mobileTopbarSubtitle = isSimulacoesMobile ? undefined : currentPageIndicator
@@ -26256,6 +26273,24 @@ export default function App() {
             id: 'crm',
             label: 'CRM',
             items: crmItems,
+          },
+        ]
+      : []),
+    ...((isAdmin || isOffice || isFinanceiro)
+      ? [
+          {
+            id: 'gestao',
+            label: 'Operações',
+            items: [
+              {
+                id: 'gestao-clientes',
+                label: 'Gestão de Clientes',
+                icon: '🏢',
+                onSelect: () => {
+                  void abrirGestaoClientes()
+                },
+              },
+            ],
           },
         ]
       : []),
@@ -28295,6 +28330,10 @@ export default function App() {
     />
   )
 
+  const renderGestaoClientesPage = () => (
+    <ClientManagementPage isAdmin={isAdmin} isFinanceiro={isFinanceiro} />
+  )
+
   const activeSidebarItem =
     activePage === 'dashboard'
       ? 'dashboard-home'
@@ -28302,17 +28341,19 @@ export default function App() {
         ? 'crm-central'
         : activePage === 'clientes'
           ? 'crm-clientes'
-          : activePage === 'consultar'
-            ? 'orcamentos-importar'
-            : activePage === 'settings'
-              ? 'config-preferencias'
-              : activePage === 'admin-users'
-                ? 'config-admin-users'
-                : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                  : activeTab === 'vendas'
-                    ? 'propostas-vendas'
-                    : 'propostas-leasing'
+          : activePage === 'gestao-clientes'
+            ? 'gestao-clientes'
+            : activePage === 'consultar'
+              ? 'orcamentos-importar'
+              : activePage === 'settings'
+                ? 'config-preferencias'
+                : activePage === 'admin-users'
+                  ? 'config-admin-users'
+                  : activePage === 'simulacoes'
+                    ? `simulacoes-${simulacoesSection}`
+                    : activeTab === 'vendas'
+                      ? 'propostas-vendas'
+                      : 'propostas-leasing'
 
 
   // If in print mode, render the Bento Grid print page
@@ -28381,6 +28422,8 @@ export default function App() {
           renderDashboardPage()
         ) : activePage === 'crm' ? (
           renderCrmPage()
+        ) : activePage === 'gestao-clientes' ? (
+          renderGestaoClientesPage()
         ) : activePage === 'consultar' ? (
           renderBudgetSearchPage()
         ) : activePage === 'clientes' ? (
