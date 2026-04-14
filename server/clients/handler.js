@@ -356,23 +356,45 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
     try {
       logRoute('/api/clients/:id', { method: 'DELETE', actorUserId: actor.userId, clientId })
-      console.info('[api/clients][DELETE] start', { id: clientId })
+      console.info('[api/clients][DELETE] start', { id: clientId, actorUserId: actor.userId, actorRole: actorRole(actor) })
       const userSql = sqlForActor(db, actor)
       const deleted = await softDeleteClient(userSql, clientId, actor.userId)
+
       if (!deleted) {
+        // UPDATE returned 0 rows — could be "truly absent" or "RLS silently blocked".
+        // Distinguish by re-checking with a service-level bypass query (no RLS context).
+        const existsRows = await db.sql`
+          SELECT 1
+          FROM clients
+          WHERE id = ${clientId}
+            AND deleted_at IS NULL
+          LIMIT 1
+        `
+        if (existsRows.length > 0) {
+          console.warn('[api/clients][DELETE] blocked-by-rls', {
+            id: clientId,
+            actorUserId: actor.userId,
+            actorRole: actorRole(actor),
+          })
+          return sendError(sendJson, 403, 'FORBIDDEN', 'Not authorized to delete this client')
+        }
+
         console.info('[api/clients][DELETE] already-absent', { id: clientId })
         res.statusCode = 204
         res.end()
         return
       }
+
       await appendClientAuditLog(db.sql, clientId, actor.userId, actor.email ?? null, 'deleted', null, null)
-      console.info('[client-delete][db]', { id: clientId, deletedRows: 1 })
+      console.info('[api/clients][DELETE] success', { id: clientId, actorUserId: actor.userId, actorRole: actorRole(actor) })
       res.statusCode = 204
       res.end()
       return
     } catch (err) {
       console.error('[api/clients][DELETE] failed', {
         id: clientId,
+        actorUserId: actor.userId,
+        actorRole: actorRole(actor),
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
       })
