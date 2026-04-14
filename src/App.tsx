@@ -17196,7 +17196,10 @@ export default function App() {
       // For any local-only client that has since been synced, fall back to the map.
       const serverId = clientServerIdMapRef.current[registro.id] ?? registro.id
       if (!serverId) {
-        adicionarNotificacao('Não foi possível identificar o ID do cliente no servidor.', 'error')
+        adicionarNotificacao(
+          'Cliente não sincronizado com o servidor. Tente recarregar a página ou salvar o cliente novamente.',
+          'error',
+        )
         return
       }
       try {

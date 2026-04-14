@@ -59,12 +59,10 @@ async function runLifecyclePatch({
     return responses
   }
 
-  // Audit fields
+  // Audit fields — always set server-side, never trust client
   const payload = {
     ...body,
-    converted_by_user_id: body.is_converted_customer && !body.converted_by_user_id
-      ? actor.userId
-      : (body.converted_by_user_id ?? undefined),
+    converted_by_user_id: body.is_converted_customer ? actor.userId : undefined,
   }
 
   // Simulate upsert
@@ -106,6 +104,17 @@ describe('PATCH /api/client-management/:id/lifecycle', () => {
       body: { lifecycle_status: 'contracted', is_converted_customer: true },
     })
     expect(res[0].status).toBe(200)
+    expect(res[0].payload.data.converted_by_user_id).toBe('user-admin')
+  })
+
+  it('converted_by_user_id from client is overwritten by actor.userId (security)', async () => {
+    const res = await runLifecyclePatch({
+      clientId: '10',
+      actor: adminActor,
+      body: { lifecycle_status: 'contracted', is_converted_customer: true, converted_by_user_id: 'fake-user-id' },
+    })
+    expect(res[0].status).toBe(200)
+    // Server always uses actor.userId, ignoring client-supplied value
     expect(res[0].payload.data.converted_by_user_id).toBe('user-admin')
   })
 

@@ -159,8 +159,12 @@ export async function handlePatchLifecycle(req, res, ctx) {
   const sendJson = (s, p) => rawSendJson(res, s, p)
 
   // Validate path param early — before hitting the DB.
+  // Use strict digit-only check to reject '123abc' style inputs.
+  if (!/^\d+$/.test(clientId)) {
+    return sendError(sendJson, 400, 'VALIDATION_ERROR', 'clientId must be a positive integer')
+  }
   const clientIdNum = parseInt(clientId, 10)
-  if (!Number.isFinite(clientIdNum) || clientIdNum <= 0) {
+  if (clientIdNum <= 0) {
     return sendError(sendJson, 400, 'VALIDATION_ERROR', 'clientId must be a positive integer')
   }
 
@@ -192,12 +196,11 @@ export async function handlePatchLifecycle(req, res, ctx) {
     return sendError(sendJson, 400, 'VALIDATION_ERROR', 'is_converted_customer must be a boolean')
   }
 
-  // Inject audit fields server-side (not trusted from client).
+  // Inject audit fields server-side — never trust converted_by_user_id from the client.
+  // Always use actor.userId when marking a conversion so the audit trail is accurate.
   const payload = {
     ...body,
-    converted_by_user_id: body.is_converted_customer && !body.converted_by_user_id
-      ? actor.userId
-      : (body.converted_by_user_id ?? undefined),
+    converted_by_user_id: body.is_converted_customer ? actor.userId : undefined,
   }
 
   const t0 = Date.now()
