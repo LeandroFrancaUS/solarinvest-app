@@ -500,3 +500,108 @@ export async function appendClientAuditLog(sql, clientId, actorUserId, actorEmai
     )
   `
 }
+
+/**
+ * Find a client by UC (Unidade Consumidora).
+ */
+export async function findClientByUc(sql, uc) {
+  if (!uc || !uc.trim()) return null
+  const rows = await sql`
+    SELECT * FROM clients
+    WHERE uc = ${uc.trim()}
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Find a client by email (case-insensitive).
+ */
+export async function findClientByEmail(sql, email) {
+  if (!email || !email.trim()) return null
+  const rows = await sql`
+    SELECT * FROM clients
+    WHERE lower(email) = lower(${email.trim()})
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Find a client by phone (digits only match).
+ */
+export async function findClientByPhone(sql, phone) {
+  if (!phone || !phone.trim()) return null
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return null
+  const rows = await sql`
+    SELECT * FROM clients
+    WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${digits}
+      AND phone IS NOT NULL
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Upsert (insert or update) the energy profile for a client.
+ * On conflict (client already has a profile), updates all non-null incoming fields.
+ */
+export async function upsertClientEnergyProfile(sql, clientId, profile) {
+  const {
+    kwh_contratado = null,
+    potencia_kwp = null,
+    tipo_rede = null,
+    tarifa_atual = null,
+    desconto_percentual = null,
+    mensalidade = null,
+    indicacao = null,
+    modalidade = null,
+    prazo_meses = null,
+  } = profile ?? {}
+
+  const rows = await sql`
+    INSERT INTO client_energy_profile (
+      client_id, kwh_contratado, potencia_kwp, tipo_rede,
+      tarifa_atual, desconto_percentual, mensalidade,
+      indicacao, modalidade, prazo_meses,
+      created_at, updated_at
+    ) VALUES (
+      ${clientId}, ${kwh_contratado}, ${potencia_kwp}, ${tipo_rede},
+      ${tarifa_atual}, ${desconto_percentual}, ${mensalidade},
+      ${indicacao}, ${modalidade}, ${prazo_meses},
+      now(), now()
+    )
+    ON CONFLICT (client_id) DO UPDATE SET
+      kwh_contratado      = COALESCE(EXCLUDED.kwh_contratado,      client_energy_profile.kwh_contratado),
+      potencia_kwp        = COALESCE(EXCLUDED.potencia_kwp,        client_energy_profile.potencia_kwp),
+      tipo_rede           = COALESCE(EXCLUDED.tipo_rede,           client_energy_profile.tipo_rede),
+      tarifa_atual        = COALESCE(EXCLUDED.tarifa_atual,        client_energy_profile.tarifa_atual),
+      desconto_percentual = COALESCE(EXCLUDED.desconto_percentual, client_energy_profile.desconto_percentual),
+      mensalidade         = COALESCE(EXCLUDED.mensalidade,         client_energy_profile.mensalidade),
+      indicacao           = COALESCE(EXCLUDED.indicacao,           client_energy_profile.indicacao),
+      modalidade          = COALESCE(EXCLUDED.modalidade,          client_energy_profile.modalidade),
+      prazo_meses         = COALESCE(EXCLUDED.prazo_meses,         client_energy_profile.prazo_meses),
+      updated_at          = now()
+    RETURNING *
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Get the energy profile for a client.
+ */
+export async function getClientEnergyProfile(sql, clientId) {
+  const rows = await sql`
+    SELECT * FROM client_energy_profile
+    WHERE client_id = ${clientId}
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}

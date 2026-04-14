@@ -228,3 +228,88 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
   const body = (await res.json()) as { consultants: ConsultantEntry[] }
   return Array.isArray(body.consultants) ? body.consultants : []
 }
+
+// ─── Bulk Import ─────────────────────────────────────────────────────────────
+
+export interface BulkImportRowInput {
+  name: string
+  document?: string | null
+  uc?: string | null
+  email?: string | null
+  phone?: string | null
+  city?: string | null
+  state?: string | null
+  address?: string | null
+  distribuidora?: string | null
+  metadata?: Record<string, unknown> | null
+  energyProfile?: {
+    kwh_contratado?: number | null
+    potencia_kwp?: number | null
+    tipo_rede?: string | null
+    tarifa_atual?: number | null
+    desconto_percentual?: number | null
+    mensalidade?: number | null
+    indicacao?: string | null
+    modalidade?: string | null
+    prazo_meses?: number | null
+  } | null
+}
+
+export type PreviewMatchLevel = 'hard' | 'medium' | 'soft' | 'none'
+export type PreviewStatus = 'new' | 'existing' | 'possible_duplicate'
+export type PreviewConfidence = 'high' | 'medium' | 'low'
+export type PreviewAction = 'import' | 'ignore' | 'merge'
+
+export interface BulkImportPreviewRow {
+  rowIndex: number
+  name: string
+  matchLevel: PreviewMatchLevel
+  status: PreviewStatus
+  confidence: PreviewConfidence
+  suggestedAction: PreviewAction
+  matchReason: string | null
+  existingClient: { id: string | number; name: string } | null
+  matchFields: string[]
+  error?: string
+}
+
+export interface BulkImportPreviewResult {
+  data: BulkImportPreviewRow[]
+}
+
+export interface BulkImportResultRow {
+  rowIndex: number
+  name: string
+  action: 'created' | 'merged' | 'skipped' | 'error'
+  clientId?: string | number | null
+  hasEnergyProfile?: boolean
+  error?: string
+}
+
+export interface BulkImportResult {
+  summary: { created: number; merged: number; skipped: number; errors: number }
+  results: BulkImportResultRow[]
+}
+
+/**
+ * Run deduplication preview without persisting any data.
+ */
+export async function bulkImportPreview(rows: BulkImportRowInput[]): Promise<BulkImportPreviewResult> {
+  return apiFetch<BulkImportPreviewResult>('/bulk-import/preview', {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  })
+}
+
+/**
+ * Execute the bulk import: creates/merges clients and energy profiles.
+ */
+export async function bulkImport(
+  rows: BulkImportRowInput[],
+  options: { autoMerge?: boolean } = {},
+): Promise<BulkImportResult> {
+  return apiFetch<BulkImportResult>('/bulk-import', {
+    method: 'POST',
+    body: JSON.stringify({ rows, autoMerge: options.autoMerge ?? false }),
+  })
+}

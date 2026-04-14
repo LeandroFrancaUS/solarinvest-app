@@ -183,6 +183,8 @@ import {
 } from './constants/pagamento'
 import './styles/config-page.css'
 import './styles/toast.css'
+import './styles/bulk-import.css'
+import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
@@ -295,7 +297,18 @@ import {
   updateClientById,
   type UpsertClientInput,
   type UpdateClientInput,
+  bulkImportPreview,
+  bulkImport,
+  type BulkImportRowInput,
 } from './lib/api/clientsApi'
+import {
+  analyzeImportRows,
+  type AnalyzedImportRow,
+  type SuggestedAction as ImportSuggestedAction,
+} from './lib/clients/deduplication'
+import { BulkImportPreviewModal } from './components/clients/BulkImportPreviewModal'
+import { BackupActionModal } from './components/clients/BackupActionModal'
+import type { BackupDestino } from './components/clients/BackupActionModal'
 import { getFilteredClients } from './lib/clients/clientFilter'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
@@ -2251,6 +2264,16 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'diaVencimento', label: 'dia_vencimento' },
   { key: 'herdeiros', label: 'herdeiros' },
   { key: 'propostaSnapshot', label: 'proposta_snapshot' },
+  // Energy profile fields (imported but stored in client_energy_profile, not ClienteDados)
+  { key: 'kwh_contratado', label: 'kwh_contratado' },
+  { key: 'potencia_kwp', label: 'potencia_kwp' },
+  { key: 'tipo_rede', label: 'tipo_rede' },
+  { key: 'tarifa_atual', label: 'tarifa_atual' },
+  { key: 'desconto_percentual', label: 'desconto_percentual' },
+  { key: 'mensalidade', label: 'mensalidade' },
+  { key: 'indicacao', label: 'indicacao' },
+  { key: 'modalidade', label: 'modalidade' },
+  { key: 'prazo_meses', label: 'prazo_meses' },
 ]
 
 const CSV_HEADER_KEY_MAP: Record<string, string> = {
@@ -2295,6 +2318,29 @@ const CSV_HEADER_KEY_MAP: Record<string, string> = {
   propostasnapshot: 'propostaSnapshot',
   proposta: 'propostaSnapshot',
   snapshot: 'propostaSnapshot',
+  // Energy profile fields
+  kwhcontratado: 'kwh_contratado',
+  kwh: 'kwh_contratado',
+  consumokwh: 'kwh_contratado',
+  consumo: 'kwh_contratado',
+  potenciakwp: 'potencia_kwp',
+  potencia: 'potencia_kwp',
+  kwp: 'potencia_kwp',
+  tiporede: 'tipo_rede',
+  rede: 'tipo_rede',
+  tarifaatual: 'tarifa_atual',
+  tarifa: 'tarifa_atual',
+  descontopercentual: 'desconto_percentual',
+  desconto: 'desconto_percentual',
+  mensalidade: 'mensalidade',
+  indicacao: 'indicacao',
+  origemlead: 'indicacao',
+  lead: 'indicacao',
+  modalidade: 'modalidade',
+  tipocontrato: 'modalidade',
+  prazomeses: 'prazo_meses',
+  prazo: 'prazo_meses',
+  termo: 'prazo_meses',
 }
 
 const normalizeCsvHeader = (value: string) =>
@@ -2414,8 +2460,9 @@ const parseClientesCsv = (content: string): unknown[] => {
       if (values.every((value) => !value.trim())) {
         return null
       }
-      const registro: Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> } = {
-        dados: {},
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const registro: any = {
+        dados: {} as Partial<ClienteDados>,
       }
 
       headerKeys.forEach((key, index) => {
@@ -2460,14 +2507,35 @@ const parseClientesCsv = (content: string): unknown[] => {
           }
           break
         }
+        case 'kwh_contratado':
+        case 'potencia_kwp':
+        case 'tarifa_atual':
+        case 'desconto_percentual':
+        case 'mensalidade':
+        case 'prazo_meses': {
+          const num = parseFloat(value.replace(',', '.'))
+          if (Number.isFinite(num)) {
+            if (!registro.energyProfile) registro.energyProfile = {}
+            registro.energyProfile[key] = num
+          }
+          break
+        }
+        case 'tipo_rede':
+        case 'indicacao':
+        case 'modalidade': {
+          if (!registro.energyProfile) registro.energyProfile = {}
+          registro.energyProfile[key] = value
+          break
+        }
         default:
-          registro.dados![key as keyof ClienteDados] = value
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(registro.dados as Record<string, unknown>)[key] = value
       }
       })
 
       return registro
     })
-    .filter((item): item is Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> } => Boolean(item))
+    .filter((item): item is Partial<ClienteRegistro> & { dados?: Partial<ClienteDados>; energyProfile?: Record<string, string | number | null> } => Boolean(item))
 }
 
 const escapeCsvValue = (value: string, delimiter: string): string => {
@@ -6720,6 +6788,13 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false)
+  // Bulk import preview state
+  const [bulkImportPreviewRows, setBulkImportPreviewRows] = useState<AnalyzedImportRow[]>([])
+  const [isBulkImportPreviewOpen, setIsBulkImportPreviewOpen] = useState(false)
+  const [bulkImportAutoMerge, setBulkImportAutoMerge] = useState(false)
+  const [isBulkImportConfirming, setIsBulkImportConfirming] = useState(false)
+  const pendingImportRawRowsRef = useRef<Array<unknown & { energyProfile?: Record<string, string | number | null> }>>([])
   const clientesImportInputRef = useRef<HTMLInputElement | null>(null)
   const backupImportInputRef = useRef<HTMLInputElement | null>(null)
   const fecharClientesPainel = useCallback(() => {
@@ -14870,6 +14945,7 @@ export default function App() {
     event.target.value = ''
     if (!arquivo || typeof window === 'undefined') return
 
+    console.log('[backup-ui] upload start', { fileName: arquivo.name, size: arquivo.size })
     setIsGerandoBackupBanco(true)
     try {
       const texto = await arquivo.text()
@@ -14880,6 +14956,7 @@ export default function App() {
         headers.Authorization = `Bearer ${token}`
         headers['x-stack-access-token'] = token
       }
+      console.log('[backup-ui] upload request-dispatched')
       const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
         method: 'POST',
         headers,
@@ -14887,58 +14964,49 @@ export default function App() {
         body: JSON.stringify({ action: 'import', payload: json }),
       })
       const payload = (await response.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; importedClients?: number; importedProposals?: number }
+        | { ok?: boolean; error?: string; importedClients?: number; failedClients?: number; importedProposals?: number; failedProposals?: number }
         | null
 
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error ?? 'Falha ao carregar backup.')
       }
-      adicionarNotificacao(
-        `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`,
-        'success',
-      )
+      const failed = (payload.failedClients ?? 0) + (payload.failedProposals ?? 0)
+      const successMsg = `Backup carregado com sucesso (${payload.importedClients ?? 0} clientes e ${payload.importedProposals ?? 0} propostas).`
+      adicionarNotificacao(successMsg, 'success')
+      if (failed > 0) {
+        adicionarNotificacao(`${failed} registro(s) não puderam ser importados (verifique os logs).`, 'error')
+      }
+      console.log('[backup-ui] upload success', { importedClients: payload.importedClients, importedProposals: payload.importedProposals, failedClients: payload.failedClients, failedProposals: payload.failedProposals })
     } catch (error) {
-      console.error('Erro ao carregar backup.', error)
-      window.alert('Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.')
+      console.error('[backup-ui] upload failed', error)
+      adicionarNotificacao(
+        error instanceof Error ? error.message : 'Não foi possível carregar o backup selecionado. Verifique o arquivo e tente novamente.',
+        'error',
+      )
     } finally {
       setIsGerandoBackupBanco(false)
     }
   }, [adicionarNotificacao, getAccessToken])
 
-  const handleBackupBancoDados = useCallback(async () => {
-    if (typeof window === 'undefined' || isGerandoBackupBanco) {
-      return
-    }
+  const handleBackupBancoDados = useCallback(() => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) return
+    console.log('[backup-ui] click')
+    setIsBackupModalOpen(true)
+  }, [isGerandoBackupBanco])
 
-    const acao = window.prompt('Ação do backup: "baixar" ou "carregar"', 'baixar')
-    if (!acao) return
-    const acaoNormalizada = acao.trim().toLowerCase()
+  const handleBackupModalUpload = useCallback(() => {
+    console.log('[backup-ui] upload selected')
+    setIsBackupModalOpen(false)
+    backupImportInputRef.current?.click()
+  }, [backupImportInputRef])
 
-    if (acaoNormalizada === 'carregar' || acaoNormalizada === 'load' || acaoNormalizada === 'upload') {
-      backupImportInputRef.current?.click()
-      return
-    }
+  const handleBackupModalDownload = useCallback(async (destino: BackupDestino) => {
+    setIsBackupModalOpen(false)
 
-    if (!(acaoNormalizada === 'baixar' || acaoNormalizada === 'download')) {
-      window.alert('Ação inválida. Use "baixar" ou "carregar".')
-      return
-    }
+    const destinoApi: 'platform' | 'cloud' | 'local' =
+      destino === 'plataforma' ? 'platform' : destino === 'nuvem' ? 'cloud' : 'local'
 
-    const respostaDestino = window.prompt('Destino do backup para download: local, nuvem ou plataforma', 'local')
-    if (!respostaDestino) return
-    const destino = respostaDestino.trim().toLowerCase()
-    if (!['local', 'nuvem', 'platform', 'plataforma', 'cloud'].includes(destino)) {
-      window.alert('Destino inválido. Use: local, nuvem ou plataforma.')
-      return
-    }
-
-    const destinoApi =
-      destino === 'plataforma' || destino === 'platform'
-        ? 'platform'
-        : destino === 'nuvem' || destino === 'cloud'
-          ? 'cloud'
-          : 'local'
-
+    console.log('[backup-ui] download start', { destino: destinoApi })
     setIsGerandoBackupBanco(true)
 
     try {
@@ -14948,6 +15016,7 @@ export default function App() {
         headers.Authorization = `Bearer ${token}`
         headers['x-stack-access-token'] = token
       }
+      console.log('[backup-ui] download request-dispatched')
       const response = await fetch(resolveApiUrl('/api/admin/database-backup'), {
         method: 'POST',
         headers,
@@ -14975,6 +15044,7 @@ export default function App() {
       const fileName = payload.fileName ?? buildClientesFileName('json')
 
       if (destinoApi === 'local' || destinoApi === 'cloud') {
+        console.log('[backup-ui] download-start', { fileName })
         downloadClientesArquivo(blob, fileName)
       }
 
@@ -14987,7 +15057,7 @@ export default function App() {
             files: [file],
           })
         } else {
-          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
+          adicionarNotificacao('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.', 'info')
         }
       }
 
@@ -14995,17 +15065,21 @@ export default function App() {
         destinoApi === 'platform' ? 'plataforma' : destinoApi === 'cloud' ? 'nuvem' : 'dispositivo local'
       const checksumTexto = payload.checksumSha256 ? ` (checksum: ${payload.checksumSha256.slice(0, 12)}...)` : ''
       adicionarNotificacao(`Backup gerado com sucesso para ${destinoLabel}${checksumTexto}.`, 'success')
+      console.log('[backup-ui] download success', { checksum: payload.checksumSha256 })
 
       if (payload.platformSaved) {
         adicionarNotificacao('Cópia adicional registrada na plataforma (Neon).', 'success')
       }
     } catch (error) {
-      console.error('Erro ao gerar backup do banco.', error)
-      window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
+      console.error('[backup-ui] download failed', error)
+      adicionarNotificacao(
+        error instanceof Error ? error.message : 'Não foi possível gerar o backup do banco. Tente novamente.',
+        'error',
+      )
     } finally {
       setIsGerandoBackupBanco(false)
     }
-  }, [adicionarNotificacao, backupImportInputRef, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+  }, [adicionarNotificacao, buildClientesFileName, downloadClientesArquivo, getAccessToken])
 
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -15055,29 +15129,60 @@ export default function App() {
           return
         }
 
-        const existentes = carregarClientesSalvos()
-        const existingIds = new Set(existentes.map((registro) => registro.id))
-        const { registros: importados } = normalizeClienteRegistros(lista, { existingIds })
+        // Build import rows for the preview (including energy profile data)
+        type RawImportRow = Partial<ClienteRegistro> & { dados?: Partial<ClienteDados>; energyProfile?: Record<string, string | number | null> }
+        const rawRows = lista as RawImportRow[]
 
-        if (importados.length === 0) {
+        // Map raw rows to ImportRow format for deduplication engine
+        const importRows = rawRows.map((r) => ({
+          name: (r.dados?.nome ?? (r as unknown as { nome?: string }).nome ?? '').trim(),
+          document: r.dados?.documento ?? (r as unknown as { documento?: string }).documento ?? null,
+          uc: r.dados?.uc ?? (r as unknown as { uc?: string }).uc ?? null,
+          email: r.dados?.email ?? (r as unknown as { email?: string }).email ?? null,
+          phone: r.dados?.telefone ?? (r as unknown as { telefone?: string }).telefone ?? null,
+          city: r.dados?.cidade ?? (r as unknown as { cidade?: string }).cidade ?? null,
+          state: r.dados?.uf ?? (r as unknown as { uf?: string }).uf ?? null,
+          address: r.dados?.endereco ?? (r as unknown as { endereco?: string }).endereco ?? null,
+          distribuidora: r.dados?.distribuidora ?? (r as unknown as { distribuidora?: string }).distribuidora ?? null,
+          kwh_contratado: typeof r.energyProfile?.kwh_contratado === 'number' ? r.energyProfile.kwh_contratado : null,
+          potencia_kwp: typeof r.energyProfile?.potencia_kwp === 'number' ? r.energyProfile.potencia_kwp : null,
+          tipo_rede: typeof r.energyProfile?.tipo_rede === 'string' ? r.energyProfile.tipo_rede : null,
+          tarifa_atual: typeof r.energyProfile?.tarifa_atual === 'number' ? r.energyProfile.tarifa_atual : null,
+          desconto_percentual: typeof r.energyProfile?.desconto_percentual === 'number' ? r.energyProfile.desconto_percentual : null,
+          mensalidade: typeof r.energyProfile?.mensalidade === 'number' ? r.energyProfile.mensalidade : null,
+          indicacao: typeof r.energyProfile?.indicacao === 'string' ? r.energyProfile.indicacao : null,
+          modalidade: typeof r.energyProfile?.modalidade === 'string' ? r.energyProfile.modalidade : null,
+          prazo_meses: typeof r.energyProfile?.prazo_meses === 'number' ? r.energyProfile.prazo_meses : null,
+        }))
+
+        // Filter out rows without a name
+        const validImportRows = importRows.filter((r) => r.name.length > 0)
+
+        if (validImportRows.length === 0) {
           window.alert('Nenhum cliente válido foi encontrado no arquivo selecionado.')
           return
         }
 
-        const combinados = [...importados, ...existentes].sort((a, b) =>
-          a.atualizadoEm < b.atualizadoEm ? 1 : -1,
-        )
+        // Keep the raw rows for later use during confirm
+        pendingImportRawRowsRef.current = rawRows
 
-        try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
-        } catch (error) {
-          console.error('Erro ao persistir clientes importados.', error)
-          window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-          return
-        }
+        // Run client-side deduplication against existing (localStorage) clients
+        const existentes = carregarClientesSalvos()
+        const existingSlim = existentes
+          .filter((r) => r.deletedAt == null)
+          .map((r) => ({
+            id: r.id,
+            name: r.dados.nome,
+            document: r.dados.documento ?? null,
+            uc: r.dados.uc ?? null,
+            email: r.dados.email ?? null,
+            phone: r.dados.telefone ?? null,
+            city: r.dados.cidade ?? null,
+          }))
 
-        setClientesSalvos(combinados)
-        adicionarNotificacao('Clientes importados com sucesso.', 'success')
+        const analyzed = analyzeImportRows(validImportRows, existingSlim)
+        setBulkImportPreviewRows(analyzed)
+        setIsBulkImportPreviewOpen(true)
       } catch (error) {
         if ((error as Error).message === 'invalid-json') {
           window.alert('O arquivo selecionado está em um formato inválido (JSON ou CSV).')
@@ -15089,11 +15194,161 @@ export default function App() {
         setIsImportandoClientes(false)
       }
     }, [
-      adicionarNotificacao,
       carregarClientesSalvos,
-      setClientesSalvos,
       setIsImportandoClientes,
     ])
+
+  /**
+   * Executed when the user confirms the import from the preview modal.
+   * If server API is available, uses bulk-import endpoint; otherwise falls back to localStorage.
+   */
+  const handleBulkImportConfirm = useCallback(async () => {
+    const selectedRows = bulkImportPreviewRows.filter((r) => r.selected)
+    if (selectedRows.length === 0) return
+
+    setIsBulkImportConfirming(true)
+
+    try {
+      // Try server-side import first
+      const token = await getAccessToken().catch(() => null)
+      if (token) {
+        const apiRows: BulkImportRowInput[] = selectedRows.map((r) => {
+          const hasEnergyData =
+            r.kwh_contratado != null ||
+            r.potencia_kwp != null ||
+            r.tipo_rede != null ||
+            r.tarifa_atual != null ||
+            r.desconto_percentual != null ||
+            r.mensalidade != null ||
+            r.indicacao != null ||
+            r.modalidade != null ||
+            r.prazo_meses != null
+          const row: BulkImportRowInput = {
+            name: r.name,
+            document: r.document ?? null,
+            uc: r.uc ?? null,
+            email: r.email ?? null,
+            phone: r.phone ?? null,
+            city: r.city ?? null,
+            state: r.state ?? null,
+            address: r.address ?? null,
+            distribuidora: r.distribuidora ?? null,
+          }
+          if (hasEnergyData) {
+            row.energyProfile = {
+              ...(r.kwh_contratado != null ? { kwh_contratado: r.kwh_contratado } : {}),
+              ...(r.potencia_kwp != null ? { potencia_kwp: r.potencia_kwp } : {}),
+              ...(r.tipo_rede != null ? { tipo_rede: r.tipo_rede } : {}),
+              ...(r.tarifa_atual != null ? { tarifa_atual: r.tarifa_atual } : {}),
+              ...(r.desconto_percentual != null ? { desconto_percentual: r.desconto_percentual } : {}),
+              ...(r.mensalidade != null ? { mensalidade: r.mensalidade } : {}),
+              ...(r.indicacao != null ? { indicacao: r.indicacao } : {}),
+              ...(r.modalidade != null ? { modalidade: r.modalidade } : {}),
+              ...(r.prazo_meses != null ? { prazo_meses: r.prazo_meses } : {}),
+            }
+          }
+          return row
+        })
+
+        try {
+          const result = await bulkImport(apiRows, { autoMerge: bulkImportAutoMerge })
+          const { created, merged, skipped, errors } = result.summary
+          adicionarNotificacao(
+            `Importação concluída: ${created} criado(s), ${merged} mesclado(s), ${skipped} ignorado(s)${errors > 0 ? `, ${errors} erro(s)` : ''}.`,
+            errors > 0 ? 'error' : 'success',
+          )
+          setIsBulkImportPreviewOpen(false)
+          // Reload clients from server
+          await carregarClientesPrioritarios()
+          return
+        } catch (serverErr) {
+          console.warn('[bulk-import] Server import failed, falling back to localStorage:', serverErr)
+          // Fall through to localStorage import
+        }
+      }
+
+      // Fallback: localStorage import (original behavior)
+      const rawRows = pendingImportRawRowsRef.current
+      const selectedIndices = new Set(selectedRows.map((r) => r.rowIndex))
+      const selectedRaw = rawRows.filter((_, idx) => selectedIndices.has(idx))
+
+      const existentes = carregarClientesSalvos()
+      const existingIds = new Set(existentes.map((r) => r.id))
+      const { registros: importados } = normalizeClienteRegistros(selectedRaw, { existingIds })
+
+      if (importados.length === 0) {
+        window.alert('Nenhum cliente válido para importar.')
+        return
+      }
+
+      const combinados = [...importados, ...existentes].sort((a, b) =>
+        a.atualizadoEm < b.atualizadoEm ? 1 : -1,
+      )
+
+      try {
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+      } catch (error) {
+        console.error('Erro ao persistir clientes importados.', error)
+        window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
+        return
+      }
+
+      setClientesSalvos(combinados)
+      adicionarNotificacao(`${importados.length} cliente(s) importado(s) com sucesso.`, 'success')
+      setIsBulkImportPreviewOpen(false)
+    } catch (error) {
+      console.error('Erro durante confirmação da importação.', error)
+      window.alert('Não foi possível importar os clientes. Tente novamente.')
+    } finally {
+      setIsBulkImportConfirming(false)
+    }
+  }, [
+    adicionarNotificacao,
+    bulkImportAutoMerge,
+    bulkImportPreviewRows,
+    carregarClientesSalvos,
+    carregarClientesPrioritarios,
+    getAccessToken,
+    normalizeClienteRegistros,
+    setClientesSalvos,
+  ])
+
+  const handleBulkImportRowSelection = useCallback((rowIndex: number, selected: boolean) => {
+    setBulkImportPreviewRows((prev) =>
+      prev.map((r) => (r.rowIndex === rowIndex ? { ...r, selected } : r)),
+    )
+  }, [])
+
+  const handleBulkImportRowAction = useCallback((rowIndex: number, action: ImportSuggestedAction) => {
+    setBulkImportPreviewRows((prev) =>
+      prev.map((r) => (r.rowIndex === rowIndex ? { ...r, userAction: action } : r)),
+    )
+  }, [])
+
+  const handleBulkImportSelectAllValid = useCallback(() => {
+    setBulkImportPreviewRows((prev) =>
+      prev.map((r) => ({
+        ...r,
+        selected:
+          r.dedupResult.status === 'new' ||
+          (r.dedupResult.matchLevel !== 'hard' && r.dedupResult.status !== 'existing'),
+      })),
+    )
+  }, [])
+
+  const handleBulkImportSelectAll = useCallback(() => {
+    setBulkImportPreviewRows((prev) => prev.map((r) => ({ ...r, selected: true })))
+  }, [])
+
+  const handleBulkImportClearSelection = useCallback(() => {
+    setBulkImportPreviewRows((prev) => prev.map((r) => ({ ...r, selected: false })))
+  }, [])
+
+  const handleBulkImportClose = useCallback(() => {
+    setIsBulkImportPreviewOpen(false)
+    pendingImportRawRowsRef.current = []
+    setBulkImportPreviewRows([])
+  }, [])
 
   const isSnapshotEmpty = (snapshot: OrcamentoSnapshotData): boolean =>
     !snapshot?.cliente?.nome &&
@@ -28925,6 +29180,31 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={handleBackupUploadArquivo}
       />
+
+      {isBackupModalOpen ? (
+        <BackupActionModal
+          isLoading={isGerandoBackupBanco}
+          onDownload={handleBackupModalDownload}
+          onUpload={handleBackupModalUpload}
+          onClose={() => setIsBackupModalOpen(false)}
+        />
+      ) : null}
+
+      {isBulkImportPreviewOpen ? (
+        <BulkImportPreviewModal
+          rows={bulkImportPreviewRows}
+          autoMerge={bulkImportAutoMerge}
+          isLoading={isBulkImportConfirming}
+          onAutoMergeChange={setBulkImportAutoMerge}
+          onRowSelectionChange={handleBulkImportRowSelection}
+          onRowActionChange={handleBulkImportRowAction}
+          onSelectAllValid={handleBulkImportSelectAllValid}
+          onSelectAll={handleBulkImportSelectAll}
+          onClearSelection={handleBulkImportClearSelection}
+          onConfirm={handleBulkImportConfirm}
+          onClose={handleBulkImportClose}
+        />
+      ) : null}
 
       {isLeasingContractsModalOpen ? (
         <LeasingContractsModal

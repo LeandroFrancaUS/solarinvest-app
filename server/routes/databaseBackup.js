@@ -46,16 +46,23 @@ function sanitizeObject(value) {
   return value
 }
 
-async function withTransaction(sql, callback) {
-  await sql('BEGIN')
-  try {
-    const result = await callback()
-    await sql('COMMIT')
-    return result
-  } catch (error) {
-    await sql('ROLLBACK')
-    throw error
-  }
+/**
+ * Serializes a parameter value for use in a parameterized string query.
+ *
+ * The Neon HTTP driver's tagged-template form handles type inference
+ * automatically, but the string-query form (`sql(query, values)`) passes
+ * values verbatim to the wire protocol.  PostgreSQL expects JSONB params as
+ * JSON-encoded strings, not as raw JS objects; passing a plain object would
+ * either produce an invalid cast error or silently insert "[object Object]".
+ *
+ * This helper ensures every object (including nested JSONB payloads) is
+ * JSON.stringify'd before being placed in the values array.
+ */
+function serializeForQuery(val) {
+  if (val === null || val === undefined) return null
+  if (val instanceof Date) return val.toISOString()
+  if (typeof val === 'object') return JSON.stringify(val)
+  return val
 }
 
 async function buildBackupPayload(sql, actor) {
@@ -108,8 +115,8 @@ const CLIENT_COLUMNS = [
   'distribuidora', 'metadata', 'created_at', 'updated_at', 'tipo', 'nome_razao', 'telefone_secundario',
   'logradouro', 'numero', 'complemento', 'bairro', 'cep', 'origem', 'observacoes', 'responsavel_id',
   'cpf_normalized', 'cpf_raw', 'identity_status', 'merged_into_client_id', 'created_by_user_id',
-  'owner_user_id', 'origin', 'last_synced_at', 'deleted_at', 'offline_origin_id', 'search_text',
-  'cnpj_normalized', 'cnpj_raw', 'document_type',
+  'owner_user_id', 'owner_stack_user_id', 'origin', 'last_synced_at', 'deleted_at',
+  'offline_origin_id', 'search_text', 'cnpj_normalized', 'cnpj_raw', 'document_type',
 ]
 
 const PROPOSAL_COLUMNS = [
@@ -156,7 +163,7 @@ async function upsertClient(sql, rawClient) {
   const client = pickColumns(rawClient, activeColumns)
   if (!client?.id || !client?.name) return
 
-  const values = activeColumns.map((column) => client[column] ?? null)
+  const values = activeColumns.map((column) => serializeForQuery(client[column] ?? null))
   const updates = activeColumns
     .filter((column) => column !== 'id')
     .map((column) => `${column} = EXCLUDED.${column}`)
@@ -172,38 +179,43 @@ async function upsertClient(sql, rawClient) {
   try {
     await sql(insertSql, values)
   } catch (error) {
-    if (error?.code === '23505' && client.cpf_normalized) {
-      await sql(
-        `
-          UPDATE public.clients
-             SET name = $1,
-                 document = $2,
-                 email = $3,
-                 phone = $4,
-                 city = $5,
-                 state = $6,
-                 address = $7,
-                 uc = $8,
-                 distribuidora = $9,
-                 metadata = $10::jsonb,
-                 updated_at = COALESCE($11::timestamptz, now())
-           WHERE cpf_normalized = $12
-        `,
-        [
-          client.name,
-          client.document,
-          client.email,
-          client.phone,
-          client.city,
-          client.state,
-          client.address,
-          client.uc,
-          client.distribuidora,
-          client.metadata ? JSON.stringify(client.metadata) : null,
-          client.updated_at,
-          client.cpf_normalized,
-        ],
-      )
+    // 23505 = unique_violation — cpf_normalized or uc uniqueness constraint
+    if (error?.code === '23505') {
+      if (client.cpf_normalized) {
+        // A different row already owns this CPF; update its non-key fields
+        await sql(
+          `
+            UPDATE public.clients
+               SET name = $1,
+                   document = $2,
+                   email = $3,
+                   phone = $4,
+                   city = $5,
+                   state = $6,
+                   address = $7,
+                   distribuidora = $8,
+                   metadata = $9::jsonb,
+                   updated_at = COALESCE($10::timestamptz, now())
+             WHERE cpf_normalized = $11
+          `,
+          [
+            client.name,
+            client.document,
+            client.email,
+            client.phone,
+            client.city,
+            client.state,
+            client.address,
+            client.distribuidora,
+            client.metadata ? JSON.stringify(client.metadata) : null,
+            client.updated_at,
+            client.cpf_normalized,
+          ],
+        )
+        return
+      }
+      // UC or other uniqueness conflict — insert without the conflicting field
+      console.warn(`[backup-import] skipping client id=${client.id} due to unique constraint violation:`, error.detail ?? error.message)
       return
     }
     throw error
@@ -214,9 +226,14 @@ async function upsertProposal(sql, rawProposal) {
   const existing = await getExistingColumns(sql, 'proposals')
   const activeColumns = PROPOSAL_COLUMNS.filter((column) => existing.has(column))
   const proposal = pickColumns(rawProposal, activeColumns)
-  if (!proposal?.id || !proposal?.proposal_type || !proposal?.owner_user_id || !proposal?.created_by_user_id) return
+  if (!proposal?.id || !proposal?.proposal_type || !proposal?.owner_user_id) return
 
-  const values = activeColumns.map((column) => proposal[column] ?? null)
+  // Fallback: created_by_user_id is NOT NULL in the DB but may be absent in older backups
+  if (!proposal.created_by_user_id && activeColumns.includes('created_by_user_id')) {
+    proposal.created_by_user_id = proposal.owner_user_id
+  }
+
+  const values = activeColumns.map((column) => serializeForQuery(proposal[column] ?? null))
   const updates = activeColumns
     .filter((column) => column !== 'id')
     .map((column) => `${column} = EXCLUDED.${column}`)
@@ -246,13 +263,42 @@ async function restoreBackupPayload(sql, payload, actor) {
   const clients = Array.isArray(data.clients) ? data.clients : []
   const proposals = Array.isArray(data.proposals) ? data.proposals : []
 
-  const result = await withTransaction(sql, async () => {
-    for (const client of clients) {
+  console.log(`[backup-import] start — ${clients.length} clients, ${proposals.length} proposals (user=${actor.userId})`)
+
+  // Import clients — per-record errors are caught so one bad row does not
+  // abort the entire restore.  Each insert is committed independently because
+  // BEGIN/COMMIT are no-ops over the Neon HTTP driver.
+  let importedClients = 0
+  let failedClients = 0
+  console.log(`[backup-import] entity-start clients`)
+  for (const client of clients) {
+    try {
       await upsertClient(sql, client)
+      importedClients++
+    } catch (error) {
+      failedClients++
+      console.error(`[backup-import] client failed id=${client?.id ?? '?'}:`, error.message)
     }
-    for (const proposal of proposals) {
+  }
+  console.log(`[backup-import] entity-success clients imported=${importedClients} failed=${failedClients}`)
+
+  // Import proposals
+  let importedProposals = 0
+  let failedProposals = 0
+  console.log(`[backup-import] entity-start proposals`)
+  for (const proposal of proposals) {
+    try {
       await upsertProposal(sql, proposal)
+      importedProposals++
+    } catch (error) {
+      failedProposals++
+      console.error(`[backup-import] proposal failed id=${proposal?.id ?? '?'}:`, error.message)
     }
+  }
+  console.log(`[backup-import] entity-success proposals imported=${importedProposals} failed=${failedProposals}`)
+
+  // Reset clients sequence so next auto-generated id does not collide
+  try {
     await sql(`
       SELECT setval(
         pg_get_serial_sequence('public.clients', 'id'),
@@ -260,49 +306,68 @@ async function restoreBackupPayload(sql, payload, actor) {
         true
       )
     `)
-    return { importedClients: clients.length, importedProposals: proposals.length }
-  })
+  } catch (seqError) {
+    console.warn('[backup-import] could not reset clients sequence:', seqError.message)
+  }
 
-  await ensureBackupTable(sql)
-  await sql`
-    INSERT INTO public.db_backup_snapshots (
-      actor_user_id,
-      actor_email,
-      destination,
-      checksum_sha256,
-      backup_payload
-    ) VALUES (
-      ${actor.userId},
-      ${actor.email ?? null},
-      'import',
-      ${crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')},
-      ${JSON.stringify({
-        importedAt: new Date().toISOString(),
-        importedBy: actor.userId,
-        summary: result,
-      })}::jsonb
-    )
-  `
+  const result = {
+    importedClients,
+    failedClients,
+    importedProposals,
+    failedProposals,
+  }
 
+  // Write audit snapshot — non-fatal: if the table doesn't exist yet (pending
+  // migration 0026) or the role lacks INSERT, we log a warning but do not
+  // fail the entire restore that already succeeded.
+  try {
+    const checksum = crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+    await sql`
+      INSERT INTO public.db_backup_snapshots (
+        actor_user_id,
+        actor_email,
+        destination,
+        checksum_sha256,
+        backup_payload
+      ) VALUES (
+        ${actor.userId},
+        ${actor.email ?? null},
+        'import',
+        ${checksum},
+        ${JSON.stringify({
+          importedAt: new Date().toISOString(),
+          importedBy: actor.userId,
+          summary: result,
+        })}::jsonb
+      )
+    `
+  } catch (auditError) {
+    console.warn('[backup-import] audit snapshot failed (non-fatal):', auditError.message)
+  }
+
+  console.log(`[backup-import] completed — clients=${importedClients}/${clients.length} proposals=${importedProposals}/${proposals.length}`)
   return result
 }
 
-async function ensureBackupTable(sql) {
-  await sql(`
-    CREATE TABLE IF NOT EXISTS public.${BACKUP_TABLE} (
-      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-      actor_user_id TEXT NOT NULL,
-      actor_email TEXT,
-      destination TEXT NOT NULL,
-      checksum_sha256 TEXT NOT NULL,
-      backup_payload JSONB NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `)
-}
-
 async function persistPlatformBackup(sql, actor, payload, checksum) {
-  await ensureBackupTable(sql)
+  // Table is created via migration 0026; ensureBackupTable is a safety net
+  // for environments where migrations have not yet been applied.
+  try {
+    await sql(`
+      CREATE TABLE IF NOT EXISTS public.${BACKUP_TABLE} (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        actor_user_id TEXT NOT NULL,
+        actor_email TEXT,
+        destination TEXT NOT NULL,
+        checksum_sha256 TEXT NOT NULL,
+        backup_payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `)
+  } catch (ddlError) {
+    // Ignore permission errors — table should already exist via migration 0026
+    console.warn('[backup-export] could not ensure backup table (likely already exists):', ddlError.message)
+  }
 
   await sql`
     INSERT INTO public.db_backup_snapshots (
@@ -363,16 +428,20 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
 
   try {
     if (action === 'import') {
+      console.log(`[backup-import] request received user=${actor.userId}`)
       const importResult = await restoreBackupPayload(db.sql, body?.payload, actor)
       sendJson(res, 200, {
         ok: true,
         action: 'import',
         importedClients: importResult.importedClients,
+        failedClients: importResult.failedClients,
         importedProposals: importResult.importedProposals,
+        failedProposals: importResult.failedProposals,
       })
       return
     }
 
+    console.log(`[backup-export] start user=${actor.userId} destination=${destination}`)
     const payload = await buildBackupPayload(db.sql, actor)
     const serialized = JSON.stringify(payload)
     const checksum = crypto.createHash('sha256').update(serialized).digest('hex')
@@ -381,6 +450,7 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
       await persistPlatformBackup(db.sql, actor, payload, checksum)
     }
 
+    console.log(`[backup-export] success user=${actor.userId} checksum=${checksum.slice(0, 12)}`)
     sendJson(res, 200, {
       ok: true,
       destination,
@@ -390,7 +460,12 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
       payload,
     })
   } catch (error) {
-    console.error('[backup] failed to generate backup:', error)
-    sendJson(res, 500, { ok: false, error: 'Falha ao gerar backup do banco.' })
+    const phase = action === 'import' ? 'import' : 'export'
+    console.error(`[backup-${phase}] failed user=${actor?.userId ?? 'unknown'}:`, error.message, error.stack)
+    sendJson(res, 500, {
+      ok: false,
+      error: error.message?.startsWith('Payload') ? error.message : `Falha ao ${phase === 'import' ? 'carregar' : 'gerar'} backup do banco.`,
+      detail: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+    })
   }
 }

@@ -54,6 +54,10 @@ import {
   handleClientsRequest as handleClientsRequestV2,
   handleClientByIdRequest,
 } from './clients/handler.js'
+import {
+  handleBulkImportPreview,
+  handleBulkImport,
+} from './clients/bulkImport.js'
 import { getAuthorizationSnapshot } from './auth/authorizationSnapshot.js'
 import {
   handleAuthReconcileAll,
@@ -651,6 +655,22 @@ export default async function handler(req, res) {
     if (pathname === '/api/clients/upsert-by-cpf' && method === 'POST') {
       const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
       await handleUpsertClientByCpf(req, res, clientsCtx)
+      return
+    }
+
+    // POST /api/clients/bulk-import/preview — deduplication preview (no persistence)
+    if (pathname === '/api/clients/bulk-import/preview' && method === 'POST') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
+      await handleBulkImportPreview(req, res, clientsCtx)
+      return
+    }
+
+    // POST /api/clients/bulk-import — enterprise bulk import with deduplication
+    if (pathname === '/api/clients/bulk-import' && method === 'POST') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
+      await handleBulkImport(req, res, clientsCtx)
       return
     }
 

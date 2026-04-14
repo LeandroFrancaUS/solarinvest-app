@@ -1,0 +1,278 @@
+/* src/styles/bulk-import.css */
+/* Styles for the enterprise bulk client import preview modal */
+
+/* ── Overlay ─────────────────────────────────────────────────────────────── */
+.bulk-import-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+/* ── Modal container ─────────────────────────────────────────────────────── */
+.bulk-import-modal {
+  background: var(--bg-panel, #fff);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.bulk-import-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.bulk-import-modal__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--text-primary, #111827);
+}
+
+.bulk-import-modal__subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+}
+
+.bulk-import-modal__close {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ── Summary bar ─────────────────────────────────────────────────────────── */
+.bulk-import-modal__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: var(--bg-subtle, #f9fafb);
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.bulk-import-modal__selected {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-left: auto;
+}
+
+/* ── Auto-merge toggle ───────────────────────────────────────────────────── */
+.bulk-import-modal__merge-toggle {
+  padding: 10px 24px;
+  background: var(--bg-subtle, #f9fafb);
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.bulk-import-modal__merge-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-primary, #111827);
+}
+
+.bulk-import-modal__merge-label small {
+  color: var(--text-secondary, #6b7280);
+}
+
+/* ── Filter tabs ─────────────────────────────────────────────────────────── */
+.bulk-import-modal__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.bulk-import-modal__filter-btn {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #d1d5db);
+  background: transparent;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--text-secondary, #6b7280);
+  transition: background 0.15s, color 0.15s;
+}
+
+.bulk-import-modal__filter-btn:hover {
+  background: var(--bg-hover, #f3f4f6);
+}
+
+.bulk-import-modal__filter-btn--active {
+  background: var(--accent, #2563eb);
+  border-color: var(--accent, #2563eb);
+  color: #fff;
+}
+
+/* ── Bulk action buttons ─────────────────────────────────────────────────── */
+.bulk-import-modal__bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.bulk-import-modal__bulk-actions .ghost {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+}
+
+/* ── Table wrapper ───────────────────────────────────────────────────────── */
+.bulk-import-modal__table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 50vh;
+  padding: 0;
+}
+
+.bulk-import-modal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.bulk-import-modal__table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-subtle, #f9fafb);
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.bulk-import-modal__table tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle, #f3f4f6);
+  vertical-align: middle;
+}
+
+/* Row states */
+.bulk-row--existing td {
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.bulk-row--selected td {
+  background: rgba(37, 99, 235, 0.04);
+}
+
+/* Column widths */
+.bulk-col-check { width: 40px; text-align: center; }
+.bulk-col-name  { min-width: 160px; }
+.bulk-col-doc   { min-width: 110px; }
+.bulk-col-uc    { min-width: 90px; }
+.bulk-col-status { min-width: 130px; }
+.bulk-col-conf  { min-width: 80px; }
+.bulk-col-action { min-width: 120px; }
+.bulk-col-reason { min-width: 180px; }
+
+.bulk-name {
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+}
+
+.bulk-existing-name {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.bulk-reason {
+  color: var(--text-secondary, #6b7280);
+}
+
+.bulk-action-select {
+  font-size: 0.8rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, #d1d5db);
+  background: var(--bg-panel, #fff);
+  cursor: pointer;
+}
+
+.bulk-import-modal__empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-secondary, #6b7280);
+  font-style: italic;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+.bulk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bulk-badge--new {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.bulk-badge--existing {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.bulk-badge--duplicate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.bulk-badge--high {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.bulk-badge--medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.bulk-badge--low {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.bulk-import-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-subtle, #e5e7eb);
+}
