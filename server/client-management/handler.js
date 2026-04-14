@@ -6,6 +6,7 @@
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { ensureClientManagementSchema } from './schema.js'
 import {
   listManagedClients,
   getClientManagementDetail,
@@ -34,12 +35,15 @@ function sendError(sendJson, status, code, message) {
   sendJson(status, { error: { code, message } })
 }
 
-function getDb(sendJson) {
+async function getDb(sendJson) {
   const db = getDatabaseClient()
   if (!db) {
     sendJson(503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'Database not configured' } })
     return null
   }
+  // Idempotent: creates client-management tables if migrations have not been
+  // applied yet.  After the first successful run it is a synchronous no-op.
+  await ensureClientManagementSchema()
   return db
 }
 
@@ -80,7 +84,7 @@ function parseIntParam(val, fallback) {
 export async function handleListManagedClients(req, res, ctx) {
   const { sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -115,7 +119,7 @@ export async function handleListManagedClients(req, res, ctx) {
 export async function handleGetClientDetail(req, res, ctx) {
   const { clientId, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -143,7 +147,7 @@ export async function handleGetClientDetail(req, res, ctx) {
 export async function handlePatchLifecycle(req, res, ctx) {
   const { clientId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -175,7 +179,7 @@ export async function handlePatchLifecycle(req, res, ctx) {
 export async function handleContractsRequest(req, res, ctx) {
   const { method, clientId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -222,7 +226,7 @@ export async function handleContractsRequest(req, res, ctx) {
 export async function handlePatchContract(req, res, ctx) {
   const { clientId, contractId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -254,7 +258,7 @@ export async function handlePatchContract(req, res, ctx) {
 export async function handlePatchProject(req, res, ctx) {
   const { clientId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -285,7 +289,7 @@ export async function handlePatchProject(req, res, ctx) {
 export async function handlePatchBilling(req, res, ctx) {
   const { clientId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -315,7 +319,7 @@ export async function handlePatchBilling(req, res, ctx) {
 export async function handleInstallmentsRequest(req, res, ctx) {
   const { method, clientId, installmentId, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -366,7 +370,7 @@ export async function handleInstallmentsRequest(req, res, ctx) {
 export async function handleNotesRequest(req, res, ctx) {
   const { method, clientId, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -421,7 +425,7 @@ export async function handleNotesRequest(req, res, ctx) {
 export async function handleRemindersRequest(req, res, ctx) {
   const { method, clientId, reminderId, readJsonBody, sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -490,7 +494,7 @@ export async function handleRemindersRequest(req, res, ctx) {
 export async function handlePortfolioSummary(req, res, ctx) {
   const { sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -515,7 +519,7 @@ export async function handlePortfolioSummary(req, res, ctx) {
 export async function handlePortfolioUpcomingBillings(req, res, ctx) {
   const { sendJson: rawSendJson, requestUrl } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -543,7 +547,7 @@ export async function handlePortfolioUpcomingBillings(req, res, ctx) {
 export async function handlePortfolioStatusBreakdown(req, res, ctx) {
   const { sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
@@ -568,7 +572,7 @@ export async function handlePortfolioStatusBreakdown(req, res, ctx) {
 export async function handlePortfolioAlerts(req, res, ctx) {
   const { sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
-  const db = getDb(sendJson)
+  const db = await getDb(sendJson)
   if (!db) return
 
   let actor
