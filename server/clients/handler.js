@@ -15,6 +15,7 @@ import {
   updateClient,
   softDeleteClient,
   listClients,
+  getClientById,
   getClientProposals,
   appendClientAuditLog,
 } from './repository.js'
@@ -205,12 +206,19 @@ export async function handleClientsRequest(req, res, ctx) {
     const q = requestUrl.searchParams
     const page = q.get('page') ?? 1
     const limit = q.get('limit') ?? 20
-    console.info('[api/clients][GET] start', {
+    const resolvedActorRole = actorRole(actor)
+    const isComercialActor = resolvedActorRole === 'role_comercial'
+    console.info('[clients][list] start', {
       page,
       limit,
-      userId: actor?.userId ?? null,
-      email: actor?.email ?? null,
+      actorUserId: actor?.userId ?? null,
+      actorRole: resolvedActorRole,
     })
+    if (isComercialActor) {
+      console.info('[clients][list] scoped-by-owner', { actorUserId: actor.userId })
+    } else {
+      console.info('[clients][list] admin-access', { actorRole: resolvedActorRole })
+    }
     console.info('[api/clients][GET] db-config', {
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
       hasUnpooledUrl: Boolean(process.env.DATABASE_URL_UNPOOLED || process.env.NEON_DATABASE_URL_UNPOOLED),
@@ -218,7 +226,7 @@ export async function handleClientsRequest(req, res, ctx) {
     })
     try {
       const userSql = sqlForActor(db, actor)
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, page, limit })
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, page, limit })
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
@@ -229,8 +237,11 @@ export async function handleClientsRequest(req, res, ctx) {
         limit,
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
+        actorUserId: actor.userId,
+        actorRole: resolvedActorRole,
       })
       const safeData = Array.isArray(result?.data) ? result.data : []
+      console.info('[clients][list] success', { actorUserId: actor.userId, actorRole: resolvedActorRole, count: safeData.length })
       logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })
       return sendJson(200, { ...result, data: safeData })
     } catch (err) {
@@ -238,7 +249,8 @@ export async function handleClientsRequest(req, res, ctx) {
       if (err?.statusCode === 401 || err?.statusCode === 403) {
         return handleAuthError(sendJson, err)
       }
-      console.error('[api/clients][GET] failed', {
+      console.error('[clients][list] failed', {
+        actorUserId: actor?.userId ?? null,
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
         code: err?.code ?? null,
@@ -306,6 +318,32 @@ export async function handleClientByIdRequest(req, res, ctx) {
     return handleAuthError(sendJson, err)
   }
 
+  if (method === 'GET' && !subpath) {
+    // GET /api/clients/:id — fetch a single client
+    try {
+      const userSql = sqlForActor(db, actor)
+      const resolvedActorRole = actorRole(actor)
+      logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId })
+      const client = await getClientById(userSql, clientId, {
+        actorUserId: actor.userId,
+        actorRole: resolvedActorRole,
+      })
+      if (!client) {
+        // Return 404 for both "not found" and "access denied" to avoid
+        // revealing existence of records the caller cannot read.
+        return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
+      }
+      logRoute('/api/clients/:id', { method: 'GET', actorUserId: actor.userId, actorRole: resolvedActorRole, clientId, success: true })
+      return sendJson(200, { data: client })
+    } catch (err) {
+      if (err?.statusCode === 401 || err?.statusCode === 403) {
+        return handleAuthError(sendJson, err)
+      }
+      console.error('[clients] get-by-id error:', err)
+      return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to get client')
+    }
+  }
+
   if (method === 'GET' && subpath === 'proposals') {
     try {
       const userSql = sqlForActor(db, actor)
@@ -356,23 +394,45 @@ export async function handleClientByIdRequest(req, res, ctx) {
 
     try {
       logRoute('/api/clients/:id', { method: 'DELETE', actorUserId: actor.userId, clientId })
-      console.info('[api/clients][DELETE] start', { id: clientId })
+      console.info('[api/clients][DELETE] start', { id: clientId, actorUserId: actor.userId, actorRole: actorRole(actor) })
       const userSql = sqlForActor(db, actor)
       const deleted = await softDeleteClient(userSql, clientId, actor.userId)
+
       if (!deleted) {
+        // UPDATE returned 0 rows — could be "truly absent" or "RLS silently blocked".
+        // Distinguish by re-checking with a service-level bypass query (no RLS context).
+        const existsRows = await db.sql`
+          SELECT 1
+          FROM clients
+          WHERE id = ${clientId}
+            AND deleted_at IS NULL
+          LIMIT 1
+        `
+        if (existsRows.length > 0) {
+          console.warn('[api/clients][DELETE] blocked-by-rls', {
+            id: clientId,
+            actorUserId: actor.userId,
+            actorRole: actorRole(actor),
+          })
+          return sendError(sendJson, 403, 'FORBIDDEN', 'Not authorized to delete this client')
+        }
+
         console.info('[api/clients][DELETE] already-absent', { id: clientId })
         res.statusCode = 204
         res.end()
         return
       }
+
       await appendClientAuditLog(db.sql, clientId, actor.userId, actor.email ?? null, 'deleted', null, null)
-      console.info('[client-delete][db]', { id: clientId, deletedRows: 1 })
+      console.info('[api/clients][DELETE] success', { id: clientId, actorUserId: actor.userId, actorRole: actorRole(actor) })
       res.statusCode = 204
       res.end()
       return
     } catch (err) {
       console.error('[api/clients][DELETE] failed', {
         id: clientId,
+        actorUserId: actor.userId,
+        actorRole: actorRole(actor),
         message: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
       })

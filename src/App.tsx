@@ -5917,6 +5917,7 @@ export default function App() {
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clientAutoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clientsSyncStateRef = useRef<ClientsSyncState>(clientsSyncState)
   const deletingClientIdsRef = useRef<Set<string>>(new Set())
   const deletedClientKeysRef = useRef<Set<string>>(new Set())
   const proposalServerIdMapRef = useRef<Record<string, string>>({})
@@ -12321,6 +12322,13 @@ export default function App() {
     }
   }, [])
 
+  // Keep clientsSyncStateRef in sync so carregarClientesPrioritarios can read
+  // the current value for logging without having it in the useCallback deps
+  // (which would recreate the callback and trigger spurious reloads).
+  useEffect(() => {
+    clientsSyncStateRef.current = clientsSyncState
+  }, [clientsSyncState])
+
   const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
     if (typeof window === 'undefined') {
       return []
@@ -12331,7 +12339,7 @@ export default function App() {
     }
     console.info('[clients][load] start', {
       authenticated: true,
-      syncState: clientsSyncState,
+      syncState: clientsSyncStateRef.current,
       browser: navigator.userAgent,
     })
 
@@ -12453,7 +12461,7 @@ export default function App() {
       keys: reconciled.slice(0, 10).map(getClientStableKey),
     })
     return reconciled
-  }, [adicionarNotificacao, carregarClientesSalvos, clientsSyncState, getClientStableKey, meAuthState, parseClientesSalvos])
+  }, [adicionarNotificacao, carregarClientesSalvos, getClientStableKey, meAuthState, parseClientesSalvos])
 
   useEffect(() => {
     if (meAuthState !== 'authenticated' || !reconciliationReady) {
@@ -15988,6 +15996,11 @@ export default function App() {
               id: serverIdCandidate,
               message: error instanceof Error ? error.message : String(error),
             })
+            // Rollback optimistic hide: the backend did NOT confirm the delete,
+            // so remove the key from the ref and persist the corrected state.
+            console.info('[clients][delete] rollback-local-hide', { id: registro.id, key: targetKey })
+            deletedClientKeysRef.current.delete(targetKey)
+            persistDeletedClientKeys(deletedClientKeysRef.current, Date.now())
             window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
             deletingClientIdsRef.current.delete(registro.id)
             return
