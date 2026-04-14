@@ -145,9 +145,25 @@ export async function handleGetClientDetail(req, res, ctx) {
 
 // ─── PATCH /api/client-management/:clientId/lifecycle ────────────────────────
 
+const VALID_LIFECYCLE_STATUSES = new Set([
+  'lead', 'negotiating', 'contracted', 'active',
+  'suspended', 'cancelled', 'completed',
+])
+
+const VALID_ONBOARDING_STATUSES = new Set([
+  'pending', 'in_progress', 'completed', 'skipped',
+])
+
 export async function handlePatchLifecycle(req, res, ctx) {
   const { clientId, readJsonBody, sendJson: rawSendJson } = ctx
   const sendJson = (s, p) => rawSendJson(res, s, p)
+
+  // Validate path param early — before hitting the DB.
+  const clientIdNum = parseInt(clientId, 10)
+  if (!Number.isFinite(clientIdNum) || clientIdNum <= 0) {
+    return sendError(sendJson, 400, 'VALIDATION_ERROR', 'clientId must be a positive integer')
+  }
+
   const db = await getDb(sendJson)
   if (!db) return
 
@@ -163,13 +179,48 @@ export async function handlePatchLifecycle(req, res, ctx) {
   let body
   try { body = await readJsonBody(req) } catch { return sendError(sendJson, 400, 'VALIDATION_ERROR', 'Invalid JSON') }
 
+  // Validate payload fields.
+  if (body.lifecycle_status !== undefined && !VALID_LIFECYCLE_STATUSES.has(body.lifecycle_status)) {
+    return sendError(sendJson, 400, 'VALIDATION_ERROR',
+      `lifecycle_status must be one of: ${[...VALID_LIFECYCLE_STATUSES].join(', ')}`)
+  }
+  if (body.onboarding_status !== undefined && !VALID_ONBOARDING_STATUSES.has(body.onboarding_status)) {
+    return sendError(sendJson, 400, 'VALIDATION_ERROR',
+      `onboarding_status must be one of: ${[...VALID_ONBOARDING_STATUSES].join(', ')}`)
+  }
+  if (body.is_converted_customer !== undefined && typeof body.is_converted_customer !== 'boolean') {
+    return sendError(sendJson, 400, 'VALIDATION_ERROR', 'is_converted_customer must be a boolean')
+  }
+
+  // Inject audit fields server-side (not trusted from client).
+  const payload = {
+    ...body,
+    converted_by_user_id: body.is_converted_customer && !body.converted_by_user_id
+      ? actor.userId
+      : (body.converted_by_user_id ?? undefined),
+  }
+
+  const t0 = Date.now()
   try {
     const userSql = sqlForActor(db, actor)
-    const result = await upsertLifecycle(userSql, clientId, body)
+    const result = await upsertLifecycle(userSql, clientIdNum, payload)
+    console.log('[client-management][lifecycle] updated', {
+      clientId: clientIdNum,
+      actorUserId: actor.userId,
+      actorRole: actorRole(actor),
+      lifecycleStatus: payload.lifecycle_status,
+      isConverted: payload.is_converted_customer,
+      timingMs: Date.now() - t0,
+    })
     return sendJson(200, { data: result })
   } catch (err) {
     if (err?.statusCode === 401 || err?.statusCode === 403) return handleAuthError(sendJson, err)
-    console.error('[client-management][lifecycle] error:', err)
+    console.error('[client-management][lifecycle] error', {
+      clientId: clientIdNum,
+      actorUserId: actor.userId,
+      errorMessage: err?.message,
+      timingMs: Date.now() - t0,
+    })
     return sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to update lifecycle')
   }
 }

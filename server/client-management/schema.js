@@ -78,6 +78,57 @@ DECLARE
   ];
 BEGIN
 
+  -- ── App schema + RLS helper functions (self-contained bootstrap) ──────────
+  -- These functions are normally created by migrations 0018-0023.
+  -- We re-create them here (CREATE OR REPLACE) so that this bootstrap block
+  -- is fully self-contained: it can run even before those migrations have been
+  -- applied, and will not overwrite a newer version since the logic is
+  -- intentionally kept in sync with migration 0023 (latest).
+
+  CREATE SCHEMA IF NOT EXISTS app;
+
+  CREATE OR REPLACE FUNCTION app.current_user_id()
+  RETURNS text LANGUAGE sql STABLE PARALLEL SAFE AS
+  $fn$ SELECT nullif(current_setting('app.current_user_id', true), ''); $fn$;
+
+  CREATE OR REPLACE FUNCTION app.current_user_role()
+  RETURNS text LANGUAGE sql STABLE PARALLEL SAFE AS
+  $fn$ SELECT nullif(current_setting('app.current_user_role', true), ''); $fn$;
+
+  CREATE OR REPLACE FUNCTION app.can_access_owner(owner_user_id text)
+  RETURNS boolean LANGUAGE plpgsql STABLE AS
+  $fn$
+  DECLARE v_role text; v_uid text;
+  BEGIN
+    IF current_user = 'role_admin' THEN RETURN true; END IF;
+    v_role := app.current_user_role();
+    v_uid  := app.current_user_id();
+    IF v_role IS NULL OR v_uid IS NULL THEN RETURN false; END IF;
+    IF v_role = 'role_admin'      THEN RETURN true; END IF;
+    IF v_role = 'role_financeiro' THEN RETURN true; END IF;
+    IF v_role = 'role_office'     THEN RETURN true; END IF;
+    IF v_role = 'role_comercial'  THEN RETURN owner_user_id = v_uid; END IF;
+    RETURN false;
+  END;
+  $fn$;
+
+  CREATE OR REPLACE FUNCTION app.can_write_owner(owner_user_id text)
+  RETURNS boolean LANGUAGE plpgsql STABLE AS
+  $fn$
+  DECLARE v_role text; v_uid text;
+  BEGIN
+    IF current_user = 'role_admin' THEN RETURN true; END IF;
+    v_role := app.current_user_role();
+    v_uid  := app.current_user_id();
+    IF v_role IS NULL OR v_uid IS NULL THEN RETURN false; END IF;
+    IF v_role = 'role_admin'      THEN RETURN true;                  END IF;
+    IF v_role = 'role_financeiro' THEN RETURN false;                 END IF;
+    IF v_role = 'role_office'     THEN RETURN owner_user_id = v_uid; END IF;
+    IF v_role = 'role_comercial'  THEN RETURN owner_user_id = v_uid; END IF;
+    RETURN false;
+  END;
+  $fn$;
+
   -- ── 0025 · client_energy_profile ─────────────────────────────────────────
 
   CREATE TABLE IF NOT EXISTS public.client_energy_profile (
@@ -121,6 +172,7 @@ BEGIN
     is_converted_customer   BOOLEAN NOT NULL DEFAULT FALSE,
     converted_at            TIMESTAMPTZ,
     converted_from_lead_at  TIMESTAMPTZ,
+    converted_by_user_id    TEXT,
     onboarding_status       TEXT DEFAULT 'pending'
                               CHECK (onboarding_status IN (
                                 'pending','in_progress','completed','skipped'
@@ -129,6 +181,10 @@ BEGIN
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT client_lifecycle_client_id_unique UNIQUE (client_id)
   );
+
+  -- Add converted_by_user_id to existing tables that predate this column.
+  ALTER TABLE public.client_lifecycle
+    ADD COLUMN IF NOT EXISTS converted_by_user_id TEXT;
 
   CREATE INDEX IF NOT EXISTS idx_client_lifecycle_client_id
     ON public.client_lifecycle (client_id);

@@ -19,12 +19,13 @@ export async function upsertLifecycle(sql, clientId, data) {
     is_converted_customer,
     converted_at,
     converted_from_lead_at,
+    converted_by_user_id,
     onboarding_status,
   } = data
   const rows = await sql`
     INSERT INTO public.client_lifecycle (
       client_id, lifecycle_status, is_converted_customer,
-      converted_at, converted_from_lead_at, onboarding_status
+      converted_at, converted_from_lead_at, converted_by_user_id, onboarding_status
     )
     VALUES (
       ${clientId},
@@ -32,6 +33,7 @@ export async function upsertLifecycle(sql, clientId, data) {
       ${is_converted_customer ?? false},
       ${converted_at ?? null},
       ${converted_from_lead_at ?? null},
+      ${converted_by_user_id ?? null},
       ${onboarding_status ?? 'pending'}
     )
     ON CONFLICT (client_id) DO UPDATE SET
@@ -39,6 +41,7 @@ export async function upsertLifecycle(sql, clientId, data) {
       is_converted_customer = COALESCE(EXCLUDED.is_converted_customer, client_lifecycle.is_converted_customer),
       converted_at          = COALESCE(EXCLUDED.converted_at,          client_lifecycle.converted_at),
       converted_from_lead_at= COALESCE(EXCLUDED.converted_from_lead_at,client_lifecycle.converted_from_lead_at),
+      converted_by_user_id  = COALESCE(EXCLUDED.converted_by_user_id,  client_lifecycle.converted_by_user_id),
       onboarding_status     = COALESCE(EXCLUDED.onboarding_status,     client_lifecycle.onboarding_status),
       updated_at            = now()
     RETURNING *

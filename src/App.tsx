@@ -4941,6 +4941,9 @@ export default function App() {
   // Incremented when auth is established so that data-load effects re-run and
   // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
   const [authSyncKey, setAuthSyncKey] = useState(0)
+  // Incremented after a successful "negócio fechado" action so that the Gestão
+  // de Clientes page re-fetches its list when the user navigates to it.
+  const [clientManagementRefreshKey, setClientManagementRefreshKey] = useState(0)
   useEffect(() => {
     ensureServerStorageSync({ timeoutMs: 4000 })
   }, [])
@@ -17206,6 +17209,8 @@ export default function App() {
           `✅ ${registro.dados.nome ?? 'Cliente'} adicionado à Gestão de Clientes.`,
           'success',
         )
+        // Bust the Gestão de Clientes cache so the next render fetches fresh data.
+        setClientManagementRefreshKey((k) => k + 1)
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Erro desconhecido'
         adicionarNotificacao(`Falha ao marcar negócio fechado: ${msg}`, 'error')
@@ -28380,7 +28385,7 @@ export default function App() {
   )
 
   const renderGestaoClientesPage = () => (
-    <ClientManagementPage isAdmin={isAdmin} isFinanceiro={isFinanceiro} />
+    <ClientManagementPage key={clientManagementRefreshKey} isAdmin={isAdmin} isFinanceiro={isFinanceiro} />
   )
 
   const activeSidebarItem =
