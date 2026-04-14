@@ -25,10 +25,13 @@ import { purgeDeletedClients } from '../clients/purgeDeletedClients.js'
 function assertCronAuthorized(req) {
   const expected = process.env.CRON_SECRET
   if (!expected) {
-    throw new Error('CRON_SECRET is not configured')
+    throw new Error(
+      'CRON_SECRET environment variable is not configured. ' +
+      'Set it in your Vercel project settings to enable cron authentication.',
+    )
   }
 
-  const auth = (req.headers && req.headers['authorization']) || ''
+  const auth = req.headers['authorization'] || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
 
   if (token !== expected) {

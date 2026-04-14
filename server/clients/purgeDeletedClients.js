@@ -32,6 +32,25 @@ const LINK_TABLES = [
   { table: 'proposals', column: 'client_id' },
 ]
 
+// Allowlist of permitted table and column name characters (alphanumeric + underscore).
+// Used to validate LINK_TABLES entries before building identifier-safe SQL.
+const SAFE_IDENTIFIER = /^[a-z_][a-z0-9_]*$/i
+
+/**
+ * Quote a PostgreSQL identifier with double quotes, escaping embedded quotes.
+ * This is safe to interpolate into a SQL string only for identifiers
+ * validated against SAFE_IDENTIFIER.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+function quoteIdentifier(name) {
+  if (!SAFE_IDENTIFIER.test(name)) {
+    throw new Error(`[purge] Unsafe SQL identifier rejected: "${name}"`)
+  }
+  return `"${name.replace(/"/g, '""')}"`
+}
+
 /**
  * Returns true when the client has at least one operational link in any of
  * the configured LINK_TABLES.
@@ -44,9 +63,11 @@ const LINK_TABLES = [
  */
 export async function clientHasLinks(sql, clientId) {
   const checks = await Promise.all(
-    LINK_TABLES.map(({ table, column }) =>
-      sql(`SELECT 1 FROM ${table} WHERE ${column} = $1 LIMIT 1`, [clientId]),
-    ),
+    LINK_TABLES.map(({ table, column }) => {
+      const quotedTable = quoteIdentifier(table)
+      const quotedColumn = quoteIdentifier(column)
+      return sql(`SELECT 1 FROM ${quotedTable} WHERE ${quotedColumn} = $1 LIMIT 1`, [clientId])
+    }),
   )
   return checks.some((rows) => rows.length > 0)
 }
@@ -70,10 +91,16 @@ export async function clientHasLinks(sql, clientId) {
  */
 export async function purgeDeletedClients(db, options = {}) {
   const {
-    retentionDays = DEFAULT_RETENTION_DAYS,
+    retentionDays: rawRetentionDays = DEFAULT_RETENTION_DAYS,
     dryRun = false,
     limit = DEFAULT_LIMIT,
   } = options
+
+  // Validate retentionDays is a safe positive integer before using it in SQL.
+  const retentionDays = Math.max(1, Math.floor(Number(rawRetentionDays)))
+  if (!Number.isFinite(retentionDays)) {
+    throw new TypeError(`[purge] retentionDays must be a finite number, got: ${rawRetentionDays}`)
+  }
 
   const startMs = Date.now()
   const sql = db.sql
