@@ -42,7 +42,8 @@ async function getDb(sendJson) {
     return null
   }
   // Idempotent: creates client-management tables if migrations have not been
-  // applied yet.  After the first successful run it is a synchronous no-op.
+  // applied yet.  After the first successful run ensureClientManagementSchema()
+  // becomes a fast no-op (flag-guarded), though the function itself stays async.
   await ensureClientManagementSchema()
   return db
 }
