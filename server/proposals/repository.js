@@ -5,6 +5,40 @@
 const DEFAULT_PAGE_LIMIT = 20
 const MAX_PAGE_LIMIT = 100
 
+function normalizeDocument(raw) {
+  if (raw == null) return null
+  const digits = String(raw).replace(/\D/g, '')
+  return digits || null
+}
+
+export async function resolveClientLinkByDocument(sql, clientDocument) {
+  const normalized = normalizeDocument(clientDocument)
+  if (!normalized) {
+    return { clientId: null, isConflicted: false, conflictReason: null }
+  }
+
+  const rows = await sql(
+    `SELECT id
+     FROM clients
+     WHERE deleted_at IS NULL
+       AND regexp_replace(coalesce(client_document, ''), '\\D', '', 'g') = $1
+     ORDER BY updated_at DESC NULLS LAST, id DESC`,
+    [normalized],
+  )
+
+  if (rows.length === 1) {
+    return { clientId: rows[0].id, isConflicted: false, conflictReason: null }
+  }
+  if (rows.length > 1) {
+    return {
+      clientId: null,
+      isConflicted: true,
+      conflictReason: 'multiple_active_clients_same_document',
+    }
+  }
+  return { clientId: null, isConflicted: false, conflictReason: null }
+}
+
 /**
  * Insert a new proposal row and return the created record.
  */
@@ -28,9 +62,12 @@ export async function createProposal(sql, ownerUserId, data) {
     capex_total = null,
     contract_value = null,
     term_months = null,
+    uc_geradora_nm = null,
+    uc_beneficiaria = null,
     payload_json = {},
   } = data
 
+  const link = await resolveClientLinkByDocument(sql, client_document)
   const rows = await sql`
     INSERT INTO proposals (
       proposal_type, proposal_code, version, status,
@@ -39,7 +76,8 @@ export async function createProposal(sql, ownerUserId, data) {
       client_name, client_document, client_city, client_state,
       client_phone, client_email,
       consumption_kwh_month, system_kwp, capex_total, contract_value, term_months,
-      payload_json
+      uc_geradora_nm, uc_beneficiaria,
+      payload_json, client_id, is_conflicted, conflict_reason
     ) VALUES (
       ${proposal_type}, ${proposal_code}, ${version}, ${status},
       ${ownerUserId}, ${owner_email}, ${owner_display_name},
@@ -47,7 +85,8 @@ export async function createProposal(sql, ownerUserId, data) {
       ${client_name}, ${client_document}, ${client_city}, ${client_state},
       ${client_phone}, ${client_email},
       ${consumption_kwh_month}, ${system_kwp}, ${capex_total}, ${contract_value}, ${term_months},
-      ${JSON.stringify(payload_json)}::jsonb
+      ${uc_geradora_nm}, ${uc_beneficiaria},
+      ${JSON.stringify(payload_json)}::jsonb, ${link.clientId}, ${link.isConflicted}, ${link.conflictReason}
     )
     RETURNING *
   `
@@ -158,8 +197,15 @@ export async function updateProposal(sql, id, data) {
     capex_total,
     contract_value,
     term_months,
+    uc_geradora_nm,
+    uc_beneficiaria,
     payload_json,
   } = data
+
+  const hasClientDocument = Object.prototype.hasOwnProperty.call(data, 'client_document')
+  const link = hasClientDocument
+    ? await resolveClientLinkByDocument(sql, client_document)
+    : null
 
   // Build SET clause dynamically using a raw query approach
   const setClauses = ['updated_at = now()']
@@ -188,9 +234,16 @@ export async function updateProposal(sql, id, data) {
   if ('capex_total' in data) addField('capex_total', capex_total)
   if ('contract_value' in data) addField('contract_value', contract_value)
   if ('term_months' in data) addField('term_months', term_months)
+  if ('uc_geradora_nm' in data) addField('uc_geradora_nm', uc_geradora_nm)
+  if ('uc_beneficiaria' in data) addField('uc_beneficiaria', uc_beneficiaria)
   if ('payload_json' in data) {
     setClauses.push(`payload_json = $${paramIndex++}::jsonb`)
     values.push(JSON.stringify(payload_json))
+  }
+  if (link) {
+    addField('client_id', link.clientId)
+    addField('is_conflicted', link.isConflicted)
+    addField('conflict_reason', link.conflictReason)
   }
 
   values.push(id)
