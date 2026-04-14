@@ -47,6 +47,8 @@ export interface ProposalRow {
   capex_total: number | null
   contract_value: number | null
   term_months: number | null
+  uc_geradora_nm: string | null
+  uc_beneficiaria: string | null
   payload_json: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -79,6 +81,8 @@ export interface CreateProposalInput {
   capex_total?: number
   contract_value?: number
   term_months?: number
+  uc_geradora_nm?: string
+  uc_beneficiaria?: string
 }
 
 export type UpdateProposalInput = Partial<Omit<CreateProposalInput, 'proposal_type'>>
