@@ -25,8 +25,8 @@ jobs:
   create_neon_branch:
     name: Create Neon Branch
     outputs:
-      db_url: ${{ steps.create_neon_branch_encode.outputs.db_url }}
-      db_url_with_pooler: ${{ steps.create_neon_branch_encode.outputs.db_url_with_pooler }}
+      db_url: ${{ steps.create_neon_branch.outputs.db_url }}
+      db_url_with_pooler: ${{ steps.create_neon_branch.outputs.db_url_with_pooler }}
     needs: setup
     if: |
       github.event_name == 'pull_request' && (
@@ -34,10 +34,23 @@ jobs:
       || github.event.action == 'opened'
       || github.event.action == 'reopened')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Get branch expiration date as an env variable (2 weeks from now)
         id: get_expiration_date
         run: echo "EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Create Neon Branch
         id: create_neon_branch
         uses: neondatabase/create-branch-action@v6
@@ -47,41 +60,36 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           expires_at: ${{ env.EXPIRES_AT }}
 
-# The step above creates a new Neon branch.
-# You may want to do something with the new branch, such as run migrations, run tests
-# on it, or send the connection details to a hosting platform environment.
-# The branch DATABASE_URL is available to you via:
-# "${{ steps.create_neon_branch.outputs.db_url_with_pooler }}".
-# It's important you don't log the DATABASE_URL as output as it contains a username and
-# password for your database.
-# For example, you can uncomment the lines below to run a database migration command:
-#      - name: Run Migrations
-#        run: npm run db:migrate
-#        env:
-#          # to use pooled connection
-#          DATABASE_URL: "${{ steps.create_neon_branch.outputs.db_url_with_pooler }}"
-#          # OR to use unpooled connection
-#          # DATABASE_URL: "${{ steps.create_neon_branch.outputs.db_url }}"
+      - name: Run Migrations on Neon branch
+        run: npm run db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: ${{ steps.create_neon_branch.outputs.db_url }}
 
-# Following the step above, which runs database migrations, you may want to check
-# for schema changes in your database. We recommend using the following action to
-# post a comment to your pull request with the schema diff. For this action to work,
-# you also need to give permissions to the workflow job to be able to post comments
-# and read your repository contents. Add the following permissions to the workflow job:
-#
-# permissions:
-#   contents: read
-#   pull-requests: write
-#
-# You can also check out https://github.com/neondatabase/schema-diff-action for more
-# information on how to use the schema diff action.
-# You can uncomment the lines below to enable the schema diff action.
-#      - name: Post Schema Diff Comment to PR
-#        uses: neondatabase/schema-diff-action@v1
-#        with:
-#          project_id: ${{ vars.NEON_PROJECT_ID }}
-#          compare_branch: preview/pr-${{ github.event.number }}-${{ needs.setup.outputs.branch }}
-#          api_key: ${{ secrets.NEON_API_KEY }}
+      - name: Update Vercel preview environment with branch database URL
+        if: ${{ secrets.VERCEL_TOKEN != '' && vars.VERCEL_PROJECT_ID != '' && vars.VERCEL_ORG_ID != '' }}
+        run: |
+          curl -s -X POST \
+            "https://api.vercel.com/v10/projects/${{ vars.VERCEL_PROJECT_ID }}/env" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "key": "DATABASE_URL",
+              "value": "${{ steps.create_neon_branch.outputs.db_url_with_pooler }}",
+              "type": "encrypted",
+              "target": ["preview"],
+              "gitBranch": "${{ needs.setup.outputs.branch }}"
+            }' || echo "[neon] Warning: Could not update Vercel preview DATABASE_URL (non-fatal)"
+          curl -s -X POST \
+            "https://api.vercel.com/v10/projects/${{ vars.VERCEL_PROJECT_ID }}/env" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "key": "DATABASE_URL_UNPOOLED",
+              "value": "${{ steps.create_neon_branch.outputs.db_url }}",
+              "type": "encrypted",
+              "target": ["preview"],
+              "gitBranch": "${{ needs.setup.outputs.branch }}"
+            }' || echo "[neon] Warning: Could not update Vercel preview DATABASE_URL_UNPOOLED (non-fatal)"
 
   delete_neon_branch:
     name: Delete Neon Branch
