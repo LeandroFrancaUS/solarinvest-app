@@ -1,0 +1,245 @@
+/* src/styles/backup-modal.css */
+/* Styles for the professional backup action modal */
+
+/* ── Overlay ─────────────────────────────────────────────────────────────── */
+.backup-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* ── Modal container ─────────────────────────────────────────────────────── */
+.backup-modal {
+  background: var(--bg-panel, #fff);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  animation: backup-modal-enter 0.18s ease-out;
+}
+
+@keyframes backup-modal-enter {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.backup-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.backup-modal__header-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.backup-modal__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 2px;
+  color: var(--text-primary, #111827);
+}
+
+.backup-modal__subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #6b7280);
+  margin: 0;
+}
+
+.backup-modal__close {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 1rem;
+  padding: 4px 8px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+/* ── Action cards ────────────────────────────────────────────────────────── */
+.backup-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.backup-modal__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 2px solid var(--border-subtle, #e5e7eb);
+  background: var(--bg-subtle, #f9fafb);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.backup-modal__card:hover:not(:disabled) {
+  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 5%, var(--bg-subtle, #f9fafb));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2563eb) 15%, transparent);
+}
+
+.backup-modal__card--active {
+  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 8%, var(--bg-panel, #fff));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2563eb) 20%, transparent);
+}
+
+.backup-modal__card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.backup-modal__card-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.backup-modal__card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary, #111827);
+  line-height: 1.2;
+}
+
+.backup-modal__card-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.4;
+}
+
+/* ── Destination selector ────────────────────────────────────────────────── */
+.backup-modal__destino {
+  padding: 0 20px 16px;
+  animation: backup-modal-enter 0.15s ease-out;
+}
+
+.backup-modal__destino-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 8px;
+}
+
+.backup-modal__destino-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.backup-modal__destino-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-subtle, #e5e7eb);
+  background: var(--bg-subtle, #f9fafb);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.backup-modal__destino-option:hover {
+  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 5%, var(--bg-subtle, #f9fafb));
+}
+
+.backup-modal__destino-option--active {
+  border-color: var(--accent, #2563eb);
+  background: color-mix(in srgb, var(--accent, #2563eb) 8%, var(--bg-panel, #fff));
+}
+
+.backup-modal__destino-radio {
+  /* visually hidden — card border provides the selection indicator */
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.backup-modal__destino-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.backup-modal__destino-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.backup-modal__destino-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+}
+
+.backup-modal__destino-desc {
+  font-size: 0.76rem;
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.3;
+}
+
+/* ── Upload warning ──────────────────────────────────────────────────────── */
+.backup-modal__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 20px 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  font-size: 0.82rem;
+  color: #92400e;
+  line-height: 1.4;
+  animation: backup-modal-enter 0.15s ease-out;
+}
+
+.backup-modal__warning > span:first-child {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.backup-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .backup-modal__actions {
+    grid-template-columns: 1fr;
+  }
+}

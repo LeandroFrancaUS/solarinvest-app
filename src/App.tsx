@@ -184,6 +184,7 @@ import {
 import './styles/config-page.css'
 import './styles/toast.css'
 import './styles/bulk-import.css'
+import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
@@ -306,6 +307,8 @@ import {
   type SuggestedAction as ImportSuggestedAction,
 } from './lib/clients/deduplication'
 import { BulkImportPreviewModal } from './components/clients/BulkImportPreviewModal'
+import { BackupActionModal } from './components/clients/BackupActionModal'
+import type { BackupDestino } from './components/clients/BackupActionModal'
 import { getFilteredClients } from './lib/clients/clientFilter'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
@@ -6785,6 +6788,7 @@ export default function App() {
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const [isImportandoClientes, setIsImportandoClientes] = useState(false)
   const [isGerandoBackupBanco, setIsGerandoBackupBanco] = useState(false)
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false)
   // Bulk import preview state
   const [bulkImportPreviewRows, setBulkImportPreviewRows] = useState<AnalyzedImportRow[]>([])
   const [isBulkImportPreviewOpen, setIsBulkImportPreviewOpen] = useState(false)
@@ -14976,39 +14980,21 @@ export default function App() {
     }
   }, [adicionarNotificacao, getAccessToken])
 
-  const handleBackupBancoDados = useCallback(async () => {
-    if (typeof window === 'undefined' || isGerandoBackupBanco) {
-      return
-    }
+  const handleBackupBancoDados = useCallback(() => {
+    if (typeof window === 'undefined' || isGerandoBackupBanco) return
+    setIsBackupModalOpen(true)
+  }, [isGerandoBackupBanco])
 
-    const acao = window.prompt('Ação do backup: "baixar" ou "carregar"', 'baixar')
-    if (!acao) return
-    const acaoNormalizada = acao.trim().toLowerCase()
+  const handleBackupModalUpload = useCallback(() => {
+    setIsBackupModalOpen(false)
+    backupImportInputRef.current?.click()
+  }, [backupImportInputRef])
 
-    if (acaoNormalizada === 'carregar' || acaoNormalizada === 'load' || acaoNormalizada === 'upload') {
-      backupImportInputRef.current?.click()
-      return
-    }
+  const handleBackupModalDownload = useCallback(async (destino: BackupDestino) => {
+    setIsBackupModalOpen(false)
 
-    if (!(acaoNormalizada === 'baixar' || acaoNormalizada === 'download')) {
-      window.alert('Ação inválida. Use "baixar" ou "carregar".')
-      return
-    }
-
-    const respostaDestino = window.prompt('Destino do backup para download: local, nuvem ou plataforma', 'local')
-    if (!respostaDestino) return
-    const destino = respostaDestino.trim().toLowerCase()
-    if (!['local', 'nuvem', 'platform', 'plataforma', 'cloud'].includes(destino)) {
-      window.alert('Destino inválido. Use: local, nuvem ou plataforma.')
-      return
-    }
-
-    const destinoApi =
-      destino === 'plataforma' || destino === 'platform'
-        ? 'platform'
-        : destino === 'nuvem' || destino === 'cloud'
-          ? 'cloud'
-          : 'local'
+    const destinoApi: 'platform' | 'cloud' | 'local' =
+      destino === 'plataforma' ? 'platform' : destino === 'nuvem' ? 'cloud' : 'local'
 
     setIsGerandoBackupBanco(true)
 
@@ -15058,7 +15044,7 @@ export default function App() {
             files: [file],
           })
         } else {
-          window.alert('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.')
+          adicionarNotificacao('Web Share indisponível neste dispositivo. O arquivo foi baixado localmente.', 'info')
         }
       }
 
@@ -15072,11 +15058,11 @@ export default function App() {
       }
     } catch (error) {
       console.error('Erro ao gerar backup do banco.', error)
-      window.alert('Não foi possível gerar o backup do banco. Tente novamente.')
+      adicionarNotificacao('Não foi possível gerar o backup do banco. Tente novamente.', 'error')
     } finally {
       setIsGerandoBackupBanco(false)
     }
-  }, [adicionarNotificacao, backupImportInputRef, buildClientesFileName, downloadClientesArquivo, getAccessToken, isGerandoBackupBanco])
+  }, [adicionarNotificacao, buildClientesFileName, downloadClientesArquivo, getAccessToken])
 
   const handleClientesImportarArquivo = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -29177,6 +29163,15 @@ export default function App() {
         style={{ display: 'none' }}
         onChange={handleBackupUploadArquivo}
       />
+
+      {isBackupModalOpen ? (
+        <BackupActionModal
+          isLoading={isGerandoBackupBanco}
+          onDownload={handleBackupModalDownload}
+          onUpload={handleBackupModalUpload}
+          onClose={() => setIsBackupModalOpen(false)}
+        />
+      ) : null}
 
       {isBulkImportPreviewOpen ? (
         <BulkImportPreviewModal
