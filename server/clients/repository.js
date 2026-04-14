@@ -213,6 +213,8 @@ export async function updateClient(sql, clientId, data, options = {}) {
        document_type    = COALESCE($14, document_type),
        identity_status  = COALESCE($15, identity_status),
        metadata         = CASE
+                            -- Merge incoming metadata with existing: new keys overwrite,
+                            -- existing keys not in the update payload are preserved.
                             WHEN $16::jsonb IS NOT NULL
                             THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
                             ELSE metadata

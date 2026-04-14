@@ -16075,7 +16075,7 @@ export default function App() {
       ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
       ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
       ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
-      ...(dadosClonados?.cep?.trim() ? { cep: dadosClonados.cep.replace(/\D/g, '').trim() } : {}),
+      ...(dadosClonados?.cep?.trim() ? { cep: dadosClonados.cep.replace(/\D/g, '') } : {}),
       ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
       ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
       metadata: {
