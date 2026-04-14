@@ -439,6 +439,7 @@ export async function listClients(sql, filter = {}) {
     withOptionalJoin = true,
     withProposalCount = true,
     withEnergyProfile = true,
+    withLatestProposalProfile = true,
   } = {}) => {
     const queryConditions = withMergedFilter ? conditions : baseConditions
     const where = queryConditions.length ? `WHERE ${queryConditions.join(' AND ')}` : ''
@@ -448,6 +449,24 @@ export async function listClients(sql, filter = {}) {
     const joinClause = withOptionalJoin
       ? `LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id ${profileJoin}`
       : profileJoin
+    const latestProposalJoin = withLatestProposalProfile
+      ? `LEFT JOIN LATERAL (
+          SELECT
+            p.updated_at,
+            p.payload_json ->> 'kcKwhMes' AS kc_kwh_mes_raw,
+            p.payload_json ->> 'tarifaCheia' AS tarifa_cheia_raw,
+            p.payload_json ->> 'tipoRede' AS tipo_rede,
+            p.payload_json ->> 'desconto' AS desconto_percentual_raw,
+            p.payload_json -> 'ucBeneficiarias' AS ucs_beneficiarias,
+            p.payload_json -> 'cliente' ->> 'indicacaoNome' AS indicacao,
+            p.payload_json -> 'cliente' ->> 'temIndicacao' AS tem_indicacao_raw
+          FROM proposals p
+          WHERE p.client_id = c.id
+            AND p.deleted_at IS NULL
+          ORDER BY p.updated_at DESC, p.created_at DESC
+          LIMIT 1
+        ) lp ON TRUE`
+      : ''
     const proposalCountExpr = withProposalCount
       ? '(SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count'
       : '0::int AS proposal_count'
@@ -467,15 +486,31 @@ export async function listClients(sql, filter = {}) {
           'marca_inversor', ep.marca_inversor
         ) ELSE NULL END AS energy_profile`
       : 'NULL::json AS energy_profile'
+    const latestProposalExpr = withLatestProposalProfile
+      ? `CASE WHEN lp.updated_at IS NOT NULL THEN json_build_object(
+          'kwh_contratado', CASE WHEN lp.kc_kwh_mes_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.kc_kwh_mes_raw)::numeric ELSE NULL END,
+          'tarifa_atual', CASE WHEN lp.tarifa_cheia_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.tarifa_cheia_raw)::numeric ELSE NULL END,
+          'tipo_rede', lp.tipo_rede,
+          'desconto_percentual', CASE WHEN lp.desconto_percentual_raw ~ '^-?\\d+(\\.\\d+)?$' THEN (lp.desconto_percentual_raw)::numeric ELSE NULL END,
+          'ucs_beneficiarias', COALESCE(lp.ucs_beneficiarias, '[]'::jsonb),
+          'indicacao', NULLIF(lp.indicacao, ''),
+          'tem_indicacao', CASE
+            WHEN lower(COALESCE(lp.tem_indicacao_raw, '')) IN ('true', '1', 't', 'yes', 'y', 'sim') THEN true
+            ELSE false
+          END
+        ) ELSE NULL END AS latest_proposal_profile`
+      : 'NULL::json AS latest_proposal_profile'
     const countQuery = `SELECT COUNT(*) AS count FROM clients c ${joinClause} ${where}`
     const dataQuery = `
       SELECT c.*,
         ${ownerNameExpr},
         ${ownerEmailExpr},
         ${proposalCountExpr},
-        ${energyProfileExpr}
+        ${energyProfileExpr},
+        ${latestProposalExpr}
       FROM clients c
       ${joinClause}
+      ${latestProposalJoin}
       ${where}
       ORDER BY c.${safeSort} ${safeSortDir}
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
@@ -507,6 +542,7 @@ export async function listClients(sql, filter = {}) {
       withOptionalJoin: !missingOptionalJoin,
       withProposalCount: !missingOptionalJoin,
       withEnergyProfile: !missingEnergyProfile,
+      withLatestProposalProfile: !missingOptionalJoin,
     })
     console.warn('[clients][list] retrying with compatibility mode', {
       missingMergedColumn,
