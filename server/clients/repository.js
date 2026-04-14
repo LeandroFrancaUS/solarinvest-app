@@ -167,51 +167,46 @@ export async function updateClient(sql, clientId, data, options = {}) {
 
   // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
-  let rows
-  if (scopeByOwner) {
-    rows = await sql`
-      UPDATE clients SET
-        name             = COALESCE(${name ?? null}, name),
-        phone            = COALESCE(${phone ?? null}, phone),
-        email            = COALESCE(${email ?? null}, email),
-        city             = COALESCE(${city ?? null}, city),
-        state            = COALESCE(${state ?? null}, state),
-        address          = COALESCE(${address ?? null}, address),
-        cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
-        cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
-        cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
-        cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
-        document_type    = COALESCE(${document_type ?? null}, document_type),
-        identity_status  = COALESCE(${identity_status ?? null}, identity_status),
-        metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
-        updated_at       = now()
-      WHERE id = ${clientId}
-        AND deleted_at IS NULL
-        AND owner_user_id = ${actorUserId}
-      RETURNING *
-    `
-  } else {
-    rows = await sql`
-      UPDATE clients SET
-        name             = COALESCE(${name ?? null}, name),
-        phone            = COALESCE(${phone ?? null}, phone),
-        email            = COALESCE(${email ?? null}, email),
-        city             = COALESCE(${city ?? null}, city),
-        state            = COALESCE(${state ?? null}, state),
-        address          = COALESCE(${address ?? null}, address),
-        cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
-        cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
-        cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
-        cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
-        document_type    = COALESCE(${document_type ?? null}, document_type),
-        identity_status  = COALESCE(${identity_status ?? null}, identity_status),
-        metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
-        updated_at       = now()
-      WHERE id = ${clientId}
-        AND deleted_at IS NULL
-      RETURNING *
-    `
-  }
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $15' : ''
+  const params = [
+    name ?? null,
+    phone ?? null,
+    email ?? null,
+    city ?? null,
+    state ?? null,
+    address ?? null,
+    cpf_normalized ?? null,
+    cpf_raw ?? null,
+    cnpj_normalized ?? null,
+    cnpj_raw ?? null,
+    document_type ?? null,
+    identity_status ?? null,
+    metadata ? JSON.stringify(metadata) : null,
+    clientId,
+    ...(scopeByOwner ? [actorUserId] : []),
+  ]
+  const rows = await sql(
+    `UPDATE clients SET
+       name             = COALESCE($1,  name),
+       phone            = COALESCE($2,  phone),
+       email            = COALESCE($3,  email),
+       city             = COALESCE($4,  city),
+       state            = COALESCE($5,  state),
+       address          = COALESCE($6,  address),
+       cpf_normalized   = COALESCE($7,  cpf_normalized),
+       cpf_raw          = COALESCE($8,  cpf_raw),
+       cnpj_normalized  = COALESCE($9,  cnpj_normalized),
+       cnpj_raw         = COALESCE($10, cnpj_raw),
+       document_type    = COALESCE($11, document_type),
+       identity_status  = COALESCE($12, identity_status),
+       metadata         = COALESCE($13::jsonb, metadata),
+       updated_at       = now()
+     WHERE id = $14
+       AND deleted_at IS NULL
+       ${ownerClause}
+     RETURNING *`,
+    params,
+  )
   return rows[0] ?? null
 }
 
@@ -231,53 +226,29 @@ export async function updateClient(sql, clientId, data, options = {}) {
  */
 export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null) {
   const scopeByOwner = actorRole === 'role_comercial' && Boolean(actorUserId)
+  const ownerClause = scopeByOwner ? `AND owner_user_id = $3` : ''
+  const baseParams = [clientId, actorUserId, ...(scopeByOwner ? [actorUserId] : [])]
+
+  const runDelete = async (includeUpdatedBy) => {
+    const setClause = includeUpdatedBy
+      ? 'SET deleted_at = now(), updated_at = now(), updated_by_user_id = $2'
+      : 'SET deleted_at = now(), updated_at = now()'
+    return sql(
+      `UPDATE clients ${setClause}
+       WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
+       RETURNING id`,
+      baseParams,
+    )
+  }
+
   try {
-    let rows
-    if (scopeByOwner) {
-      rows = await sql`
-        UPDATE clients
-        SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
-        WHERE id = ${clientId}
-          AND deleted_at IS NULL
-          AND owner_user_id = ${actorUserId}
-        RETURNING id
-      `
-    } else {
-      rows = await sql`
-        UPDATE clients
-        SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
-        WHERE id = ${clientId}
-          AND deleted_at IS NULL
-        RETURNING id
-      `
-    }
+    const rows = await runDelete(true)
     return rows[0] ?? null
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const missingUpdatedBy = message.includes('updated_by_user_id')
-    if (!missingUpdatedBy) {
-      throw error
-    }
+    if (!message.includes('updated_by_user_id')) throw error
     // Retry without updated_by_user_id for older schemas that lack the column.
-    let rows
-    if (scopeByOwner) {
-      rows = await sql`
-        UPDATE clients
-        SET deleted_at = now(), updated_at = now()
-        WHERE id = ${clientId}
-          AND deleted_at IS NULL
-          AND owner_user_id = ${actorUserId}
-        RETURNING id
-      `
-    } else {
-      rows = await sql`
-        UPDATE clients
-        SET deleted_at = now(), updated_at = now()
-        WHERE id = ${clientId}
-          AND deleted_at IS NULL
-        RETURNING id
-      `
-    }
+    const rows = await runDelete(false)
     return rows[0] ?? null
   }
 }
