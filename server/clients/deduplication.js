@@ -286,8 +286,7 @@ export async function createClientSafe(sql, data, options = {}) {
   const cnpjNormalized = docType === 'cnpj' ? normalizeCnpjServer(sanitized.document) : null
 
   let identityStatus = 'pending_cpf'
-  if (docNormalized && docType === 'cpf') identityStatus = 'confirmed'
-  else if (docNormalized && docType === 'cnpj') identityStatus = 'confirmed'
+  if (docNormalized && (docType === 'cpf' || docType === 'cnpj')) identityStatus = 'confirmed'
 
   const newClient = await createClient(sql, {
     name: sanitized.name,

@@ -163,7 +163,7 @@ export function BulkImportPreviewModal({
             {summary.existing} existente{summary.existing !== 1 ? 's' : ''}
           </span>
           <span className="bulk-badge bulk-badge--duplicate">
-            {summary.possible} possível{summary.possible !== 1 ? 'is' : ''} duplicado{summary.possible !== 1 ? 's' : ''}
+            {summary.possible} {summary.possible !== 1 ? 'possíveis duplicados' : 'possível duplicado'}
           </span>
           <span className="bulk-import-modal__selected">
             {summary.selected} selecionado{summary.selected !== 1 ? 's' : ''} de {summary.total}

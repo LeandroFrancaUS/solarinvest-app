@@ -100,8 +100,13 @@ export function diceSimilarity(a: string, b: string): number {
   return (2 * intersection) / (biA.size + biB.size)
 }
 
-/** Minimum Dice score to consider a SOFT name match */
-const SOFT_MATCH_NAME_THRESHOLD = 0.82
+/**
+ * Minimum Dice coefficient to consider a name a SOFT match.
+ * A value of 0.82 was chosen empirically to catch common name variations
+ * (abbreviations, middle-name differences) while avoiding false positives
+ * on very short or common names.
+ */
+export const SOFT_MATCH_NAME_THRESHOLD = 0.82
 
 /**
  * Check a single import row against a list of existing clients (client-side).
