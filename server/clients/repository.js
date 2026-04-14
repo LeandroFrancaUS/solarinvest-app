@@ -133,8 +133,22 @@ export async function createClient(sql, data) {
 
 /**
  * Update an existing client (non-destructive — preserves created_by_user_id).
+ *
+ * Defense-in-depth: when actorRole is 'role_comercial' and actorUserId is
+ * provided, an additional WHERE owner_user_id = actorUserId clause is injected
+ * at the application layer.  This mirrors the behavior of listClients() and
+ * getClientById() and ensures comercial users cannot mutate records they do
+ * not own even on connections where BYPASSRLS is set on the DB role.
+ *
+ * @param {Function} sql                         - user-scoped sql handle
+ * @param {string}   clientId                    - UUID of the client
+ * @param {object}   data                        - fields to update
+ * @param {object}   [options]
+ * @param {string}   [options.actorUserId]        - requester's Stack Auth user ID
+ * @param {string}   [options.actorRole]          - canonical role ('role_comercial', etc.)
  */
-export async function updateClient(sql, clientId, data) {
+export async function updateClient(sql, clientId, data, options = {}) {
+  const { actorUserId = null, actorRole: role = null } = options
   const {
     name,
     phone,
@@ -151,42 +165,92 @@ export async function updateClient(sql, clientId, data) {
     metadata,
   } = data
 
-  const rows = await sql`
-    UPDATE clients SET
-      name             = COALESCE(${name ?? null}, name),
-      phone            = COALESCE(${phone ?? null}, phone),
-      email            = COALESCE(${email ?? null}, email),
-      city             = COALESCE(${city ?? null}, city),
-      state            = COALESCE(${state ?? null}, state),
-      address          = COALESCE(${address ?? null}, address),
-      cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
-      cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
-      cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
-      cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
-      document_type    = COALESCE(${document_type ?? null}, document_type),
-      identity_status  = COALESCE(${identity_status ?? null}, identity_status),
-      metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
-      updated_at       = now()
-    WHERE id = ${clientId}
-      AND deleted_at IS NULL
-    RETURNING *
-  `
+  // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
+  const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
+  let rows
+  if (scopeByOwner) {
+    rows = await sql`
+      UPDATE clients SET
+        name             = COALESCE(${name ?? null}, name),
+        phone            = COALESCE(${phone ?? null}, phone),
+        email            = COALESCE(${email ?? null}, email),
+        city             = COALESCE(${city ?? null}, city),
+        state            = COALESCE(${state ?? null}, state),
+        address          = COALESCE(${address ?? null}, address),
+        cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
+        cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
+        cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
+        cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
+        document_type    = COALESCE(${document_type ?? null}, document_type),
+        identity_status  = COALESCE(${identity_status ?? null}, identity_status),
+        metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
+        updated_at       = now()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+        AND owner_user_id = ${actorUserId}
+      RETURNING *
+    `
+  } else {
+    rows = await sql`
+      UPDATE clients SET
+        name             = COALESCE(${name ?? null}, name),
+        phone            = COALESCE(${phone ?? null}, phone),
+        email            = COALESCE(${email ?? null}, email),
+        city             = COALESCE(${city ?? null}, city),
+        state            = COALESCE(${state ?? null}, state),
+        address          = COALESCE(${address ?? null}, address),
+        cpf_normalized   = COALESCE(${cpf_normalized ?? null}, cpf_normalized),
+        cpf_raw          = COALESCE(${cpf_raw ?? null}, cpf_raw),
+        cnpj_normalized  = COALESCE(${cnpj_normalized ?? null}, cnpj_normalized),
+        cnpj_raw         = COALESCE(${cnpj_raw ?? null}, cnpj_raw),
+        document_type    = COALESCE(${document_type ?? null}, document_type),
+        identity_status  = COALESCE(${identity_status ?? null}, identity_status),
+        metadata         = COALESCE(${metadata ? JSON.stringify(metadata) : null}::jsonb, metadata),
+        updated_at       = now()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING *
+    `
+  }
   return rows[0] ?? null
 }
 
 
 /**
  * Soft-delete a client by setting deleted_at.
+ *
+ * Defense-in-depth: when actorRole is 'role_comercial', an additional
+ * WHERE owner_user_id = actorUserId clause is injected at the application
+ * layer so comercial users cannot delete records they do not own even on
+ * connections where BYPASSRLS is set on the DB role.
+ *
+ * @param {Function} sql         - user-scoped sql handle
+ * @param {string}   clientId    - UUID of the client
+ * @param {string}   actorUserId - requester's Stack Auth user ID
+ * @param {string}   [actorRole] - canonical role ('role_comercial', etc.)
  */
-export async function softDeleteClient(sql, clientId, actorUserId) {
+export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null) {
+  const scopeByOwner = actorRole === 'role_comercial' && Boolean(actorUserId)
   try {
-    const rows = await sql`
-      UPDATE clients
-      SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
-      WHERE id = ${clientId}
-        AND deleted_at IS NULL
-      RETURNING id
-    `
+    let rows
+    if (scopeByOwner) {
+      rows = await sql`
+        UPDATE clients
+        SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+        WHERE id = ${clientId}
+          AND deleted_at IS NULL
+          AND owner_user_id = ${actorUserId}
+        RETURNING id
+      `
+    } else {
+      rows = await sql`
+        UPDATE clients
+        SET deleted_at = now(), updated_at = now(), updated_by_user_id = ${actorUserId}
+        WHERE id = ${clientId}
+          AND deleted_at IS NULL
+        RETURNING id
+      `
+    }
     return rows[0] ?? null
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -194,13 +258,26 @@ export async function softDeleteClient(sql, clientId, actorUserId) {
     if (!missingUpdatedBy) {
       throw error
     }
-    const rows = await sql`
-      UPDATE clients
-      SET deleted_at = now(), updated_at = now()
-      WHERE id = ${clientId}
-        AND deleted_at IS NULL
-      RETURNING id
-    `
+    // Retry without updated_by_user_id for older schemas that lack the column.
+    let rows
+    if (scopeByOwner) {
+      rows = await sql`
+        UPDATE clients
+        SET deleted_at = now(), updated_at = now()
+        WHERE id = ${clientId}
+          AND deleted_at IS NULL
+          AND owner_user_id = ${actorUserId}
+        RETURNING id
+      `
+    } else {
+      rows = await sql`
+        UPDATE clients
+        SET deleted_at = now(), updated_at = now()
+        WHERE id = ${clientId}
+          AND deleted_at IS NULL
+        RETURNING id
+      `
+    }
     return rows[0] ?? null
   }
 }
