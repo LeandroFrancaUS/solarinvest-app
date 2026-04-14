@@ -343,7 +343,7 @@ export async function listClients(sql, filter = {}) {
   if (search) {
     params.push(`%${search}%`)
     const idx = params.length
-    conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx})`)
+    conditions.push(`(c.name ILIKE $${idx} OR c.cpf_normalized ILIKE $${idx} OR c.cnpj_normalized ILIKE $${idx} OR c.email ILIKE $${idx} OR c.phone ILIKE $${idx} OR c.uc ILIKE $${idx} OR c.city ILIKE $${idx} OR c.address ILIKE $${idx} OR c.distribuidora ILIKE $${idx})`)
   }
 
   const buildQueries = ({

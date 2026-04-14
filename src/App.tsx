@@ -3307,19 +3307,46 @@ function ClientesPanel({
 
     if (!normalizedSearchTerm) return byConsultor
 
+    const digitsOnly = normalizedSearchTerm.replace(/\D/g, '')
     return byConsultor.filter((registro) => {
-      const nomeCliente = registro.dados.nome?.trim().toLowerCase() ?? ''
-      const documentoCliente = registro.dados.documento?.trim().toLowerCase() ?? ''
-      const matchNome = nomeCliente.includes(normalizedSearchTerm)
-      const matchDocumento = documentoCliente
-        .replace(/\D/g, '')
-        .includes(normalizedSearchTerm.replace(/\D/g, ''))
+      const { dados } = registro
+      const matchNome = dados.nome?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchDocumento =
+        digitsOnly.length > 0
+          ? (dados.documento?.replace(/\D/g, '').includes(digitsOnly) ?? false)
+          : false
+      const matchEmail = dados.email?.toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchTelefone =
+        digitsOnly.length > 0
+          ? (dados.telefone?.replace(/\D/g, '').includes(digitsOnly) ?? false)
+          : (dados.telefone?.toLowerCase().includes(normalizedSearchTerm) ?? false)
+      const matchUc = dados.uc?.toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchCidade = dados.cidade?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchUf = dados.uf?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchCep =
+        digitsOnly.length > 0
+          ? (dados.cep?.replace(/\D/g, '').includes(digitsOnly) ?? false)
+          : false
+      const matchEndereco = dados.endereco?.toLowerCase().includes(normalizedSearchTerm) ?? false
+      const matchDistribuidora = dados.distribuidora?.toLowerCase().includes(normalizedSearchTerm) ?? false
       // Allow searching by consultant name/email for privileged views
       const matchOwner = isPrivilegedUser
         ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
           (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
         : false
-      return matchNome || matchDocumento || matchOwner
+      return (
+        matchNome ||
+        matchDocumento ||
+        matchEmail ||
+        matchTelefone ||
+        matchUc ||
+        matchCidade ||
+        matchUf ||
+        matchCep ||
+        matchEndereco ||
+        matchDistribuidora ||
+        matchOwner
+      )
     })
   }, [isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
 
@@ -3415,15 +3442,15 @@ function ClientesPanel({
             label={labelWithTooltip(
               'Pesquisar cliente',
               isPrivilegedUser
-                ? 'Filtra os clientes pelo nome, CPF/CNPJ ou nome do consultor responsável.'
-                : 'Filtra os clientes salvos pelo nome ou CPF/CNPJ informado.',
+                ? 'Filtra os clientes pelo nome, CPF/CNPJ, e-mail, telefone, UC, cidade, UF, CEP, endereço, distribuidora ou nome do consultor responsável.'
+                : 'Filtra os clientes pelo nome, CPF/CNPJ, e-mail, telefone, UC, cidade, UF, CEP, endereço ou distribuidora.',
             )}
           >
             <input
               type="search"
               value={clienteSearchTerm}
               onChange={(event) => setClienteSearchTerm(event.target.value)}
-              placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00 ou João Consultor' : 'Ex.: Maria Silva ou 123.456.789-00'}
+              placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00, UC-0001 ou João Consultor' : 'Ex.: Maria Silva, 123.456.789-00 ou UC-0001'}
             />
           </Field>
           {isPrivilegedUser ? (
