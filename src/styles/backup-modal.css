@@ -2,7 +2,7 @@
 /* Styles for the professional backup action modal */
 
 /* ── Overlay ─────────────────────────────────────────────────────────────── */
-.backup-modal-overlay {
+.backup-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1050;

@@ -48,7 +48,7 @@ export function BackupActionModal({ isLoading, onDownload, onUpload, onClose }: 
 
   return (
     <div
-      className="backup-modal-overlay"
+      className="backup-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}

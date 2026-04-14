@@ -128,7 +128,7 @@ export function BulkImportPreviewModal({
 
   return (
     <div
-      className="bulk-import-modal-overlay"
+      className="bulk-import-modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
