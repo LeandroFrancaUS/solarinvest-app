@@ -173,6 +173,8 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // ownerClause is a hardcoded SQL fragment (never user-derived) that appends
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
+
+  // Full UPDATE including cep (migration 0003).
   // $17 = clientId; $18 = actorUserId (only appended when scopeByOwner)
   const ownerClause = scopeByOwner ? 'AND owner_user_id = $18' : ''
   const params = [
@@ -195,38 +197,105 @@ export async function updateClient(sql, clientId, data, options = {}) {
     clientId,
     ...(scopeByOwner ? [actorUserId] : []),
   ]
-  const rows = await sql(
-    `UPDATE clients SET
-       name             = COALESCE($1,  name),
-       phone            = COALESCE($2,  phone),
-       email            = COALESCE($3,  email),
-       city             = COALESCE($4,  city),
-       state            = COALESCE($5,  state),
-       address          = COALESCE($6,  address),
-       cep              = COALESCE($7,  cep),
-       uc               = COALESCE($8,  uc),
-       distribuidora    = COALESCE($9,  distribuidora),
-       cpf_normalized   = COALESCE($10, cpf_normalized),
-       cpf_raw          = COALESCE($11, cpf_raw),
-       cnpj_normalized  = COALESCE($12, cnpj_normalized),
-       cnpj_raw         = COALESCE($13, cnpj_raw),
-       document_type    = COALESCE($14, document_type),
-       identity_status  = COALESCE($15, identity_status),
-       metadata         = CASE
-                            -- Merge incoming metadata with existing: new keys overwrite,
-                            -- existing keys not in the update payload are preserved.
-                            WHEN $16::jsonb IS NOT NULL
-                            THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
-                            ELSE metadata
-                          END,
-       updated_at       = now()
-     WHERE id = $17
-       AND deleted_at IS NULL
-       ${ownerClause}
-     RETURNING *`,
-    params,
-  )
-  return rows[0] ?? null
+
+  const runUpdate = async (includeCep) => {
+    if (includeCep) {
+      return sql(
+        `UPDATE clients SET
+           name             = COALESCE($1,  name),
+           phone            = COALESCE($2,  phone),
+           email            = COALESCE($3,  email),
+           city             = COALESCE($4,  city),
+           state            = COALESCE($5,  state),
+           address          = COALESCE($6,  address),
+           cep              = COALESCE($7,  cep),
+           uc               = COALESCE($8,  uc),
+           distribuidora    = COALESCE($9,  distribuidora),
+           cpf_normalized   = COALESCE($10, cpf_normalized),
+           cpf_raw          = COALESCE($11, cpf_raw),
+           cnpj_normalized  = COALESCE($12, cnpj_normalized),
+           cnpj_raw         = COALESCE($13, cnpj_raw),
+           document_type    = COALESCE($14, document_type),
+           identity_status  = COALESCE($15, identity_status),
+           metadata         = CASE
+                                -- Merge incoming metadata with existing: new keys overwrite,
+                                -- existing keys not in the update payload are preserved.
+                                WHEN $16::jsonb IS NOT NULL
+                                THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
+                                ELSE metadata
+                              END,
+           updated_at       = now()
+         WHERE id = $17
+           AND deleted_at IS NULL
+           ${ownerClause}
+         RETURNING *`,
+        params,
+      )
+    }
+    // Fallback for schemas that do not yet have the cep column (migration 0003).
+    // Parameters shift: cep ($7) is dropped; $7 becomes uc, $8 distribuidora,
+    // $9-$15 the document/identity fields, $16 clientId, $17 actorUserId.
+    const ownerClauseFallback = scopeByOwner ? 'AND owner_user_id = $17' : ''
+    const paramsFallback = [
+      name ?? null,
+      phone ?? null,
+      email ?? null,
+      city ?? null,
+      state ?? null,
+      address ?? null,
+      uc ?? null,
+      distribuidora ?? null,
+      cpf_normalized ?? null,
+      cpf_raw ?? null,
+      cnpj_normalized ?? null,
+      cnpj_raw ?? null,
+      document_type ?? null,
+      identity_status ?? null,
+      metadata ? JSON.stringify(metadata) : null,
+      clientId,
+      ...(scopeByOwner ? [actorUserId] : []),
+    ]
+    return sql(
+      `UPDATE clients SET
+         name             = COALESCE($1,  name),
+         phone            = COALESCE($2,  phone),
+         email            = COALESCE($3,  email),
+         city             = COALESCE($4,  city),
+         state            = COALESCE($5,  state),
+         address          = COALESCE($6,  address),
+         uc               = COALESCE($7,  uc),
+         distribuidora    = COALESCE($8,  distribuidora),
+         cpf_normalized   = COALESCE($9,  cpf_normalized),
+         cpf_raw          = COALESCE($10, cpf_raw),
+         cnpj_normalized  = COALESCE($11, cnpj_normalized),
+         cnpj_raw         = COALESCE($12, cnpj_raw),
+         document_type    = COALESCE($13, document_type),
+         identity_status  = COALESCE($14, identity_status),
+         metadata         = CASE
+                              WHEN $15::jsonb IS NOT NULL
+                              THEN COALESCE(metadata, '{}'::jsonb) || $15::jsonb
+                              ELSE metadata
+                            END,
+         updated_at       = now()
+       WHERE id = $16
+         AND deleted_at IS NULL
+         ${ownerClauseFallback}
+       RETURNING *`,
+      paramsFallback,
+    )
+  }
+
+  try {
+    const rows = await runUpdate(true)
+    return rows[0] ?? null
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // Retry without cep for older DB schemas that do not yet have migration 0003.
+    if (!msg.includes('cep')) throw err
+    console.warn('[clients][update] retrying without cep column (schema compatibility mode)')
+    const rows = await runUpdate(false)
+    return rows[0] ?? null
+  }
 }
 
 

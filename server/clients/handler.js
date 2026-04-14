@@ -413,7 +413,11 @@ export async function handleClientByIdRequest(req, res, ctx) {
         document_type: docType !== 'unknown' ? docType : undefined,
       }, { actorUserId: actor.userId, actorRole: resolvedActorRole })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
-      await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      try {
+        await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      } catch (auditErr) {
+        console.warn('[clients] audit log write failed (non-fatal):', auditErr instanceof Error ? auditErr.message : String(auditErr))
+      }
       if (body.energyProfile && typeof body.energyProfile === 'object') {
         await tryUpsertEnergyProfile(userSql, updated.id, body.energyProfile)
       }
