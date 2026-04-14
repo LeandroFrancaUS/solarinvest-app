@@ -164,8 +164,13 @@ BEGIN
         AND btrim(uc) <> ''
         AND deleted_at IS NULL
         AND merged_into_client_id IS NULL;
-  EXCEPTION WHEN OTHERS THEN
-    RAISE WARNING '[client-management][schema] Skipped idx_clients_uc_unique: %', SQLERRM;
+  EXCEPTION
+    -- 23505 = unique_violation: production DBs with duplicate UC values will
+    -- trigger this when the index is first created.  Swallow it so the RLS
+    -- policy updates below still run.  Any other error (e.g. missing column)
+    -- should propagate normally.
+    WHEN unique_violation THEN
+      RAISE WARNING '[client-management][schema] Skipped idx_clients_uc_unique: %', SQLERRM;
   END;
 
   -- ── 0027 · core client-management tables ─────────────────────────────────
