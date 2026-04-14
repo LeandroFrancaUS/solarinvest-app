@@ -1174,6 +1174,210 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
   const ownerEmail = row.owner_email
   const ownerUserId = row.owner_user_id
+  const ep = row.energy_profile
+
+  // Derive indicacao flags from the energy profile
+  const hasIndicacao = Boolean(ep?.indicacao?.trim())
+  const validTipoRede: TipoRede[] = ['monofasico', 'bifasico', 'trifasico', 'nenhum']
+  const resolvedTipoRede: TipoRede =
+    ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
+      ? (ep.tipo_rede as TipoRede)
+      : 'nenhum'
+  const resolvedModalidade: TabKey =
+    ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
+
+  const dados: ClienteDados = {
+    nome: row.name,
+    // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
+    // when the formatted field was not set (older records).
+    documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
+    rg: (row.metadata?.rg as string | undefined) ?? '',
+    estadoCivil: (row.metadata?.estado_civil as string | undefined) ?? '',
+    nacionalidade: (row.metadata?.nacionalidade as string | undefined) ?? '',
+    profissao: (row.metadata?.profissao as string | undefined) ?? '',
+    representanteLegal: '',
+    email: row.email ?? '',
+    telefone: row.phone ?? '',
+    cep: row.cep ?? '',
+    distribuidora: row.distribuidora ?? '',
+    uc: row.uc ?? '',
+    endereco: row.address ?? '',
+    cidade: row.city ?? '',
+    uf: row.state ?? '',
+    temIndicacao: hasIndicacao,
+    indicacaoNome: hasIndicacao ? (ep?.indicacao ?? '') : '',
+    herdeiros: [''],
+    nomeSindico: '',
+    cpfSindico: '',
+    contatoSindico: '',
+    diaVencimento: '10',
+  }
+
+  // Build a partial proposal snapshot from the energy profile so that
+  // handleEditarCliente can pre-populate the form fields when the user loads
+  // a client that was previously saved with energy data.
+  const propostaSnapshot: OrcamentoSnapshotData | undefined = ep
+    ? ({
+        // Minimal snapshot seeded with energy profile values.
+        // All unset fields are filled in by mergeSnapshotWithDefaults (spreads the
+        // createEmptySnapshot base over this object, then uses ?? to fall back to
+        // defaults for any null/undefined fields).
+        activeTab: resolvedModalidade,
+        settingsTab: 'painel',
+        cliente: dados,
+        clienteEmEdicaoId: row.id,
+        clienteMensagens: {},
+        ucBeneficiarias: [],
+        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
+        currentBudgetId: '',
+        budgetStructuredItems: [],
+        kitBudget: null,
+        budgetProcessing: { isProcessing: false, error: null, progress: null, isTableCollapsed: false, ocrDpi: 150 },
+        propostaImagens: [],
+        ufTarifa: row.state ?? '',
+        distribuidoraTarifa: row.distribuidora ?? '',
+        ufsDisponiveis: [],
+        distribuidorasPorUf: {},
+        mesReajuste: 1,
+        kcKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+        consumoManual: ep.kwh_contratado != null && ep.kwh_contratado > 0,
+        tarifaCheia: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
+        desconto: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+        taxaMinima: 0,
+        taxaMinimaInputEmpty: false,
+        encargosFixosExtras: 0,
+        tusdPercent: 0,
+        tusdTipoCliente: 'residencial',
+        tusdSubtipo: '',
+        tusdSimultaneidade: null,
+        tusdTarifaRkwh: null,
+        tusdAnoReferencia: new Date().getFullYear(),
+        tusdOpcoesExpandidas: false,
+        leasingPrazo: ep.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
+        potenciaModulo: 0,
+        potenciaModuloDirty: false,
+        tipoInstalacao: 'residencial',
+        tipoInstalacaoOutro: '',
+        tipoInstalacaoDirty: false,
+        tipoSistema: 'ongrid',
+        segmentoCliente: 'residencial',
+        tipoEdificacaoOutro: '',
+        numeroModulosManual: '',
+        configuracaoUsinaObservacoes: '',
+        composicaoTelhado: null,
+        composicaoSolo: null,
+        aprovadoresText: '',
+        impostosOverridesDraft: {},
+        vendasConfig: null,
+        vendasSimulacoes: {},
+        multiUc: { ativo: false, rows: [], rateioModo: 'proporcional', energiaGeradaKWh: 0, energiaGeradaTouched: false, anoVigencia: new Date().getFullYear(), overrideEscalonamento: false, escalonamentoCustomPercent: null },
+        precoPorKwp: 0,
+        irradiacao: 0,
+        eficiencia: 0.8,
+        diasMes: 30,
+        inflacaoAa: 0,
+        vendaForm: {
+          consumo_kwh_mes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+          modelo_inversor: ep.marca_inversor ?? '',
+        },
+        capexManualOverride: false,
+        parsedVendaPdf: null,
+        estruturaTipoWarning: null,
+        jurosFinAa: 0,
+        prazoFinMeses: 0,
+        entradaFinPct: 0,
+        mostrarFinanciamento: false,
+        mostrarGrafico: true,
+        useBentoGridPdf: false,
+        prazoMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+        bandeiraEncargo: 0,
+        cipEncargo: 0,
+        entradaRs: 0,
+        entradaModo: 'percentual',
+        mostrarValorMercadoLeasing: false,
+        mostrarTabelaParcelas: false,
+        mostrarTabelaBuyout: false,
+        mostrarTabelaParcelasConfig: false,
+        mostrarTabelaBuyoutConfig: false,
+        oemBase: 0,
+        oemInflacao: 0,
+        seguroModo: 'percentual',
+        seguroReajuste: 0,
+        seguroValorA: 0,
+        seguroPercentualB: 0,
+        exibirLeasingLinha: true,
+        exibirFinLinha: false,
+        cashbackPct: 0,
+        depreciacaoAa: 0,
+        inadimplenciaAa: 0,
+        tributosAa: 0,
+        ipcaAa: 0,
+        custosFixosM: 0,
+        opexM: 0,
+        seguroM: 0,
+        duracaoMeses: 0,
+        pagosAcumAteM: 0,
+        modoOrcamento: 'auto',
+        autoKitValor: null,
+        autoCustoFinal: null,
+        autoPricingRede: null,
+        autoPricingVersion: null,
+        autoBudgetReason: null,
+        autoBudgetReasonCode: null,
+        tipoRede: resolvedTipoRede,
+        tipoRedeControle: 'manual',
+        temCorresponsavelFinanceiro: false,
+        corresponsavel: null,
+        leasingAnexosSelecionados: [],
+        vendaSnapshot: null,
+        leasingSnapshot: {
+          prazoContratualMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+          energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+          tarifaInicial: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
+          descontoContratual: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+          inflacaoEnergiaAa: 0,
+          investimentoSolarinvest: 0,
+          dataInicioOperacao: '',
+          responsavelSolarinvest: 'Operação, manutenção, suporte técnico, limpeza e seguro da usina.',
+          valorDeMercadoEstimado: 0,
+          dadosTecnicos: {
+            potenciaInstaladaKwp: ep.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
+            geracaoEstimadakWhMes: 0,
+            energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+            potenciaPlacaWp: 0,
+            numeroModulos: 0,
+            tipoInstalacao: '',
+            areaUtilM2: 0,
+          },
+          projecao: {
+            mensalidadesAno: [[ep.mensalidade != null ? Number(ep.mensalidade) : 0]],
+            economiaProjetada: [],
+          },
+          contrato: {
+            tipoContrato: 'residencial',
+            dataInicio: '',
+            dataFim: '',
+            dataHomologacao: '',
+            localEntrega: '',
+            ucGeradoraTitularDiferente: false,
+            ucGeradoraTitular: null,
+            ucGeradoraTitularDraft: null,
+            ucGeradoraTitularDistribuidoraAneel: '',
+            ucGeradora_importarEnderecoCliente: false,
+            modulosFV: '',
+            inversoresFV: ep.marca_inversor ?? '',
+            nomeCondominio: '',
+            cnpjCondominio: '',
+            nomeSindico: '',
+            cpfSindico: '',
+            temCorresponsavelFinanceiro: false,
+            corresponsavel: null,
+            proprietarios: [{ nome: '', cpfCnpj: '' }],
+          },
+        },
+      } as unknown as OrcamentoSnapshotData)
+    : undefined
+
   return {
     id: row.id,
     criadoEm: row.created_at,
@@ -1183,32 +1387,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     ...(ownerUserId != null ? { ownerUserId } : {}),
     createdByUserId: row.created_by_user_id ?? null,
     deletedAt: row.deleted_at ?? null,
-    dados: {
-      nome: row.name,
-      // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
-      // when the formatted field was not set (older records).
-      documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
-      rg: '',
-      estadoCivil: '',
-      nacionalidade: '',
-      profissao: '',
-      representanteLegal: '',
-      email: row.email ?? '',
-      telefone: row.phone ?? '',
-      cep: '',
-      distribuidora: row.distribuidora ?? '',
-      uc: row.uc ?? '',
-      endereco: row.address ?? '',
-      cidade: row.city ?? '',
-      uf: row.state ?? '',
-      temIndicacao: false,
-      indicacaoNome: '',
-      herdeiros: [''],
-      nomeSindico: '',
-      cpfSindico: '',
-      contatoSindico: '',
-      diaVencimento: '10',
-    },
+    dados,
+    ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
   }
 }
 
@@ -15611,7 +15791,6 @@ export default function App() {
       activeTab: tab,
       settingsTab,
       cliente: cloneClienteDados(clienteFonte), // Use ref instead of closure
-      carregarClientesPrioritarios,
       clienteEmEdicaoId,
       clienteMensagens: Object.keys(clienteMensagens).length > 0 ? { ...clienteMensagens } : undefined,
       ucBeneficiarias: cloneUcBeneficiariasForm(ucsBeneficiarias),
@@ -15847,6 +16026,48 @@ export default function App() {
     // Build Neon payload from dadosClonados before state update.
     // Neon DB is the primary store; localStorage is only a fallback/cache.
     const documentDigits = normalizeNumbers(dadosClonados?.documento ?? '')
+
+    // Extract energy profile from the current snapshot to persist alongside client data.
+    const leasingSnap = snapshotClonado.leasingSnapshot
+    const vendaSnap = snapshotClonado.vendaForm
+    const isLeasingTab = snapshotClonado.activeTab === 'leasing'
+    const energyProfile: UpsertClientInput['energyProfile'] = {
+      kwh_contratado: Number.isFinite(snapshotClonado.kcKwhMes) && snapshotClonado.kcKwhMes > 0
+        ? snapshotClonado.kcKwhMes
+        : (Number.isFinite(leasingSnap?.energiaContratadaKwhMes) && leasingSnap.energiaContratadaKwhMes > 0
+          ? leasingSnap.energiaContratadaKwhMes
+          : (Number.isFinite(vendaSnap?.consumo_kwh_mes) && vendaSnap.consumo_kwh_mes > 0
+            ? vendaSnap.consumo_kwh_mes
+            : null)),
+      potencia_kwp: Number.isFinite(leasingSnap?.dadosTecnicos?.potenciaInstaladaKwp) && leasingSnap.dadosTecnicos.potenciaInstaladaKwp > 0
+        ? leasingSnap.dadosTecnicos.potenciaInstaladaKwp
+        : null,
+      tipo_rede: snapshotClonado.tipoRede && snapshotClonado.tipoRede !== 'nenhum'
+        ? snapshotClonado.tipoRede
+        : null,
+      tarifa_atual: Number.isFinite(snapshotClonado.tarifaCheia) && snapshotClonado.tarifaCheia > 0
+        ? snapshotClonado.tarifaCheia
+        : null,
+      desconto_percentual: Number.isFinite(snapshotClonado.desconto) && snapshotClonado.desconto > 0
+        ? snapshotClonado.desconto
+        : null,
+      mensalidade: isLeasingTab && Array.isArray(leasingSnap?.projecao?.mensalidadesAno) && leasingSnap.projecao.mensalidadesAno.length > 0
+        ? (Number(leasingSnap.projecao.mensalidadesAno[0]?.[0] ?? 0) || null)
+        : null,
+      indicacao: dadosClonados.temIndicacao && dadosClonados.indicacaoNome?.trim()
+        ? dadosClonados.indicacaoNome.trim()
+        : null,
+      modalidade: isLeasingTab ? 'leasing' : 'venda',
+      prazo_meses: isLeasingTab && Number.isFinite(leasingSnap?.prazoContratualMeses) && leasingSnap.prazoContratualMeses > 0
+        ? leasingSnap.prazoContratualMeses
+        : (Number.isFinite(snapshotClonado.prazoMeses) && snapshotClonado.prazoMeses > 0
+          ? snapshotClonado.prazoMeses
+          : null),
+      marca_inversor: isLeasingTab
+        ? (leasingSnap?.contrato?.inversoresFV?.trim() || null)
+        : (vendaSnap?.modelo_inversor?.trim() || null),
+    }
+
     const upsertPayload: UpsertClientInput = {
       name: (dadosClonados?.nome ?? '').trim(),
       ...(dadosClonados?.email?.trim() ? { email: dadosClonados.email.trim() } : {}),
@@ -15854,9 +16075,17 @@ export default function App() {
       ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
       ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
       ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
+      ...(dadosClonados?.cep?.trim() ? { cep: dadosClonados.cep.replace(/\D/g, '') } : {}),
       ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
       ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
-      metadata: { source: 'manual_save' },
+      metadata: {
+        source: 'manual_save',
+        ...(dadosClonados?.rg?.trim() ? { rg: dadosClonados.rg.trim() } : {}),
+        ...(dadosClonados?.estadoCivil?.trim() ? { estado_civil: dadosClonados.estadoCivil.trim() } : {}),
+        ...(dadosClonados?.nacionalidade?.trim() ? { nacionalidade: dadosClonados.nacionalidade.trim() } : {}),
+        ...(dadosClonados?.profissao?.trim() ? { profissao: dadosClonados.profissao.trim() } : {}),
+      },
+      energyProfile,
     }
     if (documentDigits.length === 11) {
       upsertPayload.cpf_raw = documentDigits

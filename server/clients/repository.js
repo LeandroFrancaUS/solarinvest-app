@@ -98,6 +98,7 @@ export async function createClient(sql, data) {
     city = null,
     state = null,
     address = null,
+    cep = null,
     document = null,
     uc = null,
     distribuidora = null,
@@ -114,14 +115,14 @@ export async function createClient(sql, data) {
     INSERT INTO clients (
       name, document, cpf_normalized, cpf_raw,
       cnpj_normalized, cnpj_raw, document_type,
-      phone, email, city, state, address, uc, distribuidora,
+      phone, email, city, state, address, cep, uc, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
       metadata, created_at, updated_at
     ) VALUES (
       ${name}, ${document ?? cpf_raw ?? cnpj_raw}, ${cpf_normalized}, ${cpf_raw},
       ${cnpj_normalized}, ${cnpj_raw}, ${document_type},
-      ${phone}, ${email}, ${city}, ${state}, ${address}, ${uc}, ${distribuidora},
+      ${phone}, ${email}, ${city}, ${state}, ${address}, ${cep}, ${uc}, ${distribuidora},
       ${created_by_user_id}, ${resolvedOwner}, ${resolvedOwner}, ${resolvedOwner},
       ${identity_status}, ${origin}, ${offline_origin_id},
       ${metadata ? JSON.stringify(metadata) : null}::jsonb, now(), now()
@@ -156,6 +157,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city,
     state,
     address,
+    cep,
+    uc,
+    distribuidora,
     cpf_normalized,
     cpf_raw,
     cnpj_normalized,
@@ -169,8 +173,10 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // ownerClause is a hardcoded SQL fragment (never user-derived) that appends
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
-  // $14 = clientId; $15 = actorUserId (only appended when scopeByOwner)
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $15' : ''
+
+  // Full UPDATE including cep (migration 0003).
+  // $17 = clientId; $18 = actorUserId (only appended when scopeByOwner)
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $18' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -178,6 +184,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     city ?? null,
     state ?? null,
     address ?? null,
+    cep ?? null,
+    uc ?? null,
+    distribuidora ?? null,
     cpf_normalized ?? null,
     cpf_raw ?? null,
     cnpj_normalized ?? null,
@@ -188,29 +197,108 @@ export async function updateClient(sql, clientId, data, options = {}) {
     clientId,
     ...(scopeByOwner ? [actorUserId] : []),
   ]
-  const rows = await sql(
-    `UPDATE clients SET
-       name             = COALESCE($1,  name),
-       phone            = COALESCE($2,  phone),
-       email            = COALESCE($3,  email),
-       city             = COALESCE($4,  city),
-       state            = COALESCE($5,  state),
-       address          = COALESCE($6,  address),
-       cpf_normalized   = COALESCE($7,  cpf_normalized),
-       cpf_raw          = COALESCE($8,  cpf_raw),
-       cnpj_normalized  = COALESCE($9,  cnpj_normalized),
-       cnpj_raw         = COALESCE($10, cnpj_raw),
-       document_type    = COALESCE($11, document_type),
-       identity_status  = COALESCE($12, identity_status),
-       metadata         = COALESCE($13::jsonb, metadata),
-       updated_at       = now()
-     WHERE id = $14
-       AND deleted_at IS NULL
-       ${ownerClause}
-     RETURNING *`,
-    params,
-  )
-  return rows[0] ?? null
+
+  const runUpdate = async (includeCep) => {
+    if (includeCep) {
+      return sql(
+        `UPDATE clients SET
+           name             = COALESCE($1,  name),
+           phone            = COALESCE($2,  phone),
+           email            = COALESCE($3,  email),
+           city             = COALESCE($4,  city),
+           state            = COALESCE($5,  state),
+           address          = COALESCE($6,  address),
+           cep              = COALESCE($7,  cep),
+           uc               = COALESCE($8,  uc),
+           distribuidora    = COALESCE($9,  distribuidora),
+           cpf_normalized   = COALESCE($10, cpf_normalized),
+           cpf_raw          = COALESCE($11, cpf_raw),
+           cnpj_normalized  = COALESCE($12, cnpj_normalized),
+           cnpj_raw         = COALESCE($13, cnpj_raw),
+           document_type    = COALESCE($14, document_type),
+           identity_status  = COALESCE($15, identity_status),
+           metadata         = CASE
+                                -- Merge incoming metadata with existing: new keys overwrite,
+                                -- existing keys not in the update payload are preserved.
+                                WHEN $16::jsonb IS NOT NULL
+                                THEN COALESCE(metadata, '{}'::jsonb) || $16::jsonb
+                                ELSE metadata
+                              END,
+           updated_at       = now()
+         WHERE id = $17
+           AND deleted_at IS NULL
+           ${ownerClause}
+         RETURNING *`,
+        params,
+      )
+    }
+    // Fallback for schemas that do not yet have the cep column (migration 0003).
+    // Parameters shift: cep ($7) is dropped; $7 becomes uc, $8 distribuidora,
+    // $9-$15 the document/identity fields, $16 clientId, $17 actorUserId.
+    const ownerClauseFallback = scopeByOwner ? 'AND owner_user_id = $17' : ''
+    const paramsFallback = [
+      name ?? null,
+      phone ?? null,
+      email ?? null,
+      city ?? null,
+      state ?? null,
+      address ?? null,
+      uc ?? null,
+      distribuidora ?? null,
+      cpf_normalized ?? null,
+      cpf_raw ?? null,
+      cnpj_normalized ?? null,
+      cnpj_raw ?? null,
+      document_type ?? null,
+      identity_status ?? null,
+      metadata ? JSON.stringify(metadata) : null,
+      clientId,
+      ...(scopeByOwner ? [actorUserId] : []),
+    ]
+    return sql(
+      `UPDATE clients SET
+         name             = COALESCE($1,  name),
+         phone            = COALESCE($2,  phone),
+         email            = COALESCE($3,  email),
+         city             = COALESCE($4,  city),
+         state            = COALESCE($5,  state),
+         address          = COALESCE($6,  address),
+         uc               = COALESCE($7,  uc),
+         distribuidora    = COALESCE($8,  distribuidora),
+         cpf_normalized   = COALESCE($9,  cpf_normalized),
+         cpf_raw          = COALESCE($10, cpf_raw),
+         cnpj_normalized  = COALESCE($11, cnpj_normalized),
+         cnpj_raw         = COALESCE($12, cnpj_raw),
+         document_type    = COALESCE($13, document_type),
+         identity_status  = COALESCE($14, identity_status),
+         metadata         = CASE
+                              WHEN $15::jsonb IS NOT NULL
+                              THEN COALESCE(metadata, '{}'::jsonb) || $15::jsonb
+                              ELSE metadata
+                            END,
+         updated_at       = now()
+       WHERE id = $16
+         AND deleted_at IS NULL
+         ${ownerClauseFallback}
+       RETURNING *`,
+      paramsFallback,
+    )
+  }
+
+  try {
+    const rows = await runUpdate(true)
+    return rows[0] ?? null
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const code = err?.code ?? null
+    // Retry without cep for older DB schemas that do not yet have migration 0003.
+    // PostgreSQL error 42703 = "undefined_column"; also match the specific column name.
+    const isMissingCep = code === '42703' || msg.includes('"cep"') || msg.includes("'cep'")
+    if (!isMissingCep) throw err
+    console.warn('[clients][update] retrying without cep column (schema compatibility mode)')
+    const rows = await runUpdate(false)
+    return rows[0] ?? null
+  }
 }
 
 
@@ -350,23 +438,42 @@ export async function listClients(sql, filter = {}) {
     withMergedFilter = true,
     withOptionalJoin = true,
     withProposalCount = true,
+    withEnergyProfile = true,
   } = {}) => {
     const queryConditions = withMergedFilter ? conditions : baseConditions
     const where = queryConditions.length ? `WHERE ${queryConditions.join(' AND ')}` : ''
-    const joinClause = withOptionalJoin
-      ? 'LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id'
+    const profileJoin = withEnergyProfile
+      ? 'LEFT JOIN client_energy_profile ep ON ep.client_id = c.id'
       : ''
+    const joinClause = withOptionalJoin
+      ? `LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id ${profileJoin}`
+      : profileJoin
     const proposalCountExpr = withProposalCount
       ? '(SELECT COUNT(*) FROM proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL) AS proposal_count'
       : '0::int AS proposal_count'
     const ownerNameExpr = withOptionalJoin ? 'up.display_name AS owner_display_name' : 'NULL::text AS owner_display_name'
     const ownerEmailExpr = withOptionalJoin ? 'up.email AS owner_email' : 'NULL::text AS owner_email'
+    const energyProfileExpr = withEnergyProfile
+      ? `CASE WHEN ep.id IS NOT NULL THEN json_build_object(
+          'kwh_contratado', ep.kwh_contratado,
+          'potencia_kwp', ep.potencia_kwp,
+          'tipo_rede', ep.tipo_rede,
+          'tarifa_atual', ep.tarifa_atual,
+          'desconto_percentual', ep.desconto_percentual,
+          'mensalidade', ep.mensalidade,
+          'indicacao', ep.indicacao,
+          'modalidade', ep.modalidade,
+          'prazo_meses', ep.prazo_meses,
+          'marca_inversor', ep.marca_inversor
+        ) ELSE NULL END AS energy_profile`
+      : 'NULL::json AS energy_profile'
     const countQuery = `SELECT COUNT(*) AS count FROM clients c ${joinClause} ${where}`
     const dataQuery = `
       SELECT c.*,
         ${ownerNameExpr},
         ${ownerEmailExpr},
-        ${proposalCountExpr}
+        ${proposalCountExpr},
+        ${energyProfileExpr}
       FROM clients c
       ${joinClause}
       ${where}
@@ -378,7 +485,7 @@ export async function listClients(sql, filter = {}) {
 
   let countResult
   let dataResult
-  const full = buildQueries({ withMergedFilter: true, withOptionalJoin: true, withProposalCount: true })
+  const full = buildQueries({ withMergedFilter: true, withOptionalJoin: true, withProposalCount: true, withEnergyProfile: true })
 
   try {
     ;[countResult, dataResult] = await Promise.all([
@@ -392,15 +499,19 @@ export async function listClients(sql, filter = {}) {
       code === '42703' || message.includes('merged_into_client_id')
     const missingOptionalJoin =
       message.includes('app_user_profiles') || message.includes('proposals')
+    const missingEnergyProfile =
+      message.includes('client_energy_profile') || message.includes('energy_profile')
 
     const fallback = buildQueries({
       withMergedFilter: !missingMergedColumn,
       withOptionalJoin: !missingOptionalJoin,
       withProposalCount: !missingOptionalJoin,
+      withEnergyProfile: !missingEnergyProfile,
     })
     console.warn('[clients][list] retrying with compatibility mode', {
       missingMergedColumn,
       missingOptionalJoin,
+      missingEnergyProfile,
       message,
       code,
     })
@@ -463,9 +574,22 @@ export async function getClientById(sql, clientId, { actorUserId = null, actorRo
     rows = await sql`
       SELECT c.*,
         up.display_name AS owner_display_name,
-        up.email        AS owner_email
+        up.email        AS owner_email,
+        CASE WHEN ep.id IS NOT NULL THEN json_build_object(
+          'kwh_contratado', ep.kwh_contratado,
+          'potencia_kwp', ep.potencia_kwp,
+          'tipo_rede', ep.tipo_rede,
+          'tarifa_atual', ep.tarifa_atual,
+          'desconto_percentual', ep.desconto_percentual,
+          'mensalidade', ep.mensalidade,
+          'indicacao', ep.indicacao,
+          'modalidade', ep.modalidade,
+          'prazo_meses', ep.prazo_meses,
+          'marca_inversor', ep.marca_inversor
+        ) ELSE NULL END AS energy_profile
       FROM clients c
       LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id
+      LEFT JOIN client_energy_profile ep ON ep.client_id = c.id
       WHERE c.id = ${clientId}
         AND c.deleted_at IS NULL
         AND c.owner_user_id = ${actorUserId}
@@ -474,9 +598,22 @@ export async function getClientById(sql, clientId, { actorUserId = null, actorRo
     rows = await sql`
       SELECT c.*,
         up.display_name AS owner_display_name,
-        up.email        AS owner_email
+        up.email        AS owner_email,
+        CASE WHEN ep.id IS NOT NULL THEN json_build_object(
+          'kwh_contratado', ep.kwh_contratado,
+          'potencia_kwp', ep.potencia_kwp,
+          'tipo_rede', ep.tipo_rede,
+          'tarifa_atual', ep.tarifa_atual,
+          'desconto_percentual', ep.desconto_percentual,
+          'mensalidade', ep.mensalidade,
+          'indicacao', ep.indicacao,
+          'modalidade', ep.modalidade,
+          'prazo_meses', ep.prazo_meses,
+          'marca_inversor', ep.marca_inversor
+        ) ELSE NULL END AS energy_profile
       FROM clients c
       LEFT JOIN app_user_profiles up ON up.stack_user_id = c.owner_user_id
+      LEFT JOIN client_energy_profile ep ON ep.client_id = c.id
       WHERE c.id = ${clientId}
         AND c.deleted_at IS NULL
     `
@@ -564,34 +701,77 @@ export async function upsertClientEnergyProfile(sql, clientId, profile) {
     indicacao = null,
     modalidade = null,
     prazo_meses = null,
+    marca_inversor = null,
   } = profile ?? {}
 
-  const rows = await sql`
-    INSERT INTO client_energy_profile (
-      client_id, kwh_contratado, potencia_kwp, tipo_rede,
-      tarifa_atual, desconto_percentual, mensalidade,
-      indicacao, modalidade, prazo_meses,
-      created_at, updated_at
-    ) VALUES (
-      ${clientId}, ${kwh_contratado}, ${potencia_kwp}, ${tipo_rede},
-      ${tarifa_atual}, ${desconto_percentual}, ${mensalidade},
-      ${indicacao}, ${modalidade}, ${prazo_meses},
-      now(), now()
-    )
-    ON CONFLICT (client_id) DO UPDATE SET
-      kwh_contratado      = COALESCE(EXCLUDED.kwh_contratado,      client_energy_profile.kwh_contratado),
-      potencia_kwp        = COALESCE(EXCLUDED.potencia_kwp,        client_energy_profile.potencia_kwp),
-      tipo_rede           = COALESCE(EXCLUDED.tipo_rede,           client_energy_profile.tipo_rede),
-      tarifa_atual        = COALESCE(EXCLUDED.tarifa_atual,        client_energy_profile.tarifa_atual),
-      desconto_percentual = COALESCE(EXCLUDED.desconto_percentual, client_energy_profile.desconto_percentual),
-      mensalidade         = COALESCE(EXCLUDED.mensalidade,         client_energy_profile.mensalidade),
-      indicacao           = COALESCE(EXCLUDED.indicacao,           client_energy_profile.indicacao),
-      modalidade          = COALESCE(EXCLUDED.modalidade,          client_energy_profile.modalidade),
-      prazo_meses         = COALESCE(EXCLUDED.prazo_meses,         client_energy_profile.prazo_meses),
-      updated_at          = now()
-    RETURNING *
-  `
-  return rows[0] ?? null
+  // Try with marca_inversor first; fall back to the original column set for
+  // older DB schemas that do not yet have the column (migration 0027).
+  const runUpsert = async (includeMarcaInversor) => {
+    if (includeMarcaInversor) {
+      return sql`
+        INSERT INTO client_energy_profile (
+          client_id, kwh_contratado, potencia_kwp, tipo_rede,
+          tarifa_atual, desconto_percentual, mensalidade,
+          indicacao, modalidade, prazo_meses, marca_inversor,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId}, ${kwh_contratado}, ${potencia_kwp}, ${tipo_rede},
+          ${tarifa_atual}, ${desconto_percentual}, ${mensalidade},
+          ${indicacao}, ${modalidade}, ${prazo_meses}, ${marca_inversor},
+          now(), now()
+        )
+        ON CONFLICT (client_id) DO UPDATE SET
+          kwh_contratado      = COALESCE(EXCLUDED.kwh_contratado,      client_energy_profile.kwh_contratado),
+          potencia_kwp        = COALESCE(EXCLUDED.potencia_kwp,        client_energy_profile.potencia_kwp),
+          tipo_rede           = COALESCE(EXCLUDED.tipo_rede,           client_energy_profile.tipo_rede),
+          tarifa_atual        = COALESCE(EXCLUDED.tarifa_atual,        client_energy_profile.tarifa_atual),
+          desconto_percentual = COALESCE(EXCLUDED.desconto_percentual, client_energy_profile.desconto_percentual),
+          mensalidade         = COALESCE(EXCLUDED.mensalidade,         client_energy_profile.mensalidade),
+          indicacao           = COALESCE(EXCLUDED.indicacao,           client_energy_profile.indicacao),
+          modalidade          = COALESCE(EXCLUDED.modalidade,          client_energy_profile.modalidade),
+          prazo_meses         = COALESCE(EXCLUDED.prazo_meses,         client_energy_profile.prazo_meses),
+          marca_inversor      = COALESCE(EXCLUDED.marca_inversor,      client_energy_profile.marca_inversor),
+          updated_at          = now()
+        RETURNING *
+      `
+    }
+    return sql`
+      INSERT INTO client_energy_profile (
+        client_id, kwh_contratado, potencia_kwp, tipo_rede,
+        tarifa_atual, desconto_percentual, mensalidade,
+        indicacao, modalidade, prazo_meses,
+        created_at, updated_at
+      ) VALUES (
+        ${clientId}, ${kwh_contratado}, ${potencia_kwp}, ${tipo_rede},
+        ${tarifa_atual}, ${desconto_percentual}, ${mensalidade},
+        ${indicacao}, ${modalidade}, ${prazo_meses},
+        now(), now()
+      )
+      ON CONFLICT (client_id) DO UPDATE SET
+        kwh_contratado      = COALESCE(EXCLUDED.kwh_contratado,      client_energy_profile.kwh_contratado),
+        potencia_kwp        = COALESCE(EXCLUDED.potencia_kwp,        client_energy_profile.potencia_kwp),
+        tipo_rede           = COALESCE(EXCLUDED.tipo_rede,           client_energy_profile.tipo_rede),
+        tarifa_atual        = COALESCE(EXCLUDED.tarifa_atual,        client_energy_profile.tarifa_atual),
+        desconto_percentual = COALESCE(EXCLUDED.desconto_percentual, client_energy_profile.desconto_percentual),
+        mensalidade         = COALESCE(EXCLUDED.mensalidade,         client_energy_profile.mensalidade),
+        indicacao           = COALESCE(EXCLUDED.indicacao,           client_energy_profile.indicacao),
+        modalidade          = COALESCE(EXCLUDED.modalidade,          client_energy_profile.modalidade),
+        prazo_meses         = COALESCE(EXCLUDED.prazo_meses,         client_energy_profile.prazo_meses),
+        updated_at          = now()
+      RETURNING *
+    `
+  }
+
+  try {
+    const rows = await runUpsert(true)
+    return rows[0] ?? null
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!msg.includes('marca_inversor')) throw err
+    // Retry without marca_inversor for schemas that don't have migration 0027 yet.
+    const rows = await runUpsert(false)
+    return rows[0] ?? null
+  }
 }
 
 /**

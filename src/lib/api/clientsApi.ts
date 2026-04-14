@@ -13,6 +13,19 @@ export function setClientsTokenProvider(fn: GetAccessToken): void {
   clientsTokenProvider = fn
 }
 
+export interface ClientEnergyProfile {
+  kwh_contratado: number | null
+  potencia_kwp: number | null
+  tipo_rede: string | null
+  tarifa_atual: number | null
+  desconto_percentual: number | null
+  mensalidade: number | null
+  indicacao: string | null
+  modalidade: string | null
+  prazo_meses: number | null
+  marca_inversor: string | null
+}
+
 export interface ClientRow {
   id: string
   name: string
@@ -24,6 +37,7 @@ export interface ClientRow {
   city: string | null
   state: string | null
   address: string | null
+  cep: string | null
   uc: string | null
   distribuidora: string | null
   metadata: Record<string, unknown> | null
@@ -33,6 +47,8 @@ export interface ClientRow {
   owner_display_name: string | null
   /** Set from a LEFT JOIN to app_user_profiles when listing clients */
   owner_email: string | null
+  /** Energy/commercial profile from client_energy_profile table (null if not yet set) */
+  energy_profile: ClientEnergyProfile | null
   created_at: string
   updated_at: string
   /** Soft-delete timestamp; null means active. The API already filters these out but the field is included for defensive use. */
@@ -67,9 +83,11 @@ export interface UpsertClientInput {
   city?: string
   state?: string
   address?: string
+  cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>
+  energyProfile?: Partial<ClientEnergyProfile>
 }
 
 export interface UpdateClientInput {
@@ -82,9 +100,11 @@ export interface UpdateClientInput {
   city?: string
   state?: string
   address?: string
+  cep?: string
   uc?: string
   distribuidora?: string
   metadata?: Record<string, unknown>
+  energyProfile?: Partial<ClientEnergyProfile>
 }
 
 export class ClientsApiError extends Error {

@@ -18,6 +18,7 @@ import {
   getClientById,
   getClientProposals,
   appendClientAuditLog,
+  upsertClientEnergyProfile,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
@@ -37,6 +38,21 @@ function logRoute(route, extra = {}) {
   }
   console.info('[db-route]', payload)
   console.info('[db-runtime]', payload)
+}
+
+/**
+ * Best-effort upsert of energy profile — never blocks the parent save path.
+ * Errors are logged with client context to maintain observability.
+ */
+async function tryUpsertEnergyProfile(sql, clientId, profile) {
+  try {
+    await upsertClientEnergyProfile(sql, clientId, profile)
+  } catch (err) {
+    console.warn('[clients][energy-profile] upsert failed', {
+      clientId,
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
 }
 
 function getDb(sendJson) {
@@ -121,6 +137,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     if (offlineOriginId) {
       const existing = await findClientByOfflineOriginId(db.sql, offlineOriginId)
       if (existing) {
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
+        }
         return sendJson(200, { data: existing, deduplicated: false, idempotent: true })
       }
     }
@@ -134,6 +153,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
           'CPF deduplication — existing client reused', null,
         )
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
+        }
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
     }
@@ -147,6 +169,9 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
           { offline_origin_id: offlineOriginId, linked_by: actor.userId },
           'CNPJ deduplication — existing client reused', null,
         )
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          await tryUpsertEnergyProfile(db.sql, existing.id, body.energyProfile)
+        }
         return sendJson(200, { data: existing, deduplicated: true, idempotent: false })
       }
     }
@@ -179,6 +204,10 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       'created', null, newClient,
       offlineOriginId ? 'offline_sync' : null, null,
     )
+
+    if (body.energyProfile && typeof body.energyProfile === 'object') {
+      await tryUpsertEnergyProfile(db.sql, newClient.id, body.energyProfile)
+    }
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
     return sendJson(201, { data: newClient, deduplicated: false, idempotent: false })
@@ -384,7 +413,14 @@ export async function handleClientByIdRequest(req, res, ctx) {
         document_type: docType !== 'unknown' ? docType : undefined,
       }, { actorUserId: actor.userId, actorRole: resolvedActorRole })
       if (!updated) return sendError(sendJson, 404, 'NOT_FOUND', 'Client not found')
-      await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      try {
+        await appendClientAuditLog(db.sql, updated.id, actor.userId, actor.email ?? null, 'updated', null, updated)
+      } catch (auditErr) {
+        console.warn('[clients] audit log write failed (non-fatal):', auditErr instanceof Error ? auditErr.message : String(auditErr))
+      }
+      if (body.energyProfile && typeof body.energyProfile === 'object') {
+        await tryUpsertEnergyProfile(userSql, updated.id, body.energyProfile)
+      }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: updated })
     } catch (err) {
