@@ -210,11 +210,16 @@ export async function softDeleteClient(sql, clientId, actorUserId) {
  * Uses parameterized queries for all user-supplied values.
  * Sort column is validated against an allowlist to prevent SQL injection.
  *
- * Access control is enforced by PostgreSQL RLS (migration 0018) via the
+ * Access control is enforced by PostgreSQL RLS (migration 0021) via the
  * app.can_access_owner() function.  The sql parameter should be a
  * user-scoped sql handle (createUserScopedSql) so that app.current_user_id
  * and app.current_user_role are set for each query.
- * No application-level WHERE clauses for ownership are needed here.
+ *
+ * Defense-in-depth: when actorUserId and actorRole are provided and the role
+ * is role_comercial, an additional WHERE c.owner_user_id = actorUserId clause
+ * is injected at the application layer.  This ensures comercial users can only
+ * see their own clients even if RLS is not enforced on the connection (e.g.
+ * when the database role has the BYPASSRLS attribute).
  */
 export async function listClients(sql, filter = {}) {
   const {
@@ -227,6 +232,8 @@ export async function listClients(sql, filter = {}) {
     limit = 20,
     sortBy = 'updated_at',
     sortDir = 'DESC',
+    actorUserId = null,
+    actorRole: filterActorRole = null,
   } = filter
 
   const pageNum = Math.max(1, parseInt(String(page), 10))
@@ -245,6 +252,15 @@ export async function listClients(sql, filter = {}) {
   if (createdByUserId) {
     params.push(createdByUserId)
     conditions.push(`c.created_by_user_id = $${params.length}`)
+  }
+
+  // Defense-in-depth: for role_comercial, always enforce owner_user_id at the
+  // application layer regardless of RLS context.  This protects against
+  // connections where BYPASSRLS is set on the DB role (e.g. neondb_owner) or
+  // where set_config() did not propagate correctly via the pooler endpoint.
+  if (filterActorRole === 'role_comercial' && actorUserId) {
+    params.push(actorUserId)
+    conditions.push(`c.owner_user_id = $${params.length}`)
   }
   if (city) {
     params.push(`%${city}%`)

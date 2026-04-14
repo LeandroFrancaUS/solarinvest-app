@@ -209,6 +209,7 @@ export async function handleClientsRequest(req, res, ctx) {
       page,
       limit,
       userId: actor?.userId ?? null,
+      resolvedRole: actorRole(actor),
       email: actor?.email ?? null,
     })
     console.info('[api/clients][GET] db-config', {
@@ -218,7 +219,7 @@ export async function handleClientsRequest(req, res, ctx) {
     })
     try {
       const userSql = sqlForActor(db, actor)
-      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, page, limit })
+      logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, actorRole: actorRole(actor), page, limit })
       const result = await listClients(userSql, {
         createdByUserId: q.get('created_by') ?? null,
         city: q.get('city') ?? null,
@@ -229,6 +230,8 @@ export async function handleClientsRequest(req, res, ctx) {
         limit,
         sortBy: q.get('sort_by') ?? 'updated_at',
         sortDir: q.get('sort_dir') ?? 'DESC',
+        actorUserId: actor.userId,
+        actorRole: actorRole(actor),
       })
       const safeData = Array.isArray(result?.data) ? result.data : []
       logRoute('/api/clients', { method: 'GET', actorUserId: actor.userId, success: true, count: safeData.length })

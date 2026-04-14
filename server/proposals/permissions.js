@@ -69,9 +69,16 @@ export async function resolveActor(req) {
   // This handles stale JWTs (permission recently granted, token not refreshed)
   // and setups where STACK_SECRET_SERVER_KEY is not configured.
   // Only the admin role has a DB equivalent ('admin' in app_user_access.role).
+  //
+  // IMPORTANT: the fallback ONLY activates when Stack Auth has zero recognized roles.
+  // If Stack Auth explicitly grants any role (including role_comercial), it takes
+  // precedence over the DB snapshot — this prevents first-user bootstrap self-heal
+  // from wrongly elevating a comercial user who was auto-promoted to DB 'admin'
+  // before the Stack Auth permissions were configured.
+  const hasAnyStackAuthRole = isAdmin || isComercial || isOffice || isFinanceiro
   const normalizedEmail = (appUser.email ?? '').toLowerCase().trim()
   const isApproved = appUser.access_status === 'approved'
-  const dbRoleIsAdmin = appUser.role === 'admin' && isApproved
+  const dbRoleIsAdmin = !hasAnyStackAuthRole && appUser.role === 'admin' && isApproved
   // Bootstrap email/userId checks: only activate when the user is approved in the DB.
   // Requiring approved status means an admin can block bootstrap users by setting
   // access_status to 'blocked', making the grant revocable through normal admin flows.

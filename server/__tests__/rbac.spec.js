@@ -604,3 +604,108 @@ describe('createUserScopedSql — fail-closed guard', () => {
     expect(typeof wrapper).toBe('function')
   })
 })
+
+// ─── dbRoleIsAdmin guard: Stack Auth role takes precedence ───────────────────
+//
+// Reproduces the bug where a comercial user auto-promoted to DB 'admin' via
+// the first-user bootstrap self-heal was resolved as admin because dbRoleIsAdmin
+// fired unconditionally.  After the fix, DB fallback only activates when Stack
+// Auth returns NO recognized role at all.
+
+describe('resolveActor — dbRoleIsAdmin guard', () => {
+  /**
+   * Inline the role-resolution logic from permissions.js so we can unit test
+   * it without importing the full module (which has transitive DB dependencies).
+   * MUST be kept in sync with the canonical implementation.
+   */
+  function resolveRoles({ isAdmin, isComercial, isOffice, isFinanceiro, appUserRole, isApproved }) {
+    const hasAnyStackAuthRole = isAdmin || isComercial || isOffice || isFinanceiro
+    const dbRoleIsAdmin = !hasAnyStackAuthRole && appUserRole === 'admin' && isApproved
+    const resolvedAdmin      = isAdmin || dbRoleIsAdmin
+    const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
+    const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
+    const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+    return { resolvedAdmin, resolvedFinanceiro, resolvedOffice, resolvedComercial, dbRoleIsAdmin }
+  }
+
+  it('comercial from Stack Auth takes precedence over DB admin (bootstrap self-heal victim)', () => {
+    // This is the exact scenario for user leandro.orders@gmail.com:
+    // Stack Auth says role_comercial, but app_user_access.role='admin' from bootstrap.
+    const { resolvedAdmin, resolvedComercial, dbRoleIsAdmin } = resolveRoles({
+      isAdmin: false,
+      isComercial: true,  // Stack Auth says comercial
+      isOffice: false,
+      isFinanceiro: false,
+      appUserRole: 'admin',  // DB says admin (bootstrap self-heal)
+      isApproved: true,
+    })
+    expect(dbRoleIsAdmin).toBe(false)     // DB fallback must NOT fire
+    expect(resolvedAdmin).toBe(false)     // must NOT be admin
+    expect(resolvedComercial).toBe(true)  // must be comercial
+  })
+
+  it('DB admin fallback activates when Stack Auth returns no role', () => {
+    // Stale JWT: Stack Auth returns no role, DB says admin → grant admin
+    const { resolvedAdmin, dbRoleIsAdmin } = resolveRoles({
+      isAdmin: false,
+      isComercial: false,
+      isOffice: false,
+      isFinanceiro: false,
+      appUserRole: 'admin',
+      isApproved: true,
+    })
+    expect(dbRoleIsAdmin).toBe(true)
+    expect(resolvedAdmin).toBe(true)
+  })
+
+  it('DB admin fallback does NOT fire when appUser is not approved', () => {
+    const { resolvedAdmin, dbRoleIsAdmin } = resolveRoles({
+      isAdmin: false,
+      isComercial: false,
+      isOffice: false,
+      isFinanceiro: false,
+      appUserRole: 'admin',
+      isApproved: false,  // not approved
+    })
+    expect(dbRoleIsAdmin).toBe(false)
+    expect(resolvedAdmin).toBe(false)
+  })
+
+  it('office from Stack Auth takes precedence over DB admin', () => {
+    const { resolvedAdmin, resolvedOffice } = resolveRoles({
+      isAdmin: false,
+      isComercial: false,
+      isOffice: true,
+      isFinanceiro: false,
+      appUserRole: 'admin',
+      isApproved: true,
+    })
+    expect(resolvedAdmin).toBe(false)
+    expect(resolvedOffice).toBe(true)
+  })
+
+  it('financeiro from Stack Auth takes precedence over DB admin', () => {
+    const { resolvedAdmin, resolvedFinanceiro } = resolveRoles({
+      isAdmin: false,
+      isComercial: false,
+      isOffice: false,
+      isFinanceiro: true,
+      appUserRole: 'admin',
+      isApproved: true,
+    })
+    expect(resolvedAdmin).toBe(false)
+    expect(resolvedFinanceiro).toBe(true)
+  })
+
+  it('Stack Auth admin always wins regardless of DB role', () => {
+    const { resolvedAdmin } = resolveRoles({
+      isAdmin: true,
+      isComercial: false,
+      isOffice: false,
+      isFinanceiro: false,
+      appUserRole: 'user',
+      isApproved: true,
+    })
+    expect(resolvedAdmin).toBe(true)
+  })
+})
