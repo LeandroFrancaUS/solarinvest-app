@@ -748,7 +748,7 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
         </button>
       </div>
       {addError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{addError}</p>}
-      <div style={{ marginBottom: 10 }} />
+      <div style={{ marginBottom: addError ? 0 : 10 }} />
       {loadingNotes ? (
         <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>Carregando notas…</p>
       ) : notes.length === 0 ? (
