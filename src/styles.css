@@ -5882,6 +5882,12 @@ i:hover {
   color: var(--title);
 }
 
+.clients-empty-value {
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+}
+
 .clients-table-client strong {
   font-size: 14px;
   color: var(--title);
