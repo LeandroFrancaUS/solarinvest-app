@@ -85,6 +85,12 @@ export interface ClientRow {
   updated_at: string
   /** Soft-delete timestamp; null means active. The API already filters these out but the field is included for defensive use. */
   deleted_at: string | null
+  /** Whether this client has been activated in the portfolio. Sourced from clients.in_portfolio. */
+  in_portfolio?: boolean
+  /** When the client was first activated in the portfolio. Sourced from clients.portfolio_exported_at. */
+  portfolio_exported_at?: string | null
+  /** User ID who activated the client in the portfolio. */
+  portfolio_exported_by_user_id?: string | null
 }
 
 export interface ClientListFilters {

@@ -709,6 +709,15 @@ type ClienteRegistro = {
    * Null/undefined means the record is active. Deleted records must not appear in the table.
    */
   deletedAt?: string | null
+  /**
+   * Whether this client has been activated in the portfolio (clients.in_portfolio).
+   * When true, the "Ativar Cliente" button must be disabled and show a "negócio fechado" icon.
+   */
+  inPortfolio?: boolean
+  /**
+   * Timestamp when the client was first activated in the portfolio (clients.portfolio_exported_at).
+   */
+  clientActivatedAt?: string | null
 }
 
 
@@ -1455,6 +1464,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     ...(ownerUserId != null ? { ownerUserId } : {}),
     createdByUserId: row.created_by_user_id ?? null,
     deletedAt: row.deleted_at ?? null,
+    inPortfolio: Boolean(row.in_portfolio),
+    clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
     system_kwp: row.system_kwp ?? null,
     term_months: row.term_months ?? null,
@@ -4038,12 +4049,14 @@ function ClientesPanel({
                                 {canExportarCarteira && onExportarCarteira && (
                                   <button
                                     type="button"
-                                    className="clients-table-action"
-                                    onClick={() => onExportarCarteira(registro)}
-                                    aria-label="Negócio fechado — exportar para Carteira de Clientes"
-                                    title="Negócio fechado — exportar para Carteira de Clientes"
+                                    className={`clients-table-action${registro.inPortfolio ? ' activated' : ''}`}
+                                    onClick={() => { if (!registro.inPortfolio) onExportarCarteira(registro) }}
+                                    disabled={registro.inPortfolio}
+                                    aria-label={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar cliente na carteira'}
+                                    title={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar Cliente'}
+                                    style={registro.inPortfolio ? { cursor: 'not-allowed', opacity: 0.45 } : undefined}
                                   >
-                                    <span aria-hidden="true">🤝</span>
+                                    <span aria-hidden="true">{registro.inPortfolio ? '✅' : '🤝'}</span>
                                   </button>
                                 )}
                                 <button
@@ -16881,27 +16894,29 @@ export default function App() {
         (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
 
       if (!serverIdCandidate) {
-        window.alert(`${nomeCliente} ainda não está sincronizado com o servidor. Salve o cliente antes de exportar para a Carteira.`)
+        window.alert(`${nomeCliente} ainda não está sincronizado com o servidor. Salve o cliente antes de ativar na Carteira.`)
         return
       }
 
       const confirmado = await requestConfirmDialog({
-        title: 'Negócio fechado',
-        description: `Exportar ${nomeCliente} para a Carteira de Clientes? O cliente continuará visível aqui e também aparecerá na Carteira.`,
-        confirmLabel: 'Exportar para Carteira',
+        title: 'Ativar Cliente',
+        description: `Ativar ${nomeCliente} na Carteira de Clientes? O cliente continuará visível aqui e também aparecerá na Carteira.`,
+        confirmLabel: 'Ativar Cliente',
         cancelLabel: 'Cancelar',
       })
       if (!confirmado) return
 
       try {
         await exportClientToPortfolio(Number(serverIdCandidate))
-        adicionarNotificacao(`${nomeCliente} exportado para a Carteira de Clientes com sucesso!`, 'success')
+        adicionarNotificacao(`${nomeCliente} ativado na Carteira de Clientes com sucesso!`, 'success')
+        const refreshed = await carregarClientesPrioritarios({ silent: true })
+        setClientesSalvos(refreshed)
       } catch (err) {
         console.error('[portfolio] export failed', err)
-        window.alert(`Não foi possível exportar ${nomeCliente} para a Carteira. Tente novamente.`)
+        window.alert(`Não foi possível ativar ${nomeCliente} na Carteira. Tente novamente.`)
       }
     },
-    [adicionarNotificacao, requestConfirmDialog],
+    [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -28971,7 +28986,14 @@ export default function App() {
           <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : activePage === 'carteira' ? (
           canSeePortfolioEffective
-            ? <ClientPortfolioPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+            ? <ClientPortfolioPage
+                onBack={() => setActivePage(lastPrimaryPageRef.current)}
+                onClientRemovedFromPortfolio={() => {
+                  carregarClientesPrioritarios({ silent: true })
+                    .then((refreshed) => setClientesSalvos(refreshed))
+                    .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
+                }}
+              />
             : null
         ) : (
           <div className="page">

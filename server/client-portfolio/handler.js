@@ -189,7 +189,7 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
       detail: err?.detail ?? null,
       hint: err?.hint ?? null,
     })
-    sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao exportar cliente para a carteira.' } })
+    sendJson(500, { error: { code: 'DB_ERROR', message: 'Não foi possível ativar o cliente.' } })
   }
 }
 

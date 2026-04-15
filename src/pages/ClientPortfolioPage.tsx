@@ -21,6 +21,9 @@ import {
 
 interface Props {
   onBack: () => void
+  /** Called after a client is successfully removed from the portfolio or deleted,
+   *  so the main clients list can refresh its in_portfolio status. */
+  onClientRemovedFromPortfolio?: () => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -933,7 +936,7 @@ function ClientDetailPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-export function ClientPortfolioPage({ onBack }: Props) {
+export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Props) {
   const { clients, isLoading, error, reload, setSearch, removeClient } = useClientPortfolio()
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [searchInput, setSearchInput] = useState('')
@@ -965,12 +968,14 @@ export function ClientPortfolioPage({ onBack }: Props) {
   const handleRemovedFromPortfolio = useCallback((clientId: number) => {
     removeClient(clientId)
     if (selectedClientId === clientId) setSelectedClientId(null)
-  }, [removeClient, selectedClientId])
+    onClientRemovedFromPortfolio?.()
+  }, [removeClient, selectedClientId, onClientRemovedFromPortfolio])
 
   const handleDeleted = useCallback((clientId: number) => {
     removeClient(clientId)
     if (selectedClientId === clientId) setSelectedClientId(null)
-  }, [removeClient, selectedClientId])
+    onClientRemovedFromPortfolio?.()
+  }, [removeClient, selectedClientId, onClientRemovedFromPortfolio])
 
   const total = clients.length
   const hasClients = total > 0
