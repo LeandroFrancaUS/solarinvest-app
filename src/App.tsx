@@ -3623,7 +3623,7 @@ function ClientesPanel({
     <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
       <div className="budget-search-page-header">
         <div>
-          <h2 id={panelTitleId}>Gestão de clientes</h2>
+          <h2 id={panelTitleId}>Carteira de clientes</h2>
           <p>
             {isPrivilegedUser
               ? `Todos os clientes cadastrados no sistema${totalConsultores > 0 ? ` — ${totalConsultores} consultor(es) representados` : ''}.`
@@ -26207,7 +26207,7 @@ export default function App() {
         : activePage === 'consultar'
           ? 'Consulta de orçamentos salvos'
           : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
+            ? 'Carteira de clientes salvos'
             : activePage === 'simulacoes'
               ? 'Simulações financeiras, risco e aprovação interna'
               : activePage === 'settings'
