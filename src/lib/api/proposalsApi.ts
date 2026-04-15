@@ -42,11 +42,15 @@ export interface ProposalRow {
   client_state: string | null
   client_phone: string | null
   client_email: string | null
+  client_cep: string | null
+  client_id: string | null
   consumption_kwh_month: number | null
   system_kwp: number | null
   capex_total: number | null
   contract_value: number | null
   term_months: number | null
+  uc_geradora_nm: string | null
+  uc_beneficiaria: string | null
   payload_json: Record<string, unknown>
   created_at: string
   updated_at: string
@@ -74,11 +78,15 @@ export interface CreateProposalInput {
   client_state?: string
   client_phone?: string
   client_email?: string
+  client_cep?: string
+  client_id?: string
   consumption_kwh_month?: number
   system_kwp?: number
   capex_total?: number
   contract_value?: number
   term_months?: number
+  uc_geradora_nm?: string
+  uc_beneficiaria?: string
 }
 
 export type UpdateProposalInput = Partial<Omit<CreateProposalInput, 'proposal_type'>>
