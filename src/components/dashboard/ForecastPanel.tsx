@@ -43,7 +43,7 @@ export function ForecastPanel({ forecast }: Props) {
           const h = Math.max(2, (v / max) * 100)
           return (
             <div
-              key={i}
+              key={`day-${i + 1}`}
               className="flex-1 rounded-t bg-indigo-400 opacity-70"
               style={{ height: `${h}%` }}
               title={`Dia ${i + 1}: ${v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}

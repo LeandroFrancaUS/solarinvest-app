@@ -21,8 +21,27 @@ let _lastFilters: DashboardFilters | null = null
 let _lastGranularity: TimeBucketGranularity | null = null
 let _cachedSnapshot: DashboardSnapshot | null = null
 
+function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
 function filtersEqual(a: DashboardFilters, b: DashboardFilters): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
+  return (
+    a.period === b.period &&
+    a.startDate === b.startDate &&
+    a.endDate === b.endDate &&
+    a.minValue === b.minValue &&
+    a.maxValue === b.maxValue &&
+    a.minConsumption === b.minConsumption &&
+    a.maxConsumption === b.maxConsumption &&
+    arraysEqual(a.consultants, b.consultants) &&
+    arraysEqual(a.regions, b.regions) &&
+    arraysEqual(a.states, b.states)
+  )
 }
 
 // ---------------------------------------------------------------------------
