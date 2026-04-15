@@ -77,6 +77,7 @@ import {
   handlePortfolioProjectPatch,
   handlePortfolioBillingPatch,
   handlePortfolioNotesRequest,
+  handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
 } from './client-portfolio/handler.js'
 
@@ -819,6 +820,16 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioExportMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioExportRequest(req, res, { method, clientId, sendJson: sj })
+      return
+    }
+
+    // PATCH /api/clients/:clientId/portfolio-remove — remove client from portfolio (keeps client in system)
+    const portfolioRemoveMatch = pathname.match(/^\/api\/clients\/(\d+)\/portfolio-remove$/)
+    if (portfolioRemoveMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioRemoveMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioRemoveRequest(req, res, { method, clientId, sendJson: sj })
       return
     }
 

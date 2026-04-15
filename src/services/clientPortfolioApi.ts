@@ -71,6 +71,34 @@ export async function exportClientToPortfolio(clientId: number): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Remove client from portfolio (does NOT delete client from system)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function removeClientFromPortfolio(clientId: number): Promise<void> {
+  await apiFetch(resolveApiUrl(`/api/clients/${clientId}/portfolio-remove`), { method: 'PATCH' })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update client data from portfolio (reuses PUT /api/clients/:id)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function updateClientFromPortfolio(
+  clientId: number,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await apiFetch<{ data: Record<string, unknown> }>(
+    resolveApiUrl(`/api/clients/${clientId}`),
+    { method: 'PUT', body: JSON.stringify(payload) },
+  )
+  return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Delete client (soft delete via DELETE /api/clients/:id)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function deleteClientFromPortfolio(clientId: number): Promise<void> {
+  await apiFetch(resolveApiUrl(`/api/clients/${clientId}`), { method: 'DELETE' })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Patch sub-resources
 // ─────────────────────────────────────────────────────────────────────────────
 export async function patchPortfolioProfile(clientId: number, data: Record<string, unknown>): Promise<void> {
