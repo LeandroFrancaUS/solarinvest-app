@@ -1175,16 +1175,24 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   const ownerEmail = row.owner_email
   const ownerUserId = row.owner_user_id
   const ep = row.energy_profile
+  const lp = row.latest_proposal_profile
 
-  // Derive indicacao flags from the energy profile
-  const hasIndicacao = Boolean(ep?.indicacao?.trim())
+  // Derive commercial fields prioritizing latest proposal payload, then energy profile fallback.
+  const hasIndicacao = Boolean(lp?.tem_indicacao || lp?.indicacao?.trim() || ep?.indicacao?.trim())
+  const indicacaoNome = lp?.indicacao?.trim() || ep?.indicacao?.trim() || ''
   const validTipoRede: TipoRede[] = ['monofasico', 'bifasico', 'trifasico', 'nenhum']
   const resolvedTipoRede: TipoRede =
-    ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
-      ? (ep.tipo_rede as TipoRede)
-      : 'nenhum'
+    lp?.tipo_rede && validTipoRede.includes(lp.tipo_rede as TipoRede)
+      ? (lp.tipo_rede as TipoRede)
+      : ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
+        ? (ep.tipo_rede as TipoRede)
+        : 'nenhum'
   const resolvedModalidade: TabKey =
     ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
+  const resolvedKwhContratado = row.consumption_kwh_month ?? null
+  const resolvedTarifaAtual = lp?.tarifa_atual ?? ep?.tarifa_atual ?? null
+  const resolvedDesconto = lp?.desconto_percentual ?? ep?.desconto_percentual ?? null
+  const resolvedUcsBeneficiarias = Array.isArray(lp?.ucs_beneficiarias) ? lp.ucs_beneficiarias : []
 
   const dados: ClienteDados = {
     nome: row.name,
@@ -1205,7 +1213,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     cidade: row.city ?? '',
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
-    indicacaoNome: hasIndicacao ? (ep?.indicacao ?? '') : '',
+    indicacaoNome: hasIndicacao ? indicacaoNome : '',
     herdeiros: [''],
     nomeSindico: '',
     cpfSindico: '',
@@ -1216,7 +1224,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   // Build a partial proposal snapshot from the energy profile so that
   // handleEditarCliente can pre-populate the form fields when the user loads
   // a client that was previously saved with energy data.
-  const propostaSnapshot: OrcamentoSnapshotData | undefined = ep
+  const propostaSnapshot: OrcamentoSnapshotData | undefined = (ep || lp)
     ? ({
         // Minimal snapshot seeded with energy profile values.
         // All unset fields are filled in by mergeSnapshotWithDefaults (spreads the
@@ -1227,7 +1235,13 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         cliente: dados,
         clienteEmEdicaoId: row.id,
         clienteMensagens: {},
-        ucBeneficiarias: [],
+        ucBeneficiarias: resolvedUcsBeneficiarias.map((item, index) => ({
+          id: item.id ?? `lp-uc-${index + 1}`,
+          numero: typeof item.numero === 'string' ? item.numero : '',
+          endereco: typeof item.endereco === 'string' ? item.endereco : '',
+          consumoKWh: String(item.consumoKWh ?? ''),
+          rateioPercentual: String(item.rateioPercentual ?? ''),
+        })),
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
@@ -1239,10 +1253,10 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         ufsDisponiveis: [],
         distribuidorasPorUf: {},
         mesReajuste: 1,
-        kcKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-        consumoManual: ep.kwh_contratado != null && ep.kwh_contratado > 0,
-        tarifaCheia: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
-        desconto: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+        kcKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+        consumoManual: resolvedKwhContratado != null && resolvedKwhContratado > 0,
+        tarifaCheia: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
+        desconto: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
         taxaMinima: 0,
         taxaMinimaInputEmpty: false,
         encargosFixosExtras: 0,
@@ -1253,7 +1267,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         tusdTarifaRkwh: null,
         tusdAnoReferencia: new Date().getFullYear(),
         tusdOpcoesExpandidas: false,
-        leasingPrazo: ep.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
+        leasingPrazo: ep?.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
         potenciaModulo: 0,
         potenciaModuloDirty: false,
         tipoInstalacao: 'residencial',
@@ -1277,8 +1291,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         diasMes: 30,
         inflacaoAa: 0,
         vendaForm: {
-          consumo_kwh_mes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-          modelo_inversor: ep.marca_inversor ?? '',
+          consumo_kwh_mes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+          modelo_inversor: ep?.marca_inversor ?? '',
         },
         capexManualOverride: false,
         parsedVendaPdf: null,
@@ -1289,7 +1303,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         mostrarFinanciamento: false,
         mostrarGrafico: true,
         useBentoGridPdf: false,
-        prazoMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+        prazoMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
         bandeiraEncargo: 0,
         cipEncargo: 0,
         entradaRs: 0,
@@ -1331,26 +1345,26 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         leasingAnexosSelecionados: [],
         vendaSnapshot: null,
         leasingSnapshot: {
-          prazoContratualMeses: ep.prazo_meses != null ? Number(ep.prazo_meses) : 240,
-          energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
-          tarifaInicial: ep.tarifa_atual != null ? Number(ep.tarifa_atual) : 0,
-          descontoContratual: ep.desconto_percentual != null ? Number(ep.desconto_percentual) : 0,
+          prazoContratualMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
+          energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
+          tarifaInicial: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
+          descontoContratual: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
           inflacaoEnergiaAa: 0,
           investimentoSolarinvest: 0,
           dataInicioOperacao: '',
           responsavelSolarinvest: 'Operação, manutenção, suporte técnico, limpeza e seguro da usina.',
           valorDeMercadoEstimado: 0,
           dadosTecnicos: {
-            potenciaInstaladaKwp: ep.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
+            potenciaInstaladaKwp: ep?.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
             geracaoEstimadakWhMes: 0,
-            energiaContratadaKwhMes: ep.kwh_contratado != null ? Number(ep.kwh_contratado) : 0,
+            energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
             potenciaPlacaWp: 0,
             numeroModulos: 0,
             tipoInstalacao: '',
             areaUtilM2: 0,
           },
           projecao: {
-            mensalidadesAno: [[ep.mensalidade != null ? Number(ep.mensalidade) : 0]],
+            mensalidadesAno: [[ep?.mensalidade != null ? Number(ep.mensalidade) : 0]],
             economiaProjetada: [],
           },
           contrato: {
@@ -1365,7 +1379,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
             ucGeradoraTitularDistribuidoraAneel: '',
             ucGeradora_importarEnderecoCliente: false,
             modulosFV: '',
-            inversoresFV: ep.marca_inversor ?? '',
+            inversoresFV: ep?.marca_inversor ?? '',
             nomeCondominio: '',
             cnpjCondominio: '',
             nomeSindico: '',
@@ -2171,6 +2185,12 @@ const useTarifaInputField = (
 }
 
 const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
+  const anos = Array.isArray(dados?.anos) ? dados.anos : []
+  const leasingROI = Array.isArray(dados?.leasingROI) ? dados.leasingROI : []
+  const financiamentoFluxo = Array.isArray(dados?.financiamentoFluxo) ? dados.financiamentoFluxo : []
+  const financiamentoROI = Array.isArray(dados?.financiamentoROI) ? dados.financiamentoROI : []
+  const tabelaBuyout = Array.isArray(dados?.tabelaBuyout) ? dados.tabelaBuyout : []
+  const parcelasLeasing = Array.isArray(dados?.parcelasLeasing) ? dados.parcelasLeasing : []
   const clone: PrintableProposalProps = {
     ...dados,
     cliente: {
@@ -2179,13 +2199,13 @@ const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalPro
         ? [...dados.cliente.herdeiros]
         : [''],
     },
-    anos: [...dados.anos],
-    leasingROI: [...dados.leasingROI],
-    financiamentoFluxo: [...dados.financiamentoFluxo],
-    financiamentoROI: [...dados.financiamentoROI],
-    tabelaBuyout: dados.tabelaBuyout.map((row) => ({ ...row })),
+    anos: [...anos],
+    leasingROI: [...leasingROI],
+    financiamentoFluxo: [...financiamentoFluxo],
+    financiamentoROI: [...financiamentoROI],
+    tabelaBuyout: tabelaBuyout.map((row) => ({ ...row })),
     buyoutResumo: { ...dados.buyoutResumo },
-    parcelasLeasing: dados.parcelasLeasing.map((row) => ({ ...row })),
+    parcelasLeasing: parcelasLeasing.map((row) => ({ ...row })),
   }
 
   if (dados.budgetId === undefined) {
@@ -2295,8 +2315,8 @@ const cloneKitBudgetMissingInfo = (
 
 const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => ({
   ...state,
-  items: state.items.map((item) => ({ ...item })),
-  warnings: [...state.warnings],
+  items: (Array.isArray(state?.items) ? state.items : []).map((item) => ({ ...item })),
+  warnings: [...(Array.isArray(state?.warnings) ? state.warnings : [])],
   missingInfo: cloneKitBudgetMissingInfo(state.missingInfo),
 })
 
@@ -3339,6 +3359,16 @@ const formatBudgetDate = (isoString: string) => {
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+const CLIENT_ROW_SUMMARY_FIELDS = new Set([
+  'client_name',
+  'client_document',
+  'client_city_state',
+  'consumption_kwh_month',
+  'client_phone',
+  'consultor',
+  'client_address',
+])
+
 type ClientesPanelProps = {
   registros: ClienteRegistro[]
   onClose: () => void
@@ -3774,16 +3804,67 @@ function ClientesPanel({
                       const uf = dados.uf?.trim()
                       const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
                       const primaryLine = nomeCliente || registro.id
-                      const consumoKwh = registro.propostaSnapshot?.kcKwhMes
-                      const consumoLabel = consumoKwh
-                        ? `${formatNumberBR(consumoKwh)} kWh/mês`
+                      const consumoKwh = Number(registro.propostaSnapshot?.kcKwhMes ?? 0)
+                      const consumoLabel = `${formatNumberBR(Number.isFinite(consumoKwh) ? consumoKwh : 0)} kWh/mês`
+                      const tarifaAtual = registro.propostaSnapshot?.tarifaCheia
+                      const tarifaLabel =
+                        typeof tarifaAtual === 'number' && Number.isFinite(tarifaAtual) && tarifaAtual > 0
+                          ? `${formatMoneyBR(tarifaAtual)}/kWh`
+                          : null
+                      const descontoAtual = registro.propostaSnapshot?.desconto
+                      const descontoLabel =
+                        typeof descontoAtual === 'number' && Number.isFinite(descontoAtual) && descontoAtual > 0
+                          ? `${formatNumberBRWithOptions(descontoAtual, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
+                          : null
+                      const tipoRede = registro.propostaSnapshot?.tipoRede
+                      const tipoRedeLabel =
+                        tipoRede && tipoRede !== 'nenhum'
+                          ? (TIPOS_REDE.find((item) => item.value === tipoRede)?.label ?? tipoRede)
+                          : null
+                      const indicacaoLabel = registro.dados.temIndicacao
+                        ? (registro.dados.indicacaoNome?.trim() || 'Sim')
                         : null
+                      const ucsBeneficiarias = (registro.propostaSnapshot?.ucBeneficiarias ?? [])
+                        .map((item) => item.numero?.trim())
+                        .filter((item): item is string => Boolean(item))
+                      const ucsBeneficiariasLabel = ucsBeneficiarias.length > 0 ? ucsBeneficiarias.join(', ') : null
                       const whatsappPhone = dados.telefone ? formatWhatsappPhoneNumber(dados.telefone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
                       const enderecoCompleto = [dados.endereco, dados.cidade, dados.uf, dados.cep]
                         .filter(Boolean)
                         .join(', ')
+                      const detailFields = [
+                        tarifaLabel ? { key: 'tarifa', label: 'Tarifa', value: tarifaLabel } : null,
+                        tipoRedeLabel ? { key: 'tipo_rede', label: 'Tipo de rede', value: tipoRedeLabel } : null,
+                        descontoLabel ? { key: 'desconto', label: 'Desconto', value: descontoLabel } : null,
+                        ucsBeneficiariasLabel
+                          ? { key: 'ucs_beneficiarias', label: 'UCs beneficiárias', value: ucsBeneficiariasLabel }
+                          : null,
+                        indicacaoLabel ? { key: 'indicacao', label: 'Indicação', value: indicacaoLabel } : null,
+                        dados.uc ? { key: 'uc_geradora', label: 'UC', value: dados.uc } : null,
+                        dados.email ? { key: 'client_email', label: 'E-mail', value: dados.email } : null,
+                        registro.criadoEm ? { key: 'created_at', label: 'Criado em', value: formatBudgetDate(registro.criadoEm) } : null,
+                        registro.atualizadoEm
+                          ? { key: 'updated_at', label: 'Atualizado em', value: formatBudgetDate(registro.atualizadoEm) }
+                          : null,
+                        // These are intentionally listed here so future additions
+                        // can be centrally excluded when duplicated in summary row.
+                        cidadeUf ? { key: 'client_city_state', label: 'Cidade/UF', value: cidadeUf } : null,
+                        consumoLabel ? { key: 'consumption_kwh_month', label: 'Consumo', value: consumoLabel } : null,
+                        dados.telefone
+                          ? { key: 'client_phone', label: 'Telefone', value: dados.telefone, href: whatsappHref }
+                          : null,
+                        enderecoCompleto ? { key: 'client_address', label: 'Endereço', value: enderecoCompleto } : null,
+                        isPrivilegedUser && registro.ownerName
+                          ? { key: 'consultor', label: 'Consultor', value: registro.ownerName, title: registro.ownerEmail ?? undefined }
+                          : null,
+                      ].filter(
+                        (
+                          item,
+                        ): item is { key: string; label: string; value: string; href?: string | null; title?: string } =>
+                          Boolean(item) && !CLIENT_ROW_SUMMARY_FIELDS.has(item.key),
+                      )
                       // Total columns: 6 fixed + 1 if privileged (Consultor) + 1 Ações = 7 or 8
                       const colSpanTotal = isPrivilegedUser ? 8 : 7
                       return (
@@ -3871,68 +3952,20 @@ function ClientesPanel({
                               >
                                 <div className="clients-info-content">
                                   <dl className="clients-info-grid">
-                                    {cidadeUf ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
-                                        <dt>Cidade/UF</dt>
-                                        <dd>{cidadeUf}</dd>
-                                      </div>
-                                    ) : null}
-                                    {consumoLabel ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
-                                        <dt>Consumo</dt>
-                                        <dd>{consumoLabel}</dd>
-                                      </div>
-                                    ) : null}
-                                    {dados.uc ? (
-                                      <div className="clients-info-field">
-                                        <dt>UC</dt>
-                                        <dd>{dados.uc}</dd>
-                                      </div>
-                                    ) : null}
-                                    {dados.telefone ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
-                                        <dt>Telefone</dt>
-                                        <dd>
-                                          {whatsappHref ? (
-                                            <a className="clients-phone-link" href={whatsappHref} target="_blank" rel="noreferrer noopener">
-                                              {dados.telefone}
+                                    {detailFields.map((field) => (
+                                      <div key={field.key} className="clients-info-field">
+                                        <dt>{field.label}</dt>
+                                        <dd title={field.title}>
+                                          {field.href ? (
+                                            <a className="clients-phone-link" href={field.href} target="_blank" rel="noreferrer noopener">
+                                              {field.value}
                                             </a>
                                           ) : (
-                                            dados.telefone
+                                            field.value
                                           )}
                                         </dd>
                                       </div>
-                                    ) : null}
-                                    {dados.email ? (
-                                      <div className="clients-info-field">
-                                        <dt>E-mail</dt>
-                                        <dd>{dados.email}</dd>
-                                      </div>
-                                    ) : null}
-                                    {enderecoCompleto ? (
-                                      <div className="clients-info-field clients-info-mobile-only">
-                                        <dt>Endereço</dt>
-                                        <dd>{enderecoCompleto}</dd>
-                                      </div>
-                                    ) : null}
-                                    {isPrivilegedUser && registro.ownerName ? (
-                                      <div className="clients-info-field">
-                                        <dt>Consultor</dt>
-                                        <dd title={registro.ownerEmail ?? undefined}>{registro.ownerName}</dd>
-                                      </div>
-                                    ) : null}
-                                    {registro.criadoEm ? (
-                                      <div className="clients-info-field">
-                                        <dt>Criado em</dt>
-                                        <dd>{formatBudgetDate(registro.criadoEm)}</dd>
-                                      </div>
-                                    ) : null}
-                                    {registro.atualizadoEm ? (
-                                      <div className="clients-info-field">
-                                        <dt>Atualizado em</dt>
-                                        <dd>{formatBudgetDate(registro.atualizadoEm)}</dd>
-                                      </div>
-                                    ) : null}
+                                    ))}
                                   </dl>
                                 </div>
                               </td>
@@ -5105,14 +5138,11 @@ export default function App() {
   // Incremented when auth is established so that data-load effects re-run and
   // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
   const [authSyncKey, setAuthSyncKey] = useState(0)
-  useEffect(() => {
-    ensureServerStorageSync({ timeoutMs: 4000 })
-  }, [])
   // Wire up Stack Auth Bearer token for cross-device data persistence.
   // When the user resolves, register the token provider so serverStorage
   // and proposalsApi can include Authorization: Bearer <token> in requests.
-  // If the initial ensureServerStorageSync ran unauthenticated (syncEnabled=false),
-  // setStorageTokenProvider resets the singleton so the next call re-runs with auth.
+  // Storage sync runs only after auth is available to avoid unauthenticated
+  // /api/storage calls that can generate noisy 5xx/401 logs.
   useEffect(() => {
     if (!user) return
     setStorageTokenProvider(getAccessToken)
@@ -6190,6 +6220,11 @@ export default function App() {
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
+  const [originalClientData, setOriginalClientData] = useState<ClienteDados>(() =>
+    cloneClienteDados(CLIENTE_INICIAL),
+  )
+  const [clientLastSaveStatus, setClientLastSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
+  const clientsLoadInFlightRef = useRef<Promise<ClienteRegistro[]> | null>(null)
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clientAutoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const clientsSyncStateRef = useRef<ClientsSyncState>(clientsSyncState)
@@ -6199,6 +6234,7 @@ export default function App() {
   const clientServerIdMapRef = useRef<Record<string, string>>({})
   const proposalServerAutoSaveInFlightRef = useRef(false)
   const clientServerAutoSaveInFlightRef = useRef(false)
+  const clientLastPayloadSignatureRef = useRef<string | null>(null)
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -7121,13 +7157,15 @@ export default function App() {
   )
 
   const budgetMissingSummary = useMemo(() => {
-    const info = kitBudget.missingInfo
-    if (!info || kitBudget.items.length === 0) {
+    const info = kitBudget?.missingInfo
+    if (!info || !info.modules || !info.inverter || kitBudget.items.length === 0) {
       return null
     }
     const fieldSet = new Set<string>()
-    info.modules.missingFields.forEach((field) => fieldSet.add(field))
-    info.inverter.missingFields.forEach((field) => fieldSet.add(field))
+    const moduleFields = Array.isArray(info.modules.missingFields) ? info.modules.missingFields : []
+    const inverterFields = Array.isArray(info.inverter.missingFields) ? info.inverter.missingFields : []
+    moduleFields.forEach((field) => fieldSet.add(field))
+    inverterFields.forEach((field) => fieldSet.add(field))
     if (fieldSet.size === 0) {
       return null
     }
@@ -7154,7 +7192,8 @@ export default function App() {
   const updateKitBudgetItem = useCallback(
     (itemId: string, updater: (item: KitBudgetItemState) => KitBudgetItemState) => {
       setKitBudget((prev) => {
-        const nextItems = prev.items.map((item) => (item.id === itemId ? updater(item) : item))
+        const safeItems = Array.isArray(prev?.items) ? prev.items : []
+        const nextItems = safeItems.map((item) => (item.id === itemId ? updater(item) : item))
         return {
           ...prev,
           items: nextItems,
@@ -8680,7 +8719,7 @@ export default function App() {
     if (typeof document === 'undefined') {
       return
     }
-    const info = kitBudget.missingInfo
+    const info = kitBudget?.missingInfo ?? null
     const focusBudgetField = (
       itemId: string,
       fields: ('product' | 'description' | 'quantity')[],
@@ -8730,22 +8769,25 @@ export default function App() {
       return focusBudgetField(categoryInfo.firstMissingId, missingFields)
     }
 
+    const modulesMissingFields = Array.isArray(info?.modules?.missingFields) ? info.modules.missingFields : []
+    const inverterMissingFields = Array.isArray(info?.inverter?.missingFields) ? info.inverter.missingFields : []
+
     if (info) {
-      if (info.modules.missingFields.length > 0 && tryFocusCategory(info.modules)) {
+      if (modulesMissingFields.length > 0 && tryFocusCategory(info.modules)) {
         return
       }
-      if (info.inverter.missingFields.length > 0 && tryFocusCategory(info.inverter)) {
+      if (inverterMissingFields.length > 0 && tryFocusCategory(info.inverter)) {
         return
       }
     }
 
-    const modulesMissing = info ? info.modules.missingFields.length > 0 : true
+    const modulesMissing = info ? modulesMissingFields.length > 0 : true
     if (modulesMissing && moduleQuantityInputRef.current) {
       moduleQuantityInputRef.current.focus()
       moduleQuantityInputRef.current.select?.()
       return
     }
-    if (info && info.inverter.missingFields.length > 0 && inverterModelInputRef.current) {
+    if (info && inverterMissingFields.length > 0 && inverterModelInputRef.current) {
       inverterModelInputRef.current.focus()
       inverterModelInputRef.current.select?.()
       return
@@ -12611,7 +12653,11 @@ export default function App() {
     clientsSyncStateRef.current = clientsSyncState
   }, [clientsSyncState])
 
-  const carregarClientesPrioritarios = useCallback(async (): Promise<ClienteRegistro[]> => {
+  const carregarClientesPrioritarios = useCallback(async (options?: { silent?: boolean }): Promise<ClienteRegistro[]> => {
+    if (clientsLoadInFlightRef.current) {
+      return clientsLoadInFlightRef.current
+    }
+    const task = (async () => {
     if (typeof window === 'undefined') {
       return []
     }
@@ -12684,17 +12730,19 @@ export default function App() {
       setClientsSyncState(localFallback ? 'local-fallback' : 'degraded-api')
       setClientsSource(localFallback ? 'local-browser-storage' : 'memory')
       setClientsLastLoadError(error instanceof Error ? error.message : String(error))
-      adicionarNotificacao(
-        localFallback
-          ? 'Clientes em modo local temporário: backend indisponível no momento.'
-          : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
-        localFallback ? 'error' : 'warning',
-      )
       console.error('[clients][load] failed', { message: error instanceof Error ? error.message : String(error) })
       console.warn('[clients][load] fallback-activated', {
         reason: error instanceof Error ? error.message : String(error),
         sourceAttempted: 'api',
       })
+      if (!options?.silent) {
+        adicionarNotificacao(
+          localFallback
+            ? 'Clientes em modo local temporário: backend indisponível no momento.'
+            : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
+          localFallback ? 'error' : 'warning',
+        )
+      }
       // Fall through to storage-based loading
     }
 
@@ -12743,6 +12791,13 @@ export default function App() {
       keys: reconciled.slice(0, 10).map(getClientStableKey),
     })
     return reconciled
+    })()
+    clientsLoadInFlightRef.current = task
+    try {
+      return await task
+    } finally {
+      clientsLoadInFlightRef.current = null
+    }
   }, [adicionarNotificacao, carregarClientesSalvos, getClientStableKey, meAuthState, parseClientesSalvos])
 
   useEffect(() => {
@@ -15985,15 +16040,92 @@ export default function App() {
     return registro
   }
 
+  // IMPORTANT: keep these derived values declared before handleSalvarCliente.
+  // The save callback depends on them in both function body and dependency array;
+  // moving them below would reintroduce a TDZ crash in production bundles.
+  const clienteRegistroEmEdicao = useMemo(
+    () =>
+      clienteEmEdicaoId
+        ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
+        : null,
+    [clienteEmEdicaoId, clientesSalvos],
+  )
+  const clienteFormularioAlterado = useMemo(() => {
+    if (!clienteRegistroEmEdicao) {
+      return false
+    }
+    // Compare only the client data fields — the full proposal snapshot comparison was too
+    // expensive (cloneSnapshotData + stableStringify on the entire app state on every render).
+    // The save handler always persists the latest proposal snapshot regardless.
+    return (
+      stableStringify(cloneClienteDados(cliente)) !==
+      stableStringify(cloneClienteDados(clienteRegistroEmEdicao.dados))
+    )
+  }, [clienteRegistroEmEdicao, cliente])
+  const clienteTemDadosNaoSalvos = useMemo(() => {
+    if (clienteEmEdicaoId) {
+      return clienteFormularioAlterado
+    }
+    const clienteInicial = cloneClienteDados(CLIENTE_INICIAL)
+    const clienteAtual = cloneClienteDados(cliente)
+    return stableStringify(clienteAtual) !== stableStringify(clienteInicial)
+  }, [cliente, clienteEmEdicaoId, clienteFormularioAlterado])
+  const clientIsDirty = useMemo(
+    () =>
+      stableStringify(cloneClienteDados(cliente)) !==
+      stableStringify(cloneClienteDados(originalClientData)),
+    [cliente, originalClientData],
+  )
+  const clienteSaveLabel =
+    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
+
+  const buildClientUpsertPayload = useCallback((dados: ClienteDados, source: string): UpsertClientInput => {
+    const documentDigits = normalizeNumbers(dados?.documento ?? '')
+    const payload: UpsertClientInput = {
+      name: (dados?.nome ?? '').trim(),
+      ...(dados?.email?.trim() ? { email: dados.email.trim() } : {}),
+      ...(dados?.telefone?.trim() ? { phone: dados.telefone.trim() } : {}),
+      ...(dados?.cidade?.trim() ? { city: dados.cidade.trim() } : {}),
+      ...(dados?.uf?.trim() ? { state: dados.uf.trim() } : {}),
+      ...(dados?.endereco?.trim() ? { address: dados.endereco.trim() } : {}),
+      ...(dados?.cep?.trim()
+        ? { client_cep: dados.cep.replace(/\D/g, ''), cep: dados.cep.replace(/\D/g, '') }
+        : {}),
+      ...(dados?.uc?.trim() ? { uc: dados.uc.trim() } : {}),
+      ...(dados?.distribuidora?.trim() ? { distribuidora: dados.distribuidora.trim() } : {}),
+      metadata: {
+        source,
+        ...(dados?.rg?.trim() ? { rg: dados.rg.trim() } : {}),
+        ...(dados?.estadoCivil?.trim() ? { estado_civil: dados.estadoCivil.trim() } : {}),
+        ...(dados?.nacionalidade?.trim() ? { nacionalidade: dados.nacionalidade.trim() } : {}),
+        ...(dados?.profissao?.trim() ? { profissao: dados.profissao.trim() } : {}),
+      },
+    }
+    if (documentDigits.length === 11) {
+      payload.cpf_raw = documentDigits
+      payload.document = documentDigits
+    } else if (documentDigits.length === 14) {
+      payload.cnpj_raw = documentDigits
+      payload.document = documentDigits
+    } else if (documentDigits.length > 0) {
+      payload.document = documentDigits
+    }
+    return payload
+  }, [])
+
   const handleSalvarCliente = useCallback(
     async (options?: { skipGuard?: boolean; silent?: boolean }) => {
     if (typeof window === 'undefined') {
+      return false
+    }
+    if (!options?.skipGuard && !clienteTemDadosNaoSalvos) {
       return false
     }
 
     if (!validateClienteParaSalvar({ silent: options?.silent })) {
       return false
     }
+    setClientLastSaveStatus('saving')
 
     const dadosClonados = cloneClienteDados(cliente)
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
@@ -16025,7 +16157,6 @@ export default function App() {
 
     // Build Neon payload from dadosClonados before state update.
     // Neon DB is the primary store; localStorage is only a fallback/cache.
-    const documentDigits = normalizeNumbers(dadosClonados?.documento ?? '')
 
     // Extract energy profile from the current snapshot to persist alongside client data.
     const leasingSnap = snapshotClonado.leasingSnapshot
@@ -16069,32 +16200,8 @@ export default function App() {
     }
 
     const upsertPayload: UpsertClientInput = {
-      name: (dadosClonados?.nome ?? '').trim(),
-      ...(dadosClonados?.email?.trim() ? { email: dadosClonados.email.trim() } : {}),
-      ...(dadosClonados?.telefone?.trim() ? { phone: dadosClonados.telefone.trim() } : {}),
-      ...(dadosClonados?.cidade?.trim() ? { city: dadosClonados.cidade.trim() } : {}),
-      ...(dadosClonados?.uf?.trim() ? { state: dadosClonados.uf.trim() } : {}),
-      ...(dadosClonados?.endereco?.trim() ? { address: dadosClonados.endereco.trim() } : {}),
-      ...(dadosClonados?.cep?.trim() ? { cep: dadosClonados.cep.replace(/\D/g, '') } : {}),
-      ...(dadosClonados?.uc?.trim() ? { uc: dadosClonados.uc.trim() } : {}),
-      ...(dadosClonados?.distribuidora?.trim() ? { distribuidora: dadosClonados.distribuidora.trim() } : {}),
-      metadata: {
-        source: 'manual_save',
-        ...(dadosClonados?.rg?.trim() ? { rg: dadosClonados.rg.trim() } : {}),
-        ...(dadosClonados?.estadoCivil?.trim() ? { estado_civil: dadosClonados.estadoCivil.trim() } : {}),
-        ...(dadosClonados?.nacionalidade?.trim() ? { nacionalidade: dadosClonados.nacionalidade.trim() } : {}),
-        ...(dadosClonados?.profissao?.trim() ? { profissao: dadosClonados.profissao.trim() } : {}),
-      },
+      ...buildClientUpsertPayload(dadosClonados, 'manual_save'),
       energyProfile,
-    }
-    if (documentDigits.length === 11) {
-      upsertPayload.cpf_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length === 14) {
-      upsertPayload.cnpj_raw = documentDigits
-      upsertPayload.document = documentDigits
-    } else if (documentDigits.length > 0) {
-      upsertPayload.document = documentDigits
     }
 
     // Neon DB save FIRST so data is durable before the local cache is updated.
@@ -16110,15 +16217,22 @@ export default function App() {
           ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
           : await upsertClientByDocument(upsertPayload)
         neonServerId = serverRow.id
+        clientLastPayloadSignatureRef.current = stableStringify(buildClientUpsertPayload(dadosClonados, 'client_autosave'))
+        setClientLastSaveStatus('success')
+        setOriginalClientData(cloneClienteDados(dadosClonados))
+        userInteractedSinceSaveRef.current = false
+        lastSavedSignatureRef.current = computeSignatureRef.current()
         syncedToBackend = true
         setClientsSyncState('online-db')
       }
     } catch (error) {
+      setClientLastSaveStatus('error')
       setClientsSyncState('degraded-api')
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
     }
 
     if (online && !syncedToBackend) {
+      setClientLastSaveStatus('error')
       console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
       adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
       return false
@@ -16289,36 +16403,22 @@ export default function App() {
     
     scheduleMarkStateAsSaved()
 
-    if (sincronizadoComSucesso) {
+    if (!sincronizadoComSucesso && !(erroSincronizacao instanceof OneDriveIntegrationMissingError)) {
+      const mensagemErro =
+        erroSincronizacao instanceof Error && erroSincronizacao.message
+          ? erroSincronizacao.message
+          : 'Erro desconhecido ao sincronizar com o OneDrive.'
       adicionarNotificacao(
-        estaEditando
-          ? 'Dados do cliente atualizados e sincronizados com o OneDrive com sucesso.'
-          : 'Cliente salvo e sincronizado com o OneDrive com sucesso.',
-        'success',
+        syncedToBackend
+          ? `Cliente salvo no banco de dados, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`
+          : `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
+        syncedToBackend ? 'info' : 'error',
       )
-    } else {
-      if (erroSincronizacao instanceof OneDriveIntegrationMissingError) {
-        adicionarNotificacao(
-          syncedToBackend
-            ? 'Cliente salvo. Configure a integração com o OneDrive para sincronizar automaticamente.'
-            : 'Cliente salvo apenas localmente (não sincronizado com o banco).',
-          syncedToBackend ? 'info' : 'error',
-        )
-      } else {
-        const mensagemErro =
-          erroSincronizacao instanceof Error && erroSincronizacao.message
-            ? erroSincronizacao.message
-            : 'Erro desconhecido ao sincronizar com o OneDrive.'
-        adicionarNotificacao(
-          `Cliente salvo localmente, mas houve erro ao sincronizar com o OneDrive. ${mensagemErro}`,
-          'error',
-        )
-      }
     }
 
     if (syncedToBackend) {
       try {
-        const refreshed = await carregarClientesPrioritarios()
+        const refreshed = await carregarClientesPrioritarios({ silent: true })
         setClientesSalvos(refreshed)
       } catch (error) {
         console.error('[clients][refresh-safe] failed', error)
@@ -16337,10 +16437,14 @@ export default function App() {
     persistClienteRegistroToOneDrive,
     scheduleMarkStateAsSaved,
     setClientesSalvos,
+    setClientLastSaveStatus,
     setOneDriveIntegrationAvailable,
     setClienteEmEdicaoId,
+    setOriginalClientData,
     updateClientServerIdMap,
+    buildClientUpsertPayload,
     validateClienteParaSalvar,
+    clienteTemDadosNaoSalvos,
   ])
 
   useEffect(() => {
@@ -16382,26 +16486,10 @@ export default function App() {
           return
         }
 
-        const documentDigits = normalizeNumbers(cliente.documento ?? '')
-        const payload: UpsertClientInput = {
-          name: nome,
-          ...(cliente.email?.trim() ? { email: cliente.email.trim() } : {}),
-          ...(cliente.telefone?.trim() ? { phone: cliente.telefone.trim() } : {}),
-          ...(cliente.cidade?.trim() ? { city: cliente.cidade.trim() } : {}),
-          ...(cliente.uf?.trim() ? { state: cliente.uf.trim() } : {}),
-          ...(cliente.endereco?.trim() ? { address: cliente.endereco.trim() } : {}),
-          ...(cliente.uc?.trim() ? { uc: cliente.uc.trim() } : {}),
-          ...(cliente.distribuidora?.trim() ? { distribuidora: cliente.distribuidora.trim() } : {}),
-          metadata: { source: 'client_autosave' },
-        }
-        if (documentDigits.length === 11) {
-          payload.cpf_raw = documentDigits
-          payload.document = documentDigits
-        } else if (documentDigits.length === 14) {
-          payload.cnpj_raw = documentDigits
-          payload.document = documentDigits
-        } else if (documentDigits.length > 0) {
-          payload.document = documentDigits
+        const payload = buildClientUpsertPayload(cliente, 'client_autosave')
+        const payloadSignature = stableStringify(payload)
+        if (payloadSignature === clientLastPayloadSignatureRef.current) {
+          return
         }
 
         clientServerAutoSaveInFlightRef.current = true
@@ -16410,6 +16498,7 @@ export default function App() {
           const serverRow = knownServerId
             ? await updateClientById(knownServerId, payload as UpdateClientInput)
             : await upsertClientByDocument(payload)
+          clientLastPayloadSignatureRef.current = payloadSignature
           updateClientServerIdMap(clienteEmEdicaoId, serverRow.id)
           await clearFormDraft()
         } catch (error) {
@@ -16435,30 +16524,7 @@ export default function App() {
         clearTimeout(clientAutoSaveTimeoutRef.current)
       }
     }
-  }, [cliente, clienteEmEdicaoId, getCurrentSnapshot, updateClientServerIdMap])
-
-
-  const clienteRegistroEmEdicao = useMemo(
-    () =>
-      clienteEmEdicaoId
-        ? clientesSalvos.find((registro) => registro.id === clienteEmEdicaoId) ?? null
-        : null,
-    [clienteEmEdicaoId, clientesSalvos],
-  )
-  const clienteFormularioAlterado = useMemo(() => {
-    if (!clienteRegistroEmEdicao) {
-      return false
-    }
-    // Compare only the client data fields — the full proposal snapshot comparison was too
-    // expensive (cloneSnapshotData + stableStringify on the entire app state on every render).
-    // The save handler always persists the latest proposal snapshot regardless.
-    return (
-      stableStringify(cloneClienteDados(cliente)) !==
-      stableStringify(cloneClienteDados(clienteRegistroEmEdicao.dados))
-    )
-  }, [clienteRegistroEmEdicao, cliente])
-  const clienteSaveLabel =
-    clienteEmEdicaoId && clienteFormularioAlterado ? 'Atualizar cliente' : 'Salvar cliente'
+  }, [cliente, clienteEmEdicaoId, getCurrentSnapshot, updateClientServerIdMap, buildClientUpsertPayload])
 
   const handleExcluirCliente = useCallback(
     async (registro: ClienteRegistro) => {
@@ -17374,6 +17440,8 @@ export default function App() {
         budgetIdOverride: snapshotToApply.currentBudgetId ?? getActiveBudgetId(),
         allowEmpty,
       })
+      setOriginalClientData(cloneClienteDados(dadosClonados))
+      setClientLastSaveStatus('idle')
       fecharClientesPainel()
     },
     [
@@ -17385,6 +17453,7 @@ export default function App() {
       hydrateClienteRegistroFromStore,
       isSnapshotEmpty,
       mergeSnapshotWithDefaults,
+      setOriginalClientData,
     ],
   )
 
@@ -19485,12 +19554,30 @@ export default function App() {
   ])
 
   const abrirClientesPainel = useCallback(async () => {
+    const skipPromptAfterSuccessfulClientSave = clientLastSaveStatus === 'success' || !clientIsDirty
+    if (skipPromptAfterSuccessfulClientSave) {
+      if (isAdmin || isOffice || isFinanceiro) {
+        setActivePage('clientes')
+        const registros = await carregarClientesPrioritarios({ silent: true })
+        setClientesSalvos(registros)
+        return true
+      }
+
+      const registros = carregarClientesSalvos()
+      setClientesSalvos(registros)
+      setActivePage('clientes')
+      void Promise.all(registros.map((r) => hydrateClienteRegistroFromStore(r))).then((hidratados) => {
+        setClientesSalvos(hidratados)
+      })
+      return true
+    }
+
     const canProceed = await runWithUnsavedChangesGuard(async () => {
       // For privileged roles, fetch from the RBAC-aware REST API to show all
       // relevant users' clients. For comercial, use localStorage for speed.
       if (isAdmin || isOffice || isFinanceiro) {
         setActivePage('clientes')
-        const registros = await carregarClientesPrioritarios()
+        const registros = await carregarClientesPrioritarios({ silent: true })
         setClientesSalvos(registros)
         return
       }
@@ -19515,7 +19602,7 @@ export default function App() {
     })
 
     return canProceed
-  }, [carregarClientesPrioritarios, carregarClientesSalvos, isAdmin, isFinanceiro, isOffice, runWithUnsavedChangesGuard, setActivePage])
+  }, [carregarClientesPrioritarios, carregarClientesSalvos, clientIsDirty, clientLastSaveStatus, isAdmin, isFinanceiro, isOffice, runWithUnsavedChangesGuard, setActivePage, hydrateClienteRegistroFromStore])
 
   const abrirPesquisaOrcamentos = useCallback(async () => {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
@@ -22160,11 +22247,16 @@ export default function App() {
         </Field>
       </div>
       <div className="card-actions">
-        {(!clienteEmEdicaoId || clienteFormularioAlterado) && (
-          <button type="button" className="primary" onClick={handleSalvarCliente}>
-            {clienteSaveLabel}
-          </button>
-        )}
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void handleSalvarCliente()}
+          disabled={!clienteTemDadosNaoSalvos}
+          aria-disabled={!clienteTemDadosNaoSalvos}
+          title={clienteTemDadosNaoSalvos ? clienteSaveLabel : 'Nenhuma alteração pendente para salvar'}
+        >
+          {clienteSaveLabel}
+        </button>
         <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
           Ver clientes
         </button>
