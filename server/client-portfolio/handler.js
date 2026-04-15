@@ -67,11 +67,12 @@ export async function handlePortfolioListRequest(req, res, { method, sendJson, r
   }
 
   const url = new URL(requestUrl, 'http://localhost')
-  const search = url.searchParams.get('search') ?? undefined
+  const rawSearch = url.searchParams.get('search')
+  const search = typeof rawSearch === 'string' ? rawSearch.trim() : ''
 
   try {
     const sql = await getScopedSql(actor)
-    const clients = await listPortfolioClients(sql, { search })
+    const clients = await listPortfolioClients(sql, { search: search || undefined })
     sendJson(200, { data: clients })
   } catch (err) {
     console.error('[portfolio][list] error', {

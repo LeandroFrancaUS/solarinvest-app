@@ -83,6 +83,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.client_document ILIKE ${like}
           OR c.client_phone ILIKE ${like}
           OR c.uc_geradora  ILIKE ${like}
+          OR c.uc_beneficiaria ILIKE ${like}
         )
       ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
     `
