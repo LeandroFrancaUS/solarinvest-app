@@ -21,9 +21,9 @@ import {
 } from '../services/clientPortfolioApi'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
-import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS } from '../domain/billing/monthlyEngine'
+import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
-import { BillingAlertsWidget } from '../components/portfolio/BillingAlertsWidget'
+import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
 
 interface Props {
   onBack: () => void
@@ -1377,7 +1377,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
   // Compute billing alerts from all clients for the dashboard widget
   const billingAlerts = useMemo(() => {
     if (!hasClients) return []
-    const alerts: Array<{ clientId: number; clientName: string; level: import('../domain/billing/monthlyEngine').BillingAlertLevel; dueDate: string; amount: number; installmentNumber: number }> = []
+    const alerts: BillingAlertItem[] = []
     for (const c of clients) {
       if (!c.due_day || !c.valor_mensalidade || !c.commissioning_date) continue
       const readingDay = c.reading_day ?? c.due_day
@@ -1409,7 +1409,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         }
       }
     }
-    return alerts.slice(0, 50) // limit to 50 alerts for performance
+    return alerts.slice(0, MAX_DASHBOARD_ALERTS)
   }, [clients, hasClients])
 
   return (

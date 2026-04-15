@@ -7,6 +7,15 @@
 //
 // The engine is pure (no side-effects) and fully deterministic.
 
+/** Maximum contract term in months. */
+export const MAX_CONTRACT_TERM_MONTHS = 600
+
+/** Days before due date that triggers the "a vencer" alert. */
+export const DAYS_BEFORE_DUE_THRESHOLD = 5
+
+/** Maximum number of billing alerts shown on the dashboard. */
+export const MAX_DASHBOARD_ALERTS = 50
+
 export interface MonthlyEngineInput {
   /** Date when the solar plant was commissioned (ISO string or Date). */
   data_comissionamento: string | Date
@@ -178,7 +187,7 @@ export function generateInstallments(input: GenerateInstallmentsInput): Installm
 
   if (
     !inicio_mensalidade ||
-    prazo < 1 || prazo > 600 ||
+    prazo < 1 || prazo > MAX_CONTRACT_TERM_MONTHS ||
     dia_vencimento < 1 || dia_vencimento > 31 ||
     valor_mensalidade < 0 ||
     !Number.isFinite(prazo) ||
@@ -266,7 +275,7 @@ export function getBillingAlert(dueDate: Date | string, isPaid: boolean = false)
   if (diffDays === 0) {
     return { level: 'vence_hoje', label: BILLING_ALERT_LABELS.vence_hoje, daysUntilDue: 0 }
   }
-  if (diffDays <= 5) {
+  if (diffDays <= DAYS_BEFORE_DUE_THRESHOLD) {
     return { level: 'a_vencer', label: BILLING_ALERT_LABELS.a_vencer, daysUntilDue: diffDays }
   }
 

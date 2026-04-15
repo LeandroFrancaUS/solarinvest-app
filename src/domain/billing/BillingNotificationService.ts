@@ -92,11 +92,8 @@ function renderTemplate(
   return { subject, body }
 }
 
-let notificationIdCounter = 0
-
-function generateId(): string {
-  notificationIdCounter++
-  return `notif-${Date.now()}-${notificationIdCounter}`
+function generateId(clientId: number, installmentNumber: number, channel: string): string {
+  return `notif-${clientId}-${installmentNumber}-${channel}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /**
@@ -131,7 +128,7 @@ export function generateNotificationsForClient(
 
     for (const channel of channels) {
       notifications.push({
-        id: generateId(),
+        id: generateId(clientId, installment.numero, channel),
         clientId,
         clientName,
         installmentNumber: installment.numero,
