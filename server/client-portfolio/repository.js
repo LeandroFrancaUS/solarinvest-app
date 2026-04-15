@@ -414,7 +414,7 @@ export async function getPortfolioSummary(sql) {
       COUNT(*) FILTER (WHERE bp.payment_status = 'overdue')               AS overdue_clients,
       COUNT(*) FILTER (WHERE cc.buyout_eligible = true)                   AS buyout_eligible_clients,
       COALESCE(SUM(ep.mensalidade), 0)                                    AS projected_monthly_revenue,
-      COUNT(*) FILTER (WHERE c.in_portfolio = true)                       AS active_portfolio_clients
+      COUNT(*)                                                             AS active_portfolio_clients
     FROM public.clients c
     LEFT JOIN public.client_energy_profile ep  ON ep.client_id = c.id
     LEFT JOIN public.client_project_status ps  ON ps.client_id = c.id
