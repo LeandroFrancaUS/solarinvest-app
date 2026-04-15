@@ -22,14 +22,16 @@ export interface PortfolioClientRow {
   client_created_at: string
   client_updated_at?: string
 
-  // Lifecycle
-  lifecycle_id: number | null
-  lifecycle_status: LifecycleStatus
+  // Portfolio lifecycle — sourced from clients.in_portfolio / clients.portfolio_exported_at.
+  // Note: lifecycle_id references a client_lifecycle row when that table exists (migration 0029),
+  // but it is null when only the clients.in_portfolio columns are present (migration 0030 only).
+  lifecycle_id?: number | null
+  lifecycle_status?: LifecycleStatus | null
   is_converted_customer: boolean
   exported_to_portfolio_at: string | null
   exported_by_user_id: string | null
-  onboarding_status: string | null
-  is_active_portfolio_client: boolean
+  onboarding_status?: string | null
+  is_active_portfolio_client?: boolean | null
 
   // Energy profile
   energy_profile_id?: number | null

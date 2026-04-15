@@ -195,6 +195,8 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
 
 /**
  * Update client lifecycle fields.
+ * Returns null (silently) if no client_lifecycle row exists for the given clientId.
+ * This table is optional (created by migration 0029); callers should handle null gracefully.
  */
 export async function updateClientLifecycle(sql, clientId, fields) {
   const now = new Date().toISOString()
