@@ -4050,7 +4050,7 @@ function ClientesPanel({
                                   <button
                                     type="button"
                                     className={`clients-table-action${registro.inPortfolio ? ' activated' : ''}`}
-                                    onClick={() => { if (!registro.inPortfolio) onExportarCarteira(registro) }}
+                                    onClick={() => onExportarCarteira(registro)}
                                     disabled={registro.inPortfolio}
                                     aria-label={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar cliente na carteira'}
                                     title={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar Cliente'}
