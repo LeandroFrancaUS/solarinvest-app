@@ -44,6 +44,11 @@ function requireWriteAccess(actor, sendJson) {
 
 async function getScopedSql(actor) {
   const db = getDatabaseClient()
+  if (!db?.sql) {
+    const err = new Error('Database not configured')
+    err.statusCode = 503
+    throw err
+  }
   const role = actorRole(actor)
   return createUserScopedSql(db.sql, { userId: actor.userId, role })
 }
@@ -120,6 +125,13 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
   try {
     // Use scoped SQL so RLS session vars are set, consistent with all other client routes.
     const sql = await getScopedSql(actor)
+
+    console.info('[portfolio-export] start', {
+      clientId,
+      actorUserId: actor.userId,
+      actorRole: actorRole(actor),
+    })
+
     const updated = await exportClientToPortfolio(sql, clientId, actor.userId)
 
     if (!updated) {
@@ -149,13 +161,22 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
       console.warn('[portfolio] audit log failed (non-fatal)', auditErr?.message)
     }
 
+    console.info('[portfolio-export] success', {
+      clientId: updated.id,
+      actorUserId: actor.userId,
+    })
+
     sendJson(200, { ok: true, data: updated })
   } catch (err) {
-    console.error('[portfolio] export error', {
+    console.error('[portfolio-export] failed', {
       clientId,
       actorUserId: actor?.userId ?? null,
+      actorRole: actorRole(actor),
       message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
       code: err?.code ?? null,
+      detail: err?.detail ?? null,
+      hint: err?.hint ?? null,
     })
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao exportar cliente para a carteira.' } })
   }

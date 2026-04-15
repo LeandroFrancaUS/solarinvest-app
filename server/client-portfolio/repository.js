@@ -5,72 +5,43 @@
 /**
  * Fetch all portfolio clients (clients.in_portfolio = true).
  * Source of truth: clients.in_portfolio — does NOT require client_lifecycle table.
- * Optional LEFT JOINs to auxiliary tables (client_energy_profile, client_project_status,
- * client_contracts, client_billing_profile) return NULL when rows are missing.
+ * Uses only the clients table to avoid failures from optional auxiliary tables
+ * (client_project_status, client_contracts, client_billing_profile) that may not
+ * exist when migration 0029 has not been applied.
  */
 export async function listPortfolioClients(sql, { search } = {}) {
   const rows = await sql`
     SELECT
       c.id,
       c.client_name                          AS name,
-      c.email,
-      c.phone,
-      c.city,
-      c.state,
-      c.document,
+      c.client_email                         AS email,
+      c.client_phone                         AS phone,
+      c.client_city                          AS city,
+      c.client_state                         AS state,
+      c.client_document                      AS document,
       c.document_type,
       c.consumption_kwh_month,
       c.system_kwp,
       c.term_months,
       c.distribuidora,
-      c.uc,
+      c.uc_geradora                          AS uc,
       c.uc_beneficiaria,
       c.owner_user_id,
       c.created_by_user_id,
       c.created_at                           AS client_created_at,
+      c.updated_at                           AS client_updated_at,
       c.in_portfolio                         AS is_converted_customer,
       c.portfolio_exported_at                AS exported_to_portfolio_at,
-      c.portfolio_exported_by_user_id        AS exported_by_user_id,
-      ep.modalidade,
-      ep.tarifa_atual,
-      ep.desconto_percentual,
-      ep.mensalidade,
-      ep.prazo_meses,
-      ep.kwh_contratado,
-      ep.potencia_kwp,
-      ep.tipo_rede,
-      ep.marca_inversor,
-      ps.project_status,
-      ps.installation_status,
-      ps.commissioning_date,
-      ps.expected_go_live_date,
-      ps.timeline_velocity_score,
-      cc.id                                  AS contract_id,
-      cc.contract_type,
-      cc.contract_status,
-      cc.contract_signed_at,
-      cc.billing_start_date,
-      cc.contractual_term_months,
-      cc.buyout_eligible,
-      cc.buyout_status,
-      bp.payment_status                      AS billing_payment_status,
-      bp.delinquency_status,
-      bp.due_day,
-      bp.first_billing_date
+      c.portfolio_exported_by_user_id        AS exported_by_user_id
     FROM public.clients c
-    LEFT JOIN public.client_energy_profile ep  ON ep.client_id = c.id
-    LEFT JOIN public.client_project_status ps  ON ps.client_id = c.id
-    LEFT JOIN public.client_contracts cc
-           ON cc.client_id = c.id AND cc.contract_status = 'active'
-    LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
     WHERE c.in_portfolio = true
       AND c.deleted_at IS NULL
       AND (
         ${search ? sql`(
-          c.client_name ILIKE ${'%' + search + '%'}
-          OR c.email    ILIKE ${'%' + search + '%'}
-          OR c.city     ILIKE ${'%' + search + '%'}
-          OR c.document ILIKE ${'%' + search + '%'}
+          c.client_name     ILIKE ${'%' + search + '%'}
+          OR c.client_email ILIKE ${'%' + search + '%'}
+          OR c.client_city  ILIKE ${'%' + search + '%'}
+          OR c.client_document ILIKE ${'%' + search + '%'}
         )` : sql`true`}
       )
     ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
@@ -80,28 +51,28 @@ export async function listPortfolioClients(sql, { search } = {}) {
 
 /**
  * Get a single portfolio client by client_id.
- */
-/**
- * Get a single portfolio client by client_id.
  * Source of truth: clients.in_portfolio — does NOT require client_lifecycle table.
+ * Uses only the clients table to avoid failures from optional auxiliary tables
+ * (client_project_status, client_contracts, client_billing_profile) that may not
+ * exist when migration 0029 has not been applied.
  */
 export async function getPortfolioClient(sql, clientId) {
   const rows = await sql`
     SELECT
       c.id,
       c.client_name                          AS name,
-      c.email,
-      c.phone,
-      c.city,
-      c.state,
-      c.address,
-      c.document,
+      c.client_email                         AS email,
+      c.client_phone                         AS phone,
+      c.client_city                          AS city,
+      c.client_state                         AS state,
+      c.client_address                       AS address,
+      c.client_document                      AS document,
       c.document_type,
       c.consumption_kwh_month,
       c.system_kwp,
       c.term_months,
       c.distribuidora,
-      c.uc,
+      c.uc_geradora                          AS uc,
       c.uc_beneficiaria,
       c.owner_user_id,
       c.created_by_user_id,
@@ -109,62 +80,8 @@ export async function getPortfolioClient(sql, clientId) {
       c.updated_at                           AS client_updated_at,
       c.in_portfolio                         AS is_converted_customer,
       c.portfolio_exported_at                AS exported_to_portfolio_at,
-      c.portfolio_exported_by_user_id        AS exported_by_user_id,
-      ep.id                                  AS energy_profile_id,
-      ep.modalidade,
-      ep.tarifa_atual,
-      ep.desconto_percentual,
-      ep.mensalidade,
-      ep.prazo_meses,
-      ep.kwh_contratado,
-      ep.potencia_kwp,
-      ep.tipo_rede,
-      ep.marca_inversor,
-      ep.indicacao,
-      ps.id                                  AS project_id,
-      ps.project_status,
-      ps.installation_status,
-      ps.engineering_status,
-      ps.homologation_status,
-      ps.commissioning_status,
-      ps.commissioning_date,
-      ps.first_injection_date,
-      ps.first_generation_date,
-      ps.expected_go_live_date,
-      ps.integrator_name,
-      ps.engineer_name,
-      ps.timeline_velocity_score,
-      ps.notes                               AS project_notes,
-      cc.id                                  AS contract_id,
-      cc.contract_type,
-      cc.contract_status,
-      cc.source_proposal_id,
-      cc.contract_signed_at,
-      cc.contract_start_date,
-      cc.billing_start_date,
-      cc.expected_billing_end_date,
-      cc.contractual_term_months,
-      cc.buyout_eligible,
-      cc.buyout_status,
-      cc.buyout_date,
-      cc.buyout_amount_reference,
-      cc.notes                               AS contract_notes,
-      bp.id                                  AS billing_id,
-      bp.due_day,
-      bp.reading_day,
-      bp.first_billing_date,
-      bp.expected_last_billing_date,
-      bp.recurrence_type,
-      bp.payment_status                      AS billing_payment_status,
-      bp.delinquency_status,
-      bp.collection_stage,
-      bp.auto_reminder_enabled
+      c.portfolio_exported_by_user_id        AS exported_by_user_id
     FROM public.clients c
-    LEFT JOIN public.client_energy_profile ep  ON ep.client_id = c.id
-    LEFT JOIN public.client_project_status ps  ON ps.client_id = c.id
-    LEFT JOIN public.client_contracts cc
-           ON cc.client_id = c.id AND cc.contract_status = 'active'
-    LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
     WHERE c.id = ${clientId}
       AND c.in_portfolio = true
       AND c.deleted_at IS NULL
@@ -177,6 +94,8 @@ export async function getPortfolioClient(sql, clientId) {
  * Export a client to the portfolio.
  * Updates clients.in_portfolio directly — idempotent, does NOT depend on client_lifecycle.
  * COALESCE ensures that repeated calls preserve the original export timestamp and actor.
+ * Note: updated_by_user_id is intentionally omitted because no migration adds that column
+ * to the clients table; the existing deleteClient() already retries without it for the same reason.
  */
 export async function exportClientToPortfolio(sql, clientId, actorUserId) {
   const rows = await sql`
@@ -185,8 +104,7 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
       in_portfolio                  = true,
       portfolio_exported_at         = COALESCE(portfolio_exported_at, NOW()),
       portfolio_exported_by_user_id = COALESCE(portfolio_exported_by_user_id, ${actorUserId}),
-      updated_at                    = NOW(),
-      updated_by_user_id            = ${actorUserId}
+      updated_at                    = NOW()
     WHERE id = ${clientId}
       AND deleted_at IS NULL
     RETURNING *
@@ -403,24 +321,16 @@ export async function addClientNote(sql, clientId, { entry_type, title, content,
  * Dashboard portfolio summary aggregates.
  * Returns high-level KPIs for the portfolio dashboard.
  * Source of truth: clients.in_portfolio — does NOT require client_lifecycle table.
+ * Uses only the clients table to avoid failures from optional auxiliary tables
+ * (client_project_status, client_contracts, client_billing_profile) that may not
+ * exist when migration 0029 has not been applied.
  */
 export async function getPortfolioSummary(sql) {
   const rows = await sql`
     SELECT
-      COUNT(*)                                                             AS total_portfolio_clients,
-      COUNT(*) FILTER (WHERE ps.project_status IN ('engineering','installation','homologation'))
-                                                                           AS clients_in_implementation,
-      COUNT(*) FILTER (WHERE bp.payment_status IS NOT NULL)               AS clients_with_billing,
-      COUNT(*) FILTER (WHERE bp.payment_status = 'overdue')               AS overdue_clients,
-      COUNT(*) FILTER (WHERE cc.buyout_eligible = true)                   AS buyout_eligible_clients,
-      COALESCE(SUM(ep.mensalidade), 0)                                    AS projected_monthly_revenue,
-      COUNT(*)                                                             AS active_portfolio_clients
+      COUNT(*) AS total_portfolio_clients,
+      COUNT(*) AS active_portfolio_clients
     FROM public.clients c
-    LEFT JOIN public.client_energy_profile ep  ON ep.client_id = c.id
-    LEFT JOIN public.client_project_status ps  ON ps.client_id = c.id
-    LEFT JOIN public.client_contracts cc
-           ON cc.client_id = c.id AND cc.contract_status = 'active'
-    LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
     WHERE c.in_portfolio = true
       AND c.deleted_at IS NULL
   `
