@@ -1146,7 +1146,7 @@ function ClientDetailPanel({
   const { client, isLoading, error, reload } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
   const [localClient, setLocalClient] = useState<PortfolioClientRow | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('collapsed')
+  const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const { removing, removeClient } = usePortfolioRemove()
   const { deleting, deleteClient } = usePortfolioDelete()
   const [confirmRemove, setConfirmRemove] = useState(false)
