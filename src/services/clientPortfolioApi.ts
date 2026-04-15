@@ -7,6 +7,7 @@ import type {
   ClientNote,
   PortfolioSummary,
 } from '../types/clientPortfolio'
+import { updateClientById, deleteClientById, type UpdateClientInput } from '../lib/api/clientsApi'
 
 type GetAccessToken = () => Promise<string | null>
 let portfolioTokenProvider: GetAccessToken | null = null
@@ -35,14 +36,30 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+
+function friendlyErrorMessage(operation: 'list' | 'export' | 'remove' | 'update' | 'delete', fallback: string): string {
+  const messages: Record<string, string> = {
+    list: 'Não foi possível carregar a carteira de clientes.',
+    export: 'Não foi possível exportar o cliente para a carteira.',
+    remove: 'Não foi possível remover o cliente da carteira.',
+    update: 'Não foi possível salvar as alterações do cliente.',
+    delete: 'Não foi possível excluir o cliente.',
+  }
+  return messages[operation] ?? fallback
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio list
 // ─────────────────────────────────────────────────────────────────────────────
 export async function fetchPortfolioClients(search?: string): Promise<PortfolioClientRow[]> {
-  const url = new URL(resolveApiUrl('/api/client-portfolio'))
-  if (search) url.searchParams.set('search', search)
-  const res = await apiFetch<{ data: PortfolioClientRow[] }>(url.toString())
-  return res.data
+  try {
+    const url = new URL(resolveApiUrl('/api/client-portfolio'))
+    if (search) url.searchParams.set('search', search)
+    const res = await apiFetch<{ data: PortfolioClientRow[] }>(url.toString())
+    return res.data
+  } catch {
+    throw new Error(friendlyErrorMessage('list', 'Erro ao carregar carteira.'))
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +84,42 @@ export async function fetchPortfolioClient(clientId: number): Promise<PortfolioC
 // Export client to portfolio
 // ─────────────────────────────────────────────────────────────────────────────
 export async function exportClientToPortfolio(clientId: number): Promise<void> {
-  await apiFetch(resolveApiUrl(`/api/clients/${clientId}/portfolio-export`), { method: 'PATCH' })
+  try {
+    await apiFetch(resolveApiUrl(`/api/clients/${clientId}/portfolio-export`), { method: 'PATCH' })
+  } catch {
+    throw new Error(friendlyErrorMessage('export', 'Erro ao exportar cliente.'))
+  }
+}
+
+export async function removeClientFromPortfolio(clientId: number): Promise<PortfolioClientRow> {
+  try {
+    const res = await apiFetch<{ data: PortfolioClientRow }>(
+      resolveApiUrl(`/api/clients/${clientId}/portfolio-remove`),
+      { method: 'PATCH' },
+    )
+    return res.data
+  } catch {
+    throw new Error(friendlyErrorMessage('remove', 'Erro ao remover cliente da carteira.'))
+  }
+}
+
+export async function updateClientFromPortfolio(
+  clientId: number,
+  payload: UpdateClientInput,
+): Promise<void> {
+  try {
+    await updateClientById(String(clientId), payload)
+  } catch {
+    throw new Error(friendlyErrorMessage('update', 'Erro ao atualizar cliente.'))
+  }
+}
+
+export async function deleteClientFromPortfolio(clientId: number): Promise<void> {
+  try {
+    await deleteClientById(String(clientId))
+  } catch {
+    throw new Error(friendlyErrorMessage('delete', 'Erro ao excluir cliente.'))
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,3 +183,7 @@ export async function fetchDashboardPortfolioSummary(): Promise<PortfolioSummary
   )
   return res.data
 }
+
+
+export const listPortfolioClients = fetchPortfolioClients
+export const getPortfolioClient = fetchPortfolioClient
