@@ -90,15 +90,31 @@ export class StorageService {
     return value || DEFAULT_USER_ID
   }
 
-  async listEntries(userId) {
+  resolveRlsContext(context) {
+    const userId = typeof context?.userId === 'string' ? context.userId.trim() : ''
+    const userRole = typeof context?.userRole === 'string' ? context.userRole.trim() : ''
+    if (!userId) {
+      const error = new Error('RLS_CONTEXT_MISSING_USER_ID')
+      error.code = 'RLS_CONTEXT_MISSING_USER_ID'
+      throw error
+    }
+    if (!userRole) {
+      const error = new Error('RLS_CONTEXT_MISSING_INTERNAL_ROLE')
+      error.code = 'RLS_CONTEXT_MISSING_INTERNAL_ROLE'
+      throw error
+    }
+    return { userId, userRole }
+  }
+
+  async listEntries(context) {
     await this.ensureInitialized()
-    const normalizedUserId = this.resolveUserId(userId)
-    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+    const { userId, userRole } = this.resolveRlsContext(context)
+    const scopedSql = createUserScopedSql(this.sql, { userId, role: userRole })
 
     const rows = await scopedSql`
       SELECT "key" AS key, value
         FROM storage
-       WHERE user_id = ${normalizedUserId}
+       WHERE user_id = ${userId}
        ORDER BY "key" ASC
     `
 
@@ -106,7 +122,7 @@ export class StorageService {
       return rows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
     }
 
-    const legacyRows = await this.loadLegacyEntries(normalizedUserId, scopedSql)
+    const legacyRows = await this.loadLegacyEntries(userId, scopedSql)
 
     return legacyRows.map((row) => ({ key: row.key, value: normalizeJsonValue(row.value) }))
   }
@@ -134,49 +150,49 @@ export class StorageService {
     return rows
   }
 
-  async setEntry(userId, key, value) {
+  async setEntry(context, key, value) {
     if (!key) {
       throw new Error('Storage key ausente')
     }
 
     await this.ensureInitialized()
-    const normalizedUserId = this.resolveUserId(userId)
+    const { userId, userRole } = this.resolveRlsContext(context)
     const normalizedValue = value === undefined ? null : value
     const serializedValue = normalizedValue === null ? null : JSON.stringify(normalizedValue)
-    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+    const scopedSql = createUserScopedSql(this.sql, { userId, role: userRole })
 
     await scopedSql`
       INSERT INTO storage (user_id, "key", value, updated_at)
-      VALUES (${normalizedUserId}, ${key}, ${serializedValue}::jsonb, now())
+      VALUES (${userId}, ${key}, ${serializedValue}::jsonb, now())
       ON CONFLICT (user_id, "key")
       DO UPDATE SET value = EXCLUDED.value, updated_at = now()
     `
   }
 
-  async removeEntry(userId, key) {
+  async removeEntry(context, key) {
     if (!key) {
       throw new Error('Storage key ausente')
     }
 
     await this.ensureInitialized()
-    const normalizedUserId = this.resolveUserId(userId)
-    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+    const { userId, userRole } = this.resolveRlsContext(context)
+    const scopedSql = createUserScopedSql(this.sql, { userId, role: userRole })
 
     await scopedSql`
       DELETE FROM storage
-      WHERE user_id = ${normalizedUserId}
+      WHERE user_id = ${userId}
         AND "key" = ${key}
     `
   }
 
-  async clear(userId) {
+  async clear(context) {
     await this.ensureInitialized()
-    const normalizedUserId = this.resolveUserId(userId)
-    const scopedSql = createUserScopedSql(this.sql, normalizedUserId)
+    const { userId, userRole } = this.resolveRlsContext(context)
+    const scopedSql = createUserScopedSql(this.sql, { userId, role: userRole })
 
     await scopedSql`
       DELETE FROM storage
-      WHERE user_id = ${normalizedUserId}
+      WHERE user_id = ${userId}
     `
   }
 }
