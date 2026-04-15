@@ -5,7 +5,6 @@
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
-import { appendClientAuditLog } from '../clients/repository.js'
 import {
   listPortfolioClients,
   getPortfolioClient,
@@ -113,31 +112,51 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
     return
   }
 
-  try {
-    const db = getDatabaseClient()
-    // Use service-bypass sql for the lifecycle upsert (no owner check — admin/office already verified)
-    const lifecycle = await exportClientToPortfolio(db.sql, clientId, actor.userId)
+  if (!Number.isFinite(clientId) || clientId <= 0) {
+    sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'ID de cliente inválido.' } })
+    return
+  }
 
-    // Audit log the operation
-    const role = actorRole(actor)
-    const scopedSql = createUserScopedSql(db.sql, { userId: actor.userId, role })
+  try {
+    // Use scoped SQL so RLS session vars are set, consistent with all other client routes.
+    const sql = await getScopedSql(actor)
+    const updated = await exportClientToPortfolio(sql, clientId, actor.userId)
+
+    if (!updated) {
+      sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado.' } })
+      return
+    }
+
+    // Audit log — non-fatal, never blocks the main response.
     try {
+      const { appendClientAuditLog } = await import('../clients/repository.js')
       await appendClientAuditLog(
-        scopedSql,
-        clientId,
+        sql,
+        updated.id,
         actor.userId,
         actor.email ?? null,
         'portfolio_export',
         null,
-        { lifecycle_status: lifecycle.lifecycle_status, exported_to_portfolio_at: lifecycle.exported_to_portfolio_at },
+        {
+          in_portfolio: true,
+          portfolio_exported_at: updated.portfolio_exported_at,
+          portfolio_exported_by_user_id: updated.portfolio_exported_by_user_id,
+        },
+        'Client exported to portfolio',
+        null,
       )
     } catch (auditErr) {
       console.warn('[portfolio] audit log failed (non-fatal)', auditErr?.message)
     }
 
-    sendJson(200, { data: lifecycle })
+    sendJson(200, { ok: true, data: updated })
   } catch (err) {
-    console.error('[portfolio] export error', err)
+    console.error('[portfolio] export error', {
+      clientId,
+      actorUserId: actor?.userId ?? null,
+      message: err instanceof Error ? err.message : String(err),
+      code: err?.code ?? null,
+    })
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao exportar cliente para a carteira.' } })
   }
 }
