@@ -683,21 +683,34 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
   const [loadingNotes, setLoadingNotes] = useState(true)
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   React.useEffect(() => {
-    setLoadingNotes(true)
-    void fetchPortfolioNotes(clientId).then((ns) => { setNotes(ns); setLoadingNotes(false) }).catch(() => setLoadingNotes(false))
+    async function loadNotes() {
+      setLoadingNotes(true)
+      try {
+        const ns = await fetchPortfolioNotes(clientId)
+        setNotes(ns)
+      } catch (err: unknown) {
+        console.error('[portfolio] notes load error', err)
+      } finally {
+        setLoadingNotes(false)
+      }
+    }
+    void loadNotes()
   }, [clientId])
 
   async function handleAddNote() {
     if (!newNote.trim()) return
     setAddingNote(true)
+    setAddError(null)
     try {
       const note = await addPortfolioNote(clientId, { content: newNote.trim(), entry_type: 'note' })
       setNotes((prev) => [note, ...prev])
       setNewNote('')
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      console.error('[portfolio] add note error', err)
+      setAddError(err instanceof Error ? err.message : 'Erro ao salvar nota.')
     } finally {
       setAddingNote(false)
     }
@@ -705,7 +718,7 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
         <textarea
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
@@ -717,6 +730,8 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
           {addingNote ? '…' : '＋'}
         </button>
       </div>
+      {addError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{addError}</p>}
+      {!addError && <div style={{ marginBottom: 10 }} />}
       {loadingNotes ? (
         <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>Carregando notas…</p>
       ) : notes.length === 0 ? (

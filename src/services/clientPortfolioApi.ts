@@ -54,7 +54,11 @@ export async function fetchPortfolioClient(clientId: number): Promise<PortfolioC
       resolveApiUrl(`/api/client-portfolio/${clientId}`),
     )
     return res.data
-  } catch {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (!msg.includes('404') && !msg.toLowerCase().includes('not found')) {
+      console.error('[portfolio] fetchPortfolioClient error', err)
+    }
     return null
   }
 }

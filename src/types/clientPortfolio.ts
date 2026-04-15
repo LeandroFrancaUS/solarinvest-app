@@ -89,6 +89,9 @@ export interface PortfolioClientRow {
   auto_reminder_enabled?: boolean
 }
 
+// LifecycleStatus includes 'lead' for backward compatibility when a client
+// record exists but has not yet been explicitly exported to the portfolio.
+// In practice, the portfolio only lists clients with is_converted_customer = true.
 export type LifecycleStatus =
   | 'lead'
   | 'contracted'
