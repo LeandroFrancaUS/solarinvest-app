@@ -2,6 +2,7 @@
 // Hook to fetch and manage the list of portfolio clients.
 
 import { useState, useEffect, useCallback } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import type { PortfolioClientRow, PortfolioSummary } from '../types/clientPortfolio'
 import {
   fetchPortfolioClients,
@@ -16,6 +17,7 @@ export interface UseClientPortfolioResult {
   error: string | null
   reload: () => void
   setSearch: (q: string) => void
+  setClients: Dispatch<SetStateAction<PortfolioClientRow[]>>
 }
 
 export function useClientPortfolio(): UseClientPortfolioResult {
@@ -37,7 +39,7 @@ export function useClientPortfolio(): UseClientPortfolioResult {
     load()
   }, [load])
 
-  return { clients, isLoading, error, reload: load, setSearch }
+  return { clients, isLoading, error, reload: load, setSearch, setClients }
 }
 
 export interface UsePortfolioClientResult {

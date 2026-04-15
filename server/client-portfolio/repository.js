@@ -10,42 +10,84 @@
  * exist when migration 0029 has not been applied.
  */
 export async function listPortfolioClients(sql, { search } = {}) {
-  const rows = await sql`
-    SELECT
-      c.id,
-      c.client_name                          AS name,
-      c.client_email                         AS email,
-      c.client_phone                         AS phone,
-      c.client_city                          AS city,
-      c.client_state                         AS state,
-      c.client_document                      AS document,
-      c.document_type,
-      c.consumption_kwh_month,
-      c.system_kwp,
-      c.term_months,
-      c.distribuidora,
-      c.uc_geradora                          AS uc,
-      c.uc_beneficiaria,
-      c.owner_user_id,
-      c.created_by_user_id,
-      c.created_at                           AS client_created_at,
-      c.updated_at                           AS client_updated_at,
-      c.in_portfolio                         AS is_converted_customer,
-      c.portfolio_exported_at                AS exported_to_portfolio_at,
-      c.portfolio_exported_by_user_id        AS exported_by_user_id
-    FROM public.clients c
-    WHERE c.in_portfolio = true
-      AND c.deleted_at IS NULL
-      AND (
-        ${search ? sql`(
-          c.client_name     ILIKE ${'%' + search + '%'}
-          OR c.client_email ILIKE ${'%' + search + '%'}
-          OR c.client_city  ILIKE ${'%' + search + '%'}
-          OR c.client_document ILIKE ${'%' + search + '%'}
-        )` : sql`true`}
-      )
-    ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
-  `
+  const normalizedSearch = typeof search === 'string' ? search.trim() : ''
+  const hasSearch = normalizedSearch.length > 0
+  const mode = hasSearch ? 'with_search' : 'without_search'
+  const searchTerm = hasSearch ? `%${normalizedSearch}%` : null
+
+  console.info('[portfolio][list] query-mode', {
+    mode,
+    search,
+    searchTerm,
+  })
+
+  const rows = hasSearch
+    ? await sql`
+      SELECT
+        c.id,
+        c.client_name                   AS name,
+        c.client_email                  AS email,
+        c.client_phone                  AS phone,
+        c.client_city                   AS city,
+        c.client_state                  AS state,
+        c.client_document               AS document,
+        c.document_type,
+        c.consumption_kwh_month,
+        c.system_kwp,
+        c.term_months,
+        c.distribuidora,
+        c.uc_geradora                   AS uc,
+        c.uc_beneficiaria,
+        c.owner_user_id,
+        c.created_by_user_id,
+        c.created_at                    AS client_created_at,
+        c.updated_at                    AS client_updated_at,
+        c.in_portfolio                  AS is_converted_customer,
+        c.portfolio_exported_at         AS exported_to_portfolio_at,
+        c.portfolio_exported_by_user_id AS exported_by_user_id
+      FROM public.clients c
+      WHERE c.in_portfolio = true
+        AND c.deleted_at IS NULL
+        AND (
+          c.client_name ILIKE ${searchTerm}
+          OR c.client_email ILIKE ${searchTerm}
+          OR c.client_city ILIKE ${searchTerm}
+          OR c.client_document ILIKE ${searchTerm}
+          OR c.client_phone ILIKE ${searchTerm}
+          OR c.uc_geradora ILIKE ${searchTerm}
+        )
+      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+    `
+    : await sql`
+      SELECT
+        c.id,
+        c.client_name                   AS name,
+        c.client_email                  AS email,
+        c.client_phone                  AS phone,
+        c.client_city                   AS city,
+        c.client_state                  AS state,
+        c.client_document               AS document,
+        c.document_type,
+        c.consumption_kwh_month,
+        c.system_kwp,
+        c.term_months,
+        c.distribuidora,
+        c.uc_geradora                   AS uc,
+        c.uc_beneficiaria,
+        c.owner_user_id,
+        c.created_by_user_id,
+        c.created_at                    AS client_created_at,
+        c.updated_at                    AS client_updated_at,
+        c.in_portfolio                  AS is_converted_customer,
+        c.portfolio_exported_at         AS exported_to_portfolio_at,
+        c.portfolio_exported_by_user_id AS exported_by_user_id
+      FROM public.clients c
+      WHERE c.in_portfolio = true
+        AND c.deleted_at IS NULL
+      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+    `
+
+  console.info('[portfolio][list] rows', { count: rows.length })
   return rows
 }
 
@@ -140,6 +182,20 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
     `
     return rows[0] ?? null
   }
+}
+
+export async function removeClientFromPortfolio(sql, clientId, actorUserId) {
+  console.info('[portfolio-remove] repository update', { clientId, actorUserId })
+  const rows = await sql`
+    UPDATE public.clients
+    SET
+      in_portfolio = false,
+      updated_at = NOW()
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING *
+  `
+  return rows[0] ?? null
 }
 
 /**
