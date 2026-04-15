@@ -2,7 +2,7 @@
 // "Carteira de Clientes" — professional operational management hub.
 // Access: admin | office | financeiro only.
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   useClientPortfolio,
   usePortfolioClient,
@@ -11,6 +11,7 @@ import {
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
+import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   patchPortfolioContract,
   patchPortfolioProject,
@@ -18,6 +19,11 @@ import {
   fetchPortfolioNotes,
   addPortfolioNote,
 } from '../services/clientPortfolioApi'
+import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
+import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
+import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS } from '../domain/billing/monthlyEngine'
+import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
+import { BillingAlertsWidget } from '../components/portfolio/BillingAlertsWidget'
 
 interface Props {
   onBack: () => void
@@ -204,12 +210,14 @@ function ClientCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail Panel Tabs
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = 'editar' | 'contrato' | 'projeto' | 'cobranca' | 'notas'
+type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 'notas'
 
-function DetailTabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (t: Tab) => void }) {
-  const tabs: { id: Tab; label: string }[] = [
+function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onChange: (t: Tab) => void; showPlano: boolean }) {
+  const tabs: { id: Tab; label: string; hidden?: boolean }[] = [
     { id: 'editar', label: '✏️ Editar' },
+    { id: 'usina', label: '☀️ Usina' },
     { id: 'contrato', label: '📄 Contrato' },
+    { id: 'plano', label: '📋 Plano', hidden: !showPlano },
     { id: 'projeto', label: '🔧 Projeto' },
     { id: 'cobranca', label: '💰 Cobrança' },
     { id: 'notas', label: '📝 Notas' },
@@ -225,7 +233,7 @@ function DetailTabBar({ activeTab, onChange }: { activeTab: Tab; onChange: (t: T
         overflowX: 'auto',
       }}
     >
-      {tabs.map((t) => (
+      {tabs.filter((t) => !t.hidden).map((t) => (
         <button
           key={t.id}
           type="button"
@@ -447,6 +455,9 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     buyout_eligible: client.buyout_eligible ?? false,
     buyout_status: client.buyout_status ?? '',
     contract_notes: client.contract_notes ?? '',
+    consultant_id: client.consultant_id ?? '',
+    consultant_name: client.consultant_name ?? '',
+    contract_file_name: client.contract_file_name ?? '',
   })
 
   async function handleSave() {
@@ -461,6 +472,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         billing_start_date: form.billing_start_date || null,
         buyout_status: form.buyout_status || null,
         notes: form.contract_notes || null,
+        consultant_id: form.consultant_id || null,
+        consultant_name: form.consultant_name || null,
       })
       onSaved()
     } catch (err: unknown) {
@@ -475,51 +488,104 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     borderRadius: 6, border: '1px solid var(--border, #334155)',
     background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
   }
+  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
 
   return (
-    <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#3b82f6' }}>📄 Dados do Contrato</div>
-      <div style={{ display: 'grid', gap: 10 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Tipo de Contrato
-          <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value }))} style={inputStyle}>
-            {Object.entries(CONTRACT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status do Contrato
-          <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))} style={inputStyle}>
-            <option value="draft">Rascunho</option>
-            <option value="active">Ativo</option>
-            <option value="suspended">Suspenso</option>
-            <option value="completed">Concluído</option>
-            <option value="cancelled">Cancelado</option>
-          </select>
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Data de Assinatura
-          <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Início da Cobrança
-          <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Prazo Contratual (meses)
-          <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} />
-          Elegível para Buy Out
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#3b82f6' }}>📄 Dados do Contrato</div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <label style={labelSty}>
+            Tipo de Contrato
+            <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value }))} style={inputStyle}>
+              {Object.entries(CONTRACT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+          <label style={labelSty}>
+            Status do Contrato
+            <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))} style={inputStyle}>
+              <option value="draft">Rascunho</option>
+              <option value="active">Ativo</option>
+              <option value="signed">Assinado</option>
+              <option value="suspended">Suspenso</option>
+              <option value="completed">Concluído</option>
+              <option value="cancelled">Cancelado</option>
+            </select>
+          </label>
+          <label style={labelSty}>
+            Data de Assinatura
+            <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={labelSty}>
+            Início da Cobrança
+            <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={labelSty}>
+            Prazo Contratual (meses)
+            <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} />
+            Elegível para Buy Out
+          </label>
+        </div>
+      </div>
+
+      {/* Consultant section */}
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#10b981' }}>🧑‍💼 Consultor</div>
+        <div style={gridSty}>
+          <label style={labelSty}>
+            ID do Consultor
+            <input type="text" value={form.consultant_id} onChange={(e) => setForm((f) => ({ ...f, consultant_id: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={labelSty}>
+            Nome do Consultor
+            <input type="text" value={form.consultant_name} onChange={(e) => setForm((f) => ({ ...f, consultant_name: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+      </div>
+
+      {/* Contract file upload section */}
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#6366f1' }}>📎 Arquivo do Contrato</div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <label style={labelSty}>
+            Nome do arquivo
+            <input type="text" value={form.contract_file_name} onChange={(e) => setForm((f) => ({ ...f, contract_file_name: e.target.value }))} placeholder="contrato.pdf" style={inputStyle} />
+          </label>
+          <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)' }}>
+            Formatos aceitos: PDF, DOC, DOCX
+          </div>
+          {client.contract_file_url && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {client.contract_file_type === 'application/pdf' && (
+                <a href={client.contract_file_url} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: '#3b82f6' }}>
+                  👁️ Visualizar
+                </a>
+              )}
+              <a href={client.contract_file_url} download={client.contract_file_name ?? 'contrato'}
+                style={{ fontSize: 12, color: '#3b82f6' }}>
+                ⬇️ Download
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <label style={labelSty}>
           Observações
           <textarea value={form.contract_notes} onChange={(e) => setForm((f) => ({ ...f, contract_notes: e.target.value }))} rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
         </label>
       </div>
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
+
+      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
       <button type="button" onClick={() => void handleSave()} disabled={saving}
-        style={{ marginTop: 14, width: '100%', padding: '9px 0', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+        style={{ width: '100%', padding: '9px 0', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
         {saving ? 'Salvando…' : '💾 Salvar Contrato'}
       </button>
     </div>
@@ -626,11 +692,44 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '',
+    reading_day: client.reading_day != null ? String(client.reading_day) : '',
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
     recurrence_type: client.recurrence_type ?? 'monthly',
     payment_status: client.billing_payment_status ?? 'pending',
     delinquency_status: client.delinquency_status ?? '',
+    commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
+    valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
+
+  // Compute billing dates using the engine
+  const engineResult = useMemo(() => {
+    if (!form.commissioning_date_billing || !form.due_day || !form.reading_day) return null
+    return calculateBillingDates({
+      data_comissionamento: form.commissioning_date_billing,
+      dia_leitura: Number(form.reading_day),
+      dia_vencimento: Number(form.due_day),
+      valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
+    })
+  }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
+
+  // Generate installments
+  const installments = useMemo(() => {
+    if (!engineResult || engineResult.status_calculo === 'erro_entrada') return []
+    const termMonths = client.contractual_term_months ?? client.term_months ?? 0
+    if (!termMonths || !form.due_day || !form.valor_mensalidade) return []
+    return generateInstallments({
+      inicio_mensalidade: engineResult.inicio_da_mensalidade,
+      prazo: termMonths,
+      dia_vencimento: Number(form.due_day),
+      valor_mensalidade: Number(form.valor_mensalidade),
+    })
+  }, [engineResult, client.contractual_term_months, client.term_months, form.due_day, form.valor_mensalidade])
+
+  // Generate notifications preview
+  const notifications = useMemo(() => {
+    if (installments.length === 0) return []
+    return generateNotificationsForClient(client.id, client.name ?? '', installments)
+  }, [installments, client.id, client.name])
 
   async function handleSave() {
     setSaving(true)
@@ -655,47 +754,301 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     borderRadius: 6, border: '1px solid var(--border, #334155)',
     background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
   }
+  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+
+  const pendingNotifCount = notifications.filter((n) => n.status === 'pending').length
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {/* Billing profile */}
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#8b5cf6' }}>💰 Perfil de Cobrança</div>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Dia de Vencimento
+              <select value={form.due_day} onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))} style={inputStyle}>
+                <option value="">Selecione…</option>
+                {DUE_DAY_OPTIONS.map((d) => (
+                  <option key={d} value={String(d)}>Dia {d}</option>
+                ))}
+              </select>
+            </label>
+            <label style={labelSty}>
+              Dia de Leitura
+              <input type="number" min={1} max={31} value={form.reading_day} onChange={(e) => setForm((f) => ({ ...f, reading_day: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Data de Comissionamento
+              <input type="date" value={form.commissioning_date_billing} onChange={(e) => setForm((f) => ({ ...f, commissioning_date_billing: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Valor da Mensalidade (R$)
+              <input type="number" min={0} step="0.01" value={form.valor_mensalidade} onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <label style={labelSty}>
+            Primeiro Vencimento
+            <input type="date" value={form.first_billing_date} onChange={(e) => setForm((f) => ({ ...f, first_billing_date: e.target.value }))} style={inputStyle} />
+          </label>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Recorrência
+              <select value={form.recurrence_type} onChange={(e) => setForm((f) => ({ ...f, recurrence_type: e.target.value }))} style={inputStyle}>
+                <option value="monthly">Mensal</option>
+                <option value="quarterly">Trimestral</option>
+                <option value="annual">Anual</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </label>
+            <label style={labelSty}>
+              Status de Pagamento
+              <select value={form.payment_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, payment_status: e.target.value }))} style={inputStyle}>
+                <option value="pending">Pendente</option>
+                <option value="current">Em Dia</option>
+                <option value="overdue">Inadimplente</option>
+                <option value="written_off">Baixado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </label>
+          </div>
+          <label style={labelSty}>
+            Status de Inadimplência
+            <input type="text" value={form.delinquency_status} onChange={(e) => setForm((f) => ({ ...f, delinquency_status: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+      </div>
+
+      {/* Engine result */}
+      {engineResult && engineResult.status_calculo !== 'erro_entrada' && (
+        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#10b981' }}>📊 Cálculo de Vencimento</div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Início da Mensalidade:</span>
+              <span style={{ fontWeight: 600 }}>{engineResult.inicio_da_mensalidade.toLocaleDateString('pt-BR')}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Início Mensalidade Fixa:</span>
+              <span style={{ fontWeight: 600 }}>{engineResult.inicio_mensalidade_fixa.toLocaleDateString('pt-BR')}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Status:</span>
+              <span style={{
+                fontWeight: 600,
+                color: engineResult.status_calculo === 'ok' ? '#22c55e' : '#f59e0b',
+              }}>
+                {engineResult.status_calculo === 'ok' ? '✅ Calculado' : '⏳ Aguardando Comissionamento'}
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
+              {engineResult.mensagem}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Installments */}
+      {installments.length > 0 && (
+        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
+            📋 Parcelas ({installments.length})
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border, #334155)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>#</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
+                  <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
+                  <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {installments.slice(0, 24).map((inst) => {
+                  const alert = getBillingAlert(inst.data_vencimento, inst.status === 'paga')
+                  const statusColor = alert.level === 'vencida' ? '#ef4444' : alert.level === 'vence_hoje' ? '#f59e0b' : alert.level === 'a_vencer' ? '#3b82f6' : 'var(--text-muted, #94a3b8)'
+                  return (
+                    <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
+                      <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
+                      <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
+                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>R$ {inst.valor.toFixed(2).replace('.', ',')}</td>
+                      <td style={{ padding: '4px 6px', textAlign: 'center', color: statusColor, fontWeight: 600 }}>
+                        {BILLING_ALERT_LABELS[alert.level]}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {installments.length > 24 && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4, textAlign: 'center' }}>
+                Mostrando 24 de {installments.length} parcelas
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Notification preview */}
+      {pendingNotifCount > 0 && (
+        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#ec4899' }}>
+            🔔 Notificações Pendentes ({pendingNotifCount})
+          </div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            {notifications.slice(0, 6).map((notif) => (
+              <div key={notif.id} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'rgba(236,72,153,0.06)', borderLeft: '2px solid #ec4899' }}>
+                <span style={{ fontWeight: 600 }}>{notif.channel === 'email' ? '✉️' : '📱'}</span>{' '}
+                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Parcela #{notif.installmentNumber}</span>{' '}
+                — {BILLING_ALERT_LABELS[notif.level]}
+              </div>
+            ))}
+            {pendingNotifCount > 6 && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', textAlign: 'center' }}>
+                + {pendingNotifCount - 6} notificações
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
+      <button type="button" onClick={() => void handleSave()} disabled={saving}
+        style={{ width: '100%', padding: '9px 0', borderRadius: 6, border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+        {saving ? 'Salvando…' : '💾 Salvar Cobrança'}
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Usina Tab — UF configuration reuse
+// ─────────────────────────────────────────────────────────────────────────────
+function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+  const { updating, updateClient } = usePortfolioUpdate()
+
+  const [ufData, setUfData] = useState<UfConfigData>({
+    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
+    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
+    modelo_modulo: client.modelo_modulo ?? '',
+    modelo_inversor: client.modelo_inversor ?? '',
+    tipo_instalacao: client.tipo_instalacao ?? '',
+    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
+    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
+    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
+    tipo_rede: '',
+  })
+
+  const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
+    setUfData((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  async function handleSave() {
+    const payload: Record<string, unknown> = {
+      potencia_modulo_wp: ufData.potencia_modulo_wp ? Number(ufData.potencia_modulo_wp) : null,
+      numero_modulos: ufData.numero_modulos ? Number(ufData.numero_modulos) : null,
+      modelo_modulo: ufData.modelo_modulo || null,
+      modelo_inversor: ufData.modelo_inversor || null,
+      tipo_instalacao: ufData.tipo_instalacao || null,
+      area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
+      geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
+      system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+    }
+    const ok = await updateClient(client.id, payload)
+    if (ok) onSaved()
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <UfConfigurationFields data={ufData} onChange={handleFieldChange} />
+      <button
+        type="button"
+        onClick={() => void handleSave()}
+        disabled={updating}
+        style={{
+          width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
+          background: '#f59e0b', color: '#000', fontWeight: 700, fontSize: 14,
+          cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.7 : 1,
+        }}
+      >
+        {updating ? 'Salvando…' : '💾 Salvar Usina'}
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plano Leasing Tab — shown only when contract_type = 'leasing'
+// ─────────────────────────────────────────────────────────────────────────────
+function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+  const { updating, updateClient } = usePortfolioUpdate()
+
+  const [form, setForm] = useState({
+    kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : '',
+    desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
+    tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
+    valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
+  })
+
+  async function handleSave() {
+    const payload: Record<string, unknown> = {
+      kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
+      desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
+      tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
+      valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+    }
+    const ok = await updateClient(client.id, payload)
+    if (ok) onSaved()
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: 'block', width: '100%', marginTop: 4, padding: '7px 10px',
+    borderRadius: 6, border: '1px solid var(--border, #334155)',
+    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+  }
+  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
 
   return (
     <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#8b5cf6' }}>💰 Perfil de Cobrança</div>
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#06b6d4' }}>📋 Plano Leasing</div>
       <div style={{ display: 'grid', gap: 10 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Dia de Vencimento
-          <input type="number" min={1} max={31} value={form.due_day} onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Primeiro Vencimento
-          <input type="date" value={form.first_billing_date} onChange={(e) => setForm((f) => ({ ...f, first_billing_date: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Recorrência
-          <select value={form.recurrence_type} onChange={(e) => setForm((f) => ({ ...f, recurrence_type: e.target.value }))} style={inputStyle}>
-            <option value="monthly">Mensal</option>
-            <option value="quarterly">Trimestral</option>
-            <option value="annual">Anual</option>
-            <option value="custom">Personalizado</option>
-          </select>
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status de Pagamento
-          <select value={form.payment_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, payment_status: e.target.value }))} style={inputStyle}>
-            <option value="pending">Pendente</option>
-            <option value="current">Em Dia</option>
-            <option value="overdue">Inadimplente</option>
-            <option value="written_off">Baixado</option>
-            <option value="cancelled">Cancelado</option>
-          </select>
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status de Inadimplência
-          <input type="text" value={form.delinquency_status} onChange={(e) => setForm((f) => ({ ...f, delinquency_status: e.target.value }))} style={inputStyle} />
-        </label>
+        <div style={gridSty}>
+          <label style={labelSty}>
+            kWh/mês Contratado
+            <input type="number" min={0} value={form.kwh_mes_contratado} onChange={(e) => setForm((f) => ({ ...f, kwh_mes_contratado: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={labelSty}>
+            Desconto (%)
+            <input type="number" min={0} max={100} step="0.1" value={form.desconto_percentual} onChange={(e) => setForm((f) => ({ ...f, desconto_percentual: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+        <div style={gridSty}>
+          <label style={labelSty}>
+            Tarifa Atual (R$/kWh)
+            <input type="number" min={0} step="0.0001" value={form.tarifa_atual} onChange={(e) => setForm((f) => ({ ...f, tarifa_atual: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={labelSty}>
+            Valor Mensalidade (R$)
+            <input type="number" min={0} step="0.01" value={form.valor_mensalidade} onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
       </div>
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
-      <button type="button" onClick={() => void handleSave()} disabled={saving}
-        style={{ marginTop: 14, width: '100%', padding: '9px 0', borderRadius: 6, border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-        {saving ? 'Salvando…' : '💾 Salvar Cobrança'}
+      <button
+        type="button"
+        onClick={() => void handleSave()}
+        disabled={updating}
+        style={{
+          marginTop: 14, width: '100%', padding: '9px 0', borderRadius: 6, border: 'none',
+          background: '#06b6d4', color: '#fff', fontWeight: 600,
+          cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.7 : 1,
+        }}
+      >
+        {updating ? 'Salvando…' : '💾 Salvar Plano'}
       </button>
     </div>
   )
@@ -793,6 +1146,7 @@ function ClientDetailPanel({
   const { client, isLoading, error, reload } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
   const [localClient, setLocalClient] = useState<PortfolioClientRow | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('collapsed')
   const { removing, removeClient } = usePortfolioRemove()
   const { deleting, deleteClient } = usePortfolioDelete()
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -862,6 +1216,17 @@ function ClientDetailPanel({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
+            onClick={() => setViewMode('expanded')}
+            style={{
+              padding: '6px 12px', borderRadius: 6, border: '1px solid #3b82f6',
+              background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            ↗️ Tela Cheia
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirmRemove(true)}
             disabled={removing}
             style={{
@@ -891,7 +1256,7 @@ function ClientDetailPanel({
 
       {/* Tabs + content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-        <DetailTabBar activeTab={activeTab} onChange={setActiveTab} />
+        <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
         {activeTab === 'editar' && (
           <EditarTab
             client={displayClient}
@@ -902,7 +1267,9 @@ function ClientDetailPanel({
             onToast={onToast}
           />
         )}
+        {activeTab === 'usina' && <UsinaTab client={displayClient} onSaved={reload} />}
         {activeTab === 'contrato' && <ContratoTab client={displayClient} onSaved={reload} />}
+        {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab client={displayClient} onSaved={reload} />}
         {activeTab === 'projeto' && <ProjetoTab client={displayClient} onSaved={reload} />}
         {activeTab === 'cobranca' && <CobrancaTab client={displayClient} onSaved={reload} />}
         {activeTab === 'notas' && <NotasTab client={displayClient} />}
@@ -928,6 +1295,33 @@ function ClientDetailPanel({
           onConfirm={() => void handleDeleteClient()}
           onCancel={() => setConfirmDelete(false)}
         />
+      )}
+
+      {/* Full-screen editor shell */}
+      {viewMode === 'expanded' && (
+        <ClientPortfolioEditorShell
+          clientName={displayClient.name ?? ''}
+          viewMode={viewMode}
+          onClose={() => { setViewMode('collapsed'); onClose() }}
+          onToggleMode={() => setViewMode('collapsed')}
+        >
+          <div style={{ padding: '14px 20px', maxWidth: 800, margin: '0 auto' }}>
+            <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
+            {activeTab === 'editar' && (
+              <EditarTab
+                client={displayClient}
+                onSaved={(updated) => { setLocalClient(updated); onClientUpdated() }}
+                onToast={onToast}
+              />
+            )}
+            {activeTab === 'usina' && <UsinaTab client={displayClient} onSaved={reload} />}
+            {activeTab === 'contrato' && <ContratoTab client={displayClient} onSaved={reload} />}
+            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab client={displayClient} onSaved={reload} />}
+            {activeTab === 'projeto' && <ProjetoTab client={displayClient} onSaved={reload} />}
+            {activeTab === 'cobranca' && <CobrancaTab client={displayClient} onSaved={reload} />}
+            {activeTab === 'notas' && <NotasTab client={displayClient} />}
+          </div>
+        </ClientPortfolioEditorShell>
       )}
     </div>
   )
@@ -979,6 +1373,44 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
 
   const total = clients.length
   const hasClients = total > 0
+
+  // Compute billing alerts from all clients for the dashboard widget
+  const billingAlerts = useMemo(() => {
+    if (!hasClients) return []
+    const alerts: Array<{ clientId: number; clientName: string; level: import('../domain/billing/monthlyEngine').BillingAlertLevel; dueDate: string; amount: number; installmentNumber: number }> = []
+    for (const c of clients) {
+      if (!c.due_day || !c.valor_mensalidade || !c.commissioning_date) continue
+      const readingDay = c.reading_day ?? c.due_day
+      const engine = calculateBillingDates({
+        data_comissionamento: c.commissioning_date,
+        dia_leitura: readingDay,
+        dia_vencimento: c.due_day,
+        valor_mensalidade: c.valor_mensalidade,
+      })
+      if (engine.status_calculo === 'erro_entrada') continue
+      const termMonths = c.contractual_term_months ?? c.term_months ?? 12
+      const insts = generateInstallments({
+        inicio_mensalidade: engine.inicio_da_mensalidade,
+        prazo: termMonths,
+        dia_vencimento: c.due_day,
+        valor_mensalidade: c.valor_mensalidade,
+      })
+      for (const inst of insts) {
+        const alert = getBillingAlert(inst.data_vencimento, inst.status === 'paga')
+        if (alert.level === 'a_vencer' || alert.level === 'vence_hoje' || alert.level === 'vencida') {
+          alerts.push({
+            clientId: c.id,
+            clientName: c.name ?? '—',
+            level: alert.level,
+            dueDate: inst.data_vencimento.toISOString(),
+            amount: inst.valor,
+            installmentNumber: inst.numero,
+          })
+        }
+      }
+    }
+    return alerts.slice(0, 50) // limit to 50 alerts for performance
+  }, [clients, hasClients])
 
   return (
     <div
@@ -1071,6 +1503,15 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
             minWidth: 0,
           }}
         >
+          {/* Billing alerts widget */}
+          {!isLoading && hasClients && billingAlerts.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <BillingAlertsWidget
+                alerts={billingAlerts}
+                onClientClick={(cid) => setSelectedClientId(cid)}
+              />
+            </div>
+          )}
           {isLoading && (
             <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 14, marginTop: 8 }}>Carregando carteira…</p>
           )}
