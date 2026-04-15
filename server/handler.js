@@ -366,6 +366,51 @@ export default async function handler(req, res) {
       return
     }
 
+    if (pathname === '/api/db-info') {
+      // DB diagnostics endpoint — requires admin role.
+      // Returns masked host, db name, schema, current_user, pooled/unpooled indicator.
+      const actor = await resolveActor(req)
+      if (!actor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      if (actorRole(actor) !== 'role_admin') { sendJson(res, 403, { error: 'Requer perfil admin.' }); return }
+      if (!databaseClient?.sql) {
+        sendJson(res, 503, { ok: false, error: 'DB_NOT_CONFIGURED' })
+        return
+      }
+      try {
+        const rows = await databaseClient.sql`
+          SELECT
+            current_database() AS db_name,
+            current_schema()   AS db_schema,
+            current_user       AS db_user
+        `
+        const row = rows[0] ?? {}
+        const connStr = databaseConfig.connectionString ?? ''
+        // Mask credentials: keep only host/path, hide password
+        let maskedHost = null
+        try {
+          const u = new URL(connStr)
+          maskedHost = u.hostname + (u.port ? ':' + u.port : '') + u.pathname
+        } catch { /* ignore */ }
+        const isPooled =
+          typeof connStr === 'string' && !connStr.includes('unpooled')
+            ? !connStr.includes('-direct')
+            : connStr.includes('unpooled') ? false : null
+        sendJson(res, 200, {
+          ok: true,
+          db_name: row.db_name ?? null,
+          db_schema: row.db_schema ?? null,
+          db_user: row.db_user ?? null,
+          host: maskedHost,
+          pooled: isPooled,
+          source: databaseConfig.source ?? null,
+        })
+      } catch (err) {
+        console.error('[db-info] query failed', err?.message)
+        sendJson(res, 500, { ok: false, error: err?.message ?? 'DB_QUERY_FAILED' })
+      }
+      return
+    }
+
     if (pathname === '/api/health/pdf') {
       const convertapiConfigured = isConvertApiConfigured()
       const gotenbergConfigured = isGotenbergConfigured()

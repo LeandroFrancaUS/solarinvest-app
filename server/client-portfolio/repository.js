@@ -94,22 +94,52 @@ export async function getPortfolioClient(sql, clientId) {
  * Export a client to the portfolio.
  * Updates clients.in_portfolio directly — idempotent, does NOT depend on client_lifecycle.
  * COALESCE ensures that repeated calls preserve the original export timestamp and actor.
- * Note: updated_by_user_id is intentionally omitted because no migration adds that column
- * to the clients table; the existing deleteClient() already retries without it for the same reason.
+ *
+ * Compatibility retry: if the DB is running an older schema that doesn't yet have the
+ * portfolio_exported_at / portfolio_exported_by_user_id columns (error 42703), the function
+ * automatically retries with a minimal UPDATE that only sets in_portfolio = true.
+ * This allows the export to succeed on preview environments where migration 0030 has not
+ * been applied yet, matching the same pattern used by deleteClient() for updated_by_user_id.
  */
 export async function exportClientToPortfolio(sql, clientId, actorUserId) {
-  const rows = await sql`
-    UPDATE public.clients
-    SET
-      in_portfolio                  = true,
-      portfolio_exported_at         = COALESCE(portfolio_exported_at, NOW()),
-      portfolio_exported_by_user_id = COALESCE(portfolio_exported_by_user_id, ${actorUserId}),
-      updated_at                    = NOW()
-    WHERE id = ${clientId}
-      AND deleted_at IS NULL
-    RETURNING *
-  `
-  return rows[0] ?? null
+  try {
+    const rows = await sql`
+      UPDATE public.clients
+      SET
+        in_portfolio                  = true,
+        portfolio_exported_at         = COALESCE(portfolio_exported_at, NOW()),
+        portfolio_exported_by_user_id = COALESCE(portfolio_exported_by_user_id, ${actorUserId}),
+        updated_at                    = NOW()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    const code = err?.code ?? null
+    const message = err instanceof Error ? err.message : String(err)
+    // 42703 = undefined_column: retry with minimal SET when portfolio columns are absent.
+    const isPortfolioColumnMissing =
+      code === '42703' &&
+      (message.includes('portfolio_exported_at') || message.includes('portfolio_exported_by_user_id'))
+    if (!isPortfolioColumnMissing) throw err
+
+    console.warn('[portfolio-export] portfolio columns absent — retrying with minimal UPDATE', {
+      clientId,
+      code,
+      message,
+    })
+    const rows = await sql`
+      UPDATE public.clients
+      SET
+        in_portfolio = true,
+        updated_at   = NOW()
+      WHERE id = ${clientId}
+        AND deleted_at IS NULL
+      RETURNING *
+    `
+    return rows[0] ?? null
+  }
 }
 
 /**
