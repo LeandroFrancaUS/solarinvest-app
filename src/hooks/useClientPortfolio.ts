@@ -1,13 +1,16 @@
 // src/hooks/useClientPortfolio.ts
 // Hook to fetch and manage the list of portfolio clients.
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PortfolioClientRow, PortfolioSummary } from '../types/clientPortfolio'
 import {
   fetchPortfolioClients,
   fetchPortfolioClient,
   fetchDashboardPortfolioSummary,
   exportClientToPortfolio as apiExportClient,
+  removeClientFromPortfolio as apiRemoveClient,
+  updateClientFromPortfolio as apiUpdateClient,
+  deleteClientFromPortfolio as apiDeleteClient,
 } from '../services/clientPortfolioApi'
 
 export interface UseClientPortfolioResult {
@@ -16,6 +19,7 @@ export interface UseClientPortfolioResult {
   error: string | null
   reload: () => void
   setSearch: (q: string) => void
+  removeClient: (clientId: number) => void
 }
 
 export function useClientPortfolio(): UseClientPortfolioResult {
@@ -23,13 +27,16 @@ export function useClientPortfolio(): UseClientPortfolioResult {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
     setIsLoading(true)
     setError(null)
     fetchPortfolioClients(search || undefined)
       .then((rows) => setClients(rows))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Erro ao carregar carteira.'))
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'Não foi possível carregar a carteira de clientes.'),
+      )
       .finally(() => setIsLoading(false))
   }, [search])
 
@@ -37,7 +44,16 @@ export function useClientPortfolio(): UseClientPortfolioResult {
     load()
   }, [load])
 
-  return { clients, isLoading, error, reload: load, setSearch }
+  const setSearchDebounced = useCallback((q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setSearch(q), 300)
+  }, [])
+
+  const removeClient = useCallback((clientId: number) => {
+    setClients((prev) => prev.filter((c) => c.id !== clientId))
+  }, [])
+
+  return { clients, isLoading, error, reload: load, setSearch: setSearchDebounced, removeClient }
 }
 
 export interface UsePortfolioClientResult {
@@ -87,7 +103,9 @@ export function usePortfolioExport(): UsePortfolioExportResult {
       await apiExportClient(clientId)
       return true
     } catch (err: unknown) {
-      setExportError(err instanceof Error ? err.message : 'Erro ao exportar cliente.')
+      setExportError(
+        err instanceof Error ? err.message : 'Não foi possível exportar o cliente para a carteira.',
+      )
       return false
     } finally {
       setExporting(false)
@@ -95,6 +113,96 @@ export function usePortfolioExport(): UsePortfolioExportResult {
   }, [])
 
   return { exporting, exportError, exportClient }
+}
+
+export interface UsePortfolioRemoveResult {
+  removing: boolean
+  removeError: string | null
+  removeClient: (clientId: number) => Promise<boolean>
+}
+
+export function usePortfolioRemove(): UsePortfolioRemoveResult {
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+
+  const removeClient = useCallback(async (clientId: number): Promise<boolean> => {
+    setRemoving(true)
+    setRemoveError(null)
+    try {
+      await apiRemoveClient(clientId)
+      return true
+    } catch (err: unknown) {
+      setRemoveError(
+        err instanceof Error ? err.message : 'Não foi possível remover o cliente da carteira.',
+      )
+      return false
+    } finally {
+      setRemoving(false)
+    }
+  }, [])
+
+  return { removing, removeError, removeClient }
+}
+
+export interface UsePortfolioUpdateResult {
+  updating: boolean
+  updateError: string | null
+  updateClient: (clientId: number, payload: Record<string, unknown>) => Promise<boolean>
+}
+
+export function usePortfolioUpdate(): UsePortfolioUpdateResult {
+  const [updating, setUpdating] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+
+  const updateClient = useCallback(
+    async (clientId: number, payload: Record<string, unknown>): Promise<boolean> => {
+      setUpdating(true)
+      setUpdateError(null)
+      try {
+        await apiUpdateClient(clientId, payload)
+        return true
+      } catch (err: unknown) {
+        setUpdateError(
+          err instanceof Error ? err.message : 'Não foi possível salvar as alterações do cliente.',
+        )
+        return false
+      } finally {
+        setUpdating(false)
+      }
+    },
+    [],
+  )
+
+  return { updating, updateError, updateClient }
+}
+
+export interface UsePortfolioDeleteResult {
+  deleting: boolean
+  deleteError: string | null
+  deleteClient: (clientId: number) => Promise<boolean>
+}
+
+export function usePortfolioDelete(): UsePortfolioDeleteResult {
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const deleteClient = useCallback(async (clientId: number): Promise<boolean> => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await apiDeleteClient(clientId)
+      return true
+    } catch (err: unknown) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Não foi possível excluir o cliente.',
+      )
+      return false
+    } finally {
+      setDeleting(false)
+    }
+  }, [])
+
+  return { deleting, deleteError, deleteClient }
 }
 
 export interface UseDashboardPortfolioSummaryResult {

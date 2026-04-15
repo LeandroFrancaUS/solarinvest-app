@@ -20,73 +20,73 @@ export interface PortfolioClientRow {
   owner_user_id: string | null
   created_by_user_id: string | null
   client_created_at: string
-  client_updated_at?: string
+  client_updated_at?: string | null
 
   // Portfolio lifecycle — sourced from clients.in_portfolio / clients.portfolio_exported_at.
-  // Note: lifecycle_id references a client_lifecycle row when that table exists (migration 0029),
-  // but it is null when only the clients.in_portfolio columns are present (migration 0030 only).
-  lifecycle_id?: number | null
-  lifecycle_status?: LifecycleStatus | null
   is_converted_customer: boolean
   exported_to_portfolio_at: string | null
   exported_by_user_id: string | null
+
+  // Optional: from client_lifecycle (may be absent when table not provisioned)
+  lifecycle_id?: number | null
+  lifecycle_status?: LifecycleStatus | null
   onboarding_status?: string | null
   is_active_portfolio_client?: boolean | null
 
-  // Energy profile
+  // Optional: from client_energy_profile (may be absent when table not provisioned)
   energy_profile_id?: number | null
-  modalidade: string | null
-  tarifa_atual: number | null
-  desconto_percentual: number | null
-  mensalidade: number | null
-  prazo_meses: number | null
-  kwh_contratado: number | null
-  potencia_kwp: number | null
-  tipo_rede: string | null
-  marca_inversor: string | null
+  modalidade?: string | null
+  tarifa_atual?: number | null
+  desconto_percentual?: number | null
+  mensalidade?: number | null
+  prazo_meses?: number | null
+  kwh_contratado?: number | null
+  potencia_kwp?: number | null
+  tipo_rede?: string | null
+  marca_inversor?: string | null
   indicacao?: string | null
 
-  // Project status
+  // Optional: from client_project_status (may be absent when table not provisioned)
   project_id?: number | null
-  project_status: ProjectStatus | null
-  installation_status: string | null
+  project_status?: ProjectStatus | null
+  installation_status?: string | null
   engineering_status?: string | null
   homologation_status?: string | null
   commissioning_status?: string | null
-  commissioning_date: string | null
+  commissioning_date?: string | null
   first_injection_date?: string | null
   first_generation_date?: string | null
-  expected_go_live_date: string | null
+  expected_go_live_date?: string | null
   integrator_name?: string | null
   engineer_name?: string | null
-  timeline_velocity_score: number | null
+  timeline_velocity_score?: number | null
   project_notes?: string | null
 
-  // Contract
-  contract_id: number | null
-  contract_type: ContractType | null
-  contract_status: ContractStatus | null
+  // Optional: from client_contracts (may be absent when table not provisioned)
+  contract_id?: number | null
+  contract_type?: ContractType | null
+  contract_status?: ContractStatus | null
   source_proposal_id?: string | null
-  contract_signed_at: string | null
+  contract_signed_at?: string | null
   contract_start_date?: string | null
-  billing_start_date: string | null
+  billing_start_date?: string | null
   expected_billing_end_date?: string | null
-  contractual_term_months: number | null
-  buyout_eligible: boolean
-  buyout_status: string | null
+  contractual_term_months?: number | null
+  buyout_eligible?: boolean
+  buyout_status?: string | null
   buyout_date?: string | null
   buyout_amount_reference?: number | null
   contract_notes?: string | null
 
-  // Billing
+  // Optional: from client_billing_profile (may be absent when table not provisioned)
   billing_id?: number | null
-  due_day: number | null
+  due_day?: number | null
   reading_day?: number | null
-  first_billing_date: string | null
+  first_billing_date?: string | null
   expected_last_billing_date?: string | null
   recurrence_type?: string | null
-  billing_payment_status: BillingPaymentStatus | null
-  delinquency_status: string | null
+  billing_payment_status?: BillingPaymentStatus | null
+  delinquency_status?: string | null
   collection_stage?: string | null
   auto_reminder_enabled?: boolean
 }
