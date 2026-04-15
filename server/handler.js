@@ -29,6 +29,7 @@ import {
   isStackAuthEnabled,
   sanitizeStackUserId,
 } from './auth/stackAuth.js'
+import { resolveActor, actorRole } from './proposals/permissions.js'
 import { requireStackPermission } from './auth/stackPermissions.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
@@ -434,9 +435,13 @@ export default async function handler(req, res) {
       }
 
       const stackUser = await getStackUser(req)
-      const userId = stackAuthEnabled
+      const fallbackUserId = stackAuthEnabled
         ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
         : sanitizeStackUserId(stackUser)
+      const actor = await resolveActor(req)
+      const userId = actor?.userId ?? fallbackUserId
+      const resolvedRole = actorRole(actor)
+      console.log('[storage] auth context', { userId, resolvedRole })
 
       if (method === 'OPTIONS') {
         res.setHeader('Allow', CORS_ALLOWED_METHODS)
@@ -448,13 +453,29 @@ export default async function handler(req, res) {
         sendJson(res, 401, { error: 'Autenticação obrigatória.' })
         return
       }
+      if (stackAuthEnabled && !resolvedRole) {
+        sendJson(res, 403, {
+          error: {
+            code: 'RLS_CONTEXT_MISSING_INTERNAL_ROLE',
+            message: 'Unable to resolve internal app role for SQL session.',
+          },
+        })
+        return
+      }
 
       if (method === 'GET') {
         try {
-          const entries = await storageService.listEntries(userId)
+          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
+          const entries = await storageService.listEntries({ userId, userRole: resolvedRole })
           sendJson(res, 200, { entries })
         } catch (storageErr) {
-          console.error('[storage] listEntries error:', storageErr?.message)
+          console.error('[storage] failed', {
+            userId,
+            userRole: resolvedRole,
+            message: storageErr?.message,
+            code: storageErr?.code,
+            stack: storageErr?.stack,
+          })
           sendJson(res, 503, { error: 'Falha ao acessar armazenamento. Tente novamente.' })
         }
         return
@@ -466,10 +487,17 @@ export default async function handler(req, res) {
         const value = body.value === undefined ? null : body.value
         if (!key) return sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
         try {
-          await storageService.setEntry(userId, key, value)
+          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
+          await storageService.setEntry({ userId, userRole: resolvedRole }, key, value)
           sendNoContent(res)
         } catch (storageErr) {
-          console.error('[storage] setEntry error:', storageErr?.message)
+          console.error('[storage] failed', {
+            userId,
+            userRole: resolvedRole,
+            message: storageErr?.message,
+            code: storageErr?.code,
+            stack: storageErr?.stack,
+          })
           sendJson(res, 503, { error: 'Falha ao salvar no armazenamento. Tente novamente.' })
         }
         return
@@ -479,14 +507,21 @@ export default async function handler(req, res) {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         try {
+          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
           if (!key) {
-            await storageService.clear(userId)
+            await storageService.clear({ userId, userRole: resolvedRole })
           } else {
-            await storageService.removeEntry(userId, key)
+            await storageService.removeEntry({ userId, userRole: resolvedRole }, key)
           }
           sendNoContent(res)
         } catch (storageErr) {
-          console.error('[storage] removeEntry/clear error:', storageErr?.message)
+          console.error('[storage] failed', {
+            userId,
+            userRole: resolvedRole,
+            message: storageErr?.message,
+            code: storageErr?.code,
+            stack: storageErr?.stack,
+          })
           sendJson(res, 503, { error: 'Falha ao remover do armazenamento. Tente novamente.' })
         }
         return
