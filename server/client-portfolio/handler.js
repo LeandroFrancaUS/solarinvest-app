@@ -9,6 +9,7 @@ import {
   listPortfolioClients,
   getPortfolioClient,
   exportClientToPortfolio,
+  removeClientFromPortfolio,
   updateClientLifecycle,
   upsertClientContract,
   upsertClientProjectStatus,
@@ -66,14 +67,24 @@ export async function handlePortfolioListRequest(req, res, { method, sendJson, r
   }
 
   const url = new URL(requestUrl, 'http://localhost')
-  const search = url.searchParams.get('search') ?? undefined
+  const rawSearch = url.searchParams.get('search')
+  const search = typeof rawSearch === 'string' ? rawSearch.trim() : ''
 
   try {
     const sql = await getScopedSql(actor)
     const clients = await listPortfolioClients(sql, { search })
     sendJson(200, { data: clients })
   } catch (err) {
-    console.error('[portfolio] list error', err)
+    console.error('[portfolio] list error', {
+      actorUserId: actor?.userId ?? null,
+      actorRole: actorRole(actor),
+      search,
+      message: err instanceof Error ? err.message : String(err),
+      code: err?.code ?? null,
+      detail: err?.detail ?? null,
+      hint: err?.hint ?? null,
+      stack: err instanceof Error ? err.stack : undefined,
+    })
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao listar carteira.' } })
   }
 }
@@ -179,6 +190,66 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
       hint: err?.hint ?? null,
     })
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao exportar cliente para a carteira.' } })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/clients/:clientId/portfolio-remove
+// Removes client from portfolio without deleting the client.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function handlePortfolioRemoveRequest(req, res, { method, clientId, sendJson }) {
+  const actor = await resolveActor(req)
+  if (!requireWriteAccess(actor, sendJson)) return
+
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  if (!Number.isFinite(clientId) || clientId <= 0) {
+    sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'ID de cliente inválido.' } })
+    return
+  }
+
+  try {
+    const sql = await getScopedSql(actor)
+    const updated = await removeClientFromPortfolio(sql, clientId, actor.userId)
+
+    if (!updated) {
+      sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado.' } })
+      return
+    }
+
+    try {
+      const { appendClientAuditLog } = await import('../clients/repository.js')
+      await appendClientAuditLog(
+        sql,
+        updated.id,
+        actor.userId,
+        actor.email ?? null,
+        'portfolio_remove',
+        null,
+        { in_portfolio: false },
+        'Client removed from portfolio',
+        null,
+      )
+    } catch (auditErr) {
+      console.warn('[portfolio] remove audit log failed (non-fatal)', auditErr?.message)
+    }
+
+    sendJson(200, { ok: true, data: updated })
+  } catch (err) {
+    console.error('[portfolio-remove] failed', {
+      clientId,
+      actorUserId: actor?.userId ?? null,
+      actorRole: actorRole(actor),
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      code: err?.code ?? null,
+      detail: err?.detail ?? null,
+      hint: err?.hint ?? null,
+    })
+    sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao remover cliente da carteira.' } })
   }
 }
 

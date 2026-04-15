@@ -16895,6 +16895,11 @@ export default function App() {
 
       try {
         await exportClientToPortfolio(Number(serverIdCandidate))
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('portfolio:changed', {
+            detail: { action: 'export', clientId: Number(serverIdCandidate) },
+          }))
+        }
         adicionarNotificacao(`${nomeCliente} exportado para a Carteira de Clientes com sucesso!`, 'success')
       } catch (err) {
         console.error('[portfolio] export failed', err)
