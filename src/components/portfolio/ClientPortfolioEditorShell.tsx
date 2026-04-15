@@ -29,15 +29,18 @@ export function ClientPortfolioEditorShell({
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        zIndex: 900,
+        top: 'var(--header-h, 72px)',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1050,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--background, #0f172a)',
-        color: 'var(--text, #e2e8f0)',
+        background: 'var(--bg, #0f172a)',
+        color: 'var(--text-base, #e2e8f0)',
       }}
     >
-      {/* Fixed header */}
+      {/* Fixed header — below the app topbar */}
       <div
         style={{
           display: 'flex',
@@ -74,8 +77,8 @@ export function ClientPortfolioEditorShell({
               padding: '6px 14px',
               borderRadius: 6,
               border: '1px solid var(--border, #334155)',
-              background: 'none',
-              color: 'inherit',
+              background: 'var(--ghost-bg, rgba(255,255,255,0.06))',
+              color: 'var(--text-base, inherit)',
               cursor: 'pointer',
               fontSize: 13,
             }}
@@ -90,9 +93,9 @@ export function ClientPortfolioEditorShell({
             style={{
               padding: '6px 14px',
               borderRadius: 6,
-              border: '1px solid #ef4444',
-              background: 'rgba(239,68,68,0.1)',
-              color: '#ef4444',
+              border: '1px solid var(--accent, #ff8c00)',
+              background: 'var(--accent-soft, rgba(255,140,0,0.14))',
+              color: 'var(--accent, #ff8c00)',
               cursor: 'pointer',
               fontSize: 13,
               fontWeight: 600,
