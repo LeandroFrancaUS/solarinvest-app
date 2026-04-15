@@ -772,21 +772,24 @@ export default async function handler(req, res) {
     if (portfolioExportMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioExportMatch[1])
-      await handlePortfolioExportRequest(req, res, { method, clientId, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioExportRequest(req, res, { method, clientId, sendJson: sj })
       return
     }
 
     // GET /api/dashboard/portfolio/summary
     if (pathname === '/api/dashboard/portfolio/summary') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      await handleDashboardPortfolioSummary(req, res, { method, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleDashboardPortfolioSummary(req, res, { method, sendJson: sj })
       return
     }
 
     // GET /api/client-portfolio — list portfolio clients
     if (pathname === '/api/client-portfolio') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      await handlePortfolioListRequest(req, res, { method, sendJson, requestUrl })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioListRequest(req, res, { method, sendJson: sj, requestUrl })
       return
     }
 
@@ -795,7 +798,8 @@ export default async function handler(req, res) {
     if (portfolioByIdMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioByIdMatch[1])
-      await handlePortfolioGetRequest(req, res, { method, clientId, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioGetRequest(req, res, { method, clientId, sendJson: sj })
       return
     }
 
@@ -804,7 +808,8 @@ export default async function handler(req, res) {
     if (portfolioProfileMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioProfileMatch[1])
-      await handlePortfolioProfilePatch(req, res, { method, clientId, readJsonBody, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioProfilePatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 
@@ -813,7 +818,8 @@ export default async function handler(req, res) {
     if (portfolioContractMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioContractMatch[1])
-      await handlePortfolioContractPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioContractPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 
@@ -822,7 +828,8 @@ export default async function handler(req, res) {
     if (portfolioProjectMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioProjectMatch[1])
-      await handlePortfolioProjectPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioProjectPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 
@@ -831,7 +838,8 @@ export default async function handler(req, res) {
     if (portfolioBillingMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioBillingMatch[1])
-      await handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 
@@ -840,7 +848,8 @@ export default async function handler(req, res) {
     if (portfolioNotesMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
       const clientId = Number(portfolioNotesMatch[1])
-      await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson })
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 

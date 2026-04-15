@@ -185,7 +185,8 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
       in_portfolio                  = true,
       portfolio_exported_at         = COALESCE(portfolio_exported_at, NOW()),
       portfolio_exported_by_user_id = COALESCE(portfolio_exported_by_user_id, ${actorUserId}),
-      updated_at                    = NOW()
+      updated_at                    = NOW(),
+      updated_by_user_id            = ${actorUserId}
     WHERE id = ${clientId}
       AND deleted_at IS NULL
     RETURNING *
