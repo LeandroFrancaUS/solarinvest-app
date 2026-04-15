@@ -68,6 +68,17 @@ import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import { handleConsultantsListRequest } from './routes/consultants.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
+import {
+  handlePortfolioListRequest,
+  handlePortfolioGetRequest,
+  handlePortfolioExportRequest,
+  handlePortfolioProfilePatch,
+  handlePortfolioContractPatch,
+  handlePortfolioProjectPatch,
+  handlePortfolioBillingPatch,
+  handlePortfolioNotesRequest,
+  handleDashboardPortfolioSummary,
+} from './client-portfolio/handler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -751,6 +762,85 @@ export default async function handler(req, res) {
       const proposalId = proposalByIdMatch[1]
       const proposalByIdCtx = { method, proposalId, readJsonBody, sendJson, sendNoContent, requestUrl }
       await handleProposalByIdRequest(req, res, proposalByIdCtx)
+      return
+    }
+
+    // ── Carteira de Clientes ─────────────────────────────────────────────────
+
+    // PATCH /api/clients/:clientId/portfolio-export — mark client as converted to portfolio
+    const portfolioExportMatch = pathname.match(/^\/api\/clients\/(\d+)\/portfolio-export$/)
+    if (portfolioExportMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioExportMatch[1])
+      await handlePortfolioExportRequest(req, res, { method, clientId, sendJson })
+      return
+    }
+
+    // GET /api/dashboard/portfolio/summary
+    if (pathname === '/api/dashboard/portfolio/summary') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      await handleDashboardPortfolioSummary(req, res, { method, sendJson })
+      return
+    }
+
+    // GET /api/client-portfolio — list portfolio clients
+    if (pathname === '/api/client-portfolio') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      await handlePortfolioListRequest(req, res, { method, sendJson, requestUrl })
+      return
+    }
+
+    // GET /api/client-portfolio/:clientId — get single portfolio client detail
+    const portfolioByIdMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)$/)
+    if (portfolioByIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioByIdMatch[1])
+      await handlePortfolioGetRequest(req, res, { method, clientId, sendJson })
+      return
+    }
+
+    // PATCH /api/client-portfolio/:clientId/profile
+    const portfolioProfileMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/profile$/)
+    if (portfolioProfileMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioProfileMatch[1])
+      await handlePortfolioProfilePatch(req, res, { method, clientId, readJsonBody, sendJson })
+      return
+    }
+
+    // PATCH /api/client-portfolio/:clientId/contract
+    const portfolioContractMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/contract$/)
+    if (portfolioContractMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioContractMatch[1])
+      await handlePortfolioContractPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      return
+    }
+
+    // PATCH /api/client-portfolio/:clientId/project
+    const portfolioProjectMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/project$/)
+    if (portfolioProjectMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioProjectMatch[1])
+      await handlePortfolioProjectPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      return
+    }
+
+    // PATCH /api/client-portfolio/:clientId/billing
+    const portfolioBillingMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/billing$/)
+    if (portfolioBillingMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioBillingMatch[1])
+      await handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson })
+      return
+    }
+
+    // GET|POST /api/client-portfolio/:clientId/notes
+    const portfolioNotesMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/notes$/)
+    if (portfolioNotesMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioNotesMatch[1])
+      await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson })
       return
     }
 

@@ -320,6 +320,8 @@ import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
+import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
+import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -379,7 +381,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -3449,6 +3451,7 @@ type ClientesPanelProps = {
   onClose: () => void
   onEditar: (registro: ClienteRegistro) => void
   onExcluir: (registro: ClienteRegistro) => void
+  onExportarCarteira?: (registro: ClienteRegistro) => void
   onExportarCsv: () => void
   onExportarJson: () => void
   onImportar: () => void
@@ -3458,6 +3461,8 @@ type ClientesPanelProps = {
   canBackupBanco?: boolean
   /** When true, shows the "Consultor" column and cross-user description */
   isPrivilegedUser?: boolean
+  /** When true, shows the "Negócio fechado" portfolio export button */
+  canExportarCarteira?: boolean
   /**
    * All registered consultants from the API (privileged users only).
    * Each entry has `id` (stack_user_id) for filtering and `name` for display.
@@ -3605,6 +3610,7 @@ function ClientesPanel({
   onClose,
   onEditar,
   onExcluir,
+  onExportarCarteira,
   onExportarCsv,
   onExportarJson,
   onImportar,
@@ -3613,6 +3619,7 @@ function ClientesPanel({
   isGerandoBackupBanco = false,
   canBackupBanco = false,
   isPrivilegedUser = false,
+  canExportarCarteira = false,
   allConsultores = [],
 }: ClientesPanelProps) {
   const panelTitleId = useId()
@@ -4028,6 +4035,17 @@ function ClientesPanel({
                                 >
                                   <span aria-hidden="true">📁</span>
                                 </button>
+                                {canExportarCarteira && onExportarCarteira && (
+                                  <button
+                                    type="button"
+                                    className="clients-table-action"
+                                    onClick={() => onExportarCarteira(registro)}
+                                    aria-label="Negócio fechado — exportar para Carteira de Clientes"
+                                    title="Negócio fechado — exportar para Carteira de Clientes"
+                                  >
+                                    <span aria-hidden="true">🤝</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   className="clients-table-action danger"
@@ -5177,6 +5195,9 @@ export default function App() {
   const canSeeDashboardEffective =
     isAdmin || canSeeDashboard || hasAuthzPermission('page_dashboard', 'page:dashboard')
 
+  // Carteira de Clientes: admin | office | financeiro
+  const canSeePortfolioEffective = isAdmin || isOffice || isFinanceiro
+
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
   const isRbacLoading = isStackPermLoading || meAuthState === 'loading'
@@ -5247,6 +5268,7 @@ export default function App() {
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
     setAdminUsersTokenProvider(getAccessToken)
+    setPortfolioTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Silently migrate any locally-stored clients/proposals to Neon.
@@ -5567,8 +5589,10 @@ export default function App() {
       setActivePage('app')
     } else if (activePage === 'dashboard' && !canSeeDashboardEffective) {
       setActivePage('app')
+    } else if (activePage === 'carteira' && !canSeePortfolioEffective) {
+      setActivePage('app')
     }
-  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, canSeePortfolioEffective, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -16849,6 +16873,37 @@ export default function App() {
     ],
   )
 
+  const handleExportarParaCarteira = useCallback(
+    async (registro: ClienteRegistro) => {
+      const nomeCliente = registro.dados.nome?.trim() || 'este cliente'
+      const serverIdCandidate =
+        clientServerIdMapRef.current[registro.id] ??
+        (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
+
+      if (!serverIdCandidate) {
+        window.alert(`${nomeCliente} ainda não está sincronizado com o servidor. Salve o cliente antes de exportar para a Carteira.`)
+        return
+      }
+
+      const confirmado = await requestConfirmDialog({
+        title: 'Negócio fechado',
+        description: `Exportar ${nomeCliente} para a Carteira de Clientes? O cliente continuará visível aqui e também aparecerá na Carteira.`,
+        confirmLabel: 'Exportar para Carteira',
+        cancelLabel: 'Cancelar',
+      })
+      if (!confirmado) return
+
+      try {
+        await exportClientToPortfolio(Number(serverIdCandidate))
+        adicionarNotificacao(`${nomeCliente} exportado para a Carteira de Clientes com sucesso!`, 'success')
+      } catch (err) {
+        console.error('[portfolio] export failed', err)
+        window.alert(`Não foi possível exportar ${nomeCliente} para a Carteira. Tente novamente.`)
+      }
+    },
+    [adicionarNotificacao, requestConfirmDialog],
+  )
+
   const parseOrcamentosSalvos = useCallback(
     (existenteRaw: string | null): OrcamentoSalvo[] => {
       if (!existenteRaw) {
@@ -19824,6 +19879,13 @@ export default function App() {
       setActivePage('dashboard')
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirCarteira = useCallback(async () => {
+    if (!canSeePortfolioEffective) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('carteira')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeePortfolioEffective])
 
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -26752,6 +26814,24 @@ export default function App() {
           },
         ]
       : []),
+    ...(canSeePortfolioEffective
+      ? [
+          {
+            id: 'carteira',
+            label: 'Carteira de Clientes',
+            items: [
+              {
+                id: 'carteira-clientes',
+                label: 'Carteira de Clientes',
+                icon: '💼',
+                onSelect: () => {
+                  void abrirCarteira()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
     {
       id: 'configuracoes',
       label: 'Configurações',
@@ -26798,6 +26878,7 @@ export default function App() {
     ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
     ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
     ...(canSeeClientsEffective ? ['crm-clientes'] : []),
+    ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
     ...(isAdmin ? ['config-preferencias'] : []),
     ...(canSeeUsersEffective ? ['config-admin-users'] : []),
@@ -28776,6 +28857,7 @@ export default function App() {
       onClose={fecharClientesPainel}
       onEditar={handleEditarCliente}
       onExcluir={handleExcluirCliente}
+      onExportarCarteira={handleExportarParaCarteira}
       onExportarCsv={handleExportarClientesCsv}
       onExportarJson={handleExportarClientesJson}
       onImportar={handleClientesImportarClick}
@@ -28784,6 +28866,7 @@ export default function App() {
       isGerandoBackupBanco={isGerandoBackupBanco}
       canBackupBanco={isAdmin || isOffice}
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+      canExportarCarteira={isAdmin || isOffice}
       allConsultores={allConsultores}
     />
   )
@@ -28795,17 +28878,19 @@ export default function App() {
         ? 'crm-central'
         : activePage === 'clientes'
           ? 'crm-clientes'
-          : activePage === 'consultar'
-            ? 'orcamentos-importar'
-            : activePage === 'settings'
-              ? 'config-preferencias'
-              : activePage === 'admin-users'
-                ? 'config-admin-users'
-                : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                  : activeTab === 'vendas'
-                    ? 'propostas-vendas'
-                    : 'propostas-leasing'
+          : activePage === 'carteira'
+            ? 'carteira-clientes'
+            : activePage === 'consultar'
+              ? 'orcamentos-importar'
+              : activePage === 'settings'
+                ? 'config-preferencias'
+                : activePage === 'admin-users'
+                  ? 'config-admin-users'
+                  : activePage === 'simulacoes'
+                    ? `simulacoes-${simulacoesSection}`
+                    : activeTab === 'vendas'
+                      ? 'propostas-vendas'
+                      : 'propostas-leasing'
 
 
   // If in print mode, render the Bento Grid print page
@@ -28884,6 +28969,10 @@ export default function App() {
           renderSettingsPage()
         ) : activePage === 'admin-users' ? (
           <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+        ) : activePage === 'carteira' ? (
+          canSeePortfolioEffective
+            ? <ClientPortfolioPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+            : null
         ) : (
           <div className="page">
             <div className="app-main">
