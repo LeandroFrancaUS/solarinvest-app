@@ -24,7 +24,10 @@ function sendError(sendJson, statusCode, code, message) {
 }
 
 function requireReadAccess(actor, sendJson) {
-  if (!actor) { sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.'); return false }
+  if (!actor) {
+    sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
+    return false
+  }
   const role = actorRole(actor)
   if (!['role_admin', 'role_office', 'role_financeiro'].includes(role)) {
     sendError(sendJson, 403, 'FORBIDDEN', 'Acesso à Carteira de Clientes não permitido para este perfil.')
@@ -34,7 +37,10 @@ function requireReadAccess(actor, sendJson) {
 }
 
 function requireWriteAccess(actor, sendJson) {
-  if (!actor) { sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.'); return false }
+  if (!actor) {
+    sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
+    return false
+  }
   const role = actorRole(actor)
   if (!['role_admin', 'role_office'].includes(role)) {
     sendError(sendJson, 403, 'FORBIDDEN', 'Operação de escrita na Carteira requer perfil admin ou office.')
@@ -134,7 +140,6 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
   }
 
   try {
-    // Use scoped SQL so RLS session vars are set, consistent with all other client routes.
     const sql = await getScopedSql(actor)
 
     console.info('[portfolio-export] start', {
@@ -150,7 +155,6 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
       return
     }
 
-    // Audit log — non-fatal, never blocks the main response.
     try {
       const { appendClientAuditLog } = await import('../clients/repository.js')
       await appendClientAuditLog(
@@ -199,13 +203,27 @@ export async function handlePortfolioExportRequest(req, res, { method, clientId,
 export async function handlePortfolioProfilePatch(req, res, { method, clientId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireWriteAccess(actor, sendJson)) return
-  if (method !== 'PATCH') { sendJson(405, {}); return }
 
-  const body = await readJsonBody()
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (err) {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
   try {
     const sql = await getScopedSql(actor)
     const result = await updateClientLifecycle(sql, clientId, body)
-    if (!result) { sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado na carteira.' } }); return }
+    if (!result) {
+      sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado na carteira.' } })
+      return
+    }
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] profile patch error', err)
@@ -219,9 +237,20 @@ export async function handlePortfolioProfilePatch(req, res, { method, clientId, 
 export async function handlePortfolioContractPatch(req, res, { method, clientId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireWriteAccess(actor, sendJson)) return
-  if (method !== 'PATCH') { sendJson(405, {}); return }
 
-  const body = await readJsonBody()
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (err) {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
   try {
     const sql = await getScopedSql(actor)
     const result = await upsertClientContract(sql, clientId, body)
@@ -238,9 +267,20 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
 export async function handlePortfolioProjectPatch(req, res, { method, clientId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireWriteAccess(actor, sendJson)) return
-  if (method !== 'PATCH') { sendJson(405, {}); return }
 
-  const body = await readJsonBody()
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (err) {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
   try {
     const sql = await getScopedSql(actor)
     const result = await upsertClientProjectStatus(sql, clientId, body)
@@ -257,9 +297,20 @@ export async function handlePortfolioProjectPatch(req, res, { method, clientId, 
 export async function handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireWriteAccess(actor, sendJson)) return
-  if (method !== 'PATCH') { sendJson(405, {}); return }
 
-  const body = await readJsonBody()
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (err) {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
   try {
     const sql = await getScopedSql(actor)
     const result = await upsertClientBillingProfile(sql, clientId, body)
@@ -291,11 +342,26 @@ export async function handlePortfolioNotesRequest(req, res, { method, clientId, 
 
   if (method === 'POST') {
     if (!requireWriteAccess(actor, sendJson)) return
-    const body = await readJsonBody()
-    if (!body?.content) { sendJson(400, { error: { code: 'INVALID_INPUT', message: 'content é obrigatório.' } }); return }
+
+    let body
+    try {
+      body = await readJsonBody(req)
+    } catch (err) {
+      sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+      return
+    }
+
+    if (!body?.content) {
+      sendJson(400, { error: { code: 'INVALID_INPUT', message: 'content é obrigatório.' } })
+      return
+    }
+
     try {
       const sql = await getScopedSql(actor)
-      const note = await addClientNote(sql, clientId, { ...body, created_by_user_id: actor.userId })
+      const note = await addClientNote(sql, clientId, {
+        ...body,
+        created_by_user_id: actor.userId,
+      })
       sendJson(201, { data: note })
     } catch (err) {
       console.error('[portfolio] notes post error', err)
@@ -343,7 +409,6 @@ export async function handlePortfolioRemoveRequest(req, res, { method, clientId,
       return
     }
 
-    // Audit log — non-fatal.
     try {
       const { appendClientAuditLog } = await import('../clients/repository.js')
       await appendClientAuditLog(
@@ -388,11 +453,14 @@ export async function handlePortfolioRemoveRequest(req, res, { method, clientId,
 export async function handleDashboardPortfolioSummary(req, res, { method, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireReadAccess(actor, sendJson)) return
-  if (method !== 'GET') { sendJson(405, {}); return }
+
+  if (method !== 'GET') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
 
   try {
     const db = getDatabaseClient()
-    // Summary uses service-bypass for aggregation (caller role already verified)
     const summary = await getPortfolioSummary(db.sql)
     sendJson(200, { data: summary })
   } catch (err) {
