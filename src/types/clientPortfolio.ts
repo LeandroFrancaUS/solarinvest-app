@@ -89,6 +89,31 @@ export interface PortfolioClientRow {
   delinquency_status?: string | null
   collection_stage?: string | null
   auto_reminder_enabled?: boolean
+
+  // ── Usina fotovoltaica (UF configuration) ──
+  potencia_modulo_wp?: number | null
+  numero_modulos?: number | null
+  modelo_modulo?: string | null
+  modelo_inversor?: string | null
+  tipo_instalacao?: string | null
+  area_instalacao_m2?: number | null
+  geracao_estimada_kwh?: number | null
+
+  // ── Contract extensions ──
+  contract_file_name?: string | null
+  contract_file_url?: string | null
+  contract_file_type?: string | null
+  consultant_id?: string | null
+  consultant_name?: string | null
+
+  // ── Leasing plan ──
+  kwh_mes_contratado?: number | null
+  valor_mensalidade?: number | null
+
+  // ── Billing extensions ──
+  commissioning_date_billing?: string | null
+  inicio_da_mensalidade?: string | null
+  inicio_mensalidade_fixa?: string | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client
@@ -114,7 +139,7 @@ export type ProjectStatus =
 
 export type ContractType = 'leasing' | 'sale' | 'buyout'
 
-export type ContractStatus = 'draft' | 'active' | 'suspended' | 'completed' | 'cancelled'
+export type ContractStatus = 'draft' | 'active' | 'signed' | 'suspended' | 'completed' | 'cancelled'
 
 export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_off' | 'cancelled'
 
@@ -171,4 +196,16 @@ export const BILLING_STATUS_LABELS: Record<BillingPaymentStatus, string> = {
   overdue: 'Inadimplente',
   written_off: 'Baixado',
   cancelled: 'Cancelado',
+}
+
+/** Pre-defined due-day options for the dropdown. */
+export const DUE_DAY_OPTIONS = [5, 10, 15, 25, 30] as const
+
+export type NotificationStatusType = 'a_vencer' | 'vence_hoje' | 'vencida' | 'paga'
+
+export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatusType, string> = {
+  a_vencer: 'A Vencer',
+  vence_hoje: 'Vence Hoje',
+  vencida: 'Vencida',
+  paga: 'Paga',
 }
