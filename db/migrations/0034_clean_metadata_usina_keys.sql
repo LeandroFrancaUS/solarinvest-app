@@ -1,4 +1,6 @@
 -- Migration 0034: Clean usina fields from clients.metadata
+-- DEPENDS ON: migration 0033 (migrate_metadata_to_usina_config) must have run first
+-- to ensure data has been copied to client_usina_config before removal.
 -- After migration 0033 copied these values into client_usina_config,
 -- remove the redundant keys from the JSONB metadata column.
 -- This is idempotent — it is safe to run even if keys have already been removed.
