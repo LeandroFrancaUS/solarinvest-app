@@ -1182,17 +1182,17 @@ function ClientDetailPanel({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border, #334155)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border, #334155)', flexShrink: 0, background: 'linear-gradient(135deg, rgba(30,41,59,0.95) 0%, rgba(15,23,42,0.95) 100%)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 2 }}>{displayClient.name ?? '—'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 3, color: '#f1f5f9' }}>{displayClient.name ?? '—'}</div>
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>
               {[displayClient.city, displayClient.state].filter(Boolean).join(' / ')} · Exportado {formatDate(displayClient.exported_to_portfolio_at)}
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar painel"
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)', fontSize: 20, cursor: 'pointer', padding: 4 }}>
-            ×
+            style={{ background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.2)', color: '#94a3b8', fontSize: 16, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, lineHeight: 1 }}>
+            ✕
           </button>
         </div>
 
@@ -1202,8 +1202,8 @@ function ClientDetailPanel({
             type="button"
             onClick={() => setViewMode('expanded')}
             style={{
-              padding: '6px 12px', borderRadius: 6, border: '1px solid #3b82f6',
-              background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(59,130,246,0.5)',
+              background: 'rgba(59,130,246,0.15)', color: '#60a5fa',
               fontSize: 12, fontWeight: 600, cursor: 'pointer',
             }}
           >
@@ -1214,8 +1214,8 @@ function ClientDetailPanel({
             onClick={() => setConfirmRemove(true)}
             disabled={removing}
             style={{
-              padding: '6px 12px', borderRadius: 6, border: '1px solid #f59e0b',
-              background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(245,158,11,0.5)',
+              background: 'rgba(245,158,11,0.15)', color: '#fbbf24',
               fontSize: 12, fontWeight: 600, cursor: removing ? 'not-allowed' : 'pointer',
               opacity: removing ? 0.7 : 1,
             }}
@@ -1227,8 +1227,8 @@ function ClientDetailPanel({
             onClick={() => setConfirmDelete(true)}
             disabled={deleting}
             style={{
-              padding: '6px 12px', borderRadius: 6, border: '1px solid #ef4444',
-              background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.5)',
+              background: 'rgba(239,68,68,0.15)', color: '#f87171',
               fontSize: 12, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer',
               opacity: deleting ? 0.7 : 1,
             }}
@@ -1289,7 +1289,7 @@ function ClientDetailPanel({
           onClose={() => { setViewMode('collapsed'); onClose() }}
           onToggleMode={() => setViewMode('collapsed')}
         >
-          <div style={{ padding: '14px 20px', maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ padding: '16px 24px', maxWidth: 1100, margin: '0 auto' }}>
             <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
             {activeTab === 'editar' && (
               <EditarTab
