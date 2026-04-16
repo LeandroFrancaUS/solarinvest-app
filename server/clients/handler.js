@@ -19,6 +19,7 @@ import {
   getClientProposals,
   appendClientAuditLog,
   upsertClientEnergyProfile,
+  upsertClientUsinaConfig,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
@@ -96,8 +97,10 @@ function toClientWritePayload(body) {
     accepted.consumption_kwh_month = parsedConsumption
   }
 
-  // Merge usina (UF configuration) fields into metadata so they are persisted
-  // in the clients.metadata JSONB column and returned by getPortfolioClient().
+  // Usina fields are now persisted in the dedicated client_usina_config table
+  // (migration 0032). We still write them to metadata as a temporary fallback
+  // for environments where the migration hasn't been applied yet.
+  // The handler will additionally call upsertClientUsinaConfig() after save.
   const usinaFields = {}
   const usinaKeys = [
     'potencia_modulo_wp', 'numero_modulos', 'modelo_modulo',
@@ -108,7 +111,7 @@ function toClientWritePayload(body) {
     if (body[key] !== undefined) usinaFields[key] = body[key]
   }
 
-  // Combine with any explicitly-provided metadata
+  // Combine with any explicitly-provided metadata (temporary fallback)
   const explicitMeta = body.metadata ?? null
   if (Object.keys(usinaFields).length > 0 || explicitMeta) {
     accepted.metadata = {
@@ -116,6 +119,9 @@ function toClientWritePayload(body) {
       ...usinaFields,
     }
   }
+
+  // Expose usina fields separately so the handler can persist them in client_usina_config
+  accepted._usinaConfig = Object.keys(usinaFields).length > 0 ? usinaFields : null
 
   return accepted
 }
@@ -314,6 +320,15 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     if (body.energyProfile && typeof body.energyProfile === 'object') {
       await tryUpsertEnergyProfile(db.sql, newClient.id, body.energyProfile)
     }
+    // Persist usina fields in the dedicated client_usina_config table
+    if (mappedBody._usinaConfig) {
+      try {
+        await upsertClientUsinaConfig(db.sql, newClient.id, mappedBody._usinaConfig)
+      } catch (usinaErr) {
+        console.warn('[clients][create] upsertClientUsinaConfig failed (non-fatal):',
+          usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+      }
+    }
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
     return sendJson(201, { data: normalizeClientResponse(newClient), deduplicated: false, idempotent: false })
@@ -437,6 +452,15 @@ export async function handleClientsRequest(req, res, ctx) {
         origin: 'online',
       })
       await appendClientAuditLog(db.sql, client.id, actor.userId, actor.email ?? null, 'created', null, client)
+      // Persist usina fields in the dedicated client_usina_config table
+      if (mappedBody._usinaConfig) {
+        try {
+          await upsertClientUsinaConfig(userSql, client.id, mappedBody._usinaConfig)
+        } catch (usinaErr) {
+          console.warn('[clients][create] upsertClientUsinaConfig failed (non-fatal):',
+            usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+        }
+      }
       logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: client.id })
       return sendJson(201, { data: normalizeClientResponse(client) })
     } catch (err) {
@@ -567,6 +591,15 @@ export async function handleClientByIdRequest(req, res, ctx) {
       if (body.valor_mensalidade !== undefined) planoFields.mensalidade = body.valor_mensalidade
       if (Object.keys(planoFields).length > 0) {
         await tryUpsertEnergyProfile(userSql, updated.id, planoFields)
+      }
+      // Persist usina fields in the dedicated client_usina_config table
+      if (mappedBody._usinaConfig) {
+        try {
+          await upsertClientUsinaConfig(userSql, updated.id, mappedBody._usinaConfig)
+        } catch (usinaErr) {
+          console.warn('[clients][update] upsertClientUsinaConfig failed (non-fatal):',
+            usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+        }
       }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: normalizeClientResponse(updated) })

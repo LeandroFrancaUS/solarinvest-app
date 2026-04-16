@@ -852,3 +852,53 @@ export async function getClientEnergyProfile(sql, clientId) {
   `
   return rows[0] ?? null
 }
+
+/**
+ * Upsert the client_usina_config table (UFV plant configuration).
+ * Replaces the old pattern of storing these fields inside clients.metadata JSONB.
+ * Falls back silently if the table does not exist yet (migration 0032 not applied).
+ */
+export async function upsertClientUsinaConfig(sql, clientId, config) {
+  const {
+    potencia_modulo_wp = null,
+    numero_modulos = null,
+    modelo_modulo = null,
+    modelo_inversor = null,
+    tipo_instalacao = null,
+    area_instalacao_m2 = null,
+    geracao_estimada_kwh = null,
+  } = config ?? {}
+
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_usina_config (
+        client_id, potencia_modulo_wp, numero_modulos, modelo_modulo,
+        modelo_inversor, tipo_instalacao, area_instalacao_m2, geracao_estimada_kwh,
+        created_at, updated_at
+      ) VALUES (
+        ${clientId}, ${potencia_modulo_wp}, ${numero_modulos}, ${modelo_modulo},
+        ${modelo_inversor}, ${tipo_instalacao}, ${area_instalacao_m2}, ${geracao_estimada_kwh},
+        now(), now()
+      )
+      ON CONFLICT (client_id) DO UPDATE SET
+        potencia_modulo_wp   = COALESCE(EXCLUDED.potencia_modulo_wp,   client_usina_config.potencia_modulo_wp),
+        numero_modulos       = COALESCE(EXCLUDED.numero_modulos,       client_usina_config.numero_modulos),
+        modelo_modulo        = COALESCE(EXCLUDED.modelo_modulo,        client_usina_config.modelo_modulo),
+        modelo_inversor      = COALESCE(EXCLUDED.modelo_inversor,      client_usina_config.modelo_inversor),
+        tipo_instalacao      = COALESCE(EXCLUDED.tipo_instalacao,      client_usina_config.tipo_instalacao),
+        area_instalacao_m2   = COALESCE(EXCLUDED.area_instalacao_m2,   client_usina_config.area_instalacao_m2),
+        geracao_estimada_kwh = COALESCE(EXCLUDED.geracao_estimada_kwh, client_usina_config.geracao_estimada_kwh),
+        updated_at           = now()
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    const code = err?.code ?? null
+    // 42P01 = undefined_table: migration 0032 not applied yet — fall back silently
+    if (code === '42P01') {
+      console.warn('[clients][upsertUsinaConfig] client_usina_config table not found — skipping')
+      return null
+    }
+    throw err
+  }
+}

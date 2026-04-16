@@ -193,7 +193,17 @@ export async function getPortfolioClient(sql, clientId) {
         ep.potencia_kwp,
         ep.tipo_rede,
         ep.marca_inversor,
-        ep.indicacao
+        ep.indicacao,
+
+        -- client_usina_config (migration 0032)
+        cu.id                                  AS usina_id,
+        cu.potencia_modulo_wp                  AS usina_potencia_modulo_wp,
+        cu.numero_modulos                      AS usina_numero_modulos,
+        cu.modelo_modulo                       AS usina_modelo_modulo,
+        cu.modelo_inversor                     AS usina_modelo_inversor,
+        cu.tipo_instalacao                     AS usina_tipo_instalacao,
+        cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
+        cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
 
       FROM public.clients c
       LEFT JOIN public.client_contracts cc
@@ -204,6 +214,8 @@ export async function getPortfolioClient(sql, clientId) {
         ON cb.client_id = c.id
       LEFT JOIN public.client_energy_profile ep
         ON ep.client_id = c.id
+      LEFT JOIN public.client_usina_config cu
+        ON cu.client_id = c.id
       WHERE c.id = ${clientId}
         AND c.in_portfolio = true
         AND c.deleted_at IS NULL
@@ -213,15 +225,17 @@ export async function getPortfolioClient(sql, clientId) {
     const row = rows[0] ?? null
     if (!row) return null
 
-    // Expose usina fields from metadata JSONB
+    // Expose usina fields — prefer client_usina_config (structured table),
+    // fall back to metadata JSONB for environments where migration 0032
+    // has not been applied yet.
     const meta = row.metadata ?? {}
-    row.potencia_modulo_wp = meta.potencia_modulo_wp ?? null
-    row.numero_modulos = meta.numero_modulos ?? null
-    row.modelo_modulo = meta.modelo_modulo ?? null
-    row.modelo_inversor = meta.modelo_inversor ?? row.marca_inversor ?? null
-    row.tipo_instalacao = meta.tipo_instalacao ?? null
-    row.area_instalacao_m2 = meta.area_instalacao_m2 ?? null
-    row.geracao_estimada_kwh = meta.geracao_estimada_kwh ?? null
+    row.potencia_modulo_wp = row.usina_potencia_modulo_wp ?? meta.potencia_modulo_wp ?? null
+    row.numero_modulos = row.usina_numero_modulos ?? meta.numero_modulos ?? null
+    row.modelo_modulo = row.usina_modelo_modulo ?? meta.modelo_modulo ?? null
+    row.modelo_inversor = row.usina_modelo_inversor ?? meta.modelo_inversor ?? row.marca_inversor ?? null
+    row.tipo_instalacao = row.usina_tipo_instalacao ?? meta.tipo_instalacao ?? null
+    row.area_instalacao_m2 = row.usina_area_instalacao_m2 ?? meta.area_instalacao_m2 ?? null
+    row.geracao_estimada_kwh = row.usina_geracao_estimada_kwh ?? meta.geracao_estimada_kwh ?? null
 
     // Expose plano fields from energy profile
     row.kwh_mes_contratado = row.kwh_contratado ?? null
