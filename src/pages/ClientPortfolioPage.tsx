@@ -1142,6 +1142,10 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
 // ─────────────────────────────────────────────────────────────────────────────
 // Plano Leasing Tab — shown only when contract_type = 'leasing'
 // Persists to client_energy_profile via PATCH /api/client-portfolio/:id/plan
+// PORTFOLIO CONTEXT: Energy plan fields (kwh_mes_contratado, tarifa_atual, etc.)
+// come exclusively from /api/client-portfolio/:id → energy_profile / top-level.
+// NEVER use latest_proposal_profile as a source for these fields.
+// If energy_profile is null, the UI must show empty — not fallback to proposal.
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
@@ -1293,9 +1297,12 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
 // Notes Tab
 // ─────────────────────────────────────────────────────────────────────────────
 function NotasTab({ client }: { client: PortfolioClientRow }) {
+  // ── PORTFOLIO CONTEXT: data sourced exclusively from /api/client-portfolio/:id/notes ──
+  // Never read notes from /api/clients/:id or any legacy endpoint.
   const clientId = client.id
   const [notes, setNotes] = useState<Array<{ id: number; content: string; entry_type: string; created_at: string; title: string | null }>>([])
   const [loadingNotes, setLoadingNotes] = useState(true)
+  const [newNoteTitle, setNewNoteTitle] = useState('')
   const [newNote, setNewNote] = useState('')
   const [addingNote, setAddingNote] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -1313,9 +1320,17 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
     setAddingNote(true)
     setAddError(null)
     try {
-      const note = await addPortfolioNote(clientId, { content: newNote.trim(), entry_type: 'note' })
+      const payload: { content: string; entry_type: string; title?: string } = {
+        content: newNote.trim(),
+        entry_type: 'note',
+      }
+      if (newNoteTitle.trim()) {
+        payload.title = newNoteTitle.trim()
+      }
+      const note = await addPortfolioNote(clientId, payload)
       setNotes((prev) => [note, ...prev])
       setNewNote('')
+      setNewNoteTitle('')
     } catch (err: unknown) {
       setAddError(err instanceof Error ? err.message : 'Erro ao salvar nota.')
     } finally {
@@ -1323,20 +1338,35 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
     }
   }
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', borderRadius: 6,
+    border: '1px solid var(--border, #334155)',
+    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-        <textarea
-          value={newNote}
-          onChange={(e) => setNewNote(e.target.value)}
-          rows={2}
-          placeholder="Adicionar observação..."
-          style={{ flex: 1, padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'var(--surface-2, #0f172a)', color: 'inherit', resize: 'none', fontSize: 13 }}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 4 }}>
+        <input
+          type="text"
+          value={newNoteTitle}
+          onChange={(e) => setNewNoteTitle(e.target.value)}
+          placeholder="Título (opcional)"
+          style={inputStyle}
         />
-        <button type="button" onClick={() => void handleAddNote()} disabled={addingNote || !newNote.trim()}
-          style={{ padding: '0 16px', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
-          {addingNote ? '…' : '＋'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <textarea
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            rows={2}
+            placeholder="Adicionar observação..."
+            style={{ ...inputStyle, resize: 'none', flex: 1 }}
+          />
+          <button type="button" onClick={() => void handleAddNote()} disabled={addingNote || !newNote.trim()}
+            style={{ padding: '0 16px', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
+            {addingNote ? '…' : '＋'}
+          </button>
+        </div>
       </div>
       {addError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{addError}</p>}
       <div style={{ marginBottom: addError ? 0 : 10 }} />
@@ -1348,6 +1378,9 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
         <div style={{ display: 'grid', gap: 8 }}>
           {notes.map((note) => (
             <div key={note.id} style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 12, borderLeft: '3px solid #3b82f6' }}>
+              {note.title && (
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2, color: '#93c5fd' }}>{note.title}</div>
+              )}
               <div style={{ fontSize: 13 }}>{note.content}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
                 {formatDate(note.created_at)}
@@ -1362,6 +1395,16 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail Panel
+// PORTFOLIO REHYDRATION RULE (Etapa 2.4):
+//   All tabs are hydrated exclusively from GET /api/client-portfolio/:id.
+//   The state flows through usePortfolioClient → normalizePortfolioClientPayload.
+//   NEVER hydrate portfolio tabs from:
+//     - /api/clients/:id
+//     - /api/clients?page=... (listing endpoint)
+//     - latest_proposal_profile
+//     - metadata as primary source
+//   If a field is null in the portfolio payload, the UI MUST show empty — no
+//   fallback to proposal data or legacy endpoints.
 // ─────────────────────────────────────────────────────────────────────────────
 function ClientDetailPanel({
   clientId,

@@ -213,7 +213,7 @@ export async function handlePortfolioProfilePatch(req, res, { method, clientId, 
   let body
   try {
     body = await readJsonBody(req)
-  } catch (err) {
+  } catch {
     sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
     return
   }
@@ -247,7 +247,7 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
   let body
   try {
     body = await readJsonBody(req)
-  } catch (err) {
+  } catch {
     sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
     return
   }
@@ -277,7 +277,7 @@ export async function handlePortfolioProjectPatch(req, res, { method, clientId, 
   let body
   try {
     body = await readJsonBody(req)
-  } catch (err) {
+  } catch {
     sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
     return
   }
@@ -307,7 +307,7 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
   let body
   try {
     body = await readJsonBody(req)
-  } catch (err) {
+  } catch {
     sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
     return
   }
@@ -335,34 +335,93 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
     return
   }
 
+  const parseNullableNumber = (value) => {
+    if (value === undefined || value === null || value === '') return null
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value !== 'string') return null
+
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const normalized = trimmed.includes(',')
+      ? trimmed.replace(/\./g, '').replace(',', '.')
+      : trimmed
+
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const parseNullableInteger = (value) => {
+    const parsed = parseNullableNumber(value)
+    return parsed === null ? null : Math.trunc(parsed)
+  }
+
+  const parseNullableText = (value) => {
+    if (value === undefined || value === null) return null
+    const text = String(value).trim()
+    return text ? text : null
+  }
+
   let body
   try {
     body = await readJsonBody(req)
-  } catch (err) {
+  } catch {
     sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
     return
   }
 
   try {
     const sql = await getScopedSql(actor)
-    // Map UI field names to DB column names
     const profile = {
-      kwh_contratado: body.kwh_contratado ?? body.kwh_mes_contratado ?? null,
-      potencia_kwp: body.potencia_kwp ?? null,
-      tipo_rede: body.tipo_rede ?? null,
-      tarifa_atual: body.tarifa_atual ?? null,
-      desconto_percentual: body.desconto_percentual ?? null,
-      mensalidade: body.mensalidade ?? body.valor_mensalidade ?? null,
-      indicacao: body.indicacao ?? null,
-      modalidade: body.modalidade ?? null,
-      prazo_meses: body.prazo_meses ?? null,
-      marca_inversor: body.marca_inversor ?? null,
+      kwh_contratado: parseNullableNumber(body.kwh_contratado ?? body.kwh_mes_contratado),
+      potencia_kwp: parseNullableNumber(body.potencia_kwp),
+      tipo_rede: parseNullableText(body.tipo_rede),
+      tarifa_atual: parseNullableNumber(body.tarifa_atual),
+      desconto_percentual: parseNullableNumber(body.desconto_percentual),
+      mensalidade: parseNullableNumber(body.mensalidade ?? body.valor_mensalidade),
+      indicacao: parseNullableText(body.indicacao),
+      modalidade: parseNullableText(body.modalidade),
+      prazo_meses: parseNullableInteger(body.prazo_meses),
+      marca_inversor: parseNullableText(body.marca_inversor),
     }
+
+    console.info('[portfolio][plan] request', {
+      clientId,
+      rawBody: body,
+      normalizedProfile: profile,
+      actorUserId: actor?.userId ?? null,
+      actorRole: actorRole(actor),
+    })
+
     const result = await upsertClientEnergyProfile(sql, clientId, profile)
+
+    console.info('[portfolio][plan] success', {
+      clientId,
+      result,
+    })
+
     sendJson(200, { data: result })
   } catch (err) {
-    console.error('[portfolio] plan patch error', err)
-    sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar plano.' } })
+    console.error('[portfolio] plan patch error', {
+      clientId,
+      rawBody: body,
+      code: err?.code ?? null,
+      detail: err?.detail ?? null,
+      hint: err?.hint ?? null,
+      constraint: err?.constraint ?? null,
+      table: err?.table ?? null,
+      column: err?.column ?? null,
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    })
+
+    sendJson(500, {
+      error: {
+        code: 'DB_ERROR',
+        message: 'Erro ao atualizar plano.',
+        detail: err?.message ?? 'unknown_error',
+      },
+    })
   }
 }
 
@@ -391,7 +450,7 @@ export async function handlePortfolioNotesRequest(req, res, { method, clientId, 
     let body
     try {
       body = await readJsonBody(req)
-    } catch (err) {
+    } catch {
       sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
       return
     }

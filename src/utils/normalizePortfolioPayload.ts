@@ -2,15 +2,26 @@
 // Normalises the raw payload from GET /api/client-portfolio/:id into the
 // canonical PortfolioClientRow shape consumed by every portfolio tab/form.
 //
-// Priority chain (per the Etapa 2.3 spec):
+// ═══════════════════════════════════════════════════════════════════════════
+// PORTFOLIO REHYDRATION RULE (Etapa 2.4)
+// ═══════════════════════════════════════════════════════════════════════════
+// This is the SINGLE source of truth for transforming the portfolio API
+// response into UI form state. All portfolio tabs consume its output.
+//
+// PRIORITY CHAIN (mandatory):
 //   1. Top-level field explicitly returned by the API
 //   2. Derived / structural alias (e.g. usina_potencia_modulo_wp)
 //   3. metadata.* as a last-resort fallback
 //   4. UI default (null / empty)
 //
-// The backend already applies a similar enrichment in enrichPortfolioClientRow,
-// but this normaliser acts as a client-side safety net so the UI is never
-// affected by stale metadata when a top-level value is present.
+// PROHIBITED SOURCES (never use for portfolio hydration):
+//   - latest_proposal_profile (proposal data ≠ portfolio data)
+//   - /api/clients/:id responses
+//   - /api/clients?page=... listing responses
+//
+// When energy_profile is null the UI must show empty fields — never
+// substitute with proposal-derived values.
+// ═══════════════════════════════════════════════════════════════════════════
 
 import type { PortfolioClientRow } from '../types/clientPortfolio'
 
