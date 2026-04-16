@@ -163,46 +163,30 @@ function ClientCard({
       onClick={onSelect}
       style={{
         cursor: 'pointer',
-        padding: '14px 16px',
-        borderRadius: 10,
+        padding: '10px 14px',
+        borderRadius: 8,
         border: isSelected
           ? '1.5px solid #3b82f6'
           : '1px solid var(--border, #334155)',
-        background: isSelected ? 'rgba(59,130,246,0.08)' : 'var(--surface, #1e293b)',
+        background: isSelected ? 'rgba(59,130,246,0.10)' : 'var(--surface, #1e293b)',
         transition: 'all 0.15s',
-        marginBottom: 8,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: isSelected ? '#3b82f6' : 'inherit' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: isSelected ? '#60a5fa' : '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
           {client.name ?? '—'}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', whiteSpace: 'nowrap' }}>
-          {formatDate(client.exported_to_portfolio_at)}
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-        {(client.city || client.state) && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-            📍 {[client.city, client.state].filter(Boolean).join(' / ')}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          {(client.city || client.state) && (
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+              {[client.city, client.state].filter(Boolean).join('/')}
+            </span>
+          )}
+          <span style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+            {formatDate(client.exported_to_portfolio_at)}
           </span>
-        )}
-        {client.phone && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-            📞 {client.phone}
-          </span>
-        )}
-        {client.uc && (
-          <span style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-            ⚡ UC: {client.uc}
-          </span>
-        )}
-      </div>
-      {client.email && (
-        <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
-          ✉️ {client.email}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1305,7 +1289,7 @@ function ClientDetailPanel({
           onClose={() => { setViewMode('collapsed'); onClose() }}
           onToggleMode={() => setViewMode('collapsed')}
         >
-          <div style={{ padding: '14px 20px', maxWidth: 800, margin: '0 auto' }}>
+          <div style={{ padding: '14px 20px', maxWidth: 1100, margin: '0 auto' }}>
             <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
             {activeTab === 'editar' && (
               <EditarTab
@@ -1496,9 +1480,9 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         {/* Left: list */}
         <div
           style={{
-            flex: selectedClientId ? '0 0 45%' : '1 1 100%',
+            flex: selectedClientId ? '0 0 30%' : '1 1 100%',
             overflowY: 'auto',
-            padding: '16px 20px',
+            padding: '12px 16px',
             transition: 'flex 0.2s',
             minWidth: 0,
           }}
@@ -1557,7 +1541,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
             </div>
           )}
           {!isLoading && !error && hasClients && (
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {clients.map((c) => (
                 <ClientCard
                   key={c.id}
@@ -1574,7 +1558,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         {selectedClientId && (
           <div
             style={{
-              flex: '0 0 55%',
+              flex: '0 0 70%',
               borderLeft: '1px solid var(--border, #334155)',
               overflow: 'hidden',
               display: 'flex',
