@@ -18,6 +18,7 @@ import {
   addClientNote,
   getPortfolioSummary,
 } from './repository.js'
+import { upsertClientEnergyProfile } from '../clients/repository.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
@@ -318,6 +319,50 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
   } catch (err) {
     console.error('[portfolio] billing patch error', err)
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar cobrança.' } })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/client-portfolio/:clientId/plan
+// Persists energy profile / leasing plan fields into client_energy_profile.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function handlePortfolioPlanPatch(req, res, { method, clientId, readJsonBody, sendJson }) {
+  const actor = await resolveActor(req)
+  if (!requireWriteAccess(actor, sendJson)) return
+
+  if (method !== 'PATCH') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch (err) {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
+  try {
+    const sql = await getScopedSql(actor)
+    // Map UI field names to DB column names
+    const profile = {
+      kwh_contratado: body.kwh_contratado ?? body.kwh_mes_contratado ?? null,
+      potencia_kwp: body.potencia_kwp ?? null,
+      tipo_rede: body.tipo_rede ?? null,
+      tarifa_atual: body.tarifa_atual ?? null,
+      desconto_percentual: body.desconto_percentual ?? null,
+      mensalidade: body.mensalidade ?? body.valor_mensalidade ?? null,
+      indicacao: body.indicacao ?? null,
+      modalidade: body.modalidade ?? null,
+      prazo_meses: body.prazo_meses ?? null,
+      marca_inversor: body.marca_inversor ?? null,
+    }
+    const result = await upsertClientEnergyProfile(sql, clientId, profile)
+    sendJson(200, { data: result })
+  } catch (err) {
+    console.error('[portfolio] plan patch error', err)
+    sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar plano.' } })
   }
 }
 

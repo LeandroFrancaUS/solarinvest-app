@@ -16,6 +16,7 @@ import {
   patchPortfolioProject,
   patchPortfolioBilling,
   patchPortfolioUsina,
+  patchPortfolioPlan,
   patchPortfolioProfile,
   fetchPortfolioNotes,
   addPortfolioNote,
@@ -1140,33 +1141,58 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plano Leasing Tab — shown only when contract_type = 'leasing'
+// Persists to client_energy_profile via PATCH /api/client-portfolio/:id/plan
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const [form, setForm] = useState({
-    kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : '',
+    modalidade: client.modalidade ?? 'leasing',
+    kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
-    valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
+    mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
+    prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
+    potencia_kwp: client.potencia_kwp != null ? String(client.potencia_kwp) : (client.system_kwp != null ? String(client.system_kwp) : ''),
+    tipo_rede: client.tipo_rede ?? '',
+    marca_inversor: client.marca_inversor ?? '',
+    indicacao: client.indicacao ?? '',
   })
 
   async function handleSave() {
     setSaving(true)
+    setSaveError(null)
     try {
       const payload: Record<string, unknown> = {
-        kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
+        modalidade: form.modalidade || null,
+        kwh_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
-        valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+        mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
+        prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
+        potencia_kwp: form.potencia_kwp ? Number(form.potencia_kwp) : null,
+        tipo_rede: form.tipo_rede || null,
+        marca_inversor: form.marca_inversor || null,
+        indicacao: form.indicacao || null,
       }
-      await patchPortfolioUsina(client.id, payload)
+      await patchPortfolioPlan(client.id, payload)
       onSaved({
+        modalidade: form.modalidade || null,
+        kwh_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
-        valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+        mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
+        valor_mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
+        prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
+        potencia_kwp: form.potencia_kwp ? Number(form.potencia_kwp) : null,
+        tipo_rede: form.tipo_rede || null,
+        marca_inversor: form.marca_inversor || null,
+        indicacao: form.indicacao || null,
       } as Partial<PortfolioClientRow>)
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar plano.')
     } finally {
       setSaving(false)
     }
@@ -1181,36 +1207,76 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
 
   return (
-    <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#06b6d4' }}>📋 Plano Leasing</div>
-      <div style={{ display: 'grid', gap: 10 }}>
-        <div style={gridSty}>
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#06b6d4' }}>📋 Plano Leasing</div>
+        <div style={{ display: 'grid', gap: 10 }}>
           <label style={labelSty}>
-            kWh/mês Contratado
-            <input type="number" min={0} value={form.kwh_mes_contratado} onChange={(e) => setForm((f) => ({ ...f, kwh_mes_contratado: e.target.value }))} style={inputStyle} />
+            Modalidade
+            <select value={form.modalidade} onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))} style={inputStyle}>
+              <option value="leasing">Leasing</option>
+              <option value="assinatura">Assinatura</option>
+              <option value="consorcio">Consórcio</option>
+            </select>
           </label>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              kWh/mês Contratado
+              <input type="number" min={0} value={form.kwh_mes_contratado} onChange={(e) => setForm((f) => ({ ...f, kwh_mes_contratado: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Desconto (%)
+              <input type="number" min={0} max={100} step="0.1" value={form.desconto_percentual} onChange={(e) => setForm((f) => ({ ...f, desconto_percentual: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Tarifa Atual (R$/kWh)
+              <input type="number" min={0} step="0.0001" value={form.tarifa_atual} onChange={(e) => setForm((f) => ({ ...f, tarifa_atual: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Mensalidade (R$)
+              <input type="number" min={0} step="0.01" value={form.mensalidade} onChange={(e) => setForm((f) => ({ ...f, mensalidade: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Prazo (meses)
+              <input type="number" min={0} value={form.prazo_meses} onChange={(e) => setForm((f) => ({ ...f, prazo_meses: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Potência (kWp)
+              <input type="number" min={0} step="0.01" value={form.potencia_kwp} onChange={(e) => setForm((f) => ({ ...f, potencia_kwp: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Tipo de Rede
+              <select value={form.tipo_rede} onChange={(e) => setForm((f) => ({ ...f, tipo_rede: e.target.value }))} style={inputStyle}>
+                <option value="">Selecione…</option>
+                <option value="monofasico">Monofásico</option>
+                <option value="bifasico">Bifásico</option>
+                <option value="trifasico">Trifásico</option>
+              </select>
+            </label>
+            <label style={labelSty}>
+              Marca Inversor
+              <input type="text" value={form.marca_inversor} onChange={(e) => setForm((f) => ({ ...f, marca_inversor: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
           <label style={labelSty}>
-            Desconto (%)
-            <input type="number" min={0} max={100} step="0.1" value={form.desconto_percentual} onChange={(e) => setForm((f) => ({ ...f, desconto_percentual: e.target.value }))} style={inputStyle} />
-          </label>
-        </div>
-        <div style={gridSty}>
-          <label style={labelSty}>
-            Tarifa Atual (R$/kWh)
-            <input type="number" min={0} step="0.0001" value={form.tarifa_atual} onChange={(e) => setForm((f) => ({ ...f, tarifa_atual: e.target.value }))} style={inputStyle} />
-          </label>
-          <label style={labelSty}>
-            Valor Mensalidade (R$)
-            <input type="number" min={0} step="0.01" value={form.valor_mensalidade} onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))} style={inputStyle} />
+            Indicação
+            <input type="text" value={form.indicacao} onChange={(e) => setForm((f) => ({ ...f, indicacao: e.target.value }))} style={inputStyle} />
           </label>
         </div>
       </div>
+      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
       <button
         type="button"
         onClick={() => void handleSave()}
         disabled={saving}
         style={{
-          marginTop: 14, width: '100%', padding: '9px 0', borderRadius: 6, border: 'none',
+          width: '100%', padding: '9px 0', borderRadius: 6, border: 'none',
           background: '#06b6d4', color: '#fff', fontWeight: 600,
           cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
         }}
