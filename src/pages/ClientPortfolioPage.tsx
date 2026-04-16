@@ -431,7 +431,7 @@ function EditarTab({
 // ─────────────────────────────────────────────────────────────────────────────
 const CONTRACT_TYPE_LABELS: Record<string, string> = { leasing: 'Leasing', sale: 'Venda', buyout: 'Buy Out' }
 
-function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -473,7 +473,24 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
       })
-      onSaved()
+      onSaved({
+        contract_type: form.contract_type,
+        contract_status: form.contract_status,
+        source_proposal_id: form.source_proposal_id || null,
+        contract_signed_at: form.contract_signed_at || null,
+        contract_start_date: form.contract_start_date || null,
+        billing_start_date: form.billing_start_date || null,
+        expected_billing_end_date: form.expected_billing_end_date || null,
+        contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
+        buyout_eligible: form.buyout_eligible,
+        buyout_status: form.buyout_status || null,
+        buyout_date: form.buyout_date || null,
+        buyout_amount_reference: form.buyout_amount_reference !== '' ? Number(form.buyout_amount_reference) : null,
+        contract_notes: form.contract_notes || null,
+        consultant_id: form.consultant_id || null,
+        consultant_name: form.consultant_name || null,
+        contract_file_name: form.contract_file_name || null,
+      } as Partial<PortfolioClientRow>)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
@@ -630,7 +647,7 @@ const PROJECT_STATUS_LABELS: Record<string, string> = {
   homologation: 'Homologação', commissioned: 'Comissionado', active: 'Ativo', issue: 'Com Problema',
 }
 
-function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -668,7 +685,21 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
         timeline_velocity_score: form.timeline_velocity_score !== '' ? Number(form.timeline_velocity_score) : null,
         notes: form.project_notes || null,
       })
-      onSaved()
+      onSaved({
+        project_status: form.project_status,
+        installation_status: form.installation_status || null,
+        engineering_status: form.engineering_status || null,
+        homologation_status: form.homologation_status || null,
+        commissioning_status: form.commissioning_status || null,
+        commissioning_date: form.commissioning_date || null,
+        first_injection_date: form.first_injection_date || null,
+        first_generation_date: form.first_generation_date || null,
+        expected_go_live_date: form.expected_go_live_date || null,
+        integrator_name: form.integrator_name || null,
+        engineer_name: form.engineer_name || null,
+        timeline_velocity_score: form.timeline_velocity_score !== '' ? Number(form.timeline_velocity_score) : null,
+        project_notes: form.project_notes || null,
+      } as Partial<PortfolioClientRow>)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
@@ -763,7 +794,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
 // ─────────────────────────────────────────────────────────────────────────────
 // Billing Tab
 // ─────────────────────────────────────────────────────────────────────────────
-function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -822,7 +853,19 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         delinquency_status: form.delinquency_status || null,
         collection_stage: form.collection_stage || null,
       })
-      onSaved()
+      onSaved({
+        due_day: form.due_day !== '' ? Number(form.due_day) : null,
+        reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
+        first_billing_date: form.first_billing_date || null,
+        expected_last_billing_date: form.expected_last_billing_date || null,
+        recurrence_type: form.recurrence_type,
+        billing_payment_status: form.payment_status,
+        delinquency_status: form.delinquency_status || null,
+        collection_stage: form.collection_stage || null,
+        auto_reminder_enabled: form.auto_reminder_enabled,
+        commissioning_date_billing: form.commissioning_date_billing || null,
+        valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+      } as Partial<PortfolioClientRow>)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
@@ -1023,7 +1066,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
-function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
@@ -1060,7 +1103,17 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
         },
       }
       await patchPortfolioUsina(client.id, payload)
-      onSaved()
+      onSaved({
+        potencia_modulo_wp: ufData.potencia_modulo_wp ? Number(ufData.potencia_modulo_wp) : null,
+        numero_modulos: ufData.numero_modulos ? Number(ufData.numero_modulos) : null,
+        modelo_modulo: ufData.modelo_modulo || null,
+        modelo_inversor: ufData.modelo_inversor || null,
+        tipo_instalacao: ufData.tipo_instalacao || null,
+        area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
+        geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
+        system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+        tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+      } as Partial<PortfolioClientRow>)
     } finally {
       setSaving(false)
     }
@@ -1088,7 +1141,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
 // ─────────────────────────────────────────────────────────────────────────────
 // Plano Leasing Tab — shown only when contract_type = 'leasing'
 // ─────────────────────────────────────────────────────────────────────────────
-function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
+function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
@@ -1108,7 +1161,12 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
       }
       await patchPortfolioUsina(client.id, payload)
-      onSaved()
+      onSaved({
+        kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
+        desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
+        tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
+        valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+      } as Partial<PortfolioClientRow>)
     } finally {
       setSaving(false)
     }
@@ -1252,7 +1310,7 @@ function ClientDetailPanel({
   onDeleted: (clientId: number) => void
   onToast: (msg: string, type: 'success' | 'error') => void
 }) {
-  const { client, isLoading, error, reload } = usePortfolioClient(clientId)
+  const { client, isLoading, error, reloadSilent, setClient: setHookClient } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
   const [localClient, setLocalClient] = useState<PortfolioClientRow | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
@@ -1260,12 +1318,39 @@ function ClientDetailPanel({
   const { deleting, deleteClient } = usePortfolioDelete()
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // Counter to force tab remount after a silent reload completes, so forms
+  // re-initialise from the fresh server data instead of stale props.
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (client) setLocalClient(client)
   }, [client])
 
   const displayClient = localClient ?? client
+
+  /**
+   * Central post-save handler for all portfolio tabs (except EditarTab which
+   * already handles its own optimistic merge via onSaved callback).
+   *
+   * 1. Optimistically merge the saved fields into localClient so the UI
+   *    reflects the new values immediately — no flash.
+   * 2. Trigger a silent refetch of the full client-portfolio row so every
+   *    cross-tab derived field stays consistent.
+   * 3. Bump refreshKey so that the active tab component remounts with the
+   *    authoritative server data as its initial form state.
+   * 4. Refresh the clients list in the background.
+   */
+  const handleTabSaved = useCallback((patch: Partial<PortfolioClientRow>) => {
+    // Step 1 — optimistic merge
+    setLocalClient((prev) => prev ? { ...prev, ...patch } : prev)
+    setHookClient((prev) => prev ? { ...prev, ...patch } : prev)
+
+    // Step 2+3 — silent refetch, then bump key to re-init forms
+    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+
+    // Step 4 — refresh the sidebar list
+    onClientUpdated()
+  }, [reloadSilent, setHookClient, onClientUpdated])
 
   async function handleRemoveFromPortfolio() {
     setConfirmRemove(false)
@@ -1368,20 +1453,23 @@ function ClientDetailPanel({
         <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
         {activeTab === 'editar' && (
           <EditarTab
+            key={`editar-${refreshKey}`}
             client={displayClient}
             onSaved={(updated) => {
               setLocalClient(updated)
+              setHookClient(updated)
+              void reloadSilent().then(() => setRefreshKey((k) => k + 1))
               onClientUpdated()
             }}
             onToast={onToast}
           />
         )}
-        {activeTab === 'usina' && <UsinaTab client={displayClient} onSaved={reload} />}
-        {activeTab === 'contrato' && <ContratoTab client={displayClient} onSaved={reload} />}
-        {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab client={displayClient} onSaved={reload} />}
-        {activeTab === 'projeto' && <ProjetoTab client={displayClient} onSaved={reload} />}
-        {activeTab === 'cobranca' && <CobrancaTab client={displayClient} onSaved={reload} />}
-        {activeTab === 'notas' && <NotasTab client={displayClient} />}
+        {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'cobranca' && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
       {/* Confirm dialogs */}
@@ -1418,17 +1506,23 @@ function ClientDetailPanel({
             <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
             {activeTab === 'editar' && (
               <EditarTab
+                key={`fs-editar-${refreshKey}`}
                 client={displayClient}
-                onSaved={(updated) => { setLocalClient(updated); onClientUpdated() }}
+                onSaved={(updated) => {
+                  setLocalClient(updated)
+                  setHookClient(updated)
+                  void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+                  onClientUpdated()
+                }}
                 onToast={onToast}
               />
             )}
-            {activeTab === 'usina' && <UsinaTab client={displayClient} onSaved={reload} />}
-            {activeTab === 'contrato' && <ContratoTab client={displayClient} onSaved={reload} />}
-            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab client={displayClient} onSaved={reload} />}
-            {activeTab === 'projeto' && <ProjetoTab client={displayClient} onSaved={reload} />}
-            {activeTab === 'cobranca' && <CobrancaTab client={displayClient} onSaved={reload} />}
-            {activeTab === 'notas' && <NotasTab client={displayClient} />}
+            {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'cobranca' && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
       )}
