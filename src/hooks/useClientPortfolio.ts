@@ -92,8 +92,9 @@ export function usePortfolioClient(clientId: number | null): UsePortfolioClientR
     try {
       const row = await fetchPortfolioClient(clientId)
       if (row) setClient(normalizePortfolioClientPayload(row))
-    } catch {
-      // Silent reload — swallow errors; the data was already optimistically set
+    } catch (err: unknown) {
+      // Silent reload — data was already optimistically set; log for debugging
+      console.warn('[portfolio] silent reload failed', err)
     }
   }, [clientId])
 
