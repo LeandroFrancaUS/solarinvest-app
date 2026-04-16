@@ -88,13 +88,33 @@ function toClientWritePayload(body) {
   assign('system_kwp', body.system_kwp, body.systemKwp)
   assign('term_months', body.term_months, body.termMonths)
   assign('distribuidora', body.distribuidora)
-  assign('metadata', body.metadata)
 
   const parsedConsumption = parseNullableNumber(
     firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth),
   )
   if (firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth) !== undefined) {
     accepted.consumption_kwh_month = parsedConsumption
+  }
+
+  // Merge usina (UF configuration) fields into metadata so they are persisted
+  // in the clients.metadata JSONB column and returned by getPortfolioClient().
+  const usinaFields = {}
+  const usinaKeys = [
+    'potencia_modulo_wp', 'numero_modulos', 'modelo_modulo',
+    'modelo_inversor', 'tipo_instalacao', 'area_instalacao_m2',
+    'geracao_estimada_kwh',
+  ]
+  for (const key of usinaKeys) {
+    if (body[key] !== undefined) usinaFields[key] = body[key]
+  }
+
+  // Combine with any explicitly-provided metadata
+  const explicitMeta = body.metadata ?? null
+  if (Object.keys(usinaFields).length > 0 || explicitMeta) {
+    accepted.metadata = {
+      ...(typeof explicitMeta === 'object' && explicitMeta !== null ? explicitMeta : {}),
+      ...usinaFields,
+    }
   }
 
   return accepted
@@ -537,6 +557,16 @@ export async function handleClientByIdRequest(req, res, ctx) {
       }
       if (body.energyProfile && typeof body.energyProfile === 'object') {
         await tryUpsertEnergyProfile(userSql, updated.id, body.energyProfile)
+      }
+      // Auto-detect plano leasing fields and upsert energy profile.
+      // These are sent as top-level fields from the portfolio Plano tab.
+      const planoFields = {}
+      if (body.kwh_mes_contratado !== undefined) planoFields.kwh_contratado = body.kwh_mes_contratado
+      if (body.desconto_percentual !== undefined) planoFields.desconto_percentual = body.desconto_percentual
+      if (body.tarifa_atual !== undefined) planoFields.tarifa_atual = body.tarifa_atual
+      if (body.valor_mensalidade !== undefined) planoFields.mensalidade = body.valor_mensalidade
+      if (Object.keys(planoFields).length > 0) {
+        await tryUpsertEnergyProfile(userSql, updated.id, planoFields)
       }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: normalizeClientResponse(updated) })
