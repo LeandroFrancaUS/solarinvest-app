@@ -12,6 +12,7 @@ import {
   updateClientFromPortfolio as apiUpdateClient,
   deleteClientFromPortfolio as apiDeleteClient,
 } from '../services/clientPortfolioApi'
+import { normalizePortfolioClientPayload } from '../utils/normalizePortfolioPayload'
 
 export interface UseClientPortfolioResult {
   clients: PortfolioClientRow[]
@@ -75,7 +76,7 @@ export function usePortfolioClient(clientId: number | null): UsePortfolioClientR
     fetchPortfolioClient(clientId)
       .then((row) => {
         if (!row) setError('Cliente não encontrado na carteira.')
-        else setClient(row)
+        else setClient(normalizePortfolioClientPayload(row))
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Erro ao carregar cliente.'))
       .finally(() => setIsLoading(false))

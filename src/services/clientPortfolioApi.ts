@@ -129,6 +129,16 @@ export async function patchPortfolioBilling(clientId: number, data: Record<strin
   })
 }
 
+export async function patchPortfolioUsina(clientId: number, data: Record<string, unknown>): Promise<void> {
+  // Usina fields are persisted through the general client update endpoint
+  // which upserts into client_usina_config. We route through the same PUT
+  // /api/clients/:id that the backend already uses for usina persistence.
+  await apiFetch(resolveApiUrl(`/api/clients/${clientId}`), {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Notes
 // ─────────────────────────────────────────────────────────────────────────────
