@@ -117,6 +117,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     potencia_modulo_wp: first(raw.potencia_modulo_wp, raw.usina_potencia_modulo_wp, metaNum(meta, 'potencia_modulo_wp')),
     numero_modulos: first(raw.numero_modulos, raw.usina_numero_modulos, metaNum(meta, 'numero_modulos')),
     modelo_modulo: first(raw.modelo_modulo, raw.usina_modelo_modulo, metaStr(meta, 'modelo_modulo')),
+    // marca_inversor from client_energy_profile is an alias for modelo_inversor (used by backend enrichPortfolioClientRow)
     modelo_inversor: first(raw.modelo_inversor, raw.usina_modelo_inversor, metaStr(meta, 'modelo_inversor'), raw.marca_inversor),
     tipo_instalacao: first(raw.tipo_instalacao, raw.usina_tipo_instalacao, metaStr(meta, 'tipo_instalacao')),
     area_instalacao_m2: first(raw.area_instalacao_m2, raw.usina_area_instalacao_m2, metaNum(meta, 'area_instalacao_m2')),
@@ -172,6 +173,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     auto_reminder_enabled: raw.auto_reminder_enabled ?? false,
 
     // ── Leasing plan ──
+    // kwh_contratado from client_energy_profile is the backend alias for kwh_mes_contratado
     kwh_mes_contratado: first(raw.kwh_mes_contratado, raw.kwh_contratado),
     valor_mensalidade: raw.valor_mensalidade ?? null,
 
