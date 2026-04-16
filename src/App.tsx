@@ -26829,24 +26829,6 @@ export default function App() {
           },
         ]
       : []),
-    ...(canSeePortfolioEffective
-      ? [
-          {
-            id: 'carteira',
-            label: 'Carteira de Clientes',
-            items: [
-              {
-                id: 'carteira-clientes',
-                label: 'Carteira de Clientes',
-                icon: '💼',
-                onSelect: () => {
-                  void abrirCarteira()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
     {
       id: 'configuracoes',
       label: 'Configurações',
@@ -26859,6 +26841,18 @@ export default function App() {
                 icon: '⚙️',
                 onSelect: () => {
                   void abrirConfiguracoes()
+                },
+              },
+            ]
+          : []),
+        ...(canSeePortfolioEffective
+          ? [
+              {
+                id: 'carteira-clientes',
+                label: 'Carteira de Clientes',
+                icon: '💼',
+                onSelect: () => {
+                  void abrirCarteira()
                 },
               },
             ]
