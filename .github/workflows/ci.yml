@@ -16,5 +16,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run check:cycles
       - run: npm run test
+      - run: npm run build
     permissions:
       contents: read
