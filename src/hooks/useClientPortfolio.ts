@@ -1,5 +1,16 @@
 // src/hooks/useClientPortfolio.ts
 // Hook to fetch and manage the list of portfolio clients.
+//
+// PORTFOLIO REHYDRATION RULE (Etapa 2.4):
+// usePortfolioClient() is the ONLY hook that should hydrate portfolio detail
+// panels. It fetches exclusively from GET /api/client-portfolio/:id and
+// normalises via normalizePortfolioClientPayload.
+//
+// NEVER mix portfolio state with:
+//   - /api/clients/:id responses
+//   - /api/clients?page=... listing responses
+//   - latest_proposal_profile
+//   - legacy store data
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PortfolioClientRow, PortfolioSummary } from '../types/clientPortfolio'

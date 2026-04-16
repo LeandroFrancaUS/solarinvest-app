@@ -1,5 +1,10 @@
 // src/services/clientPortfolioApi.ts
 // REST client for /api/client-portfolio and related portfolio endpoints.
+//
+// PORTFOLIO REHYDRATION RULE (Etapa 2.4):
+// All portfolio data MUST be fetched through these functions.
+// Portfolio detail panels must NEVER fall back to /api/clients/:id or use
+// latest_proposal_profile for hydration.
 
 import { resolveApiUrl } from '../utils/apiUrl'
 import type {
