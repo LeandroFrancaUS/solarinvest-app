@@ -1179,10 +1179,12 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
       await patchPortfolioPlan(client.id, payload)
       onSaved({
         modalidade: form.modalidade || null,
+        // DB column is kwh_contratado; UI alias is kwh_mes_contratado — set both for optimistic update
         kwh_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
+        // DB column is mensalidade; UI alias is valor_mensalidade — set both for optimistic update
         mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         valor_mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
