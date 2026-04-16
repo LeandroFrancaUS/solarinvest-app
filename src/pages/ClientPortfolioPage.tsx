@@ -7,7 +7,6 @@ import {
   useClientPortfolio,
   usePortfolioClient,
   usePortfolioRemove,
-  usePortfolioUpdate,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
@@ -16,6 +15,8 @@ import {
   patchPortfolioContract,
   patchPortfolioProject,
   patchPortfolioBilling,
+  patchPortfolioUsina,
+  patchPortfolioProfile,
   fetchPortfolioNotes,
   addPortfolioNote,
 } from '../services/clientPortfolioApi'
@@ -254,7 +255,7 @@ function EditarTab({
   onSaved: (updated: PortfolioClientRow) => void
   onToast: (msg: string, type: 'success' | 'error') => void
 }) {
-  const { updating, updateClient } = usePortfolioUpdate()
+  const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
     client_name: client.name ?? '',
@@ -273,22 +274,23 @@ function EditarTab({
   })
 
   async function handleSave() {
-    const ok = await updateClient(client.id, {
-      client_name: form.client_name || undefined,
-      client_document: form.client_document || undefined,
-      client_phone: form.client_phone || undefined,
-      client_email: form.client_email || undefined,
-      client_city: form.client_city || undefined,
-      client_state: form.client_state || undefined,
-      client_address: form.client_address || undefined,
-      distribuidora: form.distribuidora || undefined,
-      uc_geradora: form.uc_geradora || undefined,
-      uc_beneficiaria: form.uc_beneficiaria || undefined,
-      consumption_kwh_month: form.consumption_kwh_month !== '' ? Number(form.consumption_kwh_month) : undefined,
-      system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : undefined,
-      term_months: form.term_months !== '' ? Number(form.term_months) : undefined,
-    })
-    if (ok) {
+    setSaving(true)
+    try {
+      await patchPortfolioProfile(client.id, {
+        client_name: form.client_name || undefined,
+        client_document: form.client_document || undefined,
+        client_phone: form.client_phone || undefined,
+        client_email: form.client_email || undefined,
+        client_city: form.client_city || undefined,
+        client_state: form.client_state || undefined,
+        client_address: form.client_address || undefined,
+        distribuidora: form.distribuidora || undefined,
+        uc_geradora: form.uc_geradora || undefined,
+        uc_beneficiaria: form.uc_beneficiaria || undefined,
+        consumption_kwh_month: form.consumption_kwh_month !== '' ? Number(form.consumption_kwh_month) : undefined,
+        system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : undefined,
+        term_months: form.term_months !== '' ? Number(form.term_months) : undefined,
+      })
       onToast('Cliente atualizado com sucesso.', 'success')
       onSaved({
         ...client,
@@ -306,8 +308,10 @@ function EditarTab({
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : client.system_kwp,
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
       })
-    } else {
+    } catch {
       onToast('Não foi possível salvar as alterações do cliente.', 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -402,7 +406,7 @@ function EditarTab({
       <button
         type="button"
         onClick={() => void handleSave()}
-        disabled={updating}
+        disabled={saving}
         style={{
           width: '100%',
           padding: '10px 0',
@@ -412,11 +416,11 @@ function EditarTab({
           color: '#fff',
           fontWeight: 700,
           fontSize: 14,
-          cursor: updating ? 'not-allowed' : 'pointer',
-          opacity: updating ? 0.7 : 1,
+          cursor: saving ? 'not-allowed' : 'pointer',
+          opacity: saving ? 0.7 : 1,
         }}
       >
-        {updating ? 'Salvando…' : '💾 Salvar Alterações'}
+        {saving ? 'Salvando…' : '💾 Salvar Alterações'}
       </button>
     </div>
   )
@@ -433,11 +437,16 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [form, setForm] = useState({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
+    source_proposal_id: client.source_proposal_id ?? '',
     contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
+    contract_start_date: client.contract_start_date?.slice(0, 10) ?? '',
     billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
+    expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
     buyout_eligible: client.buyout_eligible ?? false,
     buyout_status: client.buyout_status ?? '',
+    buyout_date: client.buyout_date?.slice(0, 10) ?? '',
+    buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
     contract_notes: client.contract_notes ?? '',
     consultant_id: client.consultant_id ?? '',
     consultant_name: client.consultant_name ?? '',
@@ -453,8 +462,13 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         id: client.contract_id ?? undefined,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         contract_signed_at: form.contract_signed_at || null,
+        contract_start_date: form.contract_start_date || null,
         billing_start_date: form.billing_start_date || null,
+        expected_billing_end_date: form.expected_billing_end_date || null,
         buyout_status: form.buyout_status || null,
+        buyout_date: form.buyout_date || null,
+        buyout_amount_reference: form.buyout_amount_reference !== '' ? Number(form.buyout_amount_reference) : null,
+        source_proposal_id: form.source_proposal_id || null,
         notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
@@ -498,13 +512,29 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             </select>
           </label>
           <label style={labelSty}>
-            Data de Assinatura
-            <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} style={inputStyle} />
+            ID da Proposta de Origem
+            <input type="text" value={form.source_proposal_id} onChange={(e) => setForm((f) => ({ ...f, source_proposal_id: e.target.value }))} style={inputStyle} />
           </label>
-          <label style={labelSty}>
-            Início da Cobrança
-            <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} style={inputStyle} />
-          </label>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Data de Assinatura
+              <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Início do Contrato
+              <input type="date" value={form.contract_start_date} onChange={(e) => setForm((f) => ({ ...f, contract_start_date: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Início da Cobrança
+              <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Fim Previsto da Cobrança
+              <input type="date" value={form.expected_billing_end_date} onChange={(e) => setForm((f) => ({ ...f, expected_billing_end_date: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
           <label style={labelSty}>
             Prazo Contratual (meses)
             <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} style={inputStyle} />
@@ -513,6 +543,22 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} />
             Elegível para Buy Out
           </label>
+          {form.buyout_eligible && (
+            <div style={gridSty}>
+              <label style={labelSty}>
+                Status do Buy Out
+                <input type="text" value={form.buyout_status} onChange={(e) => setForm((f) => ({ ...f, buyout_status: e.target.value }))} style={inputStyle} />
+              </label>
+              <label style={labelSty}>
+                Data do Buy Out
+                <input type="date" value={form.buyout_date} onChange={(e) => setForm((f) => ({ ...f, buyout_date: e.target.value }))} style={inputStyle} />
+              </label>
+              <label style={labelSty}>
+                Valor de Referência Buy Out (R$)
+                <input type="number" min={0} step="0.01" value={form.buyout_amount_reference} onChange={(e) => setForm((f) => ({ ...f, buyout_amount_reference: e.target.value }))} style={inputStyle} />
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -591,9 +637,15 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
     project_status: client.project_status ?? 'pending',
     installation_status: client.installation_status ?? '',
     engineering_status: client.engineering_status ?? '',
+    homologation_status: client.homologation_status ?? '',
+    commissioning_status: client.commissioning_status ?? '',
     commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
+    first_injection_date: client.first_injection_date?.slice(0, 10) ?? '',
+    first_generation_date: client.first_generation_date?.slice(0, 10) ?? '',
     expected_go_live_date: client.expected_go_live_date?.slice(0, 10) ?? '',
     integrator_name: client.integrator_name ?? '',
+    engineer_name: client.engineer_name ?? '',
+    timeline_velocity_score: client.timeline_velocity_score != null ? String(client.timeline_velocity_score) : '',
     project_notes: client.project_notes ?? '',
   })
 
@@ -604,10 +656,16 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
       await patchPortfolioProject(client.id, {
         ...form,
         commissioning_date: form.commissioning_date || null,
+        first_injection_date: form.first_injection_date || null,
+        first_generation_date: form.first_generation_date || null,
         expected_go_live_date: form.expected_go_live_date || null,
         installation_status: form.installation_status || null,
         engineering_status: form.engineering_status || null,
+        homologation_status: form.homologation_status || null,
+        commissioning_status: form.commissioning_status || null,
         integrator_name: form.integrator_name || null,
+        engineer_name: form.engineer_name || null,
+        timeline_velocity_score: form.timeline_velocity_score !== '' ? Number(form.timeline_velocity_score) : null,
         notes: form.project_notes || null,
       })
       onSaved()
@@ -634,25 +692,59 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             {Object.entries(PROJECT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Status Instalação
+            <input type="text" value={form.installation_status} onChange={(e) => setForm((f) => ({ ...f, installation_status: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Status Engenharia
+            <input type="text" value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Status Homologação
+            <input type="text" value={form.homologation_status} onChange={(e) => setForm((f) => ({ ...f, homologation_status: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Status Comissionamento
+            <input type="text" value={form.commissioning_status} onChange={(e) => setForm((f) => ({ ...f, commissioning_status: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Data de Comissionamento
+            <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Previsão de Go-Live
+            <input type="date" value={form.expected_go_live_date} onChange={(e) => setForm((f) => ({ ...f, expected_go_live_date: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Primeira Injeção
+            <input type="date" value={form.first_injection_date} onChange={(e) => setForm((f) => ({ ...f, first_injection_date: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Primeira Geração
+            <input type="date" value={form.first_generation_date} onChange={(e) => setForm((f) => ({ ...f, first_generation_date: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Integrador
+            <input type="text" value={form.integrator_name} onChange={(e) => setForm((f) => ({ ...f, integrator_name: e.target.value }))} style={inputStyle} />
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+            Engenheiro
+            <input type="text" value={form.engineer_name} onChange={(e) => setForm((f) => ({ ...f, engineer_name: e.target.value }))} style={inputStyle} />
+          </label>
+        </div>
         <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status Instalação
-          <input type="text" value={form.installation_status} onChange={(e) => setForm((f) => ({ ...f, installation_status: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status Engenharia
-          <input type="text" value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Data de Comissionamento
-          <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Previsão de Go-Live
-          <input type="date" value={form.expected_go_live_date} onChange={(e) => setForm((f) => ({ ...f, expected_go_live_date: e.target.value }))} style={inputStyle} />
-        </label>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Integrador
-          <input type="text" value={form.integrator_name} onChange={(e) => setForm((f) => ({ ...f, integrator_name: e.target.value }))} style={inputStyle} />
+          Score de Velocidade
+          <input type="number" min={0} max={100} value={form.timeline_velocity_score} onChange={(e) => setForm((f) => ({ ...f, timeline_velocity_score: e.target.value }))} style={inputStyle} />
         </label>
         <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
           Observações
@@ -678,9 +770,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     due_day: client.due_day != null ? String(client.due_day) : '',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
+    expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
     recurrence_type: client.recurrence_type ?? 'monthly',
     payment_status: client.billing_payment_status ?? 'pending',
     delinquency_status: client.delinquency_status ?? '',
+    collection_stage: client.collection_stage ?? '',
+    auto_reminder_enabled: client.auto_reminder_enabled ?? false,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
@@ -723,7 +818,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         ...form,
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         first_billing_date: form.first_billing_date || null,
+        expected_last_billing_date: form.expected_last_billing_date || null,
         delinquency_status: form.delinquency_status || null,
+        collection_stage: form.collection_stage || null,
       })
       onSaved()
     } catch (err: unknown) {
@@ -802,6 +899,20 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           <label style={labelSty}>
             Status de Inadimplência
             <input type="text" value={form.delinquency_status} onChange={(e) => setForm((f) => ({ ...f, delinquency_status: e.target.value }))} style={inputStyle} />
+          </label>
+          <div style={gridSty}>
+            <label style={labelSty}>
+              Último Vencimento Previsto
+              <input type="date" value={form.expected_last_billing_date} onChange={(e) => setForm((f) => ({ ...f, expected_last_billing_date: e.target.value }))} style={inputStyle} />
+            </label>
+            <label style={labelSty}>
+              Etapa de Cobrança
+              <input type="text" value={form.collection_stage} onChange={(e) => setForm((f) => ({ ...f, collection_stage: e.target.value }))} style={inputStyle} />
+            </label>
+          </div>
+          <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} />
+            Lembrete automático ativado
           </label>
         </div>
       </div>
@@ -913,7 +1024,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
-  const { updating, updateClient } = usePortfolioUpdate()
+  const [saving, setSaving] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -932,22 +1043,27 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
   }, [])
 
   async function handleSave() {
-    const payload: Record<string, unknown> = {
-      potencia_modulo_wp: ufData.potencia_modulo_wp ? Number(ufData.potencia_modulo_wp) : null,
-      numero_modulos: ufData.numero_modulos ? Number(ufData.numero_modulos) : null,
-      modelo_modulo: ufData.modelo_modulo || null,
-      modelo_inversor: ufData.modelo_inversor || null,
-      tipo_instalacao: ufData.tipo_instalacao || null,
-      area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
-      geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
-      system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
-      // Persist tipo_rede via energy profile upsert
-      energyProfile: {
-        tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
-      },
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        potencia_modulo_wp: ufData.potencia_modulo_wp ? Number(ufData.potencia_modulo_wp) : null,
+        numero_modulos: ufData.numero_modulos ? Number(ufData.numero_modulos) : null,
+        modelo_modulo: ufData.modelo_modulo || null,
+        modelo_inversor: ufData.modelo_inversor || null,
+        tipo_instalacao: ufData.tipo_instalacao || null,
+        area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
+        geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
+        system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+        // Persist tipo_rede via energy profile upsert
+        energyProfile: {
+          tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+        },
+      }
+      await patchPortfolioUsina(client.id, payload)
+      onSaved()
+    } finally {
+      setSaving(false)
     }
-    const ok = await updateClient(client.id, payload)
-    if (ok) onSaved()
   }
 
   return (
@@ -956,14 +1072,14 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
       <button
         type="button"
         onClick={() => void handleSave()}
-        disabled={updating}
+        disabled={saving}
         style={{
           width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
           background: '#f59e0b', color: '#000', fontWeight: 700, fontSize: 14,
-          cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.7 : 1,
+          cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
         }}
       >
-        {updating ? 'Salvando…' : '💾 Salvar Usina'}
+        {saving ? 'Salvando…' : '💾 Salvar Usina'}
       </button>
     </div>
   )
@@ -973,7 +1089,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
 // Plano Leasing Tab — shown only when contract_type = 'leasing'
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: () => void }) {
-  const { updating, updateClient } = usePortfolioUpdate()
+  const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : '',
@@ -983,14 +1099,19 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   })
 
   async function handleSave() {
-    const payload: Record<string, unknown> = {
-      kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
-      desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
-      tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
-      valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+    setSaving(true)
+    try {
+      const payload: Record<string, unknown> = {
+        kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
+        desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
+        tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
+        valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : null,
+      }
+      await patchPortfolioUsina(client.id, payload)
+      onSaved()
+    } finally {
+      setSaving(false)
     }
-    const ok = await updateClient(client.id, payload)
-    if (ok) onSaved()
   }
 
   const inputStyle: React.CSSProperties = {
@@ -1029,14 +1150,14 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
       <button
         type="button"
         onClick={() => void handleSave()}
-        disabled={updating}
+        disabled={saving}
         style={{
           marginTop: 14, width: '100%', padding: '9px 0', borderRadius: 6, border: 'none',
           background: '#06b6d4', color: '#fff', fontWeight: 600,
-          cursor: updating ? 'not-allowed' : 'pointer', opacity: updating ? 0.7 : 1,
+          cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
         }}
       >
-        {updating ? 'Salvando…' : '💾 Salvar Plano'}
+        {saving ? 'Salvando…' : '💾 Salvar Plano'}
       </button>
     </div>
   )
