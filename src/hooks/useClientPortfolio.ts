@@ -73,6 +73,10 @@ export interface UsePortfolioClientResult {
   isLoading: boolean
   error: string | null
   reload: () => void
+  /** Silently refetch without flashing a loading state. */
+  reloadSilent: () => Promise<void>
+  /** Optimistically update the local client state (e.g. after a save). */
+  setClient: React.Dispatch<React.SetStateAction<PortfolioClientRow | null>>
 }
 
 export function usePortfolioClient(clientId: number | null): UsePortfolioClientResult {
@@ -93,9 +97,21 @@ export function usePortfolioClient(clientId: number | null): UsePortfolioClientR
       .finally(() => setIsLoading(false))
   }, [clientId])
 
+  /** Refetch from backend without setting isLoading — avoids visual flash. */
+  const reloadSilent = useCallback(async () => {
+    if (!clientId) return
+    try {
+      const row = await fetchPortfolioClient(clientId)
+      if (row) setClient(normalizePortfolioClientPayload(row))
+    } catch (err: unknown) {
+      // Silent reload — data was already optimistically set; log for debugging
+      console.warn('[portfolio] silent reload failed', err)
+    }
+  }, [clientId])
+
   useEffect(() => { load() }, [load])
 
-  return { client, isLoading, error, reload: load }
+  return { client, isLoading, error, reload: load, reloadSilent, setClient }
 }
 
 export interface UsePortfolioExportResult {

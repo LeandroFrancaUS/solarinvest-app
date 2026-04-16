@@ -76,6 +76,7 @@ import {
   handlePortfolioContractPatch,
   handlePortfolioProjectPatch,
   handlePortfolioBillingPatch,
+  handlePortfolioPlanPatch,
   handlePortfolioNotesRequest,
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
@@ -896,6 +897,16 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioBillingMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
+      return
+    }
+
+    // PATCH /api/client-portfolio/:clientId/plan
+    const portfolioPlanMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/plan$/)
+    if (portfolioPlanMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioPlanMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioPlanPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 

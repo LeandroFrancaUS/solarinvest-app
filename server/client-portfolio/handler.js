@@ -372,7 +372,6 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
 
   try {
     const sql = await getScopedSql(actor)
-
     const profile = {
       kwh_contratado: parseNullableNumber(body.kwh_contratado ?? body.kwh_mes_contratado),
       potencia_kwp: parseNullableNumber(body.potencia_kwp),

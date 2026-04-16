@@ -144,6 +144,13 @@ export async function patchPortfolioUsina(clientId: number, data: Record<string,
   })
 }
 
+export async function patchPortfolioPlan(clientId: number, data: Record<string, unknown>): Promise<void> {
+  await apiFetch(resolveApiUrl(`/api/client-portfolio/${clientId}/plan`), {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Notes
 // ─────────────────────────────────────────────────────────────────────────────
