@@ -19765,12 +19765,20 @@ export default function App() {
     validatePropostaLeasingMinimal,
   ])
 
+  // Pages where the proposal dirty-state guard applies.
+  // Non-proposal pages (carteira, dashboard, settings, admin-users, simulacoes, crm)
+  // have their own data models and must NOT trigger the proposal save prompt.
+  const isProposalPage = activePage === 'app' || activePage === 'consultar' || activePage === 'clientes'
+
   const runWithUnsavedChangesGuard = useCallback(
     async (
       action: () => void | Promise<void>,
       options?: Partial<SaveDecisionPromptRequest>,
     ): Promise<boolean> => {
-      if (!hasUnsavedChanges()) {
+      // Only check proposal dirty state when the user is on a proposal-related page.
+      // Non-proposal pages (carteira, dashboard, settings, etc.) must never show
+      // proposal validation messages or save prompts.
+      if (!isProposalPage || !hasUnsavedChanges()) {
         await action()
         return true
       }
@@ -19796,7 +19804,7 @@ export default function App() {
       await action()
       return true
     },
-    [handleSalvarPropostaPdf, hasUnsavedChanges, requestSaveDecision, scheduleMarkStateAsSaved],
+    [handleSalvarPropostaPdf, hasUnsavedChanges, isProposalPage, requestSaveDecision, scheduleMarkStateAsSaved],
   )
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
