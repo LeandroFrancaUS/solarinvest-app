@@ -5,6 +5,23 @@
 const DEFAULT_PAGE_LIMIT = 20
 const MAX_PAGE_LIMIT = 100
 
+/**
+ * Validate that payload_json is a non-empty object before persisting.
+ * Prevents accidental data loss from empty or malformed payloads.
+ */
+function assertPayloadJsonValid(payload_json) {
+  if (
+    payload_json == null ||
+    typeof payload_json !== 'object' ||
+    Array.isArray(payload_json) ||
+    Object.keys(payload_json).length === 0
+  ) {
+    const err = new Error('payload_json must be a non-empty object')
+    err.code = 'INVALID_PAYLOAD'
+    throw err
+  }
+}
+
 function normalizeDocument(raw) {
   if (raw == null) return null
   const digits = String(raw).replace(/\D/g, '')
@@ -74,6 +91,8 @@ export async function createProposal(sql, ownerUserId, data) {
     uc_beneficiaria = null,
     payload_json = {},
   } = data
+
+  assertPayloadJsonValid(payload_json)
 
   const link = await resolveClientLinkByDocument(sql, client_document)
   const normalizedClientCep = normalizeCep(client_cep ?? cep)
@@ -251,6 +270,7 @@ export async function updateProposal(sql, id, data) {
   if ('uc_geradora_nm' in data) addField('uc_geradora_nm', uc_geradora_nm)
   if ('uc_beneficiaria' in data) addField('uc_beneficiaria', uc_beneficiaria)
   if ('payload_json' in data) {
+    assertPayloadJsonValid(payload_json)
     setClauses.push(`payload_json = $${paramIndex++}::jsonb`)
     values.push(JSON.stringify(payload_json))
   }

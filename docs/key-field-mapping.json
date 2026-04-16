@@ -1,0 +1,475 @@
+{
+  "_meta": {
+    "description": "Canonical key-field mapping: UI ↔ state ↔ API ↔ DB for all persisted fields",
+    "updated": "2026-04-16",
+    "priority_areas": ["Carteira de Clientes", "Leasing", "Venda"]
+  },
+
+  "nome_cliente": {
+    "ui_labels": ["Nome / Razão Social", "Nome"],
+    "areas": ["Carteira de Clientes (Editar)", "Leasing", "Venda"],
+    "state_paths": ["form.client_name", "leasingStore.contrato.proprietarios[].nome", "vendaStore.cliente.nome"],
+    "api_fields": ["client_name", "name"],
+    "db": { "table": "clients", "column": "client_name" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "documento_cliente": {
+    "ui_labels": ["Documento (CPF/CNPJ)", "CPF/CNPJ"],
+    "areas": ["Carteira de Clientes (Editar)", "Leasing", "Venda"],
+    "state_paths": ["form.client_document", "vendaStore.cliente.documento"],
+    "api_fields": ["client_document", "document"],
+    "db": { "table": "clients", "column": "client_document" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "telefone": {
+    "ui_labels": ["Telefone"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.client_phone", "vendaStore.cliente.telefone"],
+    "api_fields": ["client_phone", "phone"],
+    "db": { "table": "clients", "column": "client_phone" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "email": {
+    "ui_labels": ["E-mail"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.client_email", "vendaStore.cliente.email"],
+    "api_fields": ["client_email", "email"],
+    "db": { "table": "clients", "column": "client_email" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "cidade": {
+    "ui_labels": ["Cidade"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.client_city", "vendaStore.cliente.cidade"],
+    "api_fields": ["client_city", "city"],
+    "db": { "table": "clients", "column": "client_city" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "uf": {
+    "ui_labels": ["Estado (UF)", "UF"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.client_state", "vendaStore.cliente.uf", "vendaStore.parametros.uf"],
+    "api_fields": ["client_state", "state"],
+    "db": { "table": "clients", "column": "client_state" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "endereco": {
+    "ui_labels": ["Endereço"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.client_address", "vendaStore.cliente.endereco"],
+    "api_fields": ["client_address", "address"],
+    "db": { "table": "clients", "column": "client_address" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "distribuidora": {
+    "ui_labels": ["Distribuidora"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.distribuidora", "vendaStore.cliente.distribuidora", "vendaStore.parametros.distribuidora"],
+    "api_fields": ["distribuidora"],
+    "db": { "table": "clients", "column": "distribuidora" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "uc_geradora": {
+    "ui_labels": ["UC Geradora", "UC"],
+    "areas": ["Carteira de Clientes (Editar)", "Venda"],
+    "state_paths": ["form.uc_geradora", "vendaStore.cliente.uc"],
+    "api_fields": ["uc_geradora", "uc"],
+    "db": { "table": "clients", "column": "uc_geradora" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "uc_beneficiaria": {
+    "ui_labels": ["UC Beneficiária"],
+    "areas": ["Carteira de Clientes (Editar)"],
+    "state_paths": ["form.uc_beneficiaria"],
+    "api_fields": ["uc_beneficiaria"],
+    "db": { "table": "clients", "column": "uc_beneficiaria" },
+    "relation": "clients.id",
+    "shared_mapping": false
+  },
+  "consumo_kwh_mes": {
+    "ui_labels": ["Consumo (kWh/mês)", "Consumo médio mensal"],
+    "areas": ["Carteira de Clientes (Editar)", "Leasing", "Venda"],
+    "state_paths": ["form.consumption_kwh_month", "leasingStore.energiaContratadaKwhMes", "vendaStore.parametros.consumo_kwh_mes"],
+    "api_fields": ["consumption_kwh_month"],
+    "db": { "table": "clients", "column": "consumption_kwh_month" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "potencia_sistema_kwp": {
+    "ui_labels": ["Potência (kWp)", "Potência do sistema (kWp)"],
+    "areas": ["Carteira de Clientes (Editar)", "Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["form.system_kwp", "ufData.potencia_kwp", "leasingStore.dadosTecnicos.potenciaInstaladaKwp", "vendaStore.configuracao.potencia_sistema_kwp"],
+    "api_fields": ["system_kwp"],
+    "db": { "table": "clients", "column": "system_kwp" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "prazo_meses": {
+    "ui_labels": ["Prazo Contratual (meses)"],
+    "areas": ["Carteira de Clientes (Editar)", "Leasing", "Venda"],
+    "state_paths": ["form.term_months", "leasingStore.prazoContratualMeses", "vendaStore.parametros.horizonte_meses"],
+    "api_fields": ["term_months"],
+    "db": { "table": "clients", "column": "term_months" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+
+  "potencia_modulo_wp": {
+    "ui_labels": ["Potência do módulo (Wp)"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.potencia_modulo_wp", "leasingStore.dadosTecnicos.potenciaPlacaWp", "vendaStore.configuracao.potencia_modulo_wp"],
+    "api_fields": ["potencia_modulo_wp"],
+    "db": { "table": "clients", "column": "metadata->>'potencia_modulo_wp'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "numero_modulos": {
+    "ui_labels": ["Nº de módulos"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.numero_modulos", "leasingStore.dadosTecnicos.numeroModulos", "vendaStore.configuracao.n_modulos"],
+    "api_fields": ["numero_modulos"],
+    "db": { "table": "clients", "column": "metadata->>'numero_modulos'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "modelo_modulo": {
+    "ui_labels": ["Modelo do módulo"],
+    "areas": ["Carteira de Clientes (Usina)", "Venda"],
+    "state_paths": ["ufData.modelo_modulo", "vendaStore.configuracao.modelo_modulo"],
+    "api_fields": ["modelo_modulo"],
+    "db": { "table": "clients", "column": "metadata->>'modelo_modulo'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "modelo_inversor": {
+    "ui_labels": ["Modelo do inversor"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.modelo_inversor", "leasingStore.contrato.inversoresFV", "vendaStore.configuracao.modelo_inversor"],
+    "api_fields": ["modelo_inversor"],
+    "db": { "table": "clients", "column": "metadata->>'modelo_inversor'" },
+    "relation": "clients.id",
+    "shared_mapping": true,
+    "notes": "Also available in client_energy_profile.marca_inversor"
+  },
+  "tipo_instalacao": {
+    "ui_labels": ["Tipo de instalação"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.tipo_instalacao", "leasingStore.dadosTecnicos.tipoInstalacao", "vendaStore.configuracao.tipo_instalacao"],
+    "api_fields": ["tipo_instalacao"],
+    "db": { "table": "clients", "column": "metadata->>'tipo_instalacao'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "area_instalacao_m2": {
+    "ui_labels": ["Área utilizada (m²)", "Área de Instalação (m²)"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.area_instalacao_m2", "leasingStore.dadosTecnicos.areaUtilM2", "vendaStore.configuracao.area_m2"],
+    "api_fields": ["area_instalacao_m2"],
+    "db": { "table": "clients", "column": "metadata->>'area_instalacao_m2'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "geracao_estimada_kwh": {
+    "ui_labels": ["Geração estimada (kWh/mês)"],
+    "areas": ["Carteira de Clientes (Usina)", "Leasing", "Venda"],
+    "state_paths": ["ufData.geracao_estimada_kwh", "leasingStore.dadosTecnicos.geracaoEstimadakWhMes", "vendaStore.configuracao.geracao_estimada_kwh_mes"],
+    "api_fields": ["geracao_estimada_kwh"],
+    "db": { "table": "clients", "column": "metadata->>'geracao_estimada_kwh'" },
+    "relation": "clients.id",
+    "shared_mapping": true
+  },
+  "tipo_rede": {
+    "ui_labels": ["Tipo de rede"],
+    "areas": ["Carteira de Clientes (Usina)"],
+    "state_paths": ["ufData.tipo_rede"],
+    "api_fields": ["energyProfile.tipo_rede"],
+    "db": { "table": "client_energy_profile", "column": "tipo_rede" },
+    "relation": "client_energy_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+
+  "tipo_contrato": {
+    "ui_labels": ["Tipo de Contrato"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contract_type"],
+    "api_fields": ["contract_type"],
+    "db": { "table": "client_contracts", "column": "contract_type" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "status_contrato": {
+    "ui_labels": ["Status do Contrato"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contract_status"],
+    "api_fields": ["contract_status"],
+    "db": { "table": "client_contracts", "column": "contract_status" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "data_assinatura_contrato": {
+    "ui_labels": ["Data de Assinatura"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contract_signed_at"],
+    "api_fields": ["contract_signed_at"],
+    "db": { "table": "client_contracts", "column": "contract_signed_at" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "inicio_cobranca": {
+    "ui_labels": ["Início da Cobrança"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.billing_start_date"],
+    "api_fields": ["billing_start_date"],
+    "db": { "table": "client_contracts", "column": "billing_start_date" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "prazo_contratual_meses": {
+    "ui_labels": ["Prazo Contratual (meses)"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contractual_term_months"],
+    "api_fields": ["contractual_term_months"],
+    "db": { "table": "client_contracts", "column": "contractual_term_months" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "buyout_eligible": {
+    "ui_labels": ["Elegível para Buy Out"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.buyout_eligible"],
+    "api_fields": ["buyout_eligible"],
+    "db": { "table": "client_contracts", "column": "buyout_eligible" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "buyout_status": {
+    "ui_labels": ["(sem UI input — apenas no state/payload)"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.buyout_status"],
+    "api_fields": ["buyout_status"],
+    "db": { "table": "client_contracts", "column": "buyout_status" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false,
+    "notes": "Field exists in form state and API payload but has no visible UI input control. Persisted when sent."
+  },
+  "consultor_id": {
+    "ui_labels": ["ID do Consultor"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.consultant_id"],
+    "api_fields": ["consultant_id"],
+    "db": { "table": "client_contracts", "column": "consultant_id" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "consultor_nome": {
+    "ui_labels": ["Nome do Consultor"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.consultant_name"],
+    "api_fields": ["consultant_name"],
+    "db": { "table": "client_contracts", "column": "consultant_name" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "contrato_arquivo_nome": {
+    "ui_labels": ["Nome do arquivo"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contract_file_name"],
+    "api_fields": ["contract_file_name"],
+    "db": { "table": "client_contracts", "column": "contract_file_name" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "contrato_observacoes": {
+    "ui_labels": ["Observações"],
+    "areas": ["Carteira de Clientes (Contrato)"],
+    "state_paths": ["form.contract_notes"],
+    "api_fields": ["notes"],
+    "db": { "table": "client_contracts", "column": "notes" },
+    "relation": "client_contracts.client_id → clients.id",
+    "shared_mapping": false
+  },
+
+  "status_projeto": {
+    "ui_labels": ["Status Geral"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.project_status"],
+    "api_fields": ["project_status"],
+    "db": { "table": "client_project_status", "column": "project_status" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "status_instalacao": {
+    "ui_labels": ["Status Instalação"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.installation_status"],
+    "api_fields": ["installation_status"],
+    "db": { "table": "client_project_status", "column": "installation_status" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "status_engenharia": {
+    "ui_labels": ["Status Engenharia"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.engineering_status"],
+    "api_fields": ["engineering_status"],
+    "db": { "table": "client_project_status", "column": "engineering_status" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "data_comissionamento": {
+    "ui_labels": ["Data de Comissionamento"],
+    "areas": ["Carteira de Clientes (Projeto)", "Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.commissioning_date", "form.commissioning_date_billing"],
+    "api_fields": ["commissioning_date", "commissioning_date_billing"],
+    "db": [
+      { "table": "client_project_status", "column": "commissioning_date" },
+      { "table": "client_billing_profile", "column": "commissioning_date" }
+    ],
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": true,
+    "notes": "Commissioning date exists in both project and billing contexts with separate DB columns."
+  },
+  "previsao_go_live": {
+    "ui_labels": ["Previsão de Go-Live"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.expected_go_live_date"],
+    "api_fields": ["expected_go_live_date"],
+    "db": { "table": "client_project_status", "column": "expected_go_live_date" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "integrador": {
+    "ui_labels": ["Integrador"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.integrator_name"],
+    "api_fields": ["integrator_name"],
+    "db": { "table": "client_project_status", "column": "integrator_name" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "projeto_observacoes": {
+    "ui_labels": ["Observações"],
+    "areas": ["Carteira de Clientes (Projeto)"],
+    "state_paths": ["form.project_notes"],
+    "api_fields": ["notes"],
+    "db": { "table": "client_project_status", "column": "notes" },
+    "relation": "client_project_status.client_id → clients.id",
+    "shared_mapping": false
+  },
+
+  "kwh_mes_contratado": {
+    "ui_labels": ["kWh/mês Contratado"],
+    "areas": ["Carteira de Clientes (Plano Leasing)"],
+    "state_paths": ["form.kwh_mes_contratado"],
+    "api_fields": ["kwh_mes_contratado"],
+    "db": { "table": "client_energy_profile", "column": "kwh_contratado" },
+    "relation": "client_energy_profile.client_id → clients.id",
+    "shared_mapping": false,
+    "notes": "API field kwh_mes_contratado maps to DB column kwh_contratado"
+  },
+  "desconto_percentual": {
+    "ui_labels": ["Desconto (%)"],
+    "areas": ["Carteira de Clientes (Plano Leasing)", "Leasing"],
+    "state_paths": ["form.desconto_percentual", "leasingStore.descontoContratual"],
+    "api_fields": ["desconto_percentual"],
+    "db": { "table": "client_energy_profile", "column": "desconto_percentual" },
+    "relation": "client_energy_profile.client_id → clients.id",
+    "shared_mapping": true
+  },
+  "tarifa_atual": {
+    "ui_labels": ["Tarifa Atual (R$/kWh)"],
+    "areas": ["Carteira de Clientes (Plano Leasing)", "Leasing", "Venda"],
+    "state_paths": ["form.tarifa_atual", "leasingStore.tarifaInicial", "vendaStore.parametros.tarifa_r_kwh"],
+    "api_fields": ["tarifa_atual"],
+    "db": { "table": "client_energy_profile", "column": "tarifa_atual" },
+    "relation": "client_energy_profile.client_id → clients.id",
+    "shared_mapping": true
+  },
+  "valor_mensalidade": {
+    "ui_labels": ["Valor Mensalidade (R$)", "Valor da Mensalidade (R$)"],
+    "areas": ["Carteira de Clientes (Plano Leasing)", "Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.valor_mensalidade"],
+    "api_fields": ["valor_mensalidade"],
+    "db": [
+      { "table": "client_energy_profile", "column": "mensalidade" },
+      { "table": "client_billing_profile", "column": "valor_mensalidade" }
+    ],
+    "relation": "client_energy_profile.client_id → clients.id",
+    "shared_mapping": true,
+    "notes": "Stored in both energy profile (as 'mensalidade') and billing profile (as 'valor_mensalidade')"
+  },
+
+  "dia_vencimento": {
+    "ui_labels": ["Dia de Vencimento"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.due_day"],
+    "api_fields": ["due_day"],
+    "db": { "table": "client_billing_profile", "column": "due_day" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "dia_leitura": {
+    "ui_labels": ["Dia de Leitura"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.reading_day"],
+    "api_fields": ["reading_day"],
+    "db": { "table": "client_billing_profile", "column": "reading_day" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "primeiro_vencimento": {
+    "ui_labels": ["Primeiro Vencimento"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.first_billing_date"],
+    "api_fields": ["first_billing_date"],
+    "db": { "table": "client_billing_profile", "column": "first_billing_date" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "recorrencia": {
+    "ui_labels": ["Recorrência"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.recurrence_type"],
+    "api_fields": ["recurrence_type"],
+    "db": { "table": "client_billing_profile", "column": "recurrence_type" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "status_pagamento": {
+    "ui_labels": ["Status de Pagamento"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.payment_status"],
+    "api_fields": ["payment_status"],
+    "db": { "table": "client_billing_profile", "column": "payment_status" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+  "status_inadimplencia": {
+    "ui_labels": ["Status de Inadimplência"],
+    "areas": ["Carteira de Clientes (Cobrança)"],
+    "state_paths": ["form.delinquency_status"],
+    "api_fields": ["delinquency_status"],
+    "db": { "table": "client_billing_profile", "column": "delinquency_status" },
+    "relation": "client_billing_profile.client_id → clients.id",
+    "shared_mapping": false
+  },
+
+  "notas_conteudo": {
+    "ui_labels": ["Adicionar observação…"],
+    "areas": ["Carteira de Clientes (Notas)"],
+    "state_paths": ["newNote"],
+    "api_fields": ["content"],
+    "db": { "table": "client_notes", "column": "content" },
+    "relation": "client_notes.client_id → clients.id",
+    "shared_mapping": false
+  }
+}

@@ -1240,9 +1240,14 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
   const ep = row.energy_profile
   const lp = row.latest_proposal_profile
 
-  // Derive commercial fields prioritizing latest proposal payload, then energy profile fallback.
-  const hasIndicacao = Boolean(lp?.tem_indicacao || lp?.indicacao?.trim() || ep?.indicacao?.trim())
-  const indicacaoNome = lp?.indicacao?.trim() || ep?.indicacao?.trim() || ''
+  // Derive commercial fields prioritizing metadata (user-saved), then latest proposal, then energy profile.
+  const meta = row.metadata ?? {}
+  const metaTemIndicacao = meta.tem_indicacao as boolean | undefined
+  const metaIndicacaoNome = (meta.indicacao_nome as string | undefined)?.trim() || ''
+  const hasIndicacao = metaTemIndicacao != null
+    ? metaTemIndicacao
+    : Boolean(lp?.tem_indicacao || lp?.indicacao?.trim() || ep?.indicacao?.trim())
+  const indicacaoNome = metaIndicacaoNome || lp?.indicacao?.trim() || ep?.indicacao?.trim() || ''
   const validTipoRede: TipoRede[] = ['monofasico', 'bifasico', 'trifasico', 'nenhum']
   const resolvedTipoRede: TipoRede =
     lp?.tipo_rede && validTipoRede.includes(lp.tipo_rede as TipoRede)
@@ -1262,11 +1267,11 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
     // when the formatted field was not set (older records).
     documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
-    rg: (row.metadata?.rg as string | undefined) ?? '',
-    estadoCivil: (row.metadata?.estado_civil as string | undefined) ?? '',
-    nacionalidade: (row.metadata?.nacionalidade as string | undefined) ?? '',
-    profissao: (row.metadata?.profissao as string | undefined) ?? '',
-    representanteLegal: '',
+    rg: (meta.rg as string | undefined) ?? '',
+    estadoCivil: (meta.estado_civil as string | undefined) ?? '',
+    nacionalidade: (meta.nacionalidade as string | undefined) ?? '',
+    profissao: (meta.profissao as string | undefined) ?? '',
+    representanteLegal: (meta.representante_legal as string | undefined) ?? '',
     email: row.email ?? '',
     telefone: row.phone ?? '',
     cep: formatCep(row.cep ?? ''),
@@ -1277,11 +1282,15 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
     indicacaoNome: hasIndicacao ? indicacaoNome : '',
-    herdeiros: [''],
-    nomeSindico: '',
-    cpfSindico: '',
-    contatoSindico: '',
-    diaVencimento: '10',
+    herdeiros: (() => {
+      if (!Array.isArray(meta.herdeiros)) return ['']
+      const filtered = (meta.herdeiros as string[]).filter((h) => typeof h === 'string' && h.trim())
+      return filtered.length > 0 ? filtered : ['']
+    })(),
+    nomeSindico: (meta.nome_sindico as string | undefined) ?? '',
+    cpfSindico: (meta.cpf_sindico as string | undefined) ?? '',
+    contatoSindico: (meta.contato_sindico as string | undefined) ?? '',
+    diaVencimento: (meta.dia_vencimento as string | undefined) ?? '10',
   }
 
   // Build a partial proposal snapshot from the energy profile so that
@@ -16245,6 +16254,16 @@ export default function App() {
         ...(dados?.estadoCivil?.trim() ? { estado_civil: dados.estadoCivil.trim() } : {}),
         ...(dados?.nacionalidade?.trim() ? { nacionalidade: dados.nacionalidade.trim() } : {}),
         ...(dados?.profissao?.trim() ? { profissao: dados.profissao.trim() } : {}),
+        ...(dados?.representanteLegal?.trim() ? { representante_legal: dados.representanteLegal.trim() } : {}),
+        ...(Array.isArray(dados?.herdeiros) && dados.herdeiros.some((h) => typeof h === 'string' && h.trim())
+          ? { herdeiros: dados.herdeiros.map((h) => h.trim()).filter(Boolean) }
+          : {}),
+        ...(dados?.nomeSindico?.trim() ? { nome_sindico: dados.nomeSindico.trim() } : {}),
+        ...(dados?.cpfSindico?.trim() ? { cpf_sindico: dados.cpfSindico.trim() } : {}),
+        ...(dados?.contatoSindico?.trim() ? { contato_sindico: dados.contatoSindico.trim() } : {}),
+        ...(dados?.diaVencimento?.trim() ? { dia_vencimento: dados.diaVencimento.trim() } : {}),
+        ...(dados?.temIndicacao != null ? { tem_indicacao: dados.temIndicacao } : {}),
+        ...(dados?.indicacaoNome?.trim() ? { indicacao_nome: dados.indicacaoNome.trim() } : {}),
       },
     }
     const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot ?? null)

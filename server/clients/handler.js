@@ -19,6 +19,7 @@ import {
   getClientProposals,
   appendClientAuditLog,
   upsertClientEnergyProfile,
+  upsertClientUsinaConfig,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
@@ -88,7 +89,6 @@ function toClientWritePayload(body) {
   assign('system_kwp', body.system_kwp, body.systemKwp)
   assign('term_months', body.term_months, body.termMonths)
   assign('distribuidora', body.distribuidora)
-  assign('metadata', body.metadata)
 
   const parsedConsumption = parseNullableNumber(
     firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth),
@@ -96,6 +96,32 @@ function toClientWritePayload(body) {
   if (firstDefined(body.consumption_kwh_month, body.consumptionKwhMonth) !== undefined) {
     accepted.consumption_kwh_month = parsedConsumption
   }
+
+  // Usina fields are now persisted in the dedicated client_usina_config table
+  // (migration 0032). We still write them to metadata as a temporary fallback
+  // for environments where the migration hasn't been applied yet.
+  // The handler will additionally call upsertClientUsinaConfig() after save.
+  const usinaFields = {}
+  const usinaKeys = [
+    'potencia_modulo_wp', 'numero_modulos', 'modelo_modulo',
+    'modelo_inversor', 'tipo_instalacao', 'area_instalacao_m2',
+    'geracao_estimada_kwh',
+  ]
+  for (const key of usinaKeys) {
+    if (body[key] !== undefined) usinaFields[key] = body[key]
+  }
+
+  // Combine with any explicitly-provided metadata (temporary fallback)
+  const explicitMeta = body.metadata ?? null
+  if (Object.keys(usinaFields).length > 0 || explicitMeta) {
+    accepted.metadata = {
+      ...(typeof explicitMeta === 'object' && explicitMeta !== null ? explicitMeta : {}),
+      ...usinaFields,
+    }
+  }
+
+  // Expose usina fields separately so the handler can persist them in client_usina_config
+  accepted._usinaConfig = Object.keys(usinaFields).length > 0 ? usinaFields : null
 
   return accepted
 }
@@ -294,6 +320,15 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     if (body.energyProfile && typeof body.energyProfile === 'object') {
       await tryUpsertEnergyProfile(db.sql, newClient.id, body.energyProfile)
     }
+    // Persist usina fields in the dedicated client_usina_config table
+    if (mappedBody._usinaConfig) {
+      try {
+        await upsertClientUsinaConfig(db.sql, newClient.id, mappedBody._usinaConfig)
+      } catch (usinaErr) {
+        console.warn('[clients][create] upsertClientUsinaConfig failed (non-fatal):',
+          usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+      }
+    }
 
     logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: newClient.id })
     return sendJson(201, { data: normalizeClientResponse(newClient), deduplicated: false, idempotent: false })
@@ -417,6 +452,15 @@ export async function handleClientsRequest(req, res, ctx) {
         origin: 'online',
       })
       await appendClientAuditLog(db.sql, client.id, actor.userId, actor.email ?? null, 'created', null, client)
+      // Persist usina fields in the dedicated client_usina_config table
+      if (mappedBody._usinaConfig) {
+        try {
+          await upsertClientUsinaConfig(userSql, client.id, mappedBody._usinaConfig)
+        } catch (usinaErr) {
+          console.warn('[clients][create] upsertClientUsinaConfig failed (non-fatal):',
+            usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+        }
+      }
       logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: client.id })
       return sendJson(201, { data: normalizeClientResponse(client) })
     } catch (err) {
@@ -537,6 +581,25 @@ export async function handleClientByIdRequest(req, res, ctx) {
       }
       if (body.energyProfile && typeof body.energyProfile === 'object') {
         await tryUpsertEnergyProfile(userSql, updated.id, body.energyProfile)
+      }
+      // Auto-detect plano leasing fields and upsert energy profile.
+      // These are sent as top-level fields from the portfolio Plano tab.
+      const planoFields = {}
+      if (body.kwh_mes_contratado !== undefined) planoFields.kwh_contratado = body.kwh_mes_contratado
+      if (body.desconto_percentual !== undefined) planoFields.desconto_percentual = body.desconto_percentual
+      if (body.tarifa_atual !== undefined) planoFields.tarifa_atual = body.tarifa_atual
+      if (body.valor_mensalidade !== undefined) planoFields.mensalidade = body.valor_mensalidade
+      if (Object.keys(planoFields).length > 0) {
+        await tryUpsertEnergyProfile(userSql, updated.id, planoFields)
+      }
+      // Persist usina fields in the dedicated client_usina_config table
+      if (mappedBody._usinaConfig) {
+        try {
+          await upsertClientUsinaConfig(userSql, updated.id, mappedBody._usinaConfig)
+        } catch (usinaErr) {
+          console.warn('[clients][update] upsertClientUsinaConfig failed (non-fatal):',
+            usinaErr instanceof Error ? usinaErr.message : String(usinaErr))
+        }
       }
       logRoute('/api/clients/:id', { method: 'PUT', actorUserId: actor.userId, clientId, success: true })
       return sendJson(200, { data: normalizeClientResponse(updated) })

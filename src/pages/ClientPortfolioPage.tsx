@@ -924,7 +924,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
     area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
-    tipo_rede: '',
+    tipo_rede: client.tipo_rede ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
@@ -941,6 +941,10 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: ()
       area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
       geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
       system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+      // Persist tipo_rede via energy profile upsert
+      energyProfile: {
+        tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+      },
     }
     const ok = await updateClient(client.id, payload)
     if (ok) onSaved()
