@@ -77,12 +77,12 @@ export async function listPortfolioClients(sql, { search } = {}) {
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
         AND (
-          c.client_name     ILIKE ${like}
-          OR c.client_email ILIKE ${like}
-          OR c.client_city  ILIKE ${like}
+          c.client_name       ILIKE ${like}
+          OR c.client_email   ILIKE ${like}
+          OR c.client_city    ILIKE ${like}
           OR c.client_document ILIKE ${like}
-          OR c.client_phone ILIKE ${like}
-          OR c.uc_geradora  ILIKE ${like}
+          OR c.client_phone   ILIKE ${like}
+          OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
       ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
@@ -93,18 +93,331 @@ export async function listPortfolioClients(sql, { search } = {}) {
   return rows
 }
 
+function enrichPortfolioClientRow(row) {
+  if (!row) return null
+
+  const meta = row.metadata ?? {}
+
+  row.potencia_modulo_wp = row.usina_potencia_modulo_wp ?? meta.potencia_modulo_wp ?? null
+  row.numero_modulos = row.usina_numero_modulos ?? meta.numero_modulos ?? null
+  row.modelo_modulo = row.usina_modelo_modulo ?? meta.modelo_modulo ?? null
+  row.modelo_inversor = row.usina_modelo_inversor ?? meta.modelo_inversor ?? row.marca_inversor ?? null
+  row.tipo_instalacao = row.usina_tipo_instalacao ?? meta.tipo_instalacao ?? null
+  row.area_instalacao_m2 = row.usina_area_instalacao_m2 ?? meta.area_instalacao_m2 ?? null
+  row.geracao_estimada_kwh = row.usina_geracao_estimada_kwh ?? meta.geracao_estimada_kwh ?? null
+
+  // Expose plano fields from energy profile when available
+  row.kwh_mes_contratado = row.kwh_contratado ?? null
+
+  return row
+}
+
+function isCompatibilityError(err) {
+  const code = err?.code ?? null
+  return code === '42P01' || code === '42703'
+}
+
+function isEnergyProfileDependencyError(err) {
+  const message = err instanceof Error ? err.message : String(err)
+  const code = err?.code ?? null
+  if (code !== '42P01' && code !== '42703') return false
+
+  return (
+    message.includes('client_energy_profile') ||
+    message.includes('energy_profile_id') ||
+    message.includes('modalidade') ||
+    message.includes('tarifa_atual') ||
+    message.includes('desconto_percentual') ||
+    message.includes('mensalidade') ||
+    message.includes('prazo_meses') ||
+    message.includes('kwh_contratado') ||
+    message.includes('potencia_kwp') ||
+    message.includes('tipo_rede') ||
+    message.includes('marca_inversor') ||
+    message.includes('indicacao')
+  )
+}
+
 /**
  * Get a single portfolio client by client_id.
  * Source of truth: clients.in_portfolio.
- * LEFT JOINs the auxiliary portfolio tables so that saved contract, project,
- * billing, and energy profile data is returned in the same response.
  *
- * Two code paths:
- *   1. "full" — joins all auxiliary tables (requires migration 0029 + 0031).
- *   2. "fallback" — clients-only query when auxiliary tables are not yet provisioned (42P01).
+ * Strategy:
+ *   1. Try the full query with all auxiliary joins, including client_energy_profile.
+ *   2. If client_energy_profile is missing, retry WITHOUT that join but still keep
+ *      contract / project / billing / usina joins.
+ *   3. If other auxiliary tables/columns are missing, fall back to a clients-only query.
  */
 export async function getPortfolioClient(sql, clientId) {
+  const fullQuery = sql`
+    SELECT
+      c.id,
+      c.client_name                          AS name,
+      c.client_email                         AS email,
+      c.client_phone                         AS phone,
+      c.client_city                          AS city,
+      c.client_state                         AS state,
+      c.client_address                       AS address,
+      c.client_document                      AS document,
+      c.document_type,
+      c.consumption_kwh_month,
+      c.system_kwp,
+      c.term_months,
+      c.distribuidora,
+      c.uc_geradora                          AS uc,
+      c.uc_beneficiaria,
+      c.owner_user_id,
+      c.created_by_user_id,
+      c.created_at                           AS client_created_at,
+      c.updated_at                           AS client_updated_at,
+      c.in_portfolio                         AS is_converted_customer,
+      c.portfolio_exported_at                AS exported_to_portfolio_at,
+      c.portfolio_exported_by_user_id        AS exported_by_user_id,
+      c.metadata,
+
+      -- client_contracts
+      cc.id                                  AS contract_id,
+      cc.contract_type,
+      cc.contract_status,
+      cc.source_proposal_id,
+      cc.contract_signed_at,
+      cc.contract_start_date,
+      cc.billing_start_date,
+      cc.expected_billing_end_date,
+      cc.contractual_term_months,
+      cc.buyout_eligible,
+      cc.buyout_status,
+      cc.buyout_date,
+      cc.buyout_amount_reference,
+      cc.notes                               AS contract_notes,
+      cc.consultant_id,
+      cc.consultant_name,
+      cc.contract_file_name,
+      cc.contract_file_url,
+      cc.contract_file_type,
+
+      -- client_project_status
+      cp.id                                  AS project_id,
+      cp.project_status,
+      cp.installation_status,
+      cp.engineering_status,
+      cp.homologation_status,
+      cp.commissioning_status,
+      cp.commissioning_date,
+      cp.first_injection_date,
+      cp.first_generation_date,
+      cp.expected_go_live_date,
+      cp.integrator_name,
+      cp.engineer_name,
+      cp.timeline_velocity_score,
+      cp.notes                               AS project_notes,
+
+      -- client_billing_profile
+      cb.id                                  AS billing_id,
+      cb.due_day,
+      cb.reading_day,
+      cb.first_billing_date,
+      cb.expected_last_billing_date,
+      cb.recurrence_type,
+      cb.payment_status                      AS billing_payment_status,
+      cb.delinquency_status,
+      cb.collection_stage,
+      cb.auto_reminder_enabled,
+      cb.valor_mensalidade,
+      cb.commissioning_date                  AS commissioning_date_billing,
+
+      -- client_energy_profile
+      ep.id                                  AS energy_profile_id,
+      ep.modalidade,
+      ep.tarifa_atual,
+      ep.desconto_percentual,
+      ep.mensalidade,
+      ep.prazo_meses,
+      ep.kwh_contratado,
+      ep.potencia_kwp,
+      ep.tipo_rede,
+      ep.marca_inversor,
+      ep.indicacao,
+
+      -- client_usina_config
+      cu.id                                  AS usina_id,
+      cu.potencia_modulo_wp                  AS usina_potencia_modulo_wp,
+      cu.numero_modulos                      AS usina_numero_modulos,
+      cu.modelo_modulo                       AS usina_modelo_modulo,
+      cu.modelo_inversor                     AS usina_modelo_inversor,
+      cu.tipo_instalacao                     AS usina_tipo_instalacao,
+      cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
+      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
+
+    FROM public.clients c
+    LEFT JOIN public.client_contracts cc
+      ON cc.client_id = c.id
+    LEFT JOIN public.client_project_status cp
+      ON cp.client_id = c.id
+    LEFT JOIN public.client_billing_profile cb
+      ON cb.client_id = c.id
+    LEFT JOIN public.client_energy_profile ep
+      ON ep.client_id = c.id
+    LEFT JOIN public.client_usina_config cu
+      ON cu.client_id = c.id
+    WHERE c.id = ${clientId}
+      AND c.in_portfolio = true
+      AND c.deleted_at IS NULL
+    ORDER BY cc.updated_at DESC NULLS LAST
+    LIMIT 1
+  `
+
+  const withoutEnergyProfileQuery = sql`
+    SELECT
+      c.id,
+      c.client_name                          AS name,
+      c.client_email                         AS email,
+      c.client_phone                         AS phone,
+      c.client_city                          AS city,
+      c.client_state                         AS state,
+      c.client_address                       AS address,
+      c.client_document                      AS document,
+      c.document_type,
+      c.consumption_kwh_month,
+      c.system_kwp,
+      c.term_months,
+      c.distribuidora,
+      c.uc_geradora                          AS uc,
+      c.uc_beneficiaria,
+      c.owner_user_id,
+      c.created_by_user_id,
+      c.created_at                           AS client_created_at,
+      c.updated_at                           AS client_updated_at,
+      c.in_portfolio                         AS is_converted_customer,
+      c.portfolio_exported_at                AS exported_to_portfolio_at,
+      c.portfolio_exported_by_user_id        AS exported_by_user_id,
+      c.metadata,
+
+      -- client_contracts
+      cc.id                                  AS contract_id,
+      cc.contract_type,
+      cc.contract_status,
+      cc.source_proposal_id,
+      cc.contract_signed_at,
+      cc.contract_start_date,
+      cc.billing_start_date,
+      cc.expected_billing_end_date,
+      cc.contractual_term_months,
+      cc.buyout_eligible,
+      cc.buyout_status,
+      cc.buyout_date,
+      cc.buyout_amount_reference,
+      cc.notes                               AS contract_notes,
+      cc.consultant_id,
+      cc.consultant_name,
+      cc.contract_file_name,
+      cc.contract_file_url,
+      cc.contract_file_type,
+
+      -- client_project_status
+      cp.id                                  AS project_id,
+      cp.project_status,
+      cp.installation_status,
+      cp.engineering_status,
+      cp.homologation_status,
+      cp.commissioning_status,
+      cp.commissioning_date,
+      cp.first_injection_date,
+      cp.first_generation_date,
+      cp.expected_go_live_date,
+      cp.integrator_name,
+      cp.engineer_name,
+      cp.timeline_velocity_score,
+      cp.notes                               AS project_notes,
+
+      -- client_billing_profile
+      cb.id                                  AS billing_id,
+      cb.due_day,
+      cb.reading_day,
+      cb.first_billing_date,
+      cb.expected_last_billing_date,
+      cb.recurrence_type,
+      cb.payment_status                      AS billing_payment_status,
+      cb.delinquency_status,
+      cb.collection_stage,
+      cb.auto_reminder_enabled,
+      cb.valor_mensalidade,
+      cb.commissioning_date                  AS commissioning_date_billing,
+
+      -- fake client_energy_profile aliases for compatibility
+      NULL::bigint                           AS energy_profile_id,
+      NULL::text                             AS modalidade,
+      NULL::numeric                          AS tarifa_atual,
+      NULL::numeric                          AS desconto_percentual,
+      NULL::numeric                          AS mensalidade,
+      NULL::integer                          AS prazo_meses,
+      NULL::numeric                          AS kwh_contratado,
+      NULL::numeric                          AS potencia_kwp,
+      NULL::text                             AS tipo_rede,
+      NULL::text                             AS marca_inversor,
+      NULL::text                             AS indicacao,
+
+      -- client_usina_config
+      cu.id                                  AS usina_id,
+      cu.potencia_modulo_wp                  AS usina_potencia_modulo_wp,
+      cu.numero_modulos                      AS usina_numero_modulos,
+      cu.modelo_modulo                       AS usina_modelo_modulo,
+      cu.modelo_inversor                     AS usina_modelo_inversor,
+      cu.tipo_instalacao                     AS usina_tipo_instalacao,
+      cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
+      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
+
+    FROM public.clients c
+    LEFT JOIN public.client_contracts cc
+      ON cc.client_id = c.id
+    LEFT JOIN public.client_project_status cp
+      ON cp.client_id = c.id
+    LEFT JOIN public.client_billing_profile cb
+      ON cb.client_id = c.id
+    LEFT JOIN public.client_usina_config cu
+      ON cu.client_id = c.id
+    WHERE c.id = ${clientId}
+      AND c.in_portfolio = true
+      AND c.deleted_at IS NULL
+    ORDER BY cc.updated_at DESC NULLS LAST
+    LIMIT 1
+  `
+
   try {
+    const rows = await fullQuery
+    const row = rows[0] ?? null
+    return enrichPortfolioClientRow(row)
+  } catch (err) {
+    if (isEnergyProfileDependencyError(err)) {
+      console.warn('[portfolio][get] client_energy_profile unavailable — retrying without energy profile join', {
+        clientId,
+        code: err?.code ?? null,
+        message: err instanceof Error ? err.message : String(err),
+      })
+
+      try {
+        const rows = await withoutEnergyProfileQuery
+        const row = rows[0] ?? null
+        return enrichPortfolioClientRow(row)
+      } catch (retryErr) {
+        if (!isCompatibilityError(retryErr)) throw retryErr
+
+        console.warn('[portfolio][get] auxiliary tables still incompatible after energy-profile retry — falling back to clients-only query', {
+          clientId,
+          code: retryErr?.code ?? null,
+          message: retryErr instanceof Error ? retryErr.message : String(retryErr),
+        })
+      }
+    } else if (!isCompatibilityError(err)) {
+      throw err
+    } else {
+      console.warn('[portfolio][get] auxiliary tables not provisioned — falling back to clients-only query', {
+        clientId,
+        code: err?.code ?? null,
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+
     const rows = await sql`
       SELECT
         c.id,
@@ -129,161 +442,15 @@ export async function getPortfolioClient(sql, clientId) {
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
         c.portfolio_exported_by_user_id        AS exported_by_user_id,
-        c.metadata,
-
-        -- client_contracts
-        cc.id                                  AS contract_id,
-        cc.contract_type,
-        cc.contract_status,
-        cc.source_proposal_id,
-        cc.contract_signed_at,
-        cc.contract_start_date,
-        cc.billing_start_date,
-        cc.expected_billing_end_date,
-        cc.contractual_term_months,
-        cc.buyout_eligible,
-        cc.buyout_status,
-        cc.buyout_date,
-        cc.buyout_amount_reference,
-        cc.notes                               AS contract_notes,
-        cc.consultant_id,
-        cc.consultant_name,
-        cc.contract_file_name,
-        cc.contract_file_url,
-        cc.contract_file_type,
-
-        -- client_project_status
-        cp.id                                  AS project_id,
-        cp.project_status,
-        cp.installation_status,
-        cp.engineering_status,
-        cp.homologation_status,
-        cp.commissioning_status,
-        cp.commissioning_date,
-        cp.first_injection_date,
-        cp.first_generation_date,
-        cp.expected_go_live_date,
-        cp.integrator_name,
-        cp.engineer_name,
-        cp.timeline_velocity_score,
-        cp.notes                               AS project_notes,
-
-        -- client_billing_profile
-        cb.id                                  AS billing_id,
-        cb.due_day,
-        cb.reading_day,
-        cb.first_billing_date,
-        cb.expected_last_billing_date,
-        cb.recurrence_type,
-        cb.payment_status                      AS billing_payment_status,
-        cb.delinquency_status,
-        cb.collection_stage,
-        cb.auto_reminder_enabled,
-        cb.valor_mensalidade,
-        cb.commissioning_date                  AS commissioning_date_billing,
-
-        -- client_energy_profile
-        ep.id                                  AS energy_profile_id,
-        ep.modalidade,
-        ep.tarifa_atual,
-        ep.desconto_percentual,
-        ep.mensalidade,
-        ep.prazo_meses,
-        ep.kwh_contratado,
-        ep.potencia_kwp,
-        ep.tipo_rede,
-        ep.marca_inversor,
-        ep.indicacao,
-
-        -- client_usina_config (migration 0032)
-        cu.id                                  AS usina_id,
-        cu.potencia_modulo_wp                  AS usina_potencia_modulo_wp,
-        cu.numero_modulos                      AS usina_numero_modulos,
-        cu.modelo_modulo                       AS usina_modelo_modulo,
-        cu.modelo_inversor                     AS usina_modelo_inversor,
-        cu.tipo_instalacao                     AS usina_tipo_instalacao,
-        cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
-        cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
-
+        c.metadata
       FROM public.clients c
-      LEFT JOIN public.client_contracts cc
-        ON cc.client_id = c.id
-      LEFT JOIN public.client_project_status cp
-        ON cp.client_id = c.id
-      LEFT JOIN public.client_billing_profile cb
-        ON cb.client_id = c.id
-      LEFT JOIN public.client_energy_profile ep
-        ON ep.client_id = c.id
-      LEFT JOIN public.client_usina_config cu
-        ON cu.client_id = c.id
       WHERE c.id = ${clientId}
         AND c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY cc.updated_at DESC NULLS LAST
       LIMIT 1
     `
     const row = rows[0] ?? null
-    if (!row) return null
-
-    // Expose usina fields — prefer client_usina_config (structured table),
-    // fall back to metadata JSONB for environments where migration 0032
-    // has not been applied yet.
-    const meta = row.metadata ?? {}
-    row.potencia_modulo_wp = row.usina_potencia_modulo_wp ?? meta.potencia_modulo_wp ?? null
-    row.numero_modulos = row.usina_numero_modulos ?? meta.numero_modulos ?? null
-    row.modelo_modulo = row.usina_modelo_modulo ?? meta.modelo_modulo ?? null
-    row.modelo_inversor = row.usina_modelo_inversor ?? meta.modelo_inversor ?? row.marca_inversor ?? null
-    row.tipo_instalacao = row.usina_tipo_instalacao ?? meta.tipo_instalacao ?? null
-    row.area_instalacao_m2 = row.usina_area_instalacao_m2 ?? meta.area_instalacao_m2 ?? null
-    row.geracao_estimada_kwh = row.usina_geracao_estimada_kwh ?? meta.geracao_estimada_kwh ?? null
-
-    // Expose plano fields from energy profile
-    row.kwh_mes_contratado = row.kwh_contratado ?? null
-
-    return row
-  } catch (err) {
-    // Fallback: if auxiliary tables don't exist yet (42P01 = undefined_table)
-    // or columns are missing (42703), use clients-only query.
-    const code = err?.code ?? null
-    if (code !== '42P01' && code !== '42703') throw err
-
-    console.warn('[portfolio][get] auxiliary tables not provisioned — falling back to clients-only query', {
-      clientId,
-      code,
-      message: err instanceof Error ? err.message : String(err),
-    })
-
-    const rows = await sql`
-      SELECT
-        c.id,
-        c.client_name                          AS name,
-        c.client_email                         AS email,
-        c.client_phone                         AS phone,
-        c.client_city                          AS city,
-        c.client_state                         AS state,
-        c.client_address                       AS address,
-        c.client_document                      AS document,
-        c.document_type,
-        c.consumption_kwh_month,
-        c.system_kwp,
-        c.term_months,
-        c.distribuidora,
-        c.uc_geradora                          AS uc,
-        c.uc_beneficiaria,
-        c.owner_user_id,
-        c.created_by_user_id,
-        c.created_at                           AS client_created_at,
-        c.updated_at                           AS client_updated_at,
-        c.in_portfolio                         AS is_converted_customer,
-        c.portfolio_exported_at                AS exported_to_portfolio_at,
-        c.portfolio_exported_by_user_id        AS exported_by_user_id
-      FROM public.clients c
-      WHERE c.id = ${clientId}
-        AND c.in_portfolio = true
-        AND c.deleted_at IS NULL
-      LIMIT 1
-    `
-    return rows[0] ?? null
+    return enrichPortfolioClientRow(row)
   }
 }
 
@@ -333,10 +500,10 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
   } catch (err) {
     const code = err?.code ?? null
     const message = err instanceof Error ? err.message : String(err)
-    // 42703 = undefined_column: retry with minimal SET when portfolio columns are absent.
     const isPortfolioColumnMissing =
       code === '42703' &&
       (message.includes('portfolio_exported_at') || message.includes('portfolio_exported_by_user_id'))
+
     if (!isPortfolioColumnMissing) throw err
 
     console.warn('[portfolio-export] portfolio columns absent — retrying with minimal UPDATE', {
@@ -344,6 +511,7 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
       code,
       message,
     })
+
     const rows = await sql`
       UPDATE public.clients
       SET
@@ -382,8 +550,8 @@ export async function updateClientLifecycle(sql, clientId, fields) {
  */
 export async function upsertClientContract(sql, clientId, fields) {
   const now = new Date().toISOString()
+
   if (fields.id) {
-    // Update existing contract
     const rows = await sql`
       UPDATE public.client_contracts
       SET
@@ -406,12 +574,13 @@ export async function upsertClientContract(sql, clientId, fields) {
         contract_file_url          = COALESCE(${fields.contract_file_url ?? null}, contract_file_url),
         contract_file_type         = COALESCE(${fields.contract_file_type ?? null}, contract_file_type),
         updated_at                 = ${now}
-      WHERE id = ${fields.id} AND client_id = ${clientId}
+      WHERE id = ${fields.id}
+        AND client_id = ${clientId}
       RETURNING *
     `
     return rows[0] ?? null
   }
-  // Insert new contract
+
   const rows = await sql`
     INSERT INTO public.client_contracts (
       client_id, source_proposal_id, contract_type, contract_status,
@@ -446,7 +615,7 @@ export async function upsertClientContract(sql, clientId, fields) {
     )
     RETURNING *
   `
-  return rows[0]
+  return rows[0] ?? null
 }
 
 /**
@@ -496,7 +665,7 @@ export async function upsertClientProjectStatus(sql, clientId, fields) {
       updated_at                 = ${now}
     RETURNING *
   `
-  return rows[0]
+  return rows[0] ?? null
 }
 
 /**
@@ -546,7 +715,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
       updated_at                 = ${now}
     RETURNING *
   `
-  return rows[0]
+  return rows[0] ?? null
 }
 
 /**
@@ -554,7 +723,8 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
  */
 export async function getClientNotes(sql, clientId) {
   const rows = await sql`
-    SELECT * FROM public.client_notes
+    SELECT *
+    FROM public.client_notes
     WHERE client_id = ${clientId}
     ORDER BY created_at DESC
     LIMIT 100
@@ -567,7 +737,9 @@ export async function getClientNotes(sql, clientId) {
  */
 export async function addClientNote(sql, clientId, { entry_type, title, content, created_by_user_id }) {
   const rows = await sql`
-    INSERT INTO public.client_notes (client_id, entry_type, title, content, created_by_user_id, created_at)
+    INSERT INTO public.client_notes (
+      client_id, entry_type, title, content, created_by_user_id, created_at
+    )
     VALUES (
       ${clientId},
       ${entry_type ?? 'note'},
