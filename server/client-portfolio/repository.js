@@ -226,9 +226,6 @@ export async function getPortfolioClient(sql, clientId) {
     // Expose plano fields from energy profile
     row.kwh_mes_contratado = row.kwh_contratado ?? null
 
-    // Clean up raw metadata from response to avoid leaking internals
-    delete row.metadata
-
     return row
   } catch (err) {
     // Fallback: if auxiliary tables don't exist yet (42P01 = undefined_table)
@@ -490,6 +487,8 @@ export async function upsertClientProjectStatus(sql, clientId, fields) {
 
 /**
  * Upsert client_billing_profile (one row per client).
+ * Accepts both `commissioning_date` (DB column name) and
+ * `commissioning_date_billing` (frontend form field name) for the same column.
  */
 export async function upsertClientBillingProfile(sql, clientId, fields) {
   const now = new Date().toISOString()
