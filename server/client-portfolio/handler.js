@@ -465,6 +465,7 @@ export async function handlePortfolioNotesRequest(req, res, { method, clientId, 
       const note = await addClientNote(sql, clientId, {
         ...body,
         created_by_user_id: actor.userId,
+        created_by_name: actor.displayName ?? actor.email ?? null,
       })
       sendJson(201, { data: note })
     } catch (err) {

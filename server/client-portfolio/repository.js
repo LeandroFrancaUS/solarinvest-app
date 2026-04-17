@@ -735,22 +735,45 @@ export async function getClientNotes(sql, clientId) {
 /**
  * Add a note for a portfolio client.
  */
-export async function addClientNote(sql, clientId, { entry_type, title, content, created_by_user_id }) {
-  const rows = await sql`
-    INSERT INTO public.client_notes (
-      client_id, entry_type, title, content, created_by_user_id, created_at
-    )
-    VALUES (
-      ${clientId},
-      ${entry_type ?? 'note'},
-      ${title ?? null},
-      ${content},
-      ${created_by_user_id ?? null},
-      now()
-    )
-    RETURNING *
-  `
-  return rows[0]
+export async function addClientNote(sql, clientId, { entry_type, title, content, created_by_user_id, created_by_name }) {
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_notes (
+        client_id, entry_type, title, content, created_by_user_id, created_by_name, created_at
+      )
+      VALUES (
+        ${clientId},
+        ${entry_type ?? 'note'},
+        ${title ?? null},
+        ${content},
+        ${created_by_user_id ?? null},
+        ${created_by_name ?? null},
+        now()
+      )
+      RETURNING *
+    `
+    return rows[0]
+  } catch (err) {
+    // Graceful fallback if created_by_name column does not exist yet
+    if (err?.code === '42703' && String(err?.message ?? '').includes('created_by_name')) {
+      const rows = await sql`
+        INSERT INTO public.client_notes (
+          client_id, entry_type, title, content, created_by_user_id, created_at
+        )
+        VALUES (
+          ${clientId},
+          ${entry_type ?? 'note'},
+          ${title ?? null},
+          ${content},
+          ${created_by_user_id ?? null},
+          now()
+        )
+        RETURNING *
+      `
+      return rows[0]
+    }
+    throw err
+  }
 }
 
 /**

@@ -150,6 +150,7 @@ export interface ClientNote {
   title: string | null
   content: string
   created_by_user_id: string | null
+  created_by_name: string | null
   created_at: string
 }
 
