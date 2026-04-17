@@ -4,8 +4,8 @@
 // Role source-of-truth: Stack Auth native permissions (primary) + DB role (fallback).
 // Precedence (highest → lowest):
 //   role_admin      → Administrador com acesso total ao sistema
-//   role_financeiro → Acesso financeiro (read-only de clientes e propostas)
 //   role_office     → Acesso irrestrito a todos os clientes e propostas (leitura e escrita)
+//   role_financeiro → Acesso financeiro (read-only de clientes e propostas)
 //   role_comercial  → Usuário comum (acesso a clientes e propostas próprias)
 //
 // A request with none of these permissions is rejected with 403.
@@ -28,9 +28,9 @@ const BOOTSTRAP_ADMIN_USER_ID = getBootstrapAdminUserId()
  * Roles are determined by Stack Auth permissions (primary source) with a
  * DB role fallback for the admin role:
  *   isAdmin      → has role_admin (Stack Auth) OR role='admin' in app_user_access DB (fallback)
- *   isComercial  → has role_comercial (but not role_admin)
- *   isOffice     → has role_office (but not role_admin or role_comercial)
- *   isFinanceiro → has role_financeiro (but not role_admin, role_comercial, or role_office)
+ *   isOffice     → has role_office (but not role_admin)
+ *   isFinanceiro → has role_financeiro (but not role_admin or role_office)
+ *   isComercial  → has role_comercial (but not role_admin, role_office, or role_financeiro)
  *
  * The DB fallback for admin handles the case where the Stack Auth JWT is stale
  * (permission was recently granted but the access token has not yet been refreshed)
@@ -88,12 +88,14 @@ export async function resolveActor(req) {
     (appUser.auth_provider_user_id === BOOTSTRAP_ADMIN_USER_ID || appUser.id === BOOTSTRAP_ADMIN_USER_ID) &&
     isApproved
 
-  // Precedence: admin > financeiro > office > comercial
+  // Precedence: admin > office > financeiro > comercial
   // When a user holds multiple permissions the highest-privilege one wins.
+  // office takes priority over financeiro because office grants write access
+  // while financeiro is read-only — a user with both roles should retain write access.
   const resolvedAdmin      = isAdmin || dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin
-  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
-  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
-  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+  const resolvedOffice     = !resolvedAdmin && isOffice
+  const resolvedFinanceiro = !resolvedAdmin && !resolvedOffice && isFinanceiro
+  const resolvedComercial  = !resolvedAdmin && !resolvedOffice && !resolvedFinanceiro && isComercial
 
   if (dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin) {
     console.info('[RBAC] resolveActor: using admin fallback', {
@@ -109,8 +111,8 @@ export async function resolveActor(req) {
     email: appUser.email ?? null,
     displayName: appUser.full_name ?? null,
     isAdmin: resolvedAdmin,
-    isFinanceiro: resolvedFinanceiro,
     isOffice: resolvedOffice,
+    isFinanceiro: resolvedFinanceiro,
     isComercial: resolvedComercial,
     hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
   }
@@ -120,16 +122,16 @@ export async function resolveActor(req) {
  * Returns the canonical role string for an actor — used to set
  * app.current_user_role in PostgreSQL session config via createUserScopedSql.
  *
- * Precedence: admin > financeiro > office > comercial
+ * Precedence: admin > office > financeiro > comercial
  *
  * @param {Object} actor - resolved actor from resolveActor()
- * @returns {string|null} 'role_admin' | 'role_financeiro' | 'role_office' | 'role_comercial' | null
+ * @returns {string|null} 'role_admin' | 'role_office' | 'role_financeiro' | 'role_comercial' | null
  */
 export function actorRole(actor) {
   if (!actor) return null
   if (actor.isAdmin)      return 'role_admin'
-  if (actor.isFinanceiro) return 'role_financeiro'
   if (actor.isOffice)     return 'role_office'
+  if (actor.isFinanceiro) return 'role_financeiro'
   if (actor.isComercial)  return 'role_comercial'
   return null
 }

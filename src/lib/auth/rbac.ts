@@ -12,11 +12,11 @@ import { PERMISSIONS } from './permissions'
 
 export interface StackRbacState {
   isAdmin: boolean
-  /** True when user has role_comercial (and not role_admin). */
+  /** True when user has role_comercial (and not role_admin, role_office, or role_financeiro). */
   isComercial: boolean
-  /** True when user has role_office (and not role_admin or role_comercial). */
+  /** True when user has role_office (and not role_admin). */
   isOffice: boolean
-  /** True when user has role_financeiro (and not role_admin, role_comercial, or role_office). */
+  /** True when user has role_financeiro (and not role_admin or role_office). */
   isFinanceiro: boolean
   /** Human-readable role label in Portuguese. */
   role: string
@@ -114,15 +114,15 @@ export function useStackRbac(): StackRbacState {
       ]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
-        const resolvedFinanceiro = !isAdminPerm && isFinanceiroPerm
-        const resolvedOffice = !isAdminPerm && !resolvedFinanceiro && isOfficePerm
-        const resolvedComercial = !isAdminPerm && !resolvedFinanceiro && !resolvedOffice && isComercialPerm
+        const resolvedOffice = !isAdminPerm && isOfficePerm
+        const resolvedFinanceiro = !isAdminPerm && !resolvedOffice && isFinanceiroPerm
+        const resolvedComercial = !isAdminPerm && !resolvedOffice && !resolvedFinanceiro && isComercialPerm
         const role = resolvedAdmin
           ? 'Administrador'
-          : resolvedFinanceiro
-            ? 'Financeiro'
-            : resolvedOffice
-              ? 'Office'
+          : resolvedOffice
+            ? 'Office'
+            : resolvedFinanceiro
+              ? 'Financeiro'
               : resolvedComercial
                 ? 'Comercial'
                 : 'Usuário'
