@@ -20243,7 +20243,9 @@ export default function App() {
 
   // role_financeiro is read-only: no save, no delete actions allowed in the UI.
   // The backend enforces this regardless, but hiding the buttons improves UX.
-  const isProposalReadOnly = isFinanceiro && !isAdmin
+  // Explicitly exclude isOffice — users with both office+financeiro should have write access
+  // because office grants write permissions and takes precedence over financeiro.
+  const isProposalReadOnly = isFinanceiro && !isAdmin && !isOffice
   const podeSalvarProposta = (activeTab === 'leasing' || activeTab === 'vendas') && !isProposalReadOnly
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {

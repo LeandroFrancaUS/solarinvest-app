@@ -18,20 +18,23 @@ import { syncUserProfile } from './userProfileSync.js'
 /**
  * Derives the single primary role from the list of Stack permissions.
  *
- * Priority: admin > financeiro > office > comercial > unknown
+ * Priority: admin > office > financeiro > comercial > unknown
+ *
+ * office takes priority over financeiro because office grants write access
+ * while financeiro is read-only — a user with both roles should retain write access.
  *
  * The highest-privilege role is returned for display / label purposes.
  * Capability checks should use deriveCapabilities(permissions) directly so
  * that union rules across all assigned roles are respected.
  *
  * @param {string[]} permissions
- * @returns {'role_admin'|'role_financeiro'|'role_office'|'role_comercial'|'unknown'}
+ * @returns {'role_admin'|'role_office'|'role_financeiro'|'role_comercial'|'unknown'}
  */
 export function derivePrimaryRole(permissions) {
   if (!Array.isArray(permissions)) return 'unknown'
   if (permissions.includes('role_admin')) return 'role_admin'
-  if (permissions.includes('role_financeiro')) return 'role_financeiro'
   if (permissions.includes('role_office')) return 'role_office'
+  if (permissions.includes('role_financeiro')) return 'role_financeiro'
   if (permissions.includes('role_comercial')) return 'role_comercial'
   return 'unknown'
 }

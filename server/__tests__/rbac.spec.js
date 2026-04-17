@@ -14,8 +14,8 @@ import { stackPermToDbRole } from '../auth/roleMapping.js'
 function derivePrimaryRole(permissions) {
   if (!Array.isArray(permissions)) return 'unknown'
   if (permissions.includes('role_admin')) return 'role_admin'
-  if (permissions.includes('role_financeiro')) return 'role_financeiro'
   if (permissions.includes('role_office')) return 'role_office'
+  if (permissions.includes('role_financeiro')) return 'role_financeiro'
   if (permissions.includes('role_comercial')) return 'role_comercial'
   return 'unknown'
 }
@@ -75,8 +75,8 @@ describe('derivePrimaryRole', () => {
     expect(derivePrimaryRole(['role_financeiro', 'role_admin', 'role_comercial', 'role_office'])).toBe('role_admin')
   })
 
-  it('financeiro wins over office and comercial', () => {
-    expect(derivePrimaryRole(['role_financeiro', 'role_comercial', 'role_office'])).toBe('role_financeiro')
+  it('office wins over financeiro and comercial', () => {
+    expect(derivePrimaryRole(['role_financeiro', 'role_comercial', 'role_office'])).toBe('role_office')
   })
 })
 
@@ -353,13 +353,13 @@ describe('last-admin protection rule', () => {
 // ─── actorRole() helper ───────────────────────────────────────────────────────
 // Inline actorRole to mirror server/proposals/permissions.js without importing
 // modules that have transitive server-only dependencies.
-// Precedence: admin > financeiro > office > comercial
+// Precedence: admin > office > financeiro > comercial
 
 function actorRole(actor) {
   if (!actor) return null
   if (actor.isAdmin)      return 'role_admin'
-  if (actor.isFinanceiro) return 'role_financeiro'
   if (actor.isOffice)     return 'role_office'
+  if (actor.isFinanceiro) return 'role_financeiro'
   if (actor.isComercial)  return 'role_comercial'
   return null
 }
@@ -392,44 +392,44 @@ describe('actorRole — canonical role string derivation', () => {
 
 // ─── resolveActor role precedence ────────────────────────────────────────────
 // Inline the precedence logic from server/proposals/permissions.js resolveActor.
-// Precedence: admin > financeiro > office > comercial
+// Precedence: admin > office > financeiro > comercial
 
 function resolveActorFlags(isAdmin, isFinanceiro, isOffice, isComercial) {
   const resolvedAdmin      = isAdmin
-  const resolvedFinanceiro = !resolvedAdmin && isFinanceiro
-  const resolvedOffice     = !resolvedAdmin && !resolvedFinanceiro && isOffice
-  const resolvedComercial  = !resolvedAdmin && !resolvedFinanceiro && !resolvedOffice && isComercial
+  const resolvedOffice     = !resolvedAdmin && isOffice
+  const resolvedFinanceiro = !resolvedAdmin && !resolvedOffice && isFinanceiro
+  const resolvedComercial  = !resolvedAdmin && !resolvedOffice && !resolvedFinanceiro && isComercial
   return {
     isAdmin: resolvedAdmin,
-    isFinanceiro: resolvedFinanceiro,
     isOffice: resolvedOffice,
+    isFinanceiro: resolvedFinanceiro,
     isComercial: resolvedComercial,
     hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
   }
 }
 
-describe('resolveActor role precedence (admin > financeiro > office > comercial)', () => {
+describe('resolveActor role precedence (admin > office > financeiro > comercial)', () => {
   it('admin wins when all roles present', () => {
     const r = resolveActorFlags(true, true, true, true)
     expect(r.isAdmin).toBe(true)
-    expect(r.isFinanceiro).toBe(false)
     expect(r.isOffice).toBe(false)
+    expect(r.isFinanceiro).toBe(false)
     expect(r.isComercial).toBe(false)
   })
 
-  it('financeiro wins over office and comercial', () => {
+  it('office wins over financeiro and comercial', () => {
     const r = resolveActorFlags(false, true, true, true)
     expect(r.isAdmin).toBe(false)
-    expect(r.isFinanceiro).toBe(true)
-    expect(r.isOffice).toBe(false)
+    expect(r.isOffice).toBe(true)
+    expect(r.isFinanceiro).toBe(false)
     expect(r.isComercial).toBe(false)
   })
 
-  it('office wins over comercial only', () => {
-    const r = resolveActorFlags(false, false, true, true)
+  it('financeiro wins over comercial only', () => {
+    const r = resolveActorFlags(false, true, false, true)
     expect(r.isAdmin).toBe(false)
-    expect(r.isFinanceiro).toBe(false)
-    expect(r.isOffice).toBe(true)
+    expect(r.isOffice).toBe(false)
+    expect(r.isFinanceiro).toBe(true)
     expect(r.isComercial).toBe(false)
   })
 
