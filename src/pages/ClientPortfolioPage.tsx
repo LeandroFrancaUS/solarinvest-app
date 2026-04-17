@@ -277,6 +277,22 @@ function EditarTab({
     term_months: client.term_months != null ? String(client.term_months) : '',
   })
 
+  const resetForm = () => setForm({
+    client_name: client.name ?? '',
+    client_document: client.document ?? '',
+    client_phone: client.phone ?? '',
+    client_email: client.email ?? '',
+    client_city: client.city ?? '',
+    client_state: client.state ?? '',
+    client_address: client.address ?? '',
+    distribuidora: client.distribuidora ?? '',
+    uc_geradora: client.uc ?? '',
+    uc_beneficiaria: client.uc_beneficiaria ?? '',
+    consumption_kwh_month: client.consumption_kwh_month != null ? String(client.consumption_kwh_month) : '',
+    system_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
+    term_months: client.term_months != null ? String(client.term_months) : '',
+  })
+
   async function handleSave() {
     setSaving(true)
     try {
@@ -422,7 +438,7 @@ function EditarTab({
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>
@@ -464,6 +480,25 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [form, setForm] = useState({
+    contract_type: client.contract_type ?? 'leasing',
+    contract_status: client.contract_status ?? 'draft',
+    source_proposal_id: client.source_proposal_id ?? '',
+    contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
+    contract_start_date: client.contract_start_date?.slice(0, 10) ?? '',
+    billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
+    expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
+    contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
+    buyout_eligible: client.buyout_eligible ?? true,
+    buyout_status: client.buyout_status ?? '',
+    buyout_date: client.buyout_date?.slice(0, 10) ?? '',
+    buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
+    contract_notes: client.contract_notes ?? '',
+    consultant_id: client.consultant_id ?? '',
+    consultant_name: client.consultant_name ?? '',
+    contract_file_name: client.contract_file_name ?? '',
+  })
+
+  const resetForm = () => setForm({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
@@ -675,7 +710,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>
@@ -720,6 +755,18 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [form, setForm] = useState({
+    project_status: client.project_status ?? 'pending',
+    installation_status: client.installation_status ?? '',
+    engineering_status: client.engineering_status ?? '',
+    homologation_status: client.homologation_status ?? '',
+    commissioning_status: client.commissioning_status ?? '',
+    commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
+    integrator_name: client.integrator_name ?? 'Solarinvest',
+    engineer_name: client.engineer_name ?? 'Tiago Souza',
+    project_notes: client.project_notes ?? '',
+  })
+
+  const resetForm = () => setForm({
     project_status: client.project_status ?? 'pending',
     installation_status: client.installation_status ?? '',
     engineering_status: client.engineering_status ?? '',
@@ -875,7 +922,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>
@@ -915,6 +962,18 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [form, setForm] = useState({
+    due_day: client.due_day != null ? String(client.due_day) : '5',
+    reading_day: client.reading_day != null ? String(client.reading_day) : '',
+    first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
+    expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
+    recurrence_type: client.recurrence_type ?? 'monthly',
+    payment_status: client.billing_payment_status ?? 'pending',
+    auto_reminder_enabled: client.auto_reminder_enabled ?? true,
+    commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
+    valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
+  })
+
+  const resetForm = () => setForm({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
@@ -1171,7 +1230,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>
@@ -1211,6 +1270,18 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
   const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
+    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
+    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
+    modelo_modulo: client.modelo_modulo ?? '',
+    modelo_inversor: client.modelo_inversor ?? '',
+    tipo_instalacao: client.tipo_instalacao ?? '',
+    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
+    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
+    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
+    tipo_rede: client.tipo_rede ?? '',
+  })
+
+  const resetUfData = () => setUfData({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
     numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
     modelo_modulo: client.modelo_modulo ?? '',
@@ -1278,7 +1349,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetUfData() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>
@@ -1324,6 +1395,19 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   const [form, setForm] = useState({
+    modalidade: client.modalidade ?? 'leasing',
+    kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
+    desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
+    tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
+    mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
+    prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
+    potencia_kwp: client.potencia_kwp != null ? String(client.potencia_kwp) : (client.system_kwp != null ? String(client.system_kwp) : ''),
+    tipo_rede: client.tipo_rede ?? '',
+    marca_inversor: client.marca_inversor ?? '',
+    indicacao: client.indicacao ?? '',
+  })
+
+  const resetForm = () => setForm({
     modalidade: client.modalidade ?? 'leasing',
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
@@ -1462,7 +1546,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false) }}
+          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
             style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
             Cancelar
           </button>

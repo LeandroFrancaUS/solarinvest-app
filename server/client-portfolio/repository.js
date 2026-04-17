@@ -755,6 +755,7 @@ export async function addClientNote(sql, clientId, { entry_type, title, content,
     return rows[0]
   } catch (err) {
     // Graceful fallback if created_by_name column does not exist yet
+    // PostgreSQL error 42703 = undefined_column (schema not yet migrated)
     if (err?.code === '42703' && String(err?.message ?? '').includes('created_by_name')) {
       const rows = await sql`
         INSERT INTO public.client_notes (
