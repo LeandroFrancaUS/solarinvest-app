@@ -16450,7 +16450,9 @@ export default function App() {
     if (online && !syncedToBackend) {
       setClientLastSaveStatus('error')
       console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
-      adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
+      if (!options?.silent) {
+        adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
+      }
       return false
     }
 
@@ -19013,11 +19015,14 @@ export default function App() {
       console.info('[contract][leasing] skipped — consumo mínimo validation failed')
       return
     }
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    // Attempt to save client data to backend (best-effort).
+    // Contract generation must NOT be blocked by a backend persistence failure —
+    // the contract template only needs the in-memory client data, not a persisted
+    // server record. When the client is later converted to the portfolio via
+    // "Negócio fechado", any pending contracts will be linked automatically.
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true, silent: true })
     if (!clienteSalvo) {
-      console.warn('[contract][leasing] skipped — client save returned false')
-      adicionarNotificacao('Não foi possível salvar o cliente antes de gerar o contrato. Tente novamente.', 'error')
-      return
+      console.warn('[contract][leasing] client save returned false — proceeding with in-memory data (pending-link mode)')
     }
     const base = prepararDadosContratoCliente()
     if (!base) {
@@ -19028,7 +19033,6 @@ export default function App() {
     // Load availability when modal opens
     carregarDisponibilidadeAnexos()
   }, [
-    adicionarNotificacao,
     carregarDisponibilidadeAnexos,
     gerandoContratos,
     guardClientFieldsOrReturn,
@@ -19042,14 +19046,16 @@ export default function App() {
       console.info('[contract][vendas] skipped — client fields validation failed')
       return
     }
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    // Attempt to save client data to backend (best-effort).
+    // Contract generation must NOT be blocked by a backend persistence failure —
+    // the contract template only needs the in-memory client data, not a persisted
+    // server record.
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true, silent: true })
     if (!clienteSalvo) {
-      console.warn('[contract][vendas] skipped — client save returned false')
-      adicionarNotificacao('Não foi possível salvar o cliente antes de gerar o contrato. Tente novamente.', 'error')
-      return
+      console.warn('[contract][vendas] client save returned false — proceeding with in-memory data (pending-link mode)')
     }
     abrirSelecaoContratos('vendas')
-  }, [abrirSelecaoContratos, adicionarNotificacao, guardClientFieldsOrReturn, handleSalvarCliente])
+  }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
