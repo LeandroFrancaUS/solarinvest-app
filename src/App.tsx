@@ -5206,13 +5206,15 @@ export default function App() {
   const hasAuthzPermission = (...permissionIds: string[]) =>
     permissionIds.some((permissionId) => authzPermissions.has(permissionId))
   const canSeeFinancialAnalysisEffective =
-    isAdmin || canSeeFinancialAnalysis || hasAuthzPermission('page_financial_analysis', 'page:financial_analysis')
+    isAdmin || isOffice || canSeeFinancialAnalysis || hasAuthzPermission('page_financial_analysis', 'page:financial_analysis')
+  // role_office ("Acesso irrestrito a todos os clientes e propostas") inherits
+  // contracts, clients and proposals visibility — no separate page_* permission needed.
   const canSeeContractsEffective =
-    isAdmin || canSeeContracts || hasAuthzPermission('page_contracts', 'page:contracts')
+    isAdmin || isOffice || canSeeContracts || hasAuthzPermission('page_contracts', 'page:contracts')
   const canSeeClientsEffective =
-    isAdmin || canSeeClients || hasAuthzPermission('page_clients', 'page:clients')
+    isAdmin || isOffice || canSeeClients || hasAuthzPermission('page_clients', 'page:clients')
   const canSeeProposalsEffective =
-    isAdmin || canSeeProposals || hasAuthzPermission('page_proposals', 'page:proposals')
+    isAdmin || isOffice || canSeeProposals || hasAuthzPermission('page_proposals', 'page:proposals')
   const canSeeUsersEffective = isAdmin || canSeeUsers || hasAuthzPermission('page_users', 'page:users')
   const canSeeDashboardEffective =
     isAdmin || canSeeDashboard || hasAuthzPermission('page_dashboard', 'page:dashboard')
@@ -19000,26 +19002,33 @@ export default function App() {
 
   const handleGerarContratoLeasing = useCallback(async () => {
     if (gerandoContratos) {
+      console.info('[contract][leasing] skipped — already generating')
       return
     }
     if (!guardClientFieldsOrReturn('leasing')) {
+      console.info('[contract][leasing] skipped — client fields validation failed')
       return
     }
     if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      console.info('[contract][leasing] skipped — consumo mínimo validation failed')
       return
     }
     const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
     if (!clienteSalvo) {
+      console.warn('[contract][leasing] skipped — client save returned false')
+      adicionarNotificacao('Não foi possível salvar o cliente antes de gerar o contrato. Tente novamente.', 'error')
       return
     }
     const base = prepararDadosContratoCliente()
     if (!base) {
+      console.warn('[contract][leasing] skipped — prepararDadosContratoCliente returned null')
       return
     }
     setIsLeasingContractsModalOpen(true)
     // Load availability when modal opens
     carregarDisponibilidadeAnexos()
   }, [
+    adicionarNotificacao,
     carregarDisponibilidadeAnexos,
     gerandoContratos,
     guardClientFieldsOrReturn,
@@ -19030,14 +19039,17 @@ export default function App() {
 
   const handleGerarContratoVendas = useCallback(async () => {
     if (!guardClientFieldsOrReturn('venda')) {
+      console.info('[contract][vendas] skipped — client fields validation failed')
       return
     }
     const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
     if (!clienteSalvo) {
+      console.warn('[contract][vendas] skipped — client save returned false')
+      adicionarNotificacao('Não foi possível salvar o cliente antes de gerar o contrato. Tente novamente.', 'error')
       return
     }
     abrirSelecaoContratos('vendas')
-  }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
+  }, [abrirSelecaoContratos, adicionarNotificacao, guardClientFieldsOrReturn, handleSalvarCliente])
 
   const handleConfirmarGeracaoContratosVendas = useCallback(async () => {
     const payload = contratoClientePayloadRef.current
