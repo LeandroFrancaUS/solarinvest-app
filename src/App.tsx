@@ -5206,13 +5206,15 @@ export default function App() {
   const hasAuthzPermission = (...permissionIds: string[]) =>
     permissionIds.some((permissionId) => authzPermissions.has(permissionId))
   const canSeeFinancialAnalysisEffective =
-    isAdmin || canSeeFinancialAnalysis || hasAuthzPermission('page_financial_analysis', 'page:financial_analysis')
+    isAdmin || isOffice || canSeeFinancialAnalysis || hasAuthzPermission('page_financial_analysis', 'page:financial_analysis')
+  // role_office ("Acesso irrestrito a todos os clientes e propostas") inherits
+  // contracts, clients and proposals visibility — no separate page_* permission needed.
   const canSeeContractsEffective =
-    isAdmin || canSeeContracts || hasAuthzPermission('page_contracts', 'page:contracts')
+    isAdmin || isOffice || canSeeContracts || hasAuthzPermission('page_contracts', 'page:contracts')
   const canSeeClientsEffective =
-    isAdmin || canSeeClients || hasAuthzPermission('page_clients', 'page:clients')
+    isAdmin || isOffice || canSeeClients || hasAuthzPermission('page_clients', 'page:clients')
   const canSeeProposalsEffective =
-    isAdmin || canSeeProposals || hasAuthzPermission('page_proposals', 'page:proposals')
+    isAdmin || isOffice || canSeeProposals || hasAuthzPermission('page_proposals', 'page:proposals')
   const canSeeUsersEffective = isAdmin || canSeeUsers || hasAuthzPermission('page_users', 'page:users')
   const canSeeDashboardEffective =
     isAdmin || canSeeDashboard || hasAuthzPermission('page_dashboard', 'page:dashboard')
@@ -16448,7 +16450,9 @@ export default function App() {
     if (online && !syncedToBackend) {
       setClientLastSaveStatus('error')
       console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
-      adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
+      if (!options?.silent) {
+        adicionarNotificacao('Falha ao salvar no servidor. Alteração não confirmada no banco.', 'error')
+      }
       return false
     }
 
@@ -19000,20 +19004,29 @@ export default function App() {
 
   const handleGerarContratoLeasing = useCallback(async () => {
     if (gerandoContratos) {
+      console.info('[contract][leasing] skipped — already generating')
       return
     }
     if (!guardClientFieldsOrReturn('leasing')) {
+      console.info('[contract][leasing] skipped — client fields validation failed')
       return
     }
     if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
+      console.info('[contract][leasing] skipped — consumo mínimo validation failed')
       return
     }
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    // Attempt to save client data to backend (best-effort).
+    // Contract generation must NOT be blocked by a backend persistence failure —
+    // the contract template only needs the in-memory client data, not a persisted
+    // server record. When the client is later converted to the portfolio via
+    // "Negócio fechado", any pending contracts will be linked automatically.
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true, silent: true })
     if (!clienteSalvo) {
-      return
+      console.warn('[contract][leasing] client save returned false — proceeding with in-memory data (pending-link mode)')
     }
     const base = prepararDadosContratoCliente()
     if (!base) {
+      console.warn('[contract][leasing] skipped — prepararDadosContratoCliente returned null')
       return
     }
     setIsLeasingContractsModalOpen(true)
@@ -19030,11 +19043,16 @@ export default function App() {
 
   const handleGerarContratoVendas = useCallback(async () => {
     if (!guardClientFieldsOrReturn('venda')) {
+      console.info('[contract][vendas] skipped — client fields validation failed')
       return
     }
-    const clienteSalvo = await handleSalvarCliente({ skipGuard: true })
+    // Attempt to save client data to backend (best-effort).
+    // Contract generation must NOT be blocked by a backend persistence failure —
+    // the contract template only needs the in-memory client data, not a persisted
+    // server record.
+    const clienteSalvo = await handleSalvarCliente({ skipGuard: true, silent: true })
     if (!clienteSalvo) {
-      return
+      console.warn('[contract][vendas] client save returned false — proceeding with in-memory data (pending-link mode)')
     }
     abrirSelecaoContratos('vendas')
   }, [abrirSelecaoContratos, guardClientFieldsOrReturn, handleSalvarCliente])
@@ -20243,7 +20261,9 @@ export default function App() {
 
   // role_financeiro is read-only: no save, no delete actions allowed in the UI.
   // The backend enforces this regardless, but hiding the buttons improves UX.
-  const isProposalReadOnly = isFinanceiro && !isAdmin
+  // Explicitly exclude isOffice — users with both office+financeiro should have write access
+  // because office grants write permissions and takes precedence over financeiro.
+  const isProposalReadOnly = isFinanceiro && !isAdmin && !isOffice
   const podeSalvarProposta = (activeTab === 'leasing' || activeTab === 'vendas') && !isProposalReadOnly
 
   const handleAdicionarUcBeneficiaria = useCallback(() => {
