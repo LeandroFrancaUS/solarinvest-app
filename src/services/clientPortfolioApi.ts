@@ -45,7 +45,12 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 // Portfolio list
 // ─────────────────────────────────────────────────────────────────────────────
 export async function fetchPortfolioClients(search?: string): Promise<PortfolioClientRow[]> {
-  const url = new URL(resolveApiUrl('/api/client-portfolio'))
+  const resolved = resolveApiUrl('/api/client-portfolio')
+  // `new URL()` requires an absolute URL. When VITE_API_URL is not set (e.g.
+  // in a preview deployment without that env var), resolveApiUrl returns a
+  // relative path like '/api/client-portfolio'. Use window.location.origin as
+  // the base so the constructor never throws "Invalid URL".
+  const url = new URL(resolved, window.location.origin)
   if (search) url.searchParams.set('search', search)
   const res = await apiFetch<{ data: PortfolioClientRow[] }>(url.toString())
   return res.data

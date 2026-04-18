@@ -273,9 +273,17 @@ let storageService = null
 
 if (databaseConfig.connectionString && databaseClient) {
   storageService = new StorageService(databaseClient.sql)
-  storageService.ensureInitialized().catch(() => {
-    // log já existe no seu arquivo original; aqui pode manter simples
+  storageService.ensureInitialized().catch((err) => {
+    console.error('[storage] ensureInitialized failed:', err?.message)
   })
+} else {
+  // Log clearly so preview/deployment logs show the root cause of storage failures.
+  const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV)
+  const vercelEnv = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown'
+  const vercelHint = isVercel
+    ? ` Vercel env: ${vercelEnv}. Ensure DATABASE_URL is enabled for this environment in Vercel > Settings > Environment Variables.`
+    : ''
+  console.warn(`[storage] DATABASE_URL (or equivalent) is not set — storage is unavailable.${vercelHint}`)
 }
 
 // ✅ ESTE É O HANDLER serverless
@@ -496,7 +504,20 @@ export default async function handler(req, res) {
       const fallbackUserId = stackAuthEnabled
         ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
         : sanitizeStackUserId(stackUser)
-      const actor = await resolveActor(req)
+
+      let actor = null
+      try {
+        actor = await resolveActor(req)
+      } catch (actorErr) {
+        console.error('[storage] resolveActor failed:', {
+          message: actorErr?.message,
+          code: actorErr?.code,
+          stack: actorErr?.stack,
+        })
+        sendJson(res, 503, { error: 'Não foi possível verificar permissões. Tente novamente.' })
+        return
+      }
+
       const userId = actor?.userId ?? fallbackUserId
       const resolvedRole = actorRole(actor)
       console.log('[storage] auth context', { userId, resolvedRole })
