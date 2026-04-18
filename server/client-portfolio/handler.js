@@ -313,6 +313,28 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
   }
 
   try {
+    // Validate installment_payment sub-object if present
+    if (body.installment_payment) {
+      const payment = body.installment_payment
+      // Must have at least one proof
+      if (payment.status === 'pago') {
+        const hasProof = (payment.receipt_number && String(payment.receipt_number).trim()) ||
+                         (payment.transaction_number && String(payment.transaction_number).trim()) ||
+                         (payment.attachment_url && String(payment.attachment_url).trim())
+        if (!hasProof) {
+          sendJson(400, { error: { code: 'PROOF_REQUIRED', message: 'Informe o número do comprovante ou da transação para registrar o pagamento.' } })
+          return
+        }
+      }
+      // Admin-only for editing a confirmed installment
+      if (payment.is_confirmed_edit) {
+        const role = actorRole(actor)
+        if (role !== 'role_admin') {
+          sendJson(403, { error: { code: 'ADMIN_ONLY', message: 'Apenas administradores podem editar parcelas já confirmadas.' } })
+          return
+        }
+      }
+    }
     const sql = await getScopedSql(actor)
     const result = await upsertClientBillingProfile(sql, clientId, body)
     sendJson(200, { data: result })

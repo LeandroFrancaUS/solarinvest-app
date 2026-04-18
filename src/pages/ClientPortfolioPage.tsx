@@ -201,10 +201,10 @@ type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 
 function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onChange: (t: Tab) => void; showPlano: boolean }) {
   const tabs: { id: Tab; label: string; hidden?: boolean }[] = [
     { id: 'editar', label: '👤 Cliente' },
+    { id: 'projeto', label: '🔧 Projeto' },
     { id: 'usina', label: '☀️ Usina' },
     { id: 'contrato', label: '📄 Contrato' },
     { id: 'plano', label: '📋 Plano', hidden: !showPlano },
-    { id: 'projeto', label: '🔧 Projeto' },
     { id: 'cobranca', label: '💰 Cobrança' },
     { id: 'notas', label: '📝 Notas' },
   ]
@@ -622,7 +622,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} />
+            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#3b82f6' }} />
             Elegível para Buy Out
           </label>
           {form.buyout_eligible && (
@@ -663,25 +663,70 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
         <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#6366f1' }}>📎 Arquivo do Contrato</div>
         <div style={{ display: 'grid', gap: 10 }}>
-          <label style={labelSty}>
-            Nome do arquivo
-            <input type="text" value={form.contract_file_name} onChange={(e) => setForm((f) => ({ ...f, contract_file_name: e.target.value }))} placeholder="contrato.pdf" disabled={!editMode} style={inputStyle} />
-          </label>
-          <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)' }}>
-            Formatos aceitos: PDF, DOC, DOCX
-          </div>
+          {editMode && (
+            <label style={{ ...labelSty, cursor: 'pointer' }}>
+              Selecionar arquivo (PDF ou imagem)
+              <input
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const accepted = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
+                  if (!accepted.includes(file.type)) {
+                    alert('Formato não aceito. Use PDF, PNG, JPEG ou WebP.')
+                    e.target.value = ''
+                    return
+                  }
+                  setForm((f) => ({ ...f, contract_file_name: file.name }))
+                }}
+                style={{ display: 'block', marginTop: 4, fontSize: 13, cursor: 'pointer' }}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
+                Formatos aceitos: PDF, PNG, JPEG, WebP
+              </div>
+            </label>
+          )}
+          {form.contract_file_name && (
+            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+              📄 <strong>{form.contract_file_name}</strong>
+            </div>
+          )}
+          {/* Preview of existing uploaded file */}
           {client.contract_file_url && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              {client.contract_file_type === 'application/pdf' && (
+            <div>
+              {client.contract_file_type?.startsWith('image/') ? (
+                <div style={{ marginBottom: 8 }}>
+                  <img
+                    src={client.contract_file_url}
+                    alt={client.contract_file_name ?? 'Contrato'}
+                    style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 6, border: '1px solid var(--border, #334155)' }}
+                  />
+                </div>
+              ) : client.contract_file_type === 'application/pdf' ? (
+                <div style={{ marginBottom: 8 }}>
+                  <iframe
+                    src={client.contract_file_url}
+                    title="Preview do contrato"
+                    style={{ width: '100%', height: 400, borderRadius: 6, border: '1px solid var(--border, #334155)' }}
+                  />
+                </div>
+              ) : null}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <a href={client.contract_file_url} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: '#3b82f6' }}>
-                  👁️ Visualizar
+                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+                  👁️ Abrir em nova aba
                 </a>
-              )}
-              <a href={client.contract_file_url} download={client.contract_file_name ?? 'contrato'}
-                style={{ fontSize: 12, color: '#3b82f6' }}>
-                ⬇️ Download
-              </a>
+                <a href={client.contract_file_url} download={client.contract_file_name ?? 'contrato'}
+                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
+                  ⬇️ Download
+                </a>
+              </div>
+            </div>
+          )}
+          {!client.contract_file_url && !form.contract_file_name && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+              Nenhum arquivo anexado.
             </div>
           )}
         </div>
@@ -748,6 +793,10 @@ const PROJECT_STATUS_LABELS: Record<string, string> = {
   homologation: 'Homologação', commissioned: 'Comissionado', active: 'Ativo', issue: 'Com Problema',
 }
 
+const DEFAULT_INTEGRATOR = 'Solarinvest'
+const DEFAULT_ENGINEER = 'Tiago Souza'
+const DEFAULT_ENGINEERING_STATUS = 'Não Iniciado'
+
 function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -757,24 +806,24 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
   const [form, setForm] = useState({
     project_status: client.project_status ?? 'pending',
     installation_status: client.installation_status ?? '',
-    engineering_status: client.engineering_status ?? '',
+    engineering_status: client.engineering_status ?? DEFAULT_ENGINEERING_STATUS,
     homologation_status: client.homologation_status ?? '',
     commissioning_status: client.commissioning_status ?? '',
     commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
-    integrator_name: client.integrator_name ?? 'Solarinvest',
-    engineer_name: client.engineer_name ?? 'Tiago Souza',
+    integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
+    engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
     project_notes: client.project_notes ?? '',
   })
 
   const resetForm = () => setForm({
     project_status: client.project_status ?? 'pending',
     installation_status: client.installation_status ?? '',
-    engineering_status: client.engineering_status ?? '',
+    engineering_status: client.engineering_status ?? DEFAULT_ENGINEERING_STATUS,
     homologation_status: client.homologation_status ?? '',
     commissioning_status: client.commissioning_status ?? '',
     commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
-    integrator_name: client.integrator_name ?? 'Solarinvest',
-    engineer_name: client.engineer_name ?? 'Tiago Souza',
+    integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
+    engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
     project_notes: client.project_notes ?? '',
   })
 
@@ -838,12 +887,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
     <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
       <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>🔧 Status do Projeto</div>
       <div style={{ display: 'grid', gap: 10 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Status Geral
-          <select value={form.project_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, project_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
-            {Object.entries(PROJECT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </label>
+        {/* 1. Installation + Engineering */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
             Status Instalação
@@ -857,9 +901,17 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </label>
           <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
             Status Engenharia
-            <input type="text" value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} disabled={!editMode} style={inputStyle} />
+            <select value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
+              <option value="">Selecione…</option>
+              <option value="Não Iniciado">Não Iniciado</option>
+              <option value="Análise Técnica">Análise Técnica</option>
+              <option value="Enviado à Concessionária">Enviado à Concessionária</option>
+              <option value="Aprovado">Aprovado</option>
+              <option value="Reprovado">Reprovado</option>
+            </select>
           </label>
         </div>
+        {/* 2. Homologation + Commissioning */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
             Status Homologação
@@ -882,10 +934,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             </select>
           </label>
         </div>
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-          Data de Comissionamento
-          <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-        </label>
+        {/* 3. Integrator + Engineer */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
             Integrador
@@ -902,6 +951,19 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             </select>
           </label>
         </div>
+        {/* 4. Commissioning date */}
+        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+          Data de Comissionamento
+          <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
+        </label>
+        {/* 5. General status */}
+        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+          Status Geral
+          <select value={form.project_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, project_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            {Object.entries(PROJECT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </label>
+        {/* 6. Notes */}
         <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
           Observações
           <textarea value={form.project_notes} onChange={(e) => setForm((f) => ({ ...f, project_notes: e.target.value }))} rows={3} disabled={!editMode} style={{ ...inputStyle, resize: 'vertical' }} />
@@ -961,6 +1023,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
+  const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
+  const [proofError, setProofError] = useState<string | null>(null)
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
@@ -1115,7 +1180,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <input type="date" value={form.expected_last_billing_date} onChange={(e) => setForm((f) => ({ ...f, expected_last_billing_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} disabled={!editMode} />
+            <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#8b5cf6' }} />
             Lembrete automático ativado
           </label>
         </div>
@@ -1150,13 +1215,13 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </div>
       )}
 
-      {/* Installments */}
+      {/* Installments with payment management */}
       {installments.length > 0 && (
         <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
             📋 Parcelas ({installments.length})
           </div>
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border, #334155)' }}>
@@ -1164,30 +1229,125 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
                   <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
                   <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
+                  <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
                 </tr>
               </thead>
               <tbody>
-                {installments.slice(0, 24).map((inst) => {
-                  const alert = getBillingAlert(inst.data_vencimento, inst.status === 'paga')
-                  const statusColor = alert.level === 'vencida' ? '#ef4444' : alert.level === 'vence_hoje' ? '#f59e0b' : alert.level === 'a_vencer' ? '#3b82f6' : 'var(--text-muted, #94a3b8)'
+                {installments.slice(0, 36).map((inst) => {
+                  const isPaid = inst.status === 'paga'
                   return (
                     <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
                       <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
                       <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>R$ {inst.valor.toFixed(2).replace('.', ',')}</td>
-                      <td style={{ padding: '4px 6px', textAlign: 'center', color: statusColor, fontWeight: 600 }}>
-                        {BILLING_ALERT_LABELS[alert.level]}
+                      <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isPaid ? '#22c55e' : '#f59e0b' }}>
+                        {isPaid ? '✅ Pago' : '⏳ Pendente'}
+                      </td>
+                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                        {editMode && !isPaid && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProofError(null)
+                              setPaymentProof({ receipt_number: '', transaction_number: '' })
+                              setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
+                            }}
+                            style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #22c55e', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
+                          >
+                            Pagar
+                          </button>
+                        )}
+                        {isPaid && (
+                          <span style={{ fontSize: 11, color: '#22c55e' }}>✓</span>
+                        )}
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
-            {installments.length > 24 && (
+            {installments.length > 36 && (
               <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4, textAlign: 'center' }}>
-                Mostrando 24 de {installments.length} parcelas
+                Mostrando 36 de {installments.length} parcelas
               </p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Payment proof modal */}
+      {paymentModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface, #1e293b)', border: '1px solid var(--border, #334155)', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
+              💳 Registrar Pagamento — Parcela #{paymentModal.installmentNumber}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', marginBottom: 16 }}>
+              Valor: R$ {paymentModal.valor.toFixed(2).replace('.', ',')} • Vencimento: {new Date(paymentModal.vencimento).toLocaleDateString('pt-BR')}
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+                Nº do Comprovante
+                <input
+                  type="text"
+                  value={paymentProof.receipt_number}
+                  onChange={(e) => setPaymentProof((p) => ({ ...p, receipt_number: e.target.value }))}
+                  placeholder="Ex: 123456"
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+                Nº da Transação Bancária
+                <input
+                  type="text"
+                  value={paymentProof.transaction_number}
+                  onChange={(e) => setPaymentProof((p) => ({ ...p, transaction_number: e.target.value }))}
+                  placeholder="Ex: TXN-789"
+                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </label>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 8 }}>
+              * Informe pelo menos um: Nº do Comprovante ou Nº da Transação.
+            </div>
+            {proofError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{proofError}</p>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!paymentProof.receipt_number.trim() && !paymentProof.transaction_number.trim()) {
+                    setProofError('Informe o número do comprovante ou o número da transação bancária.')
+                    return
+                  }
+                  setProofError(null)
+                  // Persist via billing patch with installment_payment payload
+                  void patchPortfolioBilling(client.id, {
+                    installment_payment: {
+                      number: paymentModal.installmentNumber,
+                      status: 'pago',
+                      paid_at: new Date().toISOString(),
+                      receipt_number: paymentProof.receipt_number.trim() || null,
+                      transaction_number: paymentProof.transaction_number.trim() || null,
+                    },
+                  }).then(() => {
+                    setPaymentModal(null)
+                    onSaved({})
+                  }).catch((err: unknown) => {
+                    setProofError(err instanceof Error ? err.message : 'Erro ao registrar pagamento.')
+                  })
+                }}
+                style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+              >
+                ✅ Confirmar Pagamento
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPaymentModal(null); setProofError(null) }}
+                style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}

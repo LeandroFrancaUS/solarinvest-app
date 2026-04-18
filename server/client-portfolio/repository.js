@@ -675,47 +675,100 @@ export async function upsertClientProjectStatus(sql, clientId, fields) {
  */
 export async function upsertClientBillingProfile(sql, clientId, fields) {
   const now = new Date().toISOString()
-  const rows = await sql`
-    INSERT INTO public.client_billing_profile (
-      client_id, contract_id, due_day, reading_day, first_billing_date,
-      expected_last_billing_date, recurrence_type, payment_status,
-      delinquency_status, collection_stage, auto_reminder_enabled,
-      valor_mensalidade, commissioning_date,
-      created_at, updated_at
-    ) VALUES (
-      ${clientId},
-      ${fields.contract_id ?? null},
-      ${fields.due_day ?? null},
-      ${fields.reading_day ?? null},
-      ${fields.first_billing_date ?? null},
-      ${fields.expected_last_billing_date ?? null},
-      ${fields.recurrence_type ?? 'monthly'},
-      ${fields.payment_status ?? 'pending'},
-      ${fields.delinquency_status ?? null},
-      ${fields.collection_stage ?? null},
-      ${fields.auto_reminder_enabled ?? true},
-      ${fields.valor_mensalidade ?? null},
-      ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
-      ${now},
-      ${now}
-    )
-    ON CONFLICT (client_id) DO UPDATE SET
-      contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
-      due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
-      reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
-      first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
-      expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
-      recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
-      payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
-      delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
-      collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
-      auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
-      valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
-      commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
-      updated_at                 = ${now}
-    RETURNING *
-  `
-  return rows[0] ?? null
+  const installmentsJsonStr = fields.installments_json != null
+    ? JSON.stringify(fields.installments_json)
+    : '[]'
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_billing_profile (
+        client_id, contract_id, due_day, reading_day, first_billing_date,
+        expected_last_billing_date, recurrence_type, payment_status,
+        delinquency_status, collection_stage, auto_reminder_enabled,
+        valor_mensalidade, commissioning_date, installments_json,
+        created_at, updated_at
+      ) VALUES (
+        ${clientId},
+        ${fields.contract_id ?? null},
+        ${fields.due_day ?? null},
+        ${fields.reading_day ?? null},
+        ${fields.first_billing_date ?? null},
+        ${fields.expected_last_billing_date ?? null},
+        ${fields.recurrence_type ?? 'monthly'},
+        ${fields.payment_status ?? 'pending'},
+        ${fields.delinquency_status ?? null},
+        ${fields.collection_stage ?? null},
+        ${fields.auto_reminder_enabled ?? true},
+        ${fields.valor_mensalidade ?? null},
+        ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
+        ${installmentsJsonStr}::jsonb,
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (client_id) DO UPDATE SET
+        contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
+        due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
+        reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
+        first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
+        expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
+        recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
+        payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
+        delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
+        collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
+        auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
+        valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
+        commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
+        installments_json          = COALESCE(${installmentsJsonStr}::jsonb, client_billing_profile.installments_json),
+        updated_at                 = ${now}
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    // Graceful fallback: if installments_json column doesn't exist yet (migration not applied)
+    if (err?.code === '42703' && String(err?.message ?? '').includes('installments_json')) {
+      const rows = await sql`
+        INSERT INTO public.client_billing_profile (
+          client_id, contract_id, due_day, reading_day, first_billing_date,
+          expected_last_billing_date, recurrence_type, payment_status,
+          delinquency_status, collection_stage, auto_reminder_enabled,
+          valor_mensalidade, commissioning_date,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId},
+          ${fields.contract_id ?? null},
+          ${fields.due_day ?? null},
+          ${fields.reading_day ?? null},
+          ${fields.first_billing_date ?? null},
+          ${fields.expected_last_billing_date ?? null},
+          ${fields.recurrence_type ?? 'monthly'},
+          ${fields.payment_status ?? 'pending'},
+          ${fields.delinquency_status ?? null},
+          ${fields.collection_stage ?? null},
+          ${fields.auto_reminder_enabled ?? true},
+          ${fields.valor_mensalidade ?? null},
+          ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (client_id) DO UPDATE SET
+          contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
+          due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
+          reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
+          first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
+          expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
+          recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
+          payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
+          delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
+          collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
+          auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
+          valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
+          commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
+          updated_at                 = ${now}
+        RETURNING *
+      `
+      return rows[0] ?? null
+    }
+    throw err
+  }
 }
 
 /**
