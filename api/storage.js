@@ -1,4 +1,5 @@
 import { getStackUser, sanitizeStackUserId, isStackAuthEnabled, getTrustedOrigins } from '../server/auth/stackAuth.js'
+import { resolveActor, actorRole } from '../server/proposals/permissions.js'
 import { getDatabaseClient } from '../server/database/neonClient.js'
 import { StorageService } from '../server/database/storageService.js'
 
@@ -122,18 +123,44 @@ export default async function handler(req, res) {
   }
 
   const stackUser = await getStackUser(req)
-  const userId = stackAuthEnabled
+  const fallbackUserId = stackAuthEnabled
     ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
     : sanitizeStackUserId(stackUser)
+
+  // Resolve full actor (role required for RLS context).
+  let actor = null
+  try {
+    actor = await resolveActor(req)
+  } catch (actorErr) {
+    console.error('[storage] resolveActor failed:', actorErr?.message ?? actorErr)
+    sendJson(res, 503, { error: 'Não foi possível verificar permissões. Tente novamente.' })
+    return
+  }
+
+  const userId = actor?.userId ?? fallbackUserId
+  const resolvedRole = actorRole(actor)
+
+  console.log('[storage] auth context', { userId, resolvedRole })
 
   if (stackAuthEnabled && !userId) {
     sendJson(res, 401, { error: 'Autenticação obrigatória.' })
     return
   }
+  if (stackAuthEnabled && !resolvedRole) {
+    sendJson(res, 403, {
+      error: {
+        code: 'RLS_CONTEXT_MISSING_INTERNAL_ROLE',
+        message: 'Unable to resolve internal app role for SQL session.',
+      },
+    })
+    return
+  }
+
+  const rlsContext = { userId, userRole: resolvedRole }
 
   try {
     if (method === 'GET') {
-      const entries = await storageService.listEntries(userId)
+      const entries = await storageService.listEntries(rlsContext)
       sendJson(res, 200, { entries })
       return
     }
@@ -141,14 +168,14 @@ export default async function handler(req, res) {
     if (method === 'PUT' || method === 'POST') {
       const body = await readJsonBody(req)
       const key = typeof body.key === 'string' ? body.key.trim() : ''
-      const value = body.value === undefined || body.value === null ? null : String(body.value)
+      const value = body.value === undefined || body.value === null ? null : body.value
 
       if (!key) {
         sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
         return
       }
 
-      await storageService.setEntry(userId, key, value)
+      await storageService.setEntry(rlsContext, key, value)
       sendNoContent(res)
       return
     }
@@ -158,19 +185,23 @@ export default async function handler(req, res) {
       const key = typeof body.key === 'string' ? body.key.trim() : ''
 
       if (!key) {
-        await storageService.clear(userId)
+        await storageService.clear(rlsContext)
         sendNoContent(res)
         return
       }
 
-      await storageService.removeEntry(userId, key)
+      await storageService.removeEntry(rlsContext, key)
       sendNoContent(res)
       return
     }
 
     sendJson(res, 405, { error: 'Método não suportado.' })
   } catch (error) {
-    console.error('[storage] Erro ao manipular persistência Neon (serverless):', error)
-    sendJson(res, 500, { error: 'Falha ao acessar armazenamento persistente.' })
+    console.error('[storage] Erro ao manipular persistência Neon (serverless):', {
+      message: error?.message,
+      code: error?.code,
+      stack: error?.stack,
+    })
+    sendJson(res, 503, { error: 'Falha ao acessar armazenamento persistente.' })
   }
 }
