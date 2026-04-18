@@ -1028,11 +1028,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [proofError, setProofError] = useState<string | null>(null)
 
   // Build the confirmed-payments map from an installments array.
+  // Handles both 'confirmado' (canonical) and 'pago' (legacy alias) statuses.
   const buildConfirmedMap = (installments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
     if (installments) {
       for (const p of installments) {
-        if (p.status === 'confirmado') {
+        if (p.status === 'confirmado' || (p.status as string) === 'pago') {
           map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
         }
       }
@@ -1287,11 +1288,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
                     <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
                     <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Registro</th>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Pago em</th>
                     <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {installments.slice(0, 36).map((inst) => {
+                  {installments.map((inst) => {
                     const confirmed = confirmedPayments[inst.numero]
                     const isConfirmed = !!confirmed
                     return (
@@ -1306,6 +1308,11 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                         </td>
                         <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
                           {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
+                        </td>
+                        <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)' }}>
+                          {confirmed?.paid_at
+                            ? new Date(confirmed.paid_at).toLocaleDateString('pt-BR')
+                            : '—'}
                         </td>
                         <td style={{ padding: '4px 6px', textAlign: 'center' }}>
                           {editMode && !isConfirmed && (
@@ -1330,11 +1337,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   })}
                 </tbody>
               </table>
-              {installments.length > 36 && (
-                <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4, textAlign: 'center' }}>
-                  Mostrando 36 de {installments.length} parcelas
-                </p>
-              )}
             </div>
           </div>
         )
