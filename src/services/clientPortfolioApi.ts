@@ -11,6 +11,7 @@ import type {
   PortfolioClientRow,
   ClientNote,
   PortfolioSummary,
+  InstallmentPayment,
 } from '../types/clientPortfolio'
 
 type GetAccessToken = () => Promise<string | null>
@@ -127,11 +128,15 @@ export async function patchPortfolioProject(clientId: number, data: Record<strin
   })
 }
 
-export async function patchPortfolioBilling(clientId: number, data: Record<string, unknown>): Promise<void> {
-  await apiFetch(resolveApiUrl(`/api/client-portfolio/${clientId}/billing`), {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  })
+export async function patchPortfolioBilling(
+  clientId: number,
+  data: Record<string, unknown>,
+): Promise<InstallmentPayment[] | null> {
+  const res = await apiFetch<{ data: { installments_json?: InstallmentPayment[] | null } }>(
+    resolveApiUrl(`/api/client-portfolio/${clientId}/billing`),
+    { method: 'PATCH', body: JSON.stringify(data) },
+  )
+  return res.data?.installments_json ?? null
 }
 
 export async function patchPortfolioUsina(clientId: number, data: Record<string, unknown>): Promise<void> {

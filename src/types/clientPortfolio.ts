@@ -90,6 +90,9 @@ export interface PortfolioClientRow {
   collection_stage?: string | null
   auto_reminder_enabled?: boolean
 
+  // ── Installment-level payment tracking ──
+  installments_json?: InstallmentPayment[] | null
+
   // ── Usina fotovoltaica (UF configuration) ──
   potencia_modulo_wp?: number | null
   numero_modulos?: number | null
@@ -143,6 +146,17 @@ export type ContractStatus = 'draft' | 'active' | 'signed' | 'suspended' | 'comp
 
 export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_off' | 'cancelled'
 
+/** Per-installment payment record stored in client_billing_profile.installments_json */
+export interface InstallmentPayment {
+  number: number
+  status: 'pendente' | 'pago' | 'confirmado'
+  paid_at: string | null
+  receipt_number: string | null
+  transaction_number: string | null
+  attachment_url: string | null
+  confirmed_by: string | null
+}
+
 export interface ClientNote {
   id: number
   client_id: number
@@ -150,6 +164,7 @@ export interface ClientNote {
   title: string | null
   content: string
   created_by_user_id: string | null
+  created_by_name: string | null
   created_at: string
 }
 

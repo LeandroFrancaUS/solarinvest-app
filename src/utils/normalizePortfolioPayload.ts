@@ -182,6 +182,9 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     delinquency_status: raw.delinquency_status ?? null,
     collection_stage: raw.collection_stage ?? null,
     auto_reminder_enabled: raw.auto_reminder_enabled ?? false,
+    // installments_json is the persisted array of confirmed/pending payments.
+    // Must be mapped here so CobrancaTab can seed confirmedPayments on remount.
+    installments_json: Array.isArray(raw.installments_json) ? raw.installments_json : null,
 
     // ── Leasing plan ──
     // kwh_contratado from client_energy_profile is the backend alias for kwh_mes_contratado

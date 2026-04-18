@@ -139,13 +139,36 @@ function isEnergyProfileDependencyError(err) {
 }
 
 /**
+ * Detects errors caused by missing migration 0031 columns in client_contracts.
+ * These columns (consultant_id, consultant_name, contract_file_*) were added
+ * later and may be absent in environments where migration 0031 has not been applied.
+ */
+function isContractExtensionColumnError(err) {
+  const message = err instanceof Error ? err.message : String(err)
+  const code = err?.code ?? null
+  if (code !== '42703') return false
+
+  return (
+    message.includes('consultant_id') ||
+    message.includes('consultant_name') ||
+    message.includes('contract_file_name') ||
+    message.includes('contract_file_url') ||
+    message.includes('contract_file_type')
+  )
+}
+
+/**
  * Get a single portfolio client by client_id.
  * Source of truth: clients.in_portfolio.
  *
  * Strategy:
- *   1. Try the full query with all auxiliary joins, including client_energy_profile.
- *   2. If client_energy_profile is missing, retry WITHOUT that join but still keep
- *      contract / project / billing / usina joins.
+ *   1. Try the full query with all auxiliary joins, including client_energy_profile
+ *      and client_contracts extension columns (migration 0031).
+ *   2. If client_energy_profile or migration-0031 contract columns are missing,
+ *      retry with a reduced query: drops client_energy_profile join and replaces
+ *      the 5 optional contract columns (consultant_id, consultant_name,
+ *      contract_file_*) with NULLs. This ensures contractual_term_months and
+ *      all core contract fields are always returned.
  *   3. If other auxiliary tables/columns are missing, fall back to a clients-only query.
  */
 export async function getPortfolioClient(sql, clientId) {
@@ -225,6 +248,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.auto_reminder_enabled,
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
+      cb.installments_json,
 
       -- client_energy_profile
       ep.id                                  AS energy_profile_id,
@@ -293,7 +317,7 @@ export async function getPortfolioClient(sql, clientId) {
       c.portfolio_exported_by_user_id        AS exported_by_user_id,
       c.metadata,
 
-      -- client_contracts
+      -- client_contracts (core — always from migration 0029)
       cc.id                                  AS contract_id,
       cc.contract_type,
       cc.contract_status,
@@ -308,11 +332,13 @@ export async function getPortfolioClient(sql, clientId) {
       cc.buyout_date,
       cc.buyout_amount_reference,
       cc.notes                               AS contract_notes,
-      cc.consultant_id,
-      cc.consultant_name,
-      cc.contract_file_name,
-      cc.contract_file_url,
-      cc.contract_file_type,
+      -- migration 0031 extension columns — replaced with NULL so this query
+      -- succeeds even when migration 0031 has not been applied in this environment
+      NULL::text                             AS consultant_id,
+      NULL::text                             AS consultant_name,
+      NULL::text                             AS contract_file_name,
+      NULL::text                             AS contract_file_url,
+      NULL::text                             AS contract_file_type,
 
       -- client_project_status
       cp.id                                  AS project_id,
@@ -343,6 +369,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.auto_reminder_enabled,
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
+      cb.installments_json,
 
       -- fake client_energy_profile aliases for compatibility
       NULL::bigint                           AS energy_profile_id,
@@ -388,8 +415,13 @@ export async function getPortfolioClient(sql, clientId) {
     const row = rows[0] ?? null
     return enrichPortfolioClientRow(row)
   } catch (err) {
-    if (isEnergyProfileDependencyError(err)) {
-      console.warn('[portfolio][get] client_energy_profile unavailable — retrying without energy profile join', {
+    // Trigger the reduced query for known-optional column/table errors:
+    //   - client_energy_profile unavailable (42P01 / 42703 on ep.* columns)
+    //   - migration 0031 contract extension columns missing (42703 on consultant_id etc.)
+    // The withoutEnergyProfileQuery uses NULLs for both energy profile fields and
+    // the 5 contract extension columns, so it succeeds in either case.
+    if (isEnergyProfileDependencyError(err) || isContractExtensionColumnError(err)) {
+      console.warn('[portfolio][get] optional columns unavailable — retrying without energy profile and contract extensions', {
         clientId,
         code: err?.code ?? null,
         message: err instanceof Error ? err.message : String(err),
@@ -402,7 +434,7 @@ export async function getPortfolioClient(sql, clientId) {
       } catch (retryErr) {
         if (!isCompatibilityError(retryErr)) throw retryErr
 
-        console.warn('[portfolio][get] auxiliary tables still incompatible after energy-profile retry — falling back to clients-only query', {
+        console.warn('[portfolio][get] auxiliary tables still incompatible after reduced-column retry — falling back to clients-only query', {
           clientId,
           code: retryErr?.code ?? null,
           message: retryErr instanceof Error ? retryErr.message : String(retryErr),
@@ -526,6 +558,36 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
 }
 
 /**
+ * Update the core clients-table fields that are editable from the portfolio "Cliente" tab.
+ * Only non-null values in fields overwrite existing data (COALESCE pattern).
+ * Returns the updated row, or null if the client does not exist.
+ */
+export async function updatePortfolioClientProfile(sql, clientId, fields) {
+  const rows = await sql`
+    UPDATE public.clients
+    SET
+      client_name           = COALESCE(${fields.client_name ?? null}, client_name),
+      client_email          = COALESCE(${fields.client_email ?? null}, client_email),
+      client_phone          = COALESCE(${fields.client_phone ?? null}, client_phone),
+      client_city           = COALESCE(${fields.client_city ?? null}, client_city),
+      client_state          = COALESCE(${fields.client_state ?? null}, client_state),
+      client_address        = COALESCE(${fields.client_address ?? null}, client_address),
+      client_document       = COALESCE(${fields.client_document ?? null}, client_document),
+      distribuidora         = COALESCE(${fields.distribuidora ?? null}, distribuidora),
+      uc_geradora           = COALESCE(${fields.uc_geradora ?? null}, uc_geradora),
+      uc_beneficiaria       = COALESCE(${fields.uc_beneficiaria ?? null}, uc_beneficiaria),
+      consumption_kwh_month = COALESCE(${fields.consumption_kwh_month ?? null}, consumption_kwh_month),
+      system_kwp            = COALESCE(${fields.system_kwp ?? null}, system_kwp),
+      term_months           = COALESCE(${fields.term_months ?? null}, term_months),
+      updated_at            = NOW()
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING id
+  `
+  return rows[0] ?? null
+}
+
+/**
  * Update client lifecycle fields.
  * Returns null (silently) if no client_lifecycle row exists for the given clientId.
  * This table is optional (created by migration 0029); callers should handle null gracefully.
@@ -552,69 +614,138 @@ export async function upsertClientContract(sql, clientId, fields) {
   const now = new Date().toISOString()
 
   if (fields.id) {
-    const rows = await sql`
-      UPDATE public.client_contracts
-      SET
-        contract_type              = COALESCE(${fields.contract_type ?? null}, contract_type),
-        contract_status            = COALESCE(${fields.contract_status ?? null}, contract_status),
-        source_proposal_id         = COALESCE(${fields.source_proposal_id ?? null}, source_proposal_id),
-        contract_signed_at         = COALESCE(${fields.contract_signed_at ?? null}, contract_signed_at),
-        contract_start_date        = COALESCE(${fields.contract_start_date ?? null}, contract_start_date),
-        billing_start_date         = COALESCE(${fields.billing_start_date ?? null}, billing_start_date),
-        expected_billing_end_date  = COALESCE(${fields.expected_billing_end_date ?? null}, expected_billing_end_date),
-        contractual_term_months    = COALESCE(${fields.contractual_term_months ?? null}, contractual_term_months),
-        buyout_eligible            = COALESCE(${fields.buyout_eligible ?? null}, buyout_eligible),
-        buyout_status              = COALESCE(${fields.buyout_status ?? null}, buyout_status),
-        buyout_date                = COALESCE(${fields.buyout_date ?? null}, buyout_date),
-        buyout_amount_reference    = COALESCE(${fields.buyout_amount_reference ?? null}, buyout_amount_reference),
-        notes                      = COALESCE(${fields.notes ?? null}, notes),
-        consultant_id              = COALESCE(${fields.consultant_id ?? null}, consultant_id),
-        consultant_name            = COALESCE(${fields.consultant_name ?? null}, consultant_name),
-        contract_file_name         = COALESCE(${fields.contract_file_name ?? null}, contract_file_name),
-        contract_file_url          = COALESCE(${fields.contract_file_url ?? null}, contract_file_url),
-        contract_file_type         = COALESCE(${fields.contract_file_type ?? null}, contract_file_type),
-        updated_at                 = ${now}
-      WHERE id = ${fields.id}
-        AND client_id = ${clientId}
-      RETURNING *
-    `
+    const rows = await (async () => {
+      try {
+        return await sql`
+          UPDATE public.client_contracts
+          SET
+            contract_type              = COALESCE(${fields.contract_type ?? null}, contract_type),
+            contract_status            = COALESCE(${fields.contract_status ?? null}, contract_status),
+            source_proposal_id         = COALESCE(${fields.source_proposal_id ?? null}, source_proposal_id),
+            contract_signed_at         = COALESCE(${fields.contract_signed_at ?? null}, contract_signed_at),
+            contract_start_date        = COALESCE(${fields.contract_start_date ?? null}, contract_start_date),
+            billing_start_date         = COALESCE(${fields.billing_start_date ?? null}, billing_start_date),
+            expected_billing_end_date  = COALESCE(${fields.expected_billing_end_date ?? null}, expected_billing_end_date),
+            contractual_term_months    = COALESCE(${fields.contractual_term_months ?? null}, contractual_term_months),
+            buyout_eligible            = COALESCE(${fields.buyout_eligible ?? null}, buyout_eligible),
+            buyout_status              = COALESCE(${fields.buyout_status ?? null}, buyout_status),
+            buyout_date                = COALESCE(${fields.buyout_date ?? null}, buyout_date),
+            buyout_amount_reference    = COALESCE(${fields.buyout_amount_reference ?? null}, buyout_amount_reference),
+            notes                      = COALESCE(${fields.notes ?? null}, notes),
+            consultant_id              = COALESCE(${fields.consultant_id ?? null}, consultant_id),
+            consultant_name            = COALESCE(${fields.consultant_name ?? null}, consultant_name),
+            contract_file_name         = COALESCE(${fields.contract_file_name ?? null}, contract_file_name),
+            contract_file_url          = COALESCE(${fields.contract_file_url ?? null}, contract_file_url),
+            contract_file_type         = COALESCE(${fields.contract_file_type ?? null}, contract_file_type),
+            updated_at                 = ${now}
+          WHERE id = ${fields.id}
+            AND client_id = ${clientId}
+          RETURNING *
+        `
+      } catch (err) {
+        if (!isContractExtensionColumnError(err)) throw err
+        console.warn('[portfolio][contract] migration 0031 columns missing — retrying UPDATE without extension columns', {
+          clientId,
+          contractId: fields.id,
+          message: err instanceof Error ? err.message : String(err),
+        })
+        return await sql`
+          UPDATE public.client_contracts
+          SET
+            contract_type              = COALESCE(${fields.contract_type ?? null}, contract_type),
+            contract_status            = COALESCE(${fields.contract_status ?? null}, contract_status),
+            source_proposal_id         = COALESCE(${fields.source_proposal_id ?? null}, source_proposal_id),
+            contract_signed_at         = COALESCE(${fields.contract_signed_at ?? null}, contract_signed_at),
+            contract_start_date        = COALESCE(${fields.contract_start_date ?? null}, contract_start_date),
+            billing_start_date         = COALESCE(${fields.billing_start_date ?? null}, billing_start_date),
+            expected_billing_end_date  = COALESCE(${fields.expected_billing_end_date ?? null}, expected_billing_end_date),
+            contractual_term_months    = COALESCE(${fields.contractual_term_months ?? null}, contractual_term_months),
+            buyout_eligible            = COALESCE(${fields.buyout_eligible ?? null}, buyout_eligible),
+            buyout_status              = COALESCE(${fields.buyout_status ?? null}, buyout_status),
+            buyout_date                = COALESCE(${fields.buyout_date ?? null}, buyout_date),
+            buyout_amount_reference    = COALESCE(${fields.buyout_amount_reference ?? null}, buyout_amount_reference),
+            notes                      = COALESCE(${fields.notes ?? null}, notes),
+            updated_at                 = ${now}
+          WHERE id = ${fields.id}
+            AND client_id = ${clientId}
+          RETURNING *
+        `
+      }
+    })()
     return rows[0] ?? null
   }
 
-  const rows = await sql`
-    INSERT INTO public.client_contracts (
-      client_id, source_proposal_id, contract_type, contract_status,
-      contract_signed_at, contract_start_date, billing_start_date,
-      expected_billing_end_date, contractual_term_months, buyout_eligible,
-      buyout_status, buyout_date, buyout_amount_reference, notes,
-      consultant_id, consultant_name,
-      contract_file_name, contract_file_url, contract_file_type,
-      created_at, updated_at
-    ) VALUES (
-      ${clientId},
-      ${fields.source_proposal_id ?? null},
-      ${fields.contract_type ?? 'leasing'},
-      ${fields.contract_status ?? 'draft'},
-      ${fields.contract_signed_at ?? null},
-      ${fields.contract_start_date ?? null},
-      ${fields.billing_start_date ?? null},
-      ${fields.expected_billing_end_date ?? null},
-      ${fields.contractual_term_months ?? null},
-      ${fields.buyout_eligible ?? false},
-      ${fields.buyout_status ?? null},
-      ${fields.buyout_date ?? null},
-      ${fields.buyout_amount_reference ?? null},
-      ${fields.notes ?? null},
-      ${fields.consultant_id ?? null},
-      ${fields.consultant_name ?? null},
-      ${fields.contract_file_name ?? null},
-      ${fields.contract_file_url ?? null},
-      ${fields.contract_file_type ?? null},
-      ${now},
-      ${now}
-    )
-    RETURNING *
-  `
+  const rows = await (async () => {
+    try {
+      return await sql`
+        INSERT INTO public.client_contracts (
+          client_id, source_proposal_id, contract_type, contract_status,
+          contract_signed_at, contract_start_date, billing_start_date,
+          expected_billing_end_date, contractual_term_months, buyout_eligible,
+          buyout_status, buyout_date, buyout_amount_reference, notes,
+          consultant_id, consultant_name,
+          contract_file_name, contract_file_url, contract_file_type,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId},
+          ${fields.source_proposal_id ?? null},
+          ${fields.contract_type ?? 'leasing'},
+          ${fields.contract_status ?? 'draft'},
+          ${fields.contract_signed_at ?? null},
+          ${fields.contract_start_date ?? null},
+          ${fields.billing_start_date ?? null},
+          ${fields.expected_billing_end_date ?? null},
+          ${fields.contractual_term_months ?? null},
+          ${fields.buyout_eligible ?? false},
+          ${fields.buyout_status ?? null},
+          ${fields.buyout_date ?? null},
+          ${fields.buyout_amount_reference ?? null},
+          ${fields.notes ?? null},
+          ${fields.consultant_id ?? null},
+          ${fields.consultant_name ?? null},
+          ${fields.contract_file_name ?? null},
+          ${fields.contract_file_url ?? null},
+          ${fields.contract_file_type ?? null},
+          ${now},
+          ${now}
+        )
+        RETURNING *
+      `
+    } catch (err) {
+      if (!isContractExtensionColumnError(err)) throw err
+      console.warn('[portfolio][contract] migration 0031 columns missing — retrying INSERT without extension columns', {
+        clientId,
+        message: err instanceof Error ? err.message : String(err),
+      })
+      return await sql`
+        INSERT INTO public.client_contracts (
+          client_id, source_proposal_id, contract_type, contract_status,
+          contract_signed_at, contract_start_date, billing_start_date,
+          expected_billing_end_date, contractual_term_months, buyout_eligible,
+          buyout_status, buyout_date, buyout_amount_reference, notes,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId},
+          ${fields.source_proposal_id ?? null},
+          ${fields.contract_type ?? 'leasing'},
+          ${fields.contract_status ?? 'draft'},
+          ${fields.contract_signed_at ?? null},
+          ${fields.contract_start_date ?? null},
+          ${fields.billing_start_date ?? null},
+          ${fields.expected_billing_end_date ?? null},
+          ${fields.contractual_term_months ?? null},
+          ${fields.buyout_eligible ?? false},
+          ${fields.buyout_status ?? null},
+          ${fields.buyout_date ?? null},
+          ${fields.buyout_amount_reference ?? null},
+          ${fields.notes ?? null},
+          ${now},
+          ${now}
+        )
+        RETURNING *
+      `
+    }
+  })()
   return rows[0] ?? null
 }
 
@@ -672,50 +803,142 @@ export async function upsertClientProjectStatus(sql, clientId, fields) {
  * Upsert client_billing_profile (one row per client).
  * Accepts both `commissioning_date` (DB column name) and
  * `commissioning_date_billing` (frontend form field name) for the same column.
+ *
+ * installments_json handling:
+ *  - When fields.installments_json is provided (array), it is written as-is.
+ *  - When fields.installments_json is null/undefined (not provided), the UPDATE
+ *    clause uses COALESCE(NULL, existing) so the stored array is PRESERVED.
+ *    The INSERT clause still seeds an empty array for brand-new rows.
  */
 export async function upsertClientBillingProfile(sql, clientId, fields) {
   const now = new Date().toISOString()
-  const rows = await sql`
-    INSERT INTO public.client_billing_profile (
-      client_id, contract_id, due_day, reading_day, first_billing_date,
-      expected_last_billing_date, recurrence_type, payment_status,
-      delinquency_status, collection_stage, auto_reminder_enabled,
-      valor_mensalidade, commissioning_date,
-      created_at, updated_at
-    ) VALUES (
-      ${clientId},
-      ${fields.contract_id ?? null},
-      ${fields.due_day ?? null},
-      ${fields.reading_day ?? null},
-      ${fields.first_billing_date ?? null},
-      ${fields.expected_last_billing_date ?? null},
-      ${fields.recurrence_type ?? 'monthly'},
-      ${fields.payment_status ?? 'pending'},
-      ${fields.delinquency_status ?? null},
-      ${fields.collection_stage ?? null},
-      ${fields.auto_reminder_enabled ?? true},
-      ${fields.valor_mensalidade ?? null},
-      ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
-      ${now},
-      ${now}
-    )
-    ON CONFLICT (client_id) DO UPDATE SET
-      contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
-      due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
-      reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
-      first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
-      expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
-      recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
-      payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
-      delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
-      collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
-      auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
-      valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
-      commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
-      updated_at                 = ${now}
-    RETURNING *
-  `
-  return rows[0] ?? null
+  // null means "not provided → preserve existing in UPDATE, seed [] for INSERT"
+  const installmentsJsonStr = fields.installments_json != null
+    ? JSON.stringify(fields.installments_json)
+    : null
+  // INSERT fallback: use provided value or default to empty array for new rows
+  const installmentsJsonInsert = installmentsJsonStr ?? '[]'
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_billing_profile (
+        client_id, contract_id, due_day, reading_day, first_billing_date,
+        expected_last_billing_date, recurrence_type, payment_status,
+        delinquency_status, collection_stage, auto_reminder_enabled,
+        valor_mensalidade, commissioning_date, installments_json,
+        created_at, updated_at
+      ) VALUES (
+        ${clientId},
+        ${fields.contract_id ?? null},
+        ${fields.due_day ?? null},
+        ${fields.reading_day ?? null},
+        ${fields.first_billing_date ?? null},
+        ${fields.expected_last_billing_date ?? null},
+        ${fields.recurrence_type ?? 'monthly'},
+        ${fields.payment_status ?? 'pending'},
+        ${fields.delinquency_status ?? null},
+        ${fields.collection_stage ?? null},
+        ${fields.auto_reminder_enabled ?? true},
+        ${fields.valor_mensalidade ?? null},
+        ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
+        ${installmentsJsonInsert}::jsonb,
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (client_id) DO UPDATE SET
+        contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
+        due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
+        reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
+        first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
+        expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
+        recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
+        payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
+        delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
+        collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
+        auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
+        valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
+        commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
+        installments_json          = COALESCE(${installmentsJsonStr}::jsonb, client_billing_profile.installments_json),
+        updated_at                 = ${now}
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    // Graceful fallback: if installments_json column doesn't exist yet (migration not applied)
+    if (err?.code === '42703' && String(err?.message ?? '').includes('installments_json')) {
+      console.warn('[portfolio][billing] installments_json column absent — persisting without it (run migration 0036)', {
+        clientId,
+        code: err.code,
+        message: err.message,
+      })
+      const rows = await sql`
+        INSERT INTO public.client_billing_profile (
+          client_id, contract_id, due_day, reading_day, first_billing_date,
+          expected_last_billing_date, recurrence_type, payment_status,
+          delinquency_status, collection_stage, auto_reminder_enabled,
+          valor_mensalidade, commissioning_date,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId},
+          ${fields.contract_id ?? null},
+          ${fields.due_day ?? null},
+          ${fields.reading_day ?? null},
+          ${fields.first_billing_date ?? null},
+          ${fields.expected_last_billing_date ?? null},
+          ${fields.recurrence_type ?? 'monthly'},
+          ${fields.payment_status ?? 'pending'},
+          ${fields.delinquency_status ?? null},
+          ${fields.collection_stage ?? null},
+          ${fields.auto_reminder_enabled ?? true},
+          ${fields.valor_mensalidade ?? null},
+          ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (client_id) DO UPDATE SET
+          contract_id                = COALESCE(${fields.contract_id ?? null}, client_billing_profile.contract_id),
+          due_day                    = COALESCE(${fields.due_day ?? null}, client_billing_profile.due_day),
+          reading_day                = COALESCE(${fields.reading_day ?? null}, client_billing_profile.reading_day),
+          first_billing_date         = COALESCE(${fields.first_billing_date ?? null}, client_billing_profile.first_billing_date),
+          expected_last_billing_date = COALESCE(${fields.expected_last_billing_date ?? null}, client_billing_profile.expected_last_billing_date),
+          recurrence_type            = COALESCE(${fields.recurrence_type ?? null}, client_billing_profile.recurrence_type),
+          payment_status             = COALESCE(${fields.payment_status ?? null}, client_billing_profile.payment_status),
+          delinquency_status         = COALESCE(${fields.delinquency_status ?? null}, client_billing_profile.delinquency_status),
+          collection_stage           = COALESCE(${fields.collection_stage ?? null}, client_billing_profile.collection_stage),
+          auto_reminder_enabled      = COALESCE(${fields.auto_reminder_enabled ?? null}, client_billing_profile.auto_reminder_enabled),
+          valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
+          commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
+          updated_at                 = ${now}
+        RETURNING *
+      `
+      return rows[0] ?? null
+    }
+    throw err
+  }
+}
+
+/**
+ * Read only the installments_json array from client_billing_profile.
+ * Returns an empty array if no row exists or the column is null.
+ * Used by handlePortfolioBillingPatch to merge a single installment_payment
+ * into the existing array before calling upsertClientBillingProfile.
+ */
+export async function getBillingInstallmentsJson(sql, clientId) {
+  try {
+    const rows = await sql`
+      SELECT COALESCE(installments_json, '[]'::jsonb) AS installments_json
+      FROM public.client_billing_profile
+      WHERE client_id = ${clientId}
+      LIMIT 1
+    `
+    if (rows.length === 0) return []
+    const raw = rows[0].installments_json
+    return Array.isArray(raw) ? raw : []
+  } catch (err) {
+    // Column may not exist in older schema — return empty array so the caller
+    // can still proceed (the subsequent upsert will use the fallback path).
+    if (err?.code === '42703') return []
+    throw err
+  }
 }
 
 /**
@@ -735,22 +958,46 @@ export async function getClientNotes(sql, clientId) {
 /**
  * Add a note for a portfolio client.
  */
-export async function addClientNote(sql, clientId, { entry_type, title, content, created_by_user_id }) {
-  const rows = await sql`
-    INSERT INTO public.client_notes (
-      client_id, entry_type, title, content, created_by_user_id, created_at
-    )
-    VALUES (
-      ${clientId},
-      ${entry_type ?? 'note'},
-      ${title ?? null},
-      ${content},
-      ${created_by_user_id ?? null},
-      now()
-    )
-    RETURNING *
-  `
-  return rows[0]
+export async function addClientNote(sql, clientId, { entry_type, title, content, created_by_user_id, created_by_name }) {
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_notes (
+        client_id, entry_type, title, content, created_by_user_id, created_by_name, created_at
+      )
+      VALUES (
+        ${clientId},
+        ${entry_type ?? 'note'},
+        ${title ?? null},
+        ${content},
+        ${created_by_user_id ?? null},
+        ${created_by_name ?? null},
+        now()
+      )
+      RETURNING *
+    `
+    return rows[0]
+  } catch (err) {
+    // Graceful fallback if created_by_name column does not exist yet
+    // PostgreSQL error 42703 = undefined_column (schema not yet migrated)
+    if (err?.code === '42703' && String(err?.message ?? '').includes('created_by_name')) {
+      const rows = await sql`
+        INSERT INTO public.client_notes (
+          client_id, entry_type, title, content, created_by_user_id, created_at
+        )
+        VALUES (
+          ${clientId},
+          ${entry_type ?? 'note'},
+          ${title ?? null},
+          ${content},
+          ${created_by_user_id ?? null},
+          now()
+        )
+        RETURNING *
+      `
+      return rows[0]
+    }
+    throw err
+  }
 }
 
 /**

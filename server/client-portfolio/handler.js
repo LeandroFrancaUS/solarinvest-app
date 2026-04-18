@@ -10,10 +10,12 @@ import {
   getPortfolioClient,
   exportClientToPortfolio,
   removeClientFromPortfolio,
+  updatePortfolioClientProfile,
   updateClientLifecycle,
   upsertClientContract,
   upsertClientProjectStatus,
   upsertClientBillingProfile,
+  getBillingInstallmentsJson,
   getClientNotes,
   addClientNote,
   getPortfolioSummary,
@@ -220,12 +222,22 @@ export async function handlePortfolioProfilePatch(req, res, { method, clientId, 
 
   try {
     const sql = await getScopedSql(actor)
-    const result = await updateClientLifecycle(sql, clientId, body)
-    if (!result) {
+
+    // Update core client fields (client_name, term_months, system_kwp, etc.) on the clients table.
+    const profileResult = await updatePortfolioClientProfile(sql, clientId, body)
+    if (!profileResult) {
       sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado na carteira.' } })
       return
     }
-    sendJson(200, { data: result })
+
+    // Also update lifecycle fields if any are present in the body (table is optional — ignore null result).
+    if (body.lifecycle_status != null || body.onboarding_status != null || body.is_active_portfolio_client != null) {
+      await updateClientLifecycle(sql, clientId, body).catch(() => {
+        // client_lifecycle table may not exist in all environments; non-fatal.
+      })
+    }
+
+    sendJson(200, { data: profileResult })
   } catch (err) {
     console.error('[portfolio] profile patch error', err)
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar perfil.' } })
@@ -255,6 +267,11 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
   try {
     const sql = await getScopedSql(actor)
     const result = await upsertClientContract(sql, clientId, body)
+    if (result === null && body.id) {
+      // UPDATE matched no rows — the contract_id is stale or belongs to a different client
+      sendJson(404, { error: { code: 'CONTRACT_NOT_FOUND', message: 'Contrato não encontrado para este cliente.' } })
+      return
+    }
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] contract patch error', err)
@@ -313,8 +330,72 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
   }
 
   try {
+    // Validate installment_payment sub-object if present
+    if (body.installment_payment) {
+      const payment = body.installment_payment
+      // Accept both 'pago' (legacy) and 'confirmado' (new) as paid statuses
+      const isPaidStatus = payment.status === 'pago' || payment.status === 'confirmado'
+      if (isPaidStatus) {
+        const hasProof = (payment.receipt_number && String(payment.receipt_number).trim()) ||
+                         (payment.transaction_number && String(payment.transaction_number).trim()) ||
+                         (payment.attachment_url && String(payment.attachment_url).trim())
+        if (!hasProof) {
+          sendJson(400, { error: { code: 'PROOF_REQUIRED', message: 'Informe o número do comprovante ou da transação para registrar o pagamento.' } })
+          return
+        }
+        // Normalise to canonical 'confirmado'
+        payment.status = 'confirmado'
+      }
+      // Admin-only for editing a confirmed installment
+      if (payment.is_confirmed_edit) {
+        const role = actorRole(actor)
+        if (role !== 'role_admin') {
+          sendJson(403, { error: { code: 'ADMIN_ONLY', message: 'Apenas administradores podem editar parcelas já confirmadas.' } })
+          return
+        }
+      }
+    }
+
     const sql = await getScopedSql(actor)
+
+    // ── installment_payment merge ────────────────────────────────────────────
+    // When the body carries an installment_payment object, we need to merge it
+    // into the installments_json array atomically.  We fetch the current array
+    // first (cheap single-row SELECT), replace the entry with the matching
+    // installment number (or append it when it doesn't exist yet), and pass
+    // the resulting array as fields.installments_json so the upsert writes it.
+    if (body.installment_payment) {
+      const payment = body.installment_payment
+      console.info('[portfolio][billing] installment_payment merge', {
+        clientId,
+        installmentNumber: payment.number,
+        status: payment.status,
+        receipt_number: payment.receipt_number ?? null,
+        transaction_number: payment.transaction_number ?? null,
+      })
+
+      const existing = await getBillingInstallmentsJson(sql, clientId)
+      const merged = existing.filter((p) => p.number !== payment.number)
+      merged.push(payment)
+      merged.sort((a, b) => a.number - b.number)
+      body.installments_json = merged
+
+      console.info('[portfolio][billing] installments_json after merge', {
+        clientId,
+        totalInstallments: merged.length,
+        confirmedCount: merged.filter((p) => p.status === 'confirmado').length,
+      })
+    }
+
     const result = await upsertClientBillingProfile(sql, clientId, body)
+
+    console.info('[portfolio][billing] upsert result', {
+      clientId,
+      rowId: result?.id ?? null,
+      installmentsCount: Array.isArray(result?.installments_json) ? result.installments_json.length : null,
+      updatedAt: result?.updated_at ?? null,
+    })
+
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] billing patch error', err)
@@ -465,6 +546,7 @@ export async function handlePortfolioNotesRequest(req, res, { method, clientId, 
       const note = await addClientNote(sql, clientId, {
         ...body,
         created_by_user_id: actor.userId,
+        created_by_name: actor.displayName ?? actor.email ?? null,
       })
       sendJson(201, { data: note })
     } catch (err) {
