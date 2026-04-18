@@ -377,6 +377,7 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
       const existing = await getBillingInstallmentsJson(sql, clientId)
       const merged = existing.filter((p) => p.number !== payment.number)
       merged.push(payment)
+      merged.sort((a, b) => a.number - b.number)
       body.installments_json = merged
 
       console.info('[portfolio][billing] installments_json after merge', {

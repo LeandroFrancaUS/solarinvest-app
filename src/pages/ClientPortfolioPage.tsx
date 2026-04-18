@@ -1033,7 +1033,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
     if (installments) {
       for (const p of installments) {
-        if (p.status === 'confirmado' || (p.status as string) === 'pago') {
+        if (p.status === 'confirmado' || p.status === 'pago') {
           map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
         }
       }
