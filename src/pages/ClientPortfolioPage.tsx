@@ -1026,6 +1026,18 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
   const [proofError, setProofError] = useState<string | null>(null)
+  // Local confirmed-payments map for instant UI feedback before full reload
+  const [confirmedPayments, setConfirmedPayments] = useState<Record<number, { receipt_number: string | null; paid_at: string }>>(() => {
+    const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
+    if (client.installments_json) {
+      for (const p of client.installments_json) {
+        if (p.status === 'confirmado') {
+          map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
+        }
+      }
+    }
+    return map
+  })
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
@@ -1229,22 +1241,27 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
                   <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
                   <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Registro</th>
                   <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
                 </tr>
               </thead>
               <tbody>
                 {installments.slice(0, 36).map((inst) => {
-                  const isPaid = inst.status === 'paga'
+                  const confirmed = confirmedPayments[inst.numero]
+                  const isConfirmed = !!confirmed
                   return (
                     <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
                       <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
                       <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
                       <td style={{ padding: '4px 6px', textAlign: 'right' }}>R$ {inst.valor.toFixed(2).replace('.', ',')}</td>
-                      <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isPaid ? '#22c55e' : '#f59e0b' }}>
-                        {isPaid ? '✅ Pago' : '⏳ Pendente'}
+                      <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isConfirmed ? '#22c55e' : '#f59e0b' }}>
+                        {isConfirmed ? '✅ Confirmado' : '⏳ Pendente'}
+                      </td>
+                      <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
+                        {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
                       </td>
                       <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                        {editMode && !isPaid && (
+                        {editMode && !isConfirmed && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1257,7 +1274,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                             Pagar
                           </button>
                         )}
-                        {isPaid && (
+                        {isConfirmed && (
                           <span style={{ fontSize: 11, color: '#22c55e' }}>✓</span>
                         )}
                       </td>
@@ -1320,16 +1337,23 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     return
                   }
                   setProofError(null)
+                  const paidAt = new Date().toISOString()
+                  const receiptNum = paymentProof.receipt_number.trim() || null
                   // Persist via billing patch with installment_payment payload
                   void patchPortfolioBilling(client.id, {
                     installment_payment: {
                       number: paymentModal.installmentNumber,
-                      status: 'pago',
-                      paid_at: new Date().toISOString(),
-                      receipt_number: paymentProof.receipt_number.trim() || null,
+                      status: 'confirmado',
+                      paid_at: paidAt,
+                      receipt_number: receiptNum,
                       transaction_number: paymentProof.transaction_number.trim() || null,
                     },
                   }).then(() => {
+                    // Instant UI update — no full reload needed
+                    setConfirmedPayments((prev) => ({
+                      ...prev,
+                      [paymentModal.installmentNumber]: { receipt_number: receiptNum, paid_at: paidAt },
+                    }))
                     setPaymentModal(null)
                     onSaved({})
                   }).catch((err: unknown) => {

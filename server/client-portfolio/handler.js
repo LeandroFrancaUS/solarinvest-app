@@ -316,8 +316,9 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
     // Validate installment_payment sub-object if present
     if (body.installment_payment) {
       const payment = body.installment_payment
-      // Must have at least one proof
-      if (payment.status === 'pago') {
+      // Accept both 'pago' (legacy) and 'confirmado' (new) as paid statuses
+      const isPaidStatus = payment.status === 'pago' || payment.status === 'confirmado'
+      if (isPaidStatus) {
         const hasProof = (payment.receipt_number && String(payment.receipt_number).trim()) ||
                          (payment.transaction_number && String(payment.transaction_number).trim()) ||
                          (payment.attachment_url && String(payment.attachment_url).trim())
@@ -325,6 +326,8 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
           sendJson(400, { error: { code: 'PROOF_REQUIRED', message: 'Informe o número do comprovante ou da transação para registrar o pagamento.' } })
           return
         }
+        // Normalise to canonical 'confirmado'
+        payment.status = 'confirmado'
       }
       // Admin-only for editing a confirmed installment
       if (payment.is_confirmed_edit) {

@@ -149,7 +149,7 @@ export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_
 /** Per-installment payment record stored in client_billing_profile.installments_json */
 export interface InstallmentPayment {
   number: number
-  status: 'pendente' | 'pago'
+  status: 'pendente' | 'pago' | 'confirmado'
   paid_at: string | null
   receipt_number: string | null
   transaction_number: string | null
