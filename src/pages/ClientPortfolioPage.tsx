@@ -1026,18 +1026,32 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
   const [proofError, setProofError] = useState<string | null>(null)
-  // Local confirmed-payments map for instant UI feedback before full reload
-  const [confirmedPayments, setConfirmedPayments] = useState<Record<number, { receipt_number: string | null; paid_at: string }>>(() => {
+
+  // Build the confirmed-payments map from an installments array.
+  const buildConfirmedMap = (installments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
-    if (client.installments_json) {
-      for (const p of client.installments_json) {
+    if (installments) {
+      for (const p of installments) {
         if (p.status === 'confirmado') {
           map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
         }
       }
     }
     return map
-  })
+  }
+
+  // Local confirmed-payments map for instant UI feedback before full reload.
+  // Seeded from client.installments_json on mount (now populated by normalizer).
+  const [confirmedPayments, setConfirmedPayments] = useState<Record<number, { receipt_number: string | null; paid_at: string }>>(() =>
+    buildConfirmedMap(client.installments_json),
+  )
+
+  // Keep confirmedPayments in sync when client.installments_json is updated
+  // by the parent (e.g. after onSaved merges the server response).
+  useEffect(() => {
+    setConfirmedPayments(buildConfirmedMap(client.installments_json))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.installments_json])
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
