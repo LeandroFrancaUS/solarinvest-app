@@ -168,7 +168,9 @@ export default async function handler(req, res) {
     if (method === 'PUT' || method === 'POST') {
       const body = await readJsonBody(req)
       const key = typeof body.key === 'string' ? body.key.trim() : ''
-      const value = body.value === undefined || body.value === null ? null : body.value
+      // Pass the raw JSON value — StorageService.setEntry normalises it (JSON.stringify)
+      // so any JSON-serialisable type (string, number, object, array, null) is accepted.
+      const value = body.value === undefined ? null : body.value
 
       if (!key) {
         sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })

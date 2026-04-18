@@ -279,11 +279,11 @@ if (databaseConfig.connectionString && databaseClient) {
 } else {
   // Log clearly so preview/deployment logs show the root cause of storage failures.
   const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV)
-  const env = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown'
-  console.warn(
-    `[storage] DATABASE_URL (or equivalent) is not set — storage is unavailable.` +
-    (isVercel ? ` Vercel env: ${env}. Ensure DATABASE_URL is enabled for this environment in Vercel > Settings > Environment Variables.` : ''),
-  )
+  const vercelEnv = process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? 'unknown'
+  const vercelHint = isVercel
+    ? ` Vercel env: ${vercelEnv}. Ensure DATABASE_URL is enabled for this environment in Vercel > Settings > Environment Variables.`
+    : ''
+  console.warn(`[storage] DATABASE_URL (or equivalent) is not set — storage is unavailable.${vercelHint}`)
 }
 
 // ✅ ESTE É O HANDLER serverless
