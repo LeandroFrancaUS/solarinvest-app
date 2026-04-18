@@ -267,6 +267,11 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
   try {
     const sql = await getScopedSql(actor)
     const result = await upsertClientContract(sql, clientId, body)
+    if (result === null && body.id) {
+      // UPDATE matched no rows — the contract_id is stale or belongs to a different client
+      sendJson(404, { error: { code: 'CONTRACT_NOT_FOUND', message: 'Contrato não encontrado para este cliente.' } })
+      return
+    }
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] contract patch error', err)
