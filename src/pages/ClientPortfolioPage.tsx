@@ -1373,7 +1373,11 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   setProofError(null)
                   const paidAt = new Date().toISOString()
                   const receiptNum = paymentProof.receipt_number.trim() || null
-                  // Persist via billing patch with installment_payment payload
+                  // Persist via billing patch with installment_payment payload.
+                  // The server returns the full updated installments_json array,
+                  // which we pass to onSaved so handleTabSaved can merge it into
+                  // localClient before the tab remounts — preventing the flash
+                  // where the confirmed payment appears to revert.
                   void patchPortfolioBilling(client.id, {
                     installment_payment: {
                       number: paymentModal.installmentNumber,
@@ -1382,14 +1386,16 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                       receipt_number: receiptNum,
                       transaction_number: paymentProof.transaction_number.trim() || null,
                     },
-                  }).then(() => {
-                    // Instant UI update — no full reload needed
+                  }).then((updatedInstallments) => {
+                    // Instant UI update via local state
                     setConfirmedPayments((prev) => ({
                       ...prev,
                       [paymentModal.installmentNumber]: { receipt_number: receiptNum, paid_at: paidAt },
                     }))
                     setPaymentModal(null)
-                    onSaved({})
+                    // Merge the authoritative installments_json from the server
+                    // into the parent localClient so remount reads the new value
+                    onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
                   }).catch((err: unknown) => {
                     setProofError(err instanceof Error ? err.message : 'Erro ao registrar pagamento.')
                   })
