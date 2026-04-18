@@ -385,6 +385,7 @@ export async function getPortfolioClient(sql, clientId) {
       NULL::text                             AS indicacao,
 
       -- client_usina_config
+      cu.id                                  AS usina_id,
       cu.potencia_modulo_wp                  AS usina_potencia_modulo_wp,
       cu.numero_modulos                      AS usina_numero_modulos,
       cu.modelo_modulo                       AS usina_modelo_modulo,
