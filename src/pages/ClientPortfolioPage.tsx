@@ -1073,18 +1073,34 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
-  // Generate installments
+  // Generate installments.
+  // Uses the engine-computed start date when all billing fields are available.
+  // Falls back to first_billing_date or commissioning_date_billing so that the
+  // table is visible even when reading_day / commissioning_date are not yet set.
   const installments = useMemo(() => {
-    if (!engineResult || engineResult.status_calculo === 'erro_entrada') return []
     const termMonths = client.contractual_term_months ?? client.term_months ?? 0
-    if (!termMonths || !form.due_day || !form.valor_mensalidade) return []
+    if (!termMonths || !form.due_day) return []
+
+    // Determine start date: prefer the engine result, then explicit billing dates
+    let inicio: string | null = null
+    if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
+      inicio = engineResult.inicio_da_mensalidade
+    } else if (form.first_billing_date) {
+      inicio = form.first_billing_date
+    } else if (form.commissioning_date_billing) {
+      inicio = form.commissioning_date_billing
+    }
+
+    if (!inicio) return []
+
     return generateInstallments({
-      inicio_mensalidade: engineResult.inicio_da_mensalidade,
+      inicio_mensalidade: inicio,
       prazo: termMonths,
       dia_vencimento: Number(form.due_day),
-      valor_mensalidade: Number(form.valor_mensalidade),
+      // Allow valor = 0 so the table renders before the amount is configured
+      valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
-  }, [engineResult, client.contractual_term_months, client.term_months, form.due_day, form.valor_mensalidade])
+  }, [engineResult, client.contractual_term_months, client.term_months, form.due_day, form.valor_mensalidade, form.first_billing_date, form.commissioning_date_billing])
 
   // Generate notifications preview
   const notifications = useMemo(() => {
@@ -1228,69 +1244,87 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       )}
 
       {/* Installments with payment management */}
-      {installments.length > 0 && (
-        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
-            📋 Parcelas ({installments.length})
-          </div>
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border, #334155)' }}>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>#</th>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
-                  <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
-                  <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Registro</th>
-                  <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {installments.slice(0, 36).map((inst) => {
-                  const confirmed = confirmedPayments[inst.numero]
-                  const isConfirmed = !!confirmed
-                  return (
-                    <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
-                      <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
-                      <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
-                      <td style={{ padding: '4px 6px', textAlign: 'right' }}>R$ {inst.valor.toFixed(2).replace('.', ',')}</td>
-                      <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isConfirmed ? '#22c55e' : '#f59e0b' }}>
-                        {isConfirmed ? '✅ Confirmado' : '⏳ Pendente'}
-                      </td>
-                      <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
-                        {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
-                      </td>
-                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>
-                        {editMode && !isConfirmed && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setProofError(null)
-                              setPaymentProof({ receipt_number: '', transaction_number: '' })
-                              setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
-                            }}
-                            style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #22c55e', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
-                          >
-                            Pagar
-                          </button>
-                        )}
-                        {isConfirmed && (
-                          <span style={{ fontSize: 11, color: '#22c55e' }}>✓</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-            {installments.length > 36 && (
-              <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4, textAlign: 'center' }}>
-                Mostrando 36 de {installments.length} parcelas
+      {(() => {
+        const termMonths = client.contractual_term_months ?? client.term_months ?? 0
+        const hasStartDate = !!(engineResult?.inicio_da_mensalidade || form.first_billing_date || form.commissioning_date_billing)
+        // Show a hint when term is known but we can't produce rows yet
+        if (termMonths > 0 && !hasStartDate) {
+          return (
+            <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#f59e0b' }}>📋 Parcelas</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', margin: 0 }}>
+                Configure a <strong>Data de Início da Cobrança</strong> ou a <strong>Data de Comissionamento</strong> para visualizar as parcelas.
               </p>
-            )}
+            </div>
+          )
+        }
+        if (installments.length === 0) return null
+        return (
+          <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
+              📋 Parcelas ({installments.length})
+            </div>
+            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border, #334155)' }}>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>#</th>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
+                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
+                    <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Registro</th>
+                    <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {installments.slice(0, 36).map((inst) => {
+                    const confirmed = confirmedPayments[inst.numero]
+                    const isConfirmed = !!confirmed
+                    return (
+                      <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
+                        <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
+                        <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
+                        <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+                          {inst.valor > 0 ? `R$ ${inst.valor.toFixed(2).replace('.', ',')}` : '—'}
+                        </td>
+                        <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isConfirmed ? '#22c55e' : '#f59e0b' }}>
+                          {isConfirmed ? '✅ Confirmado' : '⏳ Pendente'}
+                        </td>
+                        <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
+                          {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
+                        </td>
+                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                          {editMode && !isConfirmed && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProofError(null)
+                                setPaymentProof({ receipt_number: '', transaction_number: '' })
+                                setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
+                              }}
+                              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #22c55e', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                              Pagar
+                            </button>
+                          )}
+                          {isConfirmed && (
+                            <span style={{ fontSize: 11, color: '#22c55e' }}>✓</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {installments.length > 36 && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4, textAlign: 'center' }}>
+                  Mostrando 36 de {installments.length} parcelas
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Payment proof modal */}
       {paymentModal && (
