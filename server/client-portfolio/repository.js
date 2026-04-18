@@ -528,6 +528,36 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
 }
 
 /**
+ * Update the core clients-table fields that are editable from the portfolio "Cliente" tab.
+ * Only non-null values in fields overwrite existing data (COALESCE pattern).
+ * Returns the updated row, or null if the client does not exist.
+ */
+export async function updatePortfolioClientProfile(sql, clientId, fields) {
+  const rows = await sql`
+    UPDATE public.clients
+    SET
+      client_name           = COALESCE(${fields.client_name ?? null}, client_name),
+      client_email          = COALESCE(${fields.client_email ?? null}, client_email),
+      client_phone          = COALESCE(${fields.client_phone ?? null}, client_phone),
+      client_city           = COALESCE(${fields.client_city ?? null}, client_city),
+      client_state          = COALESCE(${fields.client_state ?? null}, client_state),
+      client_address        = COALESCE(${fields.client_address ?? null}, client_address),
+      client_document       = COALESCE(${fields.client_document ?? null}, client_document),
+      distribuidora         = COALESCE(${fields.distribuidora ?? null}, distribuidora),
+      uc_geradora           = COALESCE(${fields.uc_geradora ?? null}, uc_geradora),
+      uc_beneficiaria       = COALESCE(${fields.uc_beneficiaria ?? null}, uc_beneficiaria),
+      consumption_kwh_month = COALESCE(${fields.consumption_kwh_month ?? null}, consumption_kwh_month),
+      system_kwp            = COALESCE(${fields.system_kwp ?? null}, system_kwp),
+      term_months           = COALESCE(${fields.term_months ?? null}, term_months),
+      updated_at            = NOW()
+    WHERE id = ${clientId}
+      AND deleted_at IS NULL
+    RETURNING id
+  `
+  return rows[0] ?? null
+}
+
+/**
  * Update client lifecycle fields.
  * Returns null (silently) if no client_lifecycle row exists for the given clientId.
  * This table is optional (created by migration 0029); callers should handle null gracefully.

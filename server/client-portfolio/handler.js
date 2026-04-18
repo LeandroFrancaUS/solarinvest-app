@@ -10,6 +10,7 @@ import {
   getPortfolioClient,
   exportClientToPortfolio,
   removeClientFromPortfolio,
+  updatePortfolioClientProfile,
   updateClientLifecycle,
   upsertClientContract,
   upsertClientProjectStatus,
@@ -221,12 +222,22 @@ export async function handlePortfolioProfilePatch(req, res, { method, clientId, 
 
   try {
     const sql = await getScopedSql(actor)
-    const result = await updateClientLifecycle(sql, clientId, body)
-    if (!result) {
+
+    // Update core client fields (client_name, term_months, system_kwp, etc.) on the clients table.
+    const profileResult = await updatePortfolioClientProfile(sql, clientId, body)
+    if (!profileResult) {
       sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado na carteira.' } })
       return
     }
-    sendJson(200, { data: result })
+
+    // Also update lifecycle fields if any are present in the body (table is optional — ignore null result).
+    if (body.lifecycle_status != null || body.onboarding_status != null || body.is_active_portfolio_client != null) {
+      await updateClientLifecycle(sql, clientId, body).catch(() => {
+        // client_lifecycle table may not exist in all environments; non-fatal.
+      })
+    }
+
+    sendJson(200, { data: profileResult })
   } catch (err) {
     console.error('[portfolio] profile patch error', err)
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar perfil.' } })
