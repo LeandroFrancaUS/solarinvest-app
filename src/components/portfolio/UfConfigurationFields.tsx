@@ -45,34 +45,26 @@ const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
   marginTop: 4,
-  padding: '7px 10px',
-  borderRadius: 6,
-  border: '1px solid var(--border, #334155)',
-  background: 'var(--surface-2, #0f172a)',
-  color: 'inherit',
-  fontSize: 13,
+  boxSizing: 'border-box' as const,
 }
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--text-muted, #94a3b8)',
-}
+const labelStyle: React.CSSProperties = {}
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
   gridTemplateColumns: '1fr 1fr',
-  gap: 10,
+  gap: 12,
 }
 
 export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurationFieldsProps) {
   return (
-    <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
-        ☀️ Usina Fotovoltaica
+    <div className="pf-section-card">
+      <div className="pf-section-title">
+        <span className="pf-icon">☀️</span> Usina Fotovoltaica
       </div>
       <div style={{ display: 'grid', gap: 10 }}>
         <div style={gridStyle}>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Potência do módulo (Wp)
             <select
               value={data.potencia_modulo_wp}
@@ -86,7 +78,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
               ))}
             </select>
           </label>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Nº de módulos
             <input
               type="number"
@@ -101,7 +93,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
         </div>
 
         <div style={gridStyle}>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Tipo de rede
             <select
               value={data.tipo_rede}
@@ -114,7 +106,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
               ))}
             </select>
           </label>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Tipo de instalação
             <select
               value={data.tipo_instalacao}
@@ -130,7 +122,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
         </div>
 
         <div style={gridStyle}>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Potência do sistema (kWp)
             <input
               type="number"
@@ -142,7 +134,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
               style={inputStyle}
             />
           </label>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Geração estimada (kWh/mês)
             <input
               type="number"
@@ -155,7 +147,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
           </label>
         </div>
 
-        <label style={labelStyle}>
+        <label className="pf-label" style={labelStyle}>
           Área utilizada (m²)
           <input
             type="number"
@@ -169,7 +161,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
         </label>
 
         <div style={gridStyle}>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Modelo do módulo
             <input
               type="text"
@@ -179,7 +171,7 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
               style={inputStyle}
             />
           </label>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Modelo do inversor
             <input
               type="text"

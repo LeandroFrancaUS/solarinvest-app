@@ -3,6 +3,7 @@
 // Access: admin | office | financeiro only.
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import '../styles/portfolio.css'
 import {
   useClientPortfolio,
   usePortfolioClient,
@@ -163,28 +164,19 @@ function ClientCard({
   return (
     <div
       onClick={onSelect}
-      style={{
-        cursor: 'pointer',
-        padding: '10px 14px',
-        borderRadius: 8,
-        border: isSelected
-          ? '1.5px solid #3b82f6'
-          : '1px solid var(--border, #334155)',
-        background: isSelected ? 'rgba(59,130,246,0.10)' : 'var(--surface, #1e293b)',
-        transition: 'all 0.15s',
-      }}
+      className={`pf-client-card${isSelected ? ' selected' : ''}`}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontWeight: 600, fontSize: 13, color: isSelected ? '#60a5fa' : '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+        <div className="pf-card-name">
           {client.name ?? '—'}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           {(client.city || client.state) && (
-            <span style={{ fontSize: 11, color: '#94a3b8' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
               {[client.city, client.state].filter(Boolean).join('/')}
             </span>
           )}
-          <span style={{ fontSize: 10, color: '#64748b', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
             {formatDate(client.exported_to_portfolio_at)}
           </span>
         </div>
@@ -209,33 +201,13 @@ function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onCh
     { id: 'notas', label: '📝 Notas' },
   ]
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 2,
-        borderBottom: '1px solid var(--border, #334155)',
-        marginBottom: 16,
-        flexWrap: 'wrap',
-        overflowX: 'auto',
-      }}
-    >
+    <div className="pf-tab-bar">
       {tabs.filter((t) => !t.hidden).map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
-          style={{
-            padding: '8px 12px',
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === t.id ? '2px solid var(--accent, #ff8c00)' : '2px solid transparent',
-            color: activeTab === t.id ? 'var(--accent, #ff8c00)' : 'var(--text-muted, #94a3b8)',
-            fontWeight: activeTab === t.id ? 700 : 400,
-            cursor: 'pointer',
-            fontSize: 12,
-            whiteSpace: 'nowrap',
-            transition: 'all 0.15s',
-          }}
+          className={`pf-tab-btn${activeTab === t.id ? ' active' : ''}`}
         >
           {t.label}
         </button>
@@ -340,106 +312,101 @@ function EditarTab({
     display: 'block',
     width: '100%',
     marginTop: 4,
-    padding: '7px 10px',
-    borderRadius: 6,
-    border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)',
-    color: 'inherit',
-    fontSize: 13,
+    boxSizing: 'border-box' as const,
   }
-  const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
-  const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+  const labelStyle: React.CSSProperties = {}
+  const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   return (
     <div style={{ paddingBottom: 20 }}>
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#3b82f6' }}>📇 Identificação</div>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <label style={labelStyle}>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">📇</span> Identificação</div>
+        <div className="pf-form-grid">
+          <label className="pf-label" style={labelStyle}>
             Nome / Razão Social
             <input type="text" value={form.client_name} onChange={(e) => setForm((f) => ({ ...f, client_name: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Documento (CPF/CNPJ)
             <input type="text" value={form.client_document} onChange={(e) => setForm((f) => ({ ...f, client_document: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridStyle}>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               Telefone
               <input type="text" value={form.client_phone} onChange={(e) => setForm((f) => ({ ...f, client_phone: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               E-mail
               <input type="email" value={form.client_email} onChange={(e) => setForm((f) => ({ ...f, client_email: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridStyle}>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               Cidade
               <input type="text" value={form.client_city} onChange={(e) => setForm((f) => ({ ...f, client_city: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               Estado (UF)
               <input type="text" maxLength={2} value={form.client_state} onChange={(e) => setForm((f) => ({ ...f, client_state: e.target.value.toUpperCase() }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Endereço
             <input type="text" value={form.client_address} onChange={(e) => setForm((f) => ({ ...f, client_address: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
         </div>
       </div>
 
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14, marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#8b5cf6' }}>⚡ Energia</div>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <label style={labelStyle}>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">⚡</span> Energia</div>
+        <div className="pf-form-grid">
+          <label className="pf-label" style={labelStyle}>
             Distribuidora
             <input type="text" value={form.distribuidora} onChange={(e) => setForm((f) => ({ ...f, distribuidora: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridStyle}>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               UC Geradora
               <input type="text" value={form.uc_geradora} onChange={(e) => setForm((f) => ({ ...f, uc_geradora: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               UC Beneficiária
               <input type="text" value={form.uc_beneficiaria} onChange={(e) => setForm((f) => ({ ...f, uc_beneficiaria: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridStyle}>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               Consumo (kWh/mês)
               <input type="number" value={form.consumption_kwh_month} onChange={(e) => setForm((f) => ({ ...f, consumption_kwh_month: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelStyle}>
+            <label className="pf-label" style={labelStyle}>
               Potência (kWp)
               <input type="number" value={form.system_kwp} onChange={(e) => setForm((f) => ({ ...f, system_kwp: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
-          <label style={labelStyle}>
+          <label className="pf-label" style={labelStyle}>
             Prazo Contratual (meses)
             <input type="number" value={form.term_months} onChange={(e) => setForm((f) => ({ ...f, term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -564,25 +531,23 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   }
 
   const inputStyle: React.CSSProperties = {
-    display: 'block', width: '100%', marginTop: 4, padding: '7px 10px',
-    borderRadius: 6, border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+    display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
   }
-  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
-  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+  const labelSty: React.CSSProperties = {}
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#3b82f6' }}>📄 Dados do Contrato</div>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">📄</span> Dados do Contrato</div>
         <div style={{ display: 'grid', gap: 10 }}>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Tipo de Contrato
             <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value }))} disabled={!editMode} style={inputStyle}>
               {Object.entries(CONTRACT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Status do Contrato
             <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="draft">Rascunho</option>
@@ -593,49 +558,49 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <option value="cancelled">Cancelado</option>
             </select>
           </label>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             ID da Proposta de Origem
             <input type="text" value={form.source_proposal_id} onChange={(e) => setForm((f) => ({ ...f, source_proposal_id: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Data de Assinatura
               <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Início do Contrato
               <input type="date" value={form.contract_start_date} onChange={(e) => setForm((f) => ({ ...f, contract_start_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Início da Cobrança
               <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Fim Previsto da Cobrança
               <input type="date" value={form.expected_billing_end_date} onChange={(e) => setForm((f) => ({ ...f, expected_billing_end_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Prazo Contratual (meses)
             <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
-          <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#3b82f6' }} />
+          <label className="pf-checkbox-label">
+            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#f59e0b' }} />
             Elegível para Buy Out
           </label>
           {form.buyout_eligible && (
             <div style={gridSty}>
-              <label style={labelSty}>
+              <label className="pf-label" style={labelSty}>
                 Status do Buy Out
                 <input type="text" value={form.buyout_status} onChange={(e) => setForm((f) => ({ ...f, buyout_status: e.target.value }))} disabled={!editMode} style={inputStyle} />
               </label>
-              <label style={labelSty}>
+              <label className="pf-label" style={labelSty}>
                 Data do Buy Out
                 <input type="date" value={form.buyout_date} onChange={(e) => setForm((f) => ({ ...f, buyout_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
               </label>
-              <label style={labelSty}>
+              <label className="pf-label" style={labelSty}>
                 Valor de Referência Buy Out (R$)
                 <input type="number" min={0} step="0.01" value={form.buyout_amount_reference} onChange={(e) => setForm((f) => ({ ...f, buyout_amount_reference: e.target.value }))} disabled={!editMode} style={inputStyle} />
               </label>
@@ -645,14 +610,14 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       </div>
 
       {/* Consultant section */}
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#10b981' }}>🧑‍💼 Consultor</div>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">🧑‍💼</span> Consultor</div>
         <div style={gridSty}>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             ID do Consultor
             <input type="text" value={form.consultant_id} onChange={(e) => setForm((f) => ({ ...f, consultant_id: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Nome do Consultor
             <input type="text" value={form.consultant_name} onChange={(e) => setForm((f) => ({ ...f, consultant_name: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
@@ -660,8 +625,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       </div>
 
       {/* Contract file upload section */}
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#6366f1' }}>📎 Arquivo do Contrato</div>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">📎</span> Arquivo do Contrato</div>
         <div style={{ display: 'grid', gap: 10 }}>
           {editMode && (
             <label style={{ ...labelSty, cursor: 'pointer' }}>
@@ -733,30 +698,30 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       </div>
 
       {/* Notes */}
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <label style={labelSty}>
+      <div className="pf-section-card">
+        <label className="pf-label" style={labelSty}>
           Observações
           <textarea value={form.contract_notes} onChange={(e) => setForm((f) => ({ ...f, contract_notes: e.target.value }))} rows={3} disabled={!editMode} style={{ ...inputStyle, resize: 'vertical' }} />
         </label>
       </div>
 
       {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -878,18 +843,16 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
   }
 
   const inputStyle: React.CSSProperties = {
-    display: 'block', width: '100%', marginTop: 4, padding: '7px 10px',
-    borderRadius: 6, border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+    display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
   }
 
   return (
-    <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>🔧 Status do Projeto</div>
+    <div className="pf-section-card">
+      <div className="pf-section-title"><span className="pf-icon">🔧</span> Status do Projeto</div>
       <div style={{ display: 'grid', gap: 10 }}>
         {/* 1. Installation + Engineering */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label className="pf-label">
             Status Instalação
             <select value={form.installation_status} onChange={(e) => setForm((f) => ({ ...f, installation_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
@@ -899,7 +862,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
               <option value="Concluído">Concluído</option>
             </select>
           </label>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+          <label className="pf-label">
             Status Engenharia
             <select value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
@@ -912,8 +875,8 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </label>
         </div>
         {/* 2. Homologation + Commissioning */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label className="pf-label">
             Status Homologação
             <select value={form.homologation_status} onChange={(e) => setForm((f) => ({ ...f, homologation_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
@@ -924,7 +887,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
               <option value="Pendências">Pendências</option>
             </select>
           </label>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+          <label className="pf-label">
             Status Comissionamento
             <select value={form.commissioning_status} onChange={(e) => setForm((f) => ({ ...f, commissioning_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
@@ -935,15 +898,15 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </label>
         </div>
         {/* 3. Integrator + Engineer */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <label className="pf-label">
             Integrador
             <select value={form.integrator_name} onChange={(e) => setForm((f) => ({ ...f, integrator_name: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
               <option value="Solarinvest">Solarinvest</option>
             </select>
           </label>
-          <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+          <label className="pf-label">
             Engenheiro
             <select value={form.engineer_name} onChange={(e) => setForm((f) => ({ ...f, engineer_name: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
@@ -952,40 +915,40 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </label>
         </div>
         {/* 4. Commissioning date */}
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <label className="pf-label">
           Data de Comissionamento
           <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
         </label>
         {/* 5. General status */}
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <label className="pf-label">
           Status Geral
           <select value={form.project_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, project_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
             {Object.entries(PROJECT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
         {/* 6. Notes */}
-        <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+        <label className="pf-label">
           Observações
           <textarea value={form.project_notes} onChange={(e) => setForm((f) => ({ ...f, project_notes: e.target.value }))} rows={3} disabled={!editMode} style={{ ...inputStyle, resize: 'vertical' }} />
         </label>
       </div>
       {saveError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#f59e0b', color: '#000', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -1153,23 +1116,21 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   }
 
   const inputStyle: React.CSSProperties = {
-    display: 'block', width: '100%', marginTop: 4, padding: '7px 10px',
-    borderRadius: 6, border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+    display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
   }
-  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
-  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+  const labelSty: React.CSSProperties = {}
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   const pendingNotifCount = notifications.filter((n) => n.status === 'pending').length
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {/* Billing profile */}
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#8b5cf6' }}>💰 Perfil de Cobrança</div>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">💰</span> Perfil de Cobrança</div>
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Dia de Vencimento
               <select value={form.due_day} onChange={(e) => setForm((f) => ({ ...f, due_day: e.target.value }))} disabled={!editMode} style={inputStyle}>
                 <option value="">Selecione…</option>
@@ -1178,27 +1139,27 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                 ))}
               </select>
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Dia de Leitura
               <input type="number" min={1} max={31} value={form.reading_day} onChange={(e) => setForm((f) => ({ ...f, reading_day: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Data de Comissionamento
               <input type="date" value={form.commissioning_date_billing} onChange={(e) => setForm((f) => ({ ...f, commissioning_date_billing: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Valor da Mensalidade (R$)
               <input type="number" min={0} step="0.01" value={form.valor_mensalidade} onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Primeiro Vencimento
             <input type="date" value={form.first_billing_date} onChange={(e) => setForm((f) => ({ ...f, first_billing_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Recorrência
               <select value={form.recurrence_type} onChange={(e) => setForm((f) => ({ ...f, recurrence_type: e.target.value }))} disabled={!editMode} style={inputStyle}>
                 <option value="monthly">Mensal</option>
@@ -1207,7 +1168,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                 <option value="custom">Personalizado</option>
               </select>
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Status de Pagamento
               <select value={form.payment_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, payment_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
                 <option value="pending">Pendente</option>
@@ -1218,11 +1179,11 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               </select>
             </label>
           </div>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Último Vencimento Previsto
             <input type="date" value={form.expected_last_billing_date} onChange={(e) => setForm((f) => ({ ...f, expected_last_billing_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
-          <label style={{ ...labelSty, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label className="pf-checkbox-label">
             <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#8b5cf6' }} />
             Lembrete automático ativado
           </label>
@@ -1231,27 +1192,27 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 
       {/* Engine result */}
       {engineResult && engineResult.status_calculo !== 'erro_entrada' && (
-        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#10b981' }}>📊 Cálculo de Vencimento</div>
+        <div className="pf-section-card">
+          <div className="pf-section-title"><span className="pf-icon">📊</span> Cálculo de Vencimento</div>
           <div style={{ display: 'grid', gap: 6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Início da Mensalidade:</span>
-              <span style={{ fontWeight: 600 }}>{engineResult.inicio_da_mensalidade.toLocaleDateString('pt-BR')}</span>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Início da Mensalidade:</span>
+              <span className="pf-info-value">{engineResult.inicio_da_mensalidade.toLocaleDateString('pt-BR')}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Início Mensalidade Fixa:</span>
-              <span style={{ fontWeight: 600 }}>{engineResult.inicio_mensalidade_fixa.toLocaleDateString('pt-BR')}</span>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Início Mensalidade Fixa:</span>
+              <span className="pf-info-value">{engineResult.inicio_mensalidade_fixa.toLocaleDateString('pt-BR')}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Status:</span>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Status:</span>
               <span style={{
                 fontWeight: 600,
-                color: engineResult.status_calculo === 'ok' ? '#22c55e' : '#f59e0b',
+                color: engineResult.status_calculo === 'ok' ? '#4ade80' : '#fbbf24',
               }}>
                 {engineResult.status_calculo === 'ok' ? '✅ Calculado' : '⏳ Aguardando Comissionamento'}
               </span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               {engineResult.mensagem}
             </div>
           </div>
@@ -1265,9 +1226,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
           return (
-            <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: '#f59e0b' }}>📋 Parcelas</div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', margin: 0 }}>
+            <div className="pf-section-card">
+              <div className="pf-section-title"><span className="pf-icon">📋</span> Parcelas</div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
                 Configure a <strong>Data de Início da Cobrança</strong> ou a <strong>Data de Comissionamento</strong> para visualizar as parcelas.
               </p>
             </div>
@@ -1275,21 +1236,21 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         }
         if (installments.length === 0) return null
         return (
-          <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#f59e0b' }}>
-              📋 Parcelas ({installments.length})
+          <div className="pf-section-card">
+            <div className="pf-section-title">
+              <span className="pf-icon">📋</span> Parcelas ({installments.length})
             </div>
-            <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+              <table className="pf-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border, #334155)' }}>
-                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>#</th>
-                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Vencimento</th>
-                    <th style={{ textAlign: 'right', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Valor</th>
-                    <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Status</th>
-                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Registro</th>
-                    <th style={{ textAlign: 'left', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)', minWidth: 90 }}>Pago em</th>
-                    <th style={{ textAlign: 'center', padding: '4px 6px', color: 'var(--text-muted, #94a3b8)' }}>Ação</th>
+                  <tr>
+                    <th>#</th>
+                    <th>Vencimento</th>
+                    <th className="right">Valor</th>
+                    <th className="center">Status</th>
+                    <th>Registro</th>
+                    <th>Pago em</th>
+                    <th className="center">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1297,24 +1258,27 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     const confirmed = confirmedPayments[inst.numero]
                     const isConfirmed = !!confirmed
                     return (
-                      <tr key={inst.numero} style={{ borderBottom: '1px solid var(--border, #1e293b)' }}>
-                        <td style={{ padding: '4px 6px' }}>{inst.numero}</td>
-                        <td style={{ padding: '4px 6px' }}>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
-                        <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+                      <tr key={inst.numero}>
+                        <td>{inst.numero}</td>
+                        <td>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
+                        <td className="right">
                           {inst.valor > 0 ? `R$ ${inst.valor.toFixed(2).replace('.', ',')}` : '—'}
                         </td>
-                        <td style={{ padding: '4px 6px', textAlign: 'center', fontWeight: 600, color: isConfirmed ? '#22c55e' : '#f59e0b' }}>
-                          {isConfirmed ? '✅ Confirmado' : '⏳ Pendente'}
+                        <td className="center">
+                          {isConfirmed
+                            ? <span className="pf-status-confirmed">✅ Confirmado</span>
+                            : <span className="pf-status-pending">⏳ Pendente</span>
+                          }
                         </td>
-                        <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)', fontFamily: 'monospace' }}>
+                        <td className="mono" style={{ color: isConfirmed ? 'var(--text-base)' : 'var(--text-muted)' }}>
                           {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
                         </td>
-                        <td style={{ padding: '4px 6px', color: isConfirmed ? 'inherit' : 'var(--text-muted, #94a3b8)' }}>
+                        <td style={{ color: isConfirmed ? 'var(--text-base)' : 'var(--text-muted)' }}>
                           {confirmed?.paid_at
                             ? new Date(confirmed.paid_at).toLocaleDateString('pt-BR')
                             : '—'}
                         </td>
-                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                        <td className="center">
                           {editMode && !isConfirmed && (
                             <button
                               type="button"
@@ -1323,13 +1287,13 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                                 setPaymentProof({ receipt_number: '', transaction_number: '' })
                                 setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
                               }}
-                              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, border: '1px solid #22c55e', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', fontWeight: 600 }}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #4ade80', background: 'rgba(74,222,128,0.1)', color: '#4ade80', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
                             >
                               Pagar
                             </button>
                           )}
                           {isConfirmed && (
-                            <span style={{ fontSize: 11, color: '#22c55e' }}>✓</span>
+                            <span style={{ fontSize: 13, color: '#4ade80' }}>✓</span>
                           )}
                         </td>
                       </tr>
@@ -1344,37 +1308,37 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 
       {/* Payment proof modal */}
       {paymentModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--surface, #1e293b)', border: '1px solid var(--border, #334155)', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface, #122040)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: 'var(--text-strong)' }}>
               💳 Registrar Pagamento — Parcela #{paymentModal.installmentNumber}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)', marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
               Valor: R$ {paymentModal.valor.toFixed(2).replace('.', ',')} • Vencimento: {new Date(paymentModal.vencimento).toLocaleDateString('pt-BR')}
             </div>
             <div style={{ display: 'grid', gap: 10 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+              <label className="pf-label">
                 Nº do Comprovante
                 <input
                   type="text"
                   value={paymentProof.receipt_number}
                   onChange={(e) => setPaymentProof((p) => ({ ...p, receipt_number: e.target.value }))}
                   placeholder="Ex: 123456"
-                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' }}
                 />
               </label>
-              <label style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+              <label className="pf-label">
                 Nº da Transação Bancária
                 <input
                   type="text"
                   value={paymentProof.transaction_number}
                   onChange={(e) => setPaymentProof((p) => ({ ...p, transaction_number: e.target.value }))}
                   placeholder="Ex: TXN-789"
-                  style={{ display: 'block', width: '100%', marginTop: 4, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' }}
                 />
               </label>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
               * Informe pelo menos um: Nº do Comprovante ou Nº da Transação.
             </div>
             {proofError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{proofError}</p>}
@@ -1416,14 +1380,14 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     setProofError(err instanceof Error ? err.message : 'Erro ao registrar pagamento.')
                   })
                 }}
-                style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#22c55e', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#4ade80,#16a34a)', color: '#0b1526', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
               >
                 ✅ Confirmar Pagamento
               </button>
               <button
                 type="button"
                 onClick={() => { setPaymentModal(null); setProofError(null) }}
-                style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+                className="pf-btn pf-btn-cancel"
               >
                 Cancelar
               </button>
@@ -1434,20 +1398,20 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 
       {/* Notification preview */}
       {pendingNotifCount > 0 && (
-        <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#ec4899' }}>
-            🔔 Notificações Pendentes ({pendingNotifCount})
+        <div className="pf-section-card">
+          <div className="pf-section-title">
+            <span className="pf-icon">🔔</span> Notificações Pendentes ({pendingNotifCount})
           </div>
           <div style={{ display: 'grid', gap: 4 }}>
             {notifications.slice(0, 6).map((notif) => (
-              <div key={notif.id} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'rgba(236,72,153,0.06)', borderLeft: '2px solid #ec4899' }}>
+              <div key={notif.id} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 5, background: 'rgba(245,158,11,0.06)', borderLeft: '2px solid var(--accent)' }}>
                 <span style={{ fontWeight: 600 }}>{notif.channel === 'email' ? '✉️' : '📱'}</span>{' '}
-                <span style={{ color: 'var(--text-muted, #94a3b8)' }}>Parcela #{notif.installmentNumber}</span>{' '}
+                <span style={{ color: 'var(--text-muted)' }}>Parcela #{notif.installmentNumber}</span>{' '}
                 — {BILLING_ALERT_LABELS[notif.level]}
               </div>
             ))}
             {pendingNotifCount > 6 && (
-              <p style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', textAlign: 'center' }}>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
                 + {pendingNotifCount - 6} notificações
               </p>
             )}
@@ -1456,22 +1420,22 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       )}
 
       {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -1575,22 +1539,22 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} />
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#f59e0b', color: '#000', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetUfData() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -1700,19 +1664,17 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   }
 
   const inputStyle: React.CSSProperties = {
-    display: 'block', width: '100%', marginTop: 4, padding: '7px 10px',
-    borderRadius: 6, border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+    display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
   }
-  const labelSty: React.CSSProperties = { fontSize: 12, color: 'var(--text-muted, #94a3b8)' }
-  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }
+  const labelSty: React.CSSProperties = {}
+  const gridSty: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 14 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: '#06b6d4' }}>📋 Plano Leasing</div>
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">📋</span> Plano Leasing</div>
         <div style={{ display: 'grid', gap: 10 }}>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Modalidade
             <select value={form.modalidade} onChange={(e) => setForm((f) => ({ ...f, modalidade: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="leasing">Leasing</option>
@@ -1721,37 +1683,37 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
             </select>
           </label>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               kWh/mês Contratado
               <input type="number" min={0} value={form.kwh_mes_contratado} onChange={(e) => setForm((f) => ({ ...f, kwh_mes_contratado: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Desconto (%)
               <input type="number" min={0} max={100} step="0.1" value={form.desconto_percentual} onChange={(e) => setForm((f) => ({ ...f, desconto_percentual: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Tarifa Atual (R$/kWh)
               <input type="number" min={0} step="0.0001" value={form.tarifa_atual} onChange={(e) => setForm((f) => ({ ...f, tarifa_atual: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Mensalidade (R$)
               <input type="number" min={0} step="0.01" value={form.mensalidade} onChange={(e) => setForm((f) => ({ ...f, mensalidade: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Prazo (meses)
               <input type="number" min={0} value={form.prazo_meses} onChange={(e) => setForm((f) => ({ ...f, prazo_meses: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Potência (kWp)
               <input type="number" min={0} step="0.01" value={form.potencia_kwp} onChange={(e) => setForm((f) => ({ ...f, potencia_kwp: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Tipo de Rede
               <select value={form.tipo_rede} onChange={(e) => setForm((f) => ({ ...f, tipo_rede: e.target.value }))} disabled={!editMode} style={inputStyle}>
                 <option value="">Selecione…</option>
@@ -1760,34 +1722,34 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
                 <option value="trifasico">Trifásico</option>
               </select>
             </label>
-            <label style={labelSty}>
+            <label className="pf-label" style={labelSty}>
               Marca Inversor
               <input type="text" value={form.marca_inversor} onChange={(e) => setForm((f) => ({ ...f, marca_inversor: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
-          <label style={labelSty}>
+          <label className="pf-label" style={labelSty}>
             Indicação
             <input type="text" value={form.indicacao} onChange={(e) => setForm((f) => ({ ...f, indicacao: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
         </div>
       </div>
       {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
-      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-edit">
             ✏️ Editar
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            style={{ flex: 1, padding: '9px 0', borderRadius: 6, border: 'none', background: '#06b6d4', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontSize: 13 }}>
+            className="pf-btn pf-btn-save">
             {saving ? 'Salvando…' : '💾 Salvar Alterações'}
           </button>
         )}
         {editMode && (
           <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}>
+            className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
         )}
@@ -1862,9 +1824,7 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
   }
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '7px 10px', borderRadius: 6,
-    border: '1px solid var(--border, #334155)',
-    background: 'var(--surface-2, #0f172a)', color: 'inherit', fontSize: 13,
+    width: '100%', boxSizing: 'border-box' as const,
   }
 
   return (
@@ -1886,7 +1846,7 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
             style={{ ...inputStyle, resize: 'none', flex: 1 }}
           />
           <button type="button" onClick={() => void handleAddNote()} disabled={addingNote || !newNote.trim()}
-            style={{ padding: '0 16px', borderRadius: 6, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
+            style={{ padding: '0 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#0b1526', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
             {addingNote ? '…' : '＋'}
           </button>
         </div>
@@ -1900,12 +1860,12 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
       ) : (
         <div style={{ display: 'grid', gap: 8 }}>
           {notes.map((note) => (
-            <div key={note.id} style={{ background: 'var(--surface-2, #0f172a)', borderRadius: 8, padding: 12, borderLeft: '3px solid #3b82f6' }}>
+            <div key={note.id} className="pf-section-card" style={{ borderLeft: '3px solid var(--accent)', marginBottom: 0 }}>
               {note.title && (
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2, color: '#93c5fd' }}>{note.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: 'var(--accent)' }}>{note.title}</div>
               )}
-              <div style={{ fontSize: 13 }}>{note.content}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: 'var(--text-base)', lineHeight: 1.5 }}>{note.content}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
                 {note.created_at ? new Date(note.created_at).toLocaleString('pt-BR') : '—'}
                 {(note.created_by_name || note.created_by_user_id) && (
                   <span> — {note.created_by_name ?? note.created_by_user_id}</span>
@@ -2029,11 +1989,11 @@ function ClientDetailPanel({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border, #334155)', flexShrink: 0, background: 'linear-gradient(135deg, rgba(30,41,59,0.95) 0%, rgba(15,23,42,0.95) 100%)' }}>
+      <div className="pf-detail-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 3, color: '#f1f5f9' }}>{displayClient.name ?? '—'}</div>
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
+            <div className="pf-detail-name">{displayClient.name ?? '—'}</div>
+            <div className="pf-detail-meta">
               {[displayClient.city, displayClient.state].filter(Boolean).join(' / ')} · Exportado {formatDate(displayClient.exported_to_portfolio_at)}
             </div>
           </div>
@@ -2044,15 +2004,11 @@ function ClientDetailPanel({
         </div>
 
         {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="pf-action-bar">
           <button
             type="button"
             onClick={() => setViewMode('expanded')}
-            style={{
-              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(59,130,246,0.5)',
-              background: 'rgba(59,130,246,0.15)', color: '#60a5fa',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-            }}
+            className="pf-action-fullscreen"
           >
             ↗️ Tela Cheia
           </button>
@@ -2060,12 +2016,7 @@ function ClientDetailPanel({
             type="button"
             onClick={() => setConfirmRemove(true)}
             disabled={removing}
-            style={{
-              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(245,158,11,0.5)',
-              background: 'rgba(245,158,11,0.15)', color: '#fbbf24',
-              fontSize: 12, fontWeight: 600, cursor: removing ? 'not-allowed' : 'pointer',
-              opacity: removing ? 0.7 : 1,
-            }}
+            className="pf-action-remove"
           >
             {removing ? 'Removendo…' : '📤 Remover da Carteira'}
           </button>
@@ -2073,12 +2024,7 @@ function ClientDetailPanel({
             type="button"
             onClick={() => setConfirmDelete(true)}
             disabled={deleting}
-            style={{
-              padding: '7px 14px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.5)',
-              background: 'rgba(239,68,68,0.15)', color: '#f87171',
-              fontSize: 12, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer',
-              opacity: deleting ? 0.7 : 1,
-            }}
+            className="pf-action-delete"
           >
             {deleting ? 'Excluindo…' : '🗑️ Excluir Cliente'}
           </button>
@@ -2254,7 +2200,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
 
   return (
     <div
-      className="budget-search-page"
+      className="budget-search-page portfolio-page"
       style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
     >
       {/* Page header */}
@@ -2282,14 +2228,14 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               type="button"
               onClick={reload}
               title="Atualizar lista"
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
             >
               🔄
             </button>
             <button
               type="button"
               onClick={onBack}
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
             >
               ← Voltar
             </button>
