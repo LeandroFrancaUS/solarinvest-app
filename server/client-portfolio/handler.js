@@ -14,6 +14,7 @@ import {
   upsertClientContract,
   upsertClientProjectStatus,
   upsertClientBillingProfile,
+  getBillingInstallmentsJson,
   getClientNotes,
   addClientNote,
   getPortfolioSummary,
@@ -338,8 +339,46 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
         }
       }
     }
+
     const sql = await getScopedSql(actor)
+
+    // ── installment_payment merge ────────────────────────────────────────────
+    // When the body carries an installment_payment object, we need to merge it
+    // into the installments_json array atomically.  We fetch the current array
+    // first (cheap single-row SELECT), replace the entry with the matching
+    // installment number (or append it when it doesn't exist yet), and pass
+    // the resulting array as fields.installments_json so the upsert writes it.
+    if (body.installment_payment) {
+      const payment = body.installment_payment
+      console.info('[portfolio][billing] installment_payment merge', {
+        clientId,
+        installmentNumber: payment.number,
+        status: payment.status,
+        receipt_number: payment.receipt_number ?? null,
+        transaction_number: payment.transaction_number ?? null,
+      })
+
+      const existing = await getBillingInstallmentsJson(sql, clientId)
+      const merged = existing.filter((p) => p.number !== payment.number)
+      merged.push(payment)
+      body.installments_json = merged
+
+      console.info('[portfolio][billing] installments_json after merge', {
+        clientId,
+        totalInstallments: merged.length,
+        confirmedCount: merged.filter((p) => p.status === 'confirmado').length,
+      })
+    }
+
     const result = await upsertClientBillingProfile(sql, clientId, body)
+
+    console.info('[portfolio][billing] upsert result', {
+      clientId,
+      rowId: result?.id ?? null,
+      installmentsCount: Array.isArray(result?.installments_json) ? result.installments_json.length : null,
+      updatedAt: result?.updated_at ?? null,
+    })
+
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] billing patch error', err)

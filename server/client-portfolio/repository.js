@@ -225,6 +225,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.auto_reminder_enabled,
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
+      cb.installments_json,
 
       -- client_energy_profile
       ep.id                                  AS energy_profile_id,
@@ -343,6 +344,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.auto_reminder_enabled,
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
+      cb.installments_json,
 
       -- fake client_energy_profile aliases for compatibility
       NULL::bigint                           AS energy_profile_id,
@@ -672,12 +674,21 @@ export async function upsertClientProjectStatus(sql, clientId, fields) {
  * Upsert client_billing_profile (one row per client).
  * Accepts both `commissioning_date` (DB column name) and
  * `commissioning_date_billing` (frontend form field name) for the same column.
+ *
+ * installments_json handling:
+ *  - When fields.installments_json is provided (array), it is written as-is.
+ *  - When fields.installments_json is null/undefined (not provided), the UPDATE
+ *    clause uses COALESCE(NULL, existing) so the stored array is PRESERVED.
+ *    The INSERT clause still seeds an empty array for brand-new rows.
  */
 export async function upsertClientBillingProfile(sql, clientId, fields) {
   const now = new Date().toISOString()
+  // null means "not provided → preserve existing in UPDATE, seed [] for INSERT"
   const installmentsJsonStr = fields.installments_json != null
     ? JSON.stringify(fields.installments_json)
-    : '[]'
+    : null
+  // INSERT fallback: use provided value or default to empty array for new rows
+  const installmentsJsonInsert = installmentsJsonStr ?? '[]'
   try {
     const rows = await sql`
       INSERT INTO public.client_billing_profile (
@@ -700,7 +711,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         ${fields.auto_reminder_enabled ?? true},
         ${fields.valor_mensalidade ?? null},
         ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
-        ${installmentsJsonStr}::jsonb,
+        ${installmentsJsonInsert}::jsonb,
         ${now},
         ${now}
       )
@@ -725,6 +736,11 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
   } catch (err) {
     // Graceful fallback: if installments_json column doesn't exist yet (migration not applied)
     if (err?.code === '42703' && String(err?.message ?? '').includes('installments_json')) {
+      console.warn('[portfolio][billing] installments_json column absent — persisting without it (run migration 0036)', {
+        clientId,
+        code: err.code,
+        message: err.message,
+      })
       const rows = await sql`
         INSERT INTO public.client_billing_profile (
           client_id, contract_id, due_day, reading_day, first_billing_date,
@@ -767,6 +783,31 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
       `
       return rows[0] ?? null
     }
+    throw err
+  }
+}
+
+/**
+ * Read only the installments_json array from client_billing_profile.
+ * Returns an empty array if no row exists or the column is null.
+ * Used by handlePortfolioBillingPatch to merge a single installment_payment
+ * into the existing array before calling upsertClientBillingProfile.
+ */
+export async function getBillingInstallmentsJson(sql, clientId) {
+  try {
+    const rows = await sql`
+      SELECT COALESCE(installments_json, '[]'::jsonb) AS installments_json
+      FROM public.client_billing_profile
+      WHERE client_id = ${clientId}
+      LIMIT 1
+    `
+    if (rows.length === 0) return []
+    const raw = rows[0].installments_json
+    return Array.isArray(raw) ? raw : []
+  } catch (err) {
+    // Column may not exist in older schema — return empty array so the caller
+    // can still proceed (the subsequent upsert will use the fallback path).
+    if (err?.code === '42703') return []
     throw err
   }
 }
