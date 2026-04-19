@@ -14,6 +14,7 @@ type BoundaryState = {
 
 export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
   state: BoundaryState = { error: null, snapshotSaved: false }
+  private _mounted = true
 
   static getDerivedStateFromError(error: Error): Partial<BoundaryState> {
     return { error }
@@ -31,7 +32,9 @@ export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
         const snapshot = this.props.getSnapshot()
         if (snapshot && typeof snapshot === 'object' && Object.keys(snapshot).length > 0) {
           void saveFormDraft(snapshot).then(() => {
-            this.setState({ snapshotSaved: true })
+            if (this._mounted) {
+              this.setState({ snapshotSaved: true })
+            }
             console.info('[Boundary] Emergency snapshot saved to IndexedDB')
           }).catch((e) => {
             console.warn('[Boundary] Failed to save emergency snapshot:', e)
@@ -41,6 +44,10 @@ export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
         // Best effort — don't make the crash worse
       }
     }
+  }
+
+  componentWillUnmount(): void {
+    this._mounted = false
   }
 
   render(): React.ReactNode {

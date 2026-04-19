@@ -197,6 +197,7 @@ import {
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
   SETTINGS_TABS,
+  SIMULACOES_SECTIONS,
   STORAGE_KEYS,
   UF_LABELS,
   createEmptyKitBudget,
@@ -5420,8 +5421,7 @@ export default function App() {
   const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>(() => {
     if (typeof window === 'undefined') return 'nova'
     const stored = window.localStorage.getItem(STORAGE_KEYS.simulacoesSection)
-    const validSections: SimulacoesSection[] = ['nova', 'salvas', 'ia', 'risco', 'packs', 'packs-inteligentes', 'analise']
-    return (stored && validSections.includes(stored as SimulacoesSection))
+    return (stored && (SIMULACOES_SECTIONS as readonly string[]).includes(stored))
       ? (stored as SimulacoesSection)
       : 'nova'
   })

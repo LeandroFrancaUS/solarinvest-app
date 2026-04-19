@@ -104,6 +104,8 @@ const MAX_SYNC_FAILURES = 5
 const SYNC_BACKOFF_BASE_MS = 2_000
 /** Whether sync is temporarily paused due to consecutive failures. */
 let syncPaused = false
+/** Timeout ID for the backoff timer so it can be cleaned up. */
+let syncBackoffTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleSyncFailure(): void {
   consecutiveSyncFailures += 1
@@ -111,8 +113,10 @@ function handleSyncFailure(): void {
     syncPaused = true
     const backoffMs = Math.min(SYNC_BACKOFF_BASE_MS * 2 ** (consecutiveSyncFailures - MAX_SYNC_FAILURES), 60_000)
     console.warn(`[serverStorage] ${consecutiveSyncFailures} consecutive sync failures — pausing for ${backoffMs}ms`)
-    setTimeout(() => {
+    if (syncBackoffTimer != null) clearTimeout(syncBackoffTimer)
+    syncBackoffTimer = setTimeout(() => {
       syncPaused = false
+      syncBackoffTimer = null
       console.info('[serverStorage] Sync resumed after backoff')
     }, backoffMs)
   }

@@ -111,6 +111,9 @@ export const STORAGE_KEYS = {
   proposalPdfReminderAt: 'solarinvest-proposal-pdf-reminder-at',
 }
 
+/** Valid SimulacoesSection values — shared between type guards and persistence. */
+export const SIMULACOES_SECTIONS = ['nova', 'salvas', 'ia', 'risco', 'packs', 'packs-inteligentes', 'analise'] as const
+
 const COMPOSICAO_TELHADO_BASE: UfvComposicaoTelhadoValores = {
   projeto: 0,
   instalacao: 0,
