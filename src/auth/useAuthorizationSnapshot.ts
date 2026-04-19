@@ -92,19 +92,21 @@ export function useAuthorizationSnapshot({
       if (result) {
         const newKey = permissionsKey(result.permissions)
 
-        // Detect permission changes after the initial load and trigger a full
-        // page reload so React state, guards, and menus all re-hydrate cleanly.
+        // Detect permission changes after the initial load.
+        // Instead of a hard page reload (which causes data loss), we update
+        // the snapshot in-place so that React guards and menus re-render
+        // reactively.  A hard reload would wipe unsaved form state and
+        // force the user back to the initial page.
         if (
           initialFetchDoneRef.current &&
           prevPermissionsKeyRef.current !== null &&
           newKey !== prevPermissionsKeyRef.current
         ) {
-          console.info('[authz] permissions changed — reloading page', {
+          console.info('[authz] permissions changed — updating snapshot in-place (no reload)', {
             prev: prevPermissionsKeyRef.current,
             next: newKey,
           })
-          window.location.reload()
-          return
+          // Fall through to update snapshot reactively instead of reloading.
         }
 
         prevPermissionsKeyRef.current = newKey

@@ -197,6 +197,7 @@ import {
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
   SETTINGS_TABS,
+  SIMULACOES_SECTIONS,
   STORAGE_KEYS,
   UF_LABELS,
   createEmptyKitBudget,
@@ -5395,9 +5396,6 @@ export default function App() {
     }
 
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
-    if (storedPage === 'dashboard') {
-      return 'app'
-    }
     const isKnownPage =
       storedPage === 'dashboard' ||
       storedPage === 'app' ||
@@ -5406,7 +5404,8 @@ export default function App() {
       storedPage === 'clientes' ||
       storedPage === 'settings' ||
       storedPage === 'simulacoes' ||
-      storedPage === 'admin-users'
+      storedPage === 'admin-users' ||
+      storedPage === 'carteira'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -5419,7 +5418,13 @@ export default function App() {
     return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
   })
   const activeTabRef = useRef(activeTab)
-  const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>('nova')
+  const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>(() => {
+    if (typeof window === 'undefined') return 'nova'
+    const stored = window.localStorage.getItem(STORAGE_KEYS.simulacoesSection)
+    return (stored && (SIMULACOES_SECTIONS as readonly string[]).includes(stored))
+      ? (stored as SimulacoesSection)
+      : 'nova'
+  })
   const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
   const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
     Record<AprovacaoChecklistKey, boolean>
@@ -7296,6 +7301,14 @@ export default function App() {
 
     window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab)
   }, [activeTab])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.simulacoesSection, simulacoesSection)
+  }, [simulacoesSection])
 
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
@@ -17325,6 +17338,13 @@ export default function App() {
             setIsHydrating(false)
           }
 
+          // Show a discreet recovery notification
+          const clientName = (envelope.data.cliente?.nome ?? '').trim()
+          const recoveryMsg = clientName
+            ? `Progresso recuperado: ${clientName}`
+            : 'Progresso recuperado automaticamente'
+          adicionarNotificacao(recoveryMsg, 'info')
+
           if (import.meta.env.DEV) console.debug('[App] Form draft applied successfully')
         } else {
           if (import.meta.env.DEV) console.debug('[App] No form draft found in IndexedDB')
@@ -18053,6 +18073,27 @@ export default function App() {
       // 'true' e os stores farão recuperação automática a partir do sessionStorage.
       window.sessionStorage.removeItem('session_active')
 
+      // Emergency snapshot: save current form state to IndexedDB before the page
+      // unloads.  This is a synchronous-start / fire-and-forget write — the browser
+      // gives us a small window to initiate async work in beforeunload, and IndexedDB
+      // transactions started here will generally complete even if the page is torn down.
+      if (!isHydratingRef.current) {
+        try {
+          const snapshot = getCurrentSnapshot()
+          if (snapshot) {
+            const nome = (snapshot?.cliente?.nome ?? '').trim()
+            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
+            const kwh = Number(snapshot?.kcKwhMes ?? 0)
+            if (nome || endereco || kwh > 0) {
+              // Fire-and-forget — we can't await in beforeunload
+              void saveFormDraft(snapshot)
+            }
+          }
+        } catch {
+          // Best effort — don't block unload
+        }
+      }
+
       if (!hasUnsavedChanges()) {
         return
       }
@@ -18061,9 +18102,33 @@ export default function App() {
       event.returnValue = ''
     }
 
+    // Save a snapshot when the page loses visibility (user switches tabs/apps).
+    // This covers scenarios where the browser might kill the tab in the background.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && !isHydratingRef.current) {
+        try {
+          const snapshot = getCurrentSnapshot()
+          if (snapshot) {
+            const nome = (snapshot?.cliente?.nome ?? '').trim()
+            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
+            const kwh = Number(snapshot?.kcKwhMes ?? 0)
+            if (nome || endereco || kwh > 0) {
+              void saveFormDraft(snapshot)
+            }
+          }
+        } catch {
+          // Best effort
+        }
+      }
+    }
+
     window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasUnsavedChanges, getCurrentSnapshot])
 
   // Marca a sessão como ativa logo após o mount. Combinado com a remoção no beforeunload,
   // permite que os stores detectem crashes (session_active === 'true' no próximo boot).

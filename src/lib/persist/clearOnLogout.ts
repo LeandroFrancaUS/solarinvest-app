@@ -25,6 +25,10 @@ const LOCAL_STORAGE_DATA_KEYS: readonly string[] = [
   // user on the same device does not inherit data from the previous session.
   'solarinvest-clientes',       // CLIENTES_STORAGE_KEY — API-sourced client list
   'solarinvest-orcamentos',     // BUDGETS_STORAGE_KEY  — API-sourced proposal list
+  // Navigation state: cleared so next user starts fresh.
+  'solarinvest-active-page',    // STORAGE_KEYS.activePage
+  'solarinvest-active-tab',     // STORAGE_KEYS.activeTab
+  'solarinvest-simulacoes-section', // STORAGE_KEYS.simulacoesSection
 ]
 
 function clearFormSessionStorage(): void {
