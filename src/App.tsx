@@ -11333,11 +11333,23 @@ export default function App() {
   const custoFinalProjetadoCanonico = useMemo(() => {
     // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
     // valorBaseOriginalAtivo (VM contratual) para o cálculo de buyout.
-    // Prioridade: preco_minimo_saudavel (Análise Financeira) > auto > venda > CAPEX.
+    // Prioridade:
+    //   1. preco_ideal_rs     — "Preço Ideal" da AF (venda com margem-alvo configurada).
+    //      É o valor canônico exibido na página de Análise Financeira como "Preço Ideal".
+    //   2. preco_minimo_saudavel_rs — fallback quando preco_ideal não está disponível
+    //      (ex.: modo leasing, ou sem margem-alvo configurada).
+    //   3. autoCustoFinal     — engine de auto-pricing (quando modoOrcamento === 'auto').
+    //   4. valorVendaAtual    — valor informado manualmente.
+    //   5. capex              — CAPEX bruto como último recurso.
     // NÃO confundir com CAPEX do orçamento PDF nem com mensalidade.
-    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
-    if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
-      return precoMin
+    const precoIdeal = analiseFinanceiraResult?.preco_ideal_rs
+    if (Number.isFinite(precoIdeal) && precoIdeal != null && precoIdeal > 0) {
+      return precoIdeal
+    }
+
+    const precoMinSaudavel = analiseFinanceiraResult?.preco_minimo_saudavel_rs
+    if (Number.isFinite(precoMinSaudavel) && precoMinSaudavel != null && precoMinSaudavel > 0) {
+      return precoMinSaudavel
     }
 
     const auto = Number(autoCustoFinal)
