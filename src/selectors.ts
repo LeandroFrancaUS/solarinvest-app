@@ -4,9 +4,13 @@ import {
   tarifaProjetadaCheia,
   tarifaDescontada,
   toMonthly,
-  valorCompraCliente,
   type EntradaModo,
 } from './utils/calcs'
+import {
+  computeContractualBuyout,
+  computeDepreciationFactor,
+  computeLinearTechnicalAmortization,
+} from './lib/finance/buyout'
 import {
   calcularTarifaProjetada,
   calcularTaxaMinima,
@@ -132,6 +136,7 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
 
   const inadMensal = toMonthly(state.inadimplenciaAa)
   const tribMensal = toMonthly(state.tributosAa)
+  const vm0 = Math.max(0, state.vm0)
   const linhas: BuyoutLinha[] = []
   let prestacaoAcum = 0
 
@@ -158,32 +163,32 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
     const prestEfetiva = receitaEfetiva * (1 - tribMensal)
     prestacaoAcum += prestEfetiva
 
-    const pagosEfetivos =
-      state.pagosAcumManual > 0 ? Math.min(state.pagosAcumManual, prestacaoAcum) : prestacaoAcum
-    const valorResidual =
-      mes >= 7
-        ? valorCompraCliente({
-            m: mes,
-            vm0: state.vm0,
-            depreciacaoAa: state.depreciacaoAa,
-            ipcaAa: state.ipcaAa,
-            inadimplenciaAa: state.inadimplenciaAa,
-            tributosAa: state.tributosAa,
-            custosFixosM: state.custosFixosM,
-            opexM: state.opexM,
-            seguroM: state.seguroM,
-            pagosAcumAteM: pagosEfetivos,
-            cashbackPct: state.cashbackPct,
-            duracaoMeses: state.duracaoMeses,
-          })
-        : 0
+    // VEC contratual: max(0, (VM × F(m)) – A(m)), com piso residual aplicado.
+    // VM = vm0 vindo da Análise Financeira (precoIdeal / custoFinalProjetadoCanonico).
+    // F(m) = fator de depreciação econômica composta mensal.
+    // A(m) = amortização técnica linear acumulada — independente da mensalidade de serviço.
+    let valorResidual = 0
+    if (mes >= 7) {
+      const f = computeDepreciationFactor(state.depreciacaoAa, mes)
+      const a = computeLinearTechnicalAmortization(vm0, mes, duracao)
+      const { vecFinal } = computeContractualBuyout({
+        mesContratual: mes,
+        prazoContratualMeses: duracao,
+        valorMercadoUsina: vm0,
+        valorOriginalAtivo: vm0,
+        fatorDepreciacaoEconomica: f,
+        amortizacaoTecnicaAcumulada: a,
+      })
+      valorResidual = Math.round(vecFinal * 100) / 100
+    }
+
     linhas.push({
       mes,
       tarifaCheia: tarifaCheiaMes,
       tarifaDescontada: tarifaLiquida,
       prestacaoEfetiva: prestEfetiva,
       prestacaoAcum: prestacaoAcum,
-      cashback: Math.max(0, pagosEfetivos * state.cashbackPct),
+      cashback: 0,
       valorResidual,
     })
   }
