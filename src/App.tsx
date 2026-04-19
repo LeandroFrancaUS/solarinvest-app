@@ -16716,6 +16716,11 @@ export default function App() {
     const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
 
     // Persist to localStorage (best-effort, non-blocking for the save result).
+    // When syncedToBackend is true the data is already safe on the server, so any
+    // cache/quota failure here is purely cosmetic and must NOT produce a user-visible
+    // toast that competes with the success message.  Demote such failures to console
+    // warnings only.  User-visible warnings are reserved for offline / degraded mode
+    // where localStorage really is the primary store.
     try {
       window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(ordenados))
     } catch (error) {
@@ -16731,19 +16736,27 @@ export default function App() {
             // Last resort: keep only the 5 most recently updated records without snapshots
             const recent = ordenados.slice(0, 5).map((r) => ({ ...r, propostaSnapshot: undefined }))
             window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(recent))
-            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records')
-            localSaveWarning =
-              'O armazenamento local atingiu o limite. Apenas os registros mais recentes foram mantidos localmente. Os dados completos estão no servidor.'
+            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records; data is safe on server')
+            // Only surface to the user when the server is unavailable — in that case the
+            // local cache is the only copy and the user needs to know it was trimmed.
+            if (!syncedToBackend) {
+              localSaveWarning =
+                'Dados salvos localmente com espaço reduzido. Alguns registros antigos foram removidos do cache do navegador.'
+            }
           } catch (finalError) {
             console.error('[ClienteSave] localStorage save failed even after pruning.', finalError)
-            localSaveWarning =
-              'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            if (!syncedToBackend) {
+              localSaveWarning =
+                'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            }
           }
         }
       } else {
         console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
-        localSaveWarning =
-          'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+        if (!syncedToBackend) {
+          localSaveWarning =
+            'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+        }
       }
     }
 
@@ -16756,7 +16769,9 @@ export default function App() {
       return false
     }
 
-    // Surface localStorage quota warnings to the user (outside the state updater)
+    // Surface localStorage warnings only when the server was not available (offline /
+    // degraded mode).  When syncedToBackend is true the data is already persisted in
+    // the database and the cache issue is an implementation detail, not a user problem.
     if (localSaveWarning) {
       adicionarNotificacao(localSaveWarning, 'info')
     }
