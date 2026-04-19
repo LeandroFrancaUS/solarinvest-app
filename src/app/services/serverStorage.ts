@@ -199,6 +199,16 @@ const persistPut = (key: string, value: string) => {
         )
         return
       }
+      if (response.status === 503 || response.status === 502 || response.status === 504) {
+        // Service unavailable — apply the same cooldown enforced during initialization
+        // so we don't hammer a consistently failing backend on every key write.
+        recordStorageUnavailable()
+        syncEnabled = false
+        console.warn(
+          `[serverStorage] Storage unavailable (${response.status}) — sync disabled for ${STORAGE_UNAVAILABLE_COOLDOWN_MS / 1000}s cooldown. Data preserved locally.`,
+        )
+        return
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
@@ -241,7 +251,18 @@ const persistDelete = (key: string | null) => {
       signal: controller.signal,
     }),
   )
-    .then(() => {
+    .then((response) => {
+      if (response.status === 503 || response.status === 502 || response.status === 504) {
+        recordStorageUnavailable()
+        syncEnabled = false
+        console.warn(
+          `[serverStorage] Storage unavailable (${response.status}) during delete — sync disabled for cooldown. Data preserved locally.`,
+        )
+        return
+      }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       handleSyncSuccess()
     })
     .catch((error) => {
