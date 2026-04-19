@@ -163,10 +163,8 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
     const prestEfetiva = receitaEfetiva * (1 - tribMensal)
     prestacaoAcum += prestEfetiva
 
-    // VEC contratual: max(0, (VM × F(m)) – A(m)), com piso residual aplicado.
-    // VM = vm0 vindo da Análise Financeira (precoIdeal / custoFinalProjetadoCanonico).
-    // F(m) = fator de depreciação econômica composta mensal.
-    // A(m) = amortização técnica linear acumulada — independente da mensalidade de serviço.
+    // VEC contratual via computeContractualBuyout — ver buyout.ts para detalhes da fórmula.
+    // VM = vm0 (Análise Financeira / precoIdeal), F(m) = depreciação composta, A(m) = amortização linear.
     let valorResidual = 0
     if (mes >= 7) {
       const f = computeDepreciationFactor(state.depreciacaoAa, mes)
@@ -182,13 +180,16 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
       valorResidual = Math.round(vecFinal * 100) / 100
     }
 
+    // Cashback informacional (não faz parte do VEC contratual, apenas exibição).
+    const cashback = Math.max(0, prestacaoAcum * state.cashbackPct)
+
     linhas.push({
       mes,
       tarifaCheia: tarifaCheiaMes,
       tarifaDescontada: tarifaLiquida,
       prestacaoEfetiva: prestEfetiva,
       prestacaoAcum: prestacaoAcum,
-      cashback: 0,
+      cashback,
       valorResidual,
     })
   }
