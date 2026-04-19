@@ -66,9 +66,9 @@ WHERE deleted_at IS NULL
 SELECT
   id,
   client_name,
-  document,
-  email,
-  phone,
+  client_document,
+  client_email,
+  client_phone,
   cpf_normalized,
   cnpj_normalized,
   identity_status,
@@ -97,10 +97,10 @@ SELECT
 FROM public.clients
 WHERE deleted_at IS NULL
   AND (
-    -- document original
-    (document IS NOT NULL AND (
-       btrim(regexp_replace(document, '[^0-9]', '', 'g')) = ''
-    OR regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$'
+    -- client_document original
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
     ))
     OR
     -- cpf_normalized
@@ -120,7 +120,7 @@ WHERE deleted_at IS NULL
 SELECT
   id,
   client_name,
-  document,
+  client_document,
   cpf_normalized,
   cnpj_normalized,
   identity_status,
@@ -129,9 +129,9 @@ SELECT
 FROM public.clients
 WHERE deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND (
-       btrim(regexp_replace(document, '[^0-9]', '', 'g')) = ''
-    OR regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$'
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
     ))
     OR
     (cpf_normalized IS NOT NULL AND (
@@ -158,24 +158,24 @@ SELECT
   COUNT(*) AS total
 FROM public.clients
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- Amostra:
-SELECT id, client_name, phone, created_at
+SELECT id, client_name, client_phone, created_at
 FROM public.clients
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   )
 LIMIT 50;
 
@@ -531,7 +531,7 @@ SELECT c.*, now(), 'placeholder_document'
 FROM public.clients c
 WHERE c.deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
@@ -541,12 +541,12 @@ INSERT INTO data_hygiene.clients_backup
 SELECT c.*, now(), 'invalid_phone'
 FROM public.clients c
 WHERE c.deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- Inserir duplicatas por CPF (todas as cópias):
@@ -785,7 +785,7 @@ WHERE c.deleted_at IS NULL
 --      Se identity_status = 'confirmed' e o documento for placeholder, rebaixar para 'pending_cpf'
 UPDATE public.clients
 SET
-  document       = NULL,
+  client_document = NULL,
   cpf_raw        = CASE WHEN regexp_replace(coalesce(cpf_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_raw END,
   cpf_normalized = CASE WHEN regexp_replace(coalesce(cpf_normalized,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_normalized END,
   cnpj_raw       = CASE WHEN regexp_replace(coalesce(cnpj_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cnpj_raw END,
@@ -793,7 +793,7 @@ SET
   identity_status = CASE
                       WHEN identity_status = 'confirmed'
                        AND (
-                         (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+                         (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
                          OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
                          OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
                        )
@@ -803,7 +803,7 @@ SET
   updated_at = now()
 WHERE deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
@@ -811,35 +811,35 @@ WHERE deleted_at IS NULL
 -- C1d) Normalizar telefone inválido para NULL
 UPDATE public.clients
 SET
-  phone      = CASE
-                 WHEN lower(btrim(phone)) = '[object object]'
-                   OR btrim(phone) = ''
-                   OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-                   OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+  client_phone = CASE
+                 WHEN lower(btrim(client_phone)) = '[object object]'
+                   OR btrim(client_phone) = ''
+                   OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+                   OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
                  THEN NULL
-                 ELSE phone
+                 ELSE client_phone
                END,
   updated_at = now()
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- C1e) Normalizar email inválido para NULL nos clientes
 UPDATE public.clients
 SET
-  email      = NULL,
-  updated_at = now()
+  client_email = NULL,
+  updated_at   = now()
 WHERE deleted_at IS NULL
-  AND email IS NOT NULL
+  AND client_email IS NOT NULL
   AND (
-    lower(btrim(email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
-    OR email NOT LIKE '%@%.%'
-    OR email ~ '\s'
+    lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
+    OR client_email NOT LIKE '%@%.%'
+    OR client_email ~ '\s'
   );
 
 -- C1f) Deduplicação por CPF: soft-delete das duplicatas, mantendo o "vencedor"
@@ -1397,7 +1397,7 @@ SELECT
 SELECT
   c.id,
   c.client_name,
-  c.email,
+  c.client_email,
   c.cpf_normalized,
   c.cnpj_normalized,
   c.identity_status,
