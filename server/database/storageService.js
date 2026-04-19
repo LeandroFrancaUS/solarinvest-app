@@ -23,46 +23,51 @@ export class StorageService {
   constructor(sql) {
     this.sql = sql
     this.initialized = false
-    // When true, ensureInitialized() will throw immediately on every subsequent call
-    // instead of retrying a failing CREATE TABLE (e.g. 42501 permission denied).
-    this.initFailed = false
-    this.initError = null
   }
 
   async ensureInitialized() {
     if (this.initialized) {
       return
     }
-    // Permanent failure: don't hit the DB again if we already know init won't work.
-    if (this.initFailed) {
-      throw this.initError
-    }
 
     try {
-      await this.sql`
-        CREATE TABLE IF NOT EXISTS storage (
-          id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-          user_id TEXT NOT NULL,
-          "key" TEXT NOT NULL,
-          value JSONB,
-          created_at TIMESTAMP DEFAULT now(),
-          updated_at TIMESTAMP DEFAULT now(),
-          UNIQUE (user_id, "key")
-        )
+      // Check whether the storage table already exists before attempting DDL.
+      // In production the DB role typically lacks CREATE TABLE privilege (DDL is
+      // handled by migrations), so issuing CREATE TABLE would throw 42501 and used
+      // to permanently disable storage even though the table already existed.
+      const [tableCheck] = await this.sql`
+        SELECT to_regclass('public.storage') AS table_name
       `
+      const tableExists = Boolean(tableCheck?.table_name)
+
+      if (!tableExists) {
+        // Table absent — try to create it (succeeds in dev / environments where
+        // the DB role has DDL rights; the table should be created by migration
+        // 0038 before this code path is needed in production).
+        await this.sql`
+          CREATE TABLE IF NOT EXISTS storage (
+            id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_id TEXT NOT NULL,
+            "key" TEXT NOT NULL,
+            value JSONB,
+            created_at TIMESTAMP DEFAULT now(),
+            updated_at TIMESTAMP DEFAULT now(),
+            UNIQUE (user_id, "key")
+          )
+        `
+      }
 
       await this.migrateLegacyStorage()
 
       this.initialized = true
     } catch (err) {
+      // Log and rethrow — the next request will retry initialization.
+      // Do NOT set a permanent failure flag; the service must self-heal once the
+      // database is reachable / the table is available.
       const code = err?.code ?? null
       const message = err instanceof Error ? err.message : String(err)
-      // 42501 = insufficient_privilege (permission denied for schema public).
-      // Mark as permanently failed so we stop retrying on every request.
       if (code === '42501' || message.includes('permission denied')) {
-        this.initFailed = true
-        this.initError = err
-        console.warn('[storage] init failed — permission denied for schema public; storage will be unavailable', {
+        console.warn('[storage] init warning — permission denied during initialization; will retry on next request', {
           code,
           message,
         })

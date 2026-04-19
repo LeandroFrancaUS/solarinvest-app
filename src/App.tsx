@@ -2374,10 +2374,15 @@ const cloneBudgetUploadProgress = (
   progress: BudgetUploadProgress | null,
 ): BudgetUploadProgress | null => (progress ? { ...progress } : null)
 
-const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => ({
-  ...info,
-  missingFields: [...info.missingFields],
-})
+const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => {
+  if (!info || typeof info !== 'object') {
+    return { missingFields: [], totalRequired: 0, totalFound: 0 }
+  }
+  return {
+    ...info,
+    missingFields: Array.isArray(info.missingFields) ? [...info.missingFields] : [],
+  }
+}
 
 const cloneKitBudgetMissingInfo = (
   info: KitBudgetMissingInfo,
@@ -2391,12 +2396,14 @@ const cloneKitBudgetMissingInfo = (
   }
 }
 
-const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => ({
-  ...state,
-  items: (Array.isArray(state?.items) ? state.items : []).map((item) => ({ ...item })),
-  warnings: [...(Array.isArray(state?.warnings) ? state.warnings : [])],
-  missingInfo: cloneKitBudgetMissingInfo(state.missingInfo),
-})
+const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => {
+  const s: Partial<KitBudgetState> = (state && typeof state === 'object') ? state : {}
+  return {
+    items: (Array.isArray(s.items) ? s.items : []).map((item) => ({ ...item })),
+    warnings: [...(Array.isArray(s.warnings) ? s.warnings : [])],
+    missingInfo: cloneKitBudgetMissingInfo(s.missingInfo as KitBudgetMissingInfo),
+  } as KitBudgetState
+}
 
 const cloneStructuredItems = (items: StructuredItem[]): StructuredItem[] =>
   items.map((item) => ({ ...item }))
@@ -2419,44 +2426,129 @@ const cloneVendasSimulacoes = (
     Object.entries(simulations).map(([id, sim]) => [id, { ...sim }]),
   )
 
-const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => ({
-  ...snapshot,
-  cliente: cloneClienteDados(snapshot.cliente),
-  clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
-  ucBeneficiarias: cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []),
-  pageShared: { ...snapshot.pageShared },
-  configuracaoUsinaObservacoes: snapshot.configuracaoUsinaObservacoes ?? '',
-  propostaImagens: Array.isArray(snapshot.propostaImagens)
-    ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
-    : [],
-  budgetStructuredItems: cloneStructuredItems(snapshot.budgetStructuredItems),
-  kitBudget: cloneKitBudgetState(snapshot.kitBudget),
-  budgetProcessing: {
-    ...snapshot.budgetProcessing,
-    progress: cloneBudgetUploadProgress(snapshot.budgetProcessing.progress),
-  },
-  ufsDisponiveis: [...snapshot.ufsDisponiveis],
-  distribuidorasPorUf: cloneDistribuidorasMapa(snapshot.distribuidorasPorUf),
-  multiUc: {
-    ...snapshot.multiUc,
-    rows: snapshot.multiUc.rows.map((row) => ({ ...row })),
-  },
-  composicaoTelhado: { ...snapshot.composicaoTelhado },
-  composicaoSolo: { ...snapshot.composicaoSolo },
-  impostosOverridesDraft: cloneImpostosOverrides(snapshot.impostosOverridesDraft),
-  vendasConfig: JSON.parse(JSON.stringify(snapshot.vendasConfig)) as VendasConfig,
-  vendasSimulacoes: cloneVendasSimulacoes(snapshot.vendasSimulacoes),
-  vendaForm: { ...snapshot.vendaForm },
-  leasingAnexosSelecionados: Array.isArray(snapshot.leasingAnexosSelecionados)
-    ? [...snapshot.leasingAnexosSelecionados]
-    : [],
-  parsedVendaPdf: snapshot.parsedVendaPdf
-    ? (JSON.parse(JSON.stringify(snapshot.parsedVendaPdf)) as ParsedVendaPdfData)
-    : null,
-  estruturaTipoWarning: snapshot.estruturaTipoWarning ?? null,
-  vendaSnapshot: JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot,
-  leasingSnapshot: JSON.parse(JSON.stringify(snapshot.leasingSnapshot)) as LeasingState,
-})
+const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => {
+  const s: Partial<OrcamentoSnapshotData> = (snapshot && typeof snapshot === 'object') ? snapshot : {}
+  return {
+    ...(s as OrcamentoSnapshotData),
+    cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
+    clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
+    ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
+    pageShared: s.pageShared ? { ...s.pageShared } : ({} as OrcamentoSnapshotData['pageShared']),
+    configuracaoUsinaObservacoes: s.configuracaoUsinaObservacoes ?? '',
+    propostaImagens: Array.isArray(s.propostaImagens)
+      ? s.propostaImagens.map((imagem) => ({ ...imagem }))
+      : [],
+    budgetStructuredItems: cloneStructuredItems(Array.isArray(s.budgetStructuredItems) ? s.budgetStructuredItems : []),
+    kitBudget: cloneKitBudgetState((s.kitBudget ?? {}) as KitBudgetState),
+    budgetProcessing: s.budgetProcessing
+      ? {
+          ...s.budgetProcessing,
+          progress: cloneBudgetUploadProgress(s.budgetProcessing.progress ?? null),
+        }
+      : { isProcessing: false, error: null, progress: null, isTableCollapsed: false, ocrDpi: 150 },
+    ufsDisponiveis: Array.isArray(s.ufsDisponiveis) ? [...s.ufsDisponiveis] : [],
+    distribuidorasPorUf: s.distribuidorasPorUf ? cloneDistribuidorasMapa(s.distribuidorasPorUf) : {},
+    multiUc: s.multiUc
+      ? {
+          ...s.multiUc,
+          rows: Array.isArray(s.multiUc.rows) ? s.multiUc.rows.map((row) => ({ ...row })) : [],
+        }
+      : { rows: [] } as OrcamentoSnapshotData['multiUc'],
+    composicaoTelhado: s.composicaoTelhado ? { ...s.composicaoTelhado } : ({} as OrcamentoSnapshotData['composicaoTelhado']),
+    composicaoSolo: s.composicaoSolo ? { ...s.composicaoSolo } : ({} as OrcamentoSnapshotData['composicaoSolo']),
+    impostosOverridesDraft: cloneImpostosOverrides(s.impostosOverridesDraft ?? {}),
+    vendasConfig: s.vendasConfig ? (JSON.parse(JSON.stringify(s.vendasConfig)) as VendasConfig) : ({} as VendasConfig),
+    vendasSimulacoes: s.vendasSimulacoes ? cloneVendasSimulacoes(s.vendasSimulacoes) : {},
+    vendaForm: s.vendaForm ? { ...s.vendaForm } : ({} as VendaForm),
+    leasingAnexosSelecionados: Array.isArray(s.leasingAnexosSelecionados)
+      ? [...s.leasingAnexosSelecionados]
+      : [],
+    parsedVendaPdf: s.parsedVendaPdf
+      ? (JSON.parse(JSON.stringify(s.parsedVendaPdf)) as ParsedVendaPdfData)
+      : null,
+    estruturaTipoWarning: s.estruturaTipoWarning ?? null,
+    vendaSnapshot: s.vendaSnapshot
+      ? (JSON.parse(JSON.stringify(s.vendaSnapshot)) as VendaSnapshot)
+      : ({} as VendaSnapshot),
+    leasingSnapshot: s.leasingSnapshot
+      ? (JSON.parse(JSON.stringify(s.leasingSnapshot)) as LeasingState)
+      : ({} as LeasingState),
+  }
+}
+
+/** Safe JSON byte size estimate (using Blob for accuracy when available). */
+const getJsonSizeBytes = (obj: unknown): number => {
+  try {
+    const str = JSON.stringify(obj) ?? ''
+    if (typeof Blob !== 'undefined') {
+      return new Blob([str]).size
+    }
+    return str.length * 2 // worst-case UTF-16 estimate
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Conservative limit for a single key in the remote /api/storage.
+ * Keeps us well below any typical 1 MB server body limit once JSON overhead is added.
+ */
+const SAFE_STORAGE_PAYLOAD_BYTES = 250_000
+
+/**
+ * Strip large/reconstructable fields from a snapshot before writing it to
+ * localStorage or sending to /api/storage.  Returns a partial copy that
+ * preserves only the data that matters for offline recovery.
+ */
+const stripSnapshotForStorage = (
+  snapshot: OrcamentoSnapshotData | null | undefined,
+): OrcamentoSnapshotData | undefined => {
+  if (!snapshot) return undefined
+  const stripped: Partial<OrcamentoSnapshotData> = {
+    ...snapshot,
+    // Drop large blobs that are reconstructable from the proposal PDF / re-upload
+    parsedVendaPdf: null,
+    // Drop precomputed image list — not needed for client recovery
+    propostaImagens: [],
+    // Drop large budget item lists — can be re-parsed from PDF
+    budgetStructuredItems: [],
+    // Drop raw kit budget items — kept in proposals separately
+    kitBudget: snapshot.kitBudget
+      ? {
+          ...snapshot.kitBudget,
+          items: [],
+          missingInfo: null,
+          warnings: [],
+        }
+      : ({} as KitBudgetState),
+    // Drop transient processing state
+    budgetProcessing: {
+      isProcessing: false,
+      error: null,
+      progress: null,
+      isTableCollapsed: false,
+      ocrDpi: 150,
+    },
+    // Drop per-simulation cache — large and reconstructable
+    vendasSimulacoes: {},
+    // Drop static lookups
+    ufsDisponiveis: [],
+    distribuidorasPorUf: {},
+  }
+  return stripped as OrcamentoSnapshotData
+}
+
+/**
+ * Serialize a list of client records for localStorage / remote storage.
+ * Strips heavy snapshot fields so the payload stays within quota limits.
+ */
+const serializeClientesForStorage = (registros: ClienteRegistro[]): string => {
+  const lite = registros.map((r) => ({
+    ...r,
+    propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
+  }))
+  return JSON.stringify(lite)
+}
 
 const computeSnapshotSignature = (
   snapshot: OrcamentoSnapshotData,
@@ -2890,6 +2982,8 @@ const normalizeClienteRegistros = (
   const baseExistingIds = options.existingIds ? Array.from(options.existingIds) : []
   const existingIds = new Set<string>(baseExistingIds)
   let houveAtualizacaoIds = false
+  /** Warn only once per normalization batch to avoid console spam. */
+  let snapshotWarnedInBatch = false
 
   const normalizados = items.map((item) => {
     const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
@@ -2924,7 +3018,13 @@ const normalizeClienteRegistros = (
       try {
         propostaSnapshot = cloneSnapshotData(snapshotRaw as OrcamentoSnapshotData)
       } catch (error) {
-        console.warn('Não foi possível normalizar o snapshot do cliente.', error)
+        if (!snapshotWarnedInBatch) {
+          snapshotWarnedInBatch = true
+          console.warn(
+            `Não foi possível normalizar o snapshot do cliente (id: ${idNormalizado}). Os dados do cliente foram preservados.`,
+            error,
+          )
+        }
         propostaSnapshot = undefined
       }
     }
@@ -6395,6 +6495,8 @@ export default function App() {
   const lastUcGeradoraCepAppliedRef = useRef<string>('')
   const cepCidadeAvisoRef = useRef<string | null>(null)
   const budgetIdMismatchLoggedRef = useRef(false)
+  /** Timestamp (ms) of the last budget-id-mismatch warn log. Used to throttle spam. */
+  const budgetIdMismatchWarnedAtRef = useRef(0)
   const novaPropostaEmAndamentoRef = useRef(false)
   const lastUfSelecionadaRef = useRef<string>(cliente.uf)
 
@@ -12739,7 +12841,7 @@ export default function App() {
 
       if (houveAtualizacaoIds) {
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
         } catch (error) {
           console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
         }
@@ -12879,7 +12981,7 @@ export default function App() {
         }
       }
       // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(filteredRegistros)) } catch {}
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(filteredRegistros)) } catch {}
       setClientsSyncState('online-db')
       setClientsSource('api')
       setLastSuccessfulApiLoadAt(Date.now())
@@ -12925,7 +13027,7 @@ export default function App() {
             ? oneDrivePayload
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
         const reconciled = registros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
         setClientsSource('server-storage')
         console.info('[clients][load] source', {
@@ -12985,7 +13087,7 @@ export default function App() {
       if (typeof window !== 'undefined') {
         try {
           if (registros.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
@@ -15692,11 +15794,18 @@ export default function App() {
       )
 
       try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(combinados))
       } catch (error) {
-        console.error('Erro ao persistir clientes importados.', error)
-        window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-        return
+        if (isQuotaExceededError(error)) {
+          try {
+            // snapshots already stripped via spread, so raw stringify is safe here
+            const ultraLite = combinados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+          } catch {
+            try { window.localStorage.removeItem(CLIENTES_STORAGE_KEY) } catch { /* noop */ }
+          }
+        }
+        console.warn('[bulk-import] local cache update failed (non-blocking)', error)
       }
 
       setClientesSalvos(combinados)
@@ -15970,11 +16079,15 @@ export default function App() {
       !isHydratingRef.current &&
       !budgetIdTransitionRef.current
     ) {
-      console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
-        budgetIdRef: budgetIdRefNow,
-        budgetIdState: budgetIdStateNow,
-        activeBudgetId: budgetId,
-      })
+      const now = Date.now()
+      if (now - budgetIdMismatchWarnedAtRef.current > 30_000) {
+        budgetIdMismatchWarnedAtRef.current = now
+        console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
+          budgetIdRef: budgetIdRefNow,
+          budgetIdState: budgetIdStateNow,
+          activeBudgetId: budgetId,
+        })
+      }
     }
 
     if (import.meta.env.DEV) {
@@ -16439,11 +16552,20 @@ export default function App() {
     const upsertPayload: UpsertClientInput = {
       ...buildClientUpsertPayload(dadosClonados, 'manual_save', snapshotClonado),
       energyProfile,
+      // Persist the official "valor de mercado" (Preço Ideal da Análise Financeira) for leasing proposals.
+      // Uses the same source as custoFinalProjetadoCanonico (computed at component level).
+      ...(isLeasingTab && Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
+        ? { valordemercado: custoFinalProjetadoCanonico }
+        : {}),
     }
 
     // Neon DB save FIRST so data is durable before the local cache is updated.
     let syncedToBackend = false
     let neonServerId: string | null = null
+    // True when the backend returned a 5xx "service unavailable" status (e.g. DATABASE_URL
+    // not configured in a preview deployment).  In that case we fall through to local save
+    // rather than blocking the entire operation.
+    let backendServiceUnavailable = false
     try {
       if (online) {
         // For edits use the known server ID; for new clients let the backend deduplicate.
@@ -16468,9 +16590,15 @@ export default function App() {
       setClientLastSaveStatus('error')
       setClientsSyncState('degraded-api')
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
+      // 503/502/504 means the backend is unreachable or not configured (e.g. no DATABASE_URL
+      // in a Vercel preview deployment).  Treat this like an offline event so the data is
+      // at least preserved in localStorage instead of being lost entirely.
+      if (error instanceof ClientsApiError && (error.status === 503 || error.status === 502 || error.status === 504)) {
+        backendServiceUnavailable = true
+      }
     }
 
-    if (online && !syncedToBackend) {
+    if (online && !syncedToBackend && !backendServiceUnavailable) {
       setClientLastSaveStatus('error')
       console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
       if (!options?.silent) {
@@ -16479,78 +16607,63 @@ export default function App() {
       return false
     }
 
-    let registroSalvo: ClienteRegistro | null = null
-    let houveErro = false
-    setClientesSalvos((prevRegistros) => {
-      const novoComparacao = createClienteComparisonData(dadosClonados)
-      let registroCorrespondente: ClienteRegistro | null = null
+    // Compute the new client record and sorted list synchronously using the current
+    // clientesSalvos snapshot.  We must NOT do this inside the setClientesSalvos
+    // updater and then rely on a captured variable, because React 18 (createRoot +
+    // automatic batching) calls state updaters asynchronously — the captured variable
+    // would still be null when read on the very next line, causing a false "save failed".
+    let localSaveWarning: string | null = null
+    const novoComparacao = createClienteComparisonData(dadosClonados)
+    let registroCorrespondente: ClienteRegistro | null = null
 
-      for (const registro of prevRegistros) {
-        if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
-          continue
-        }
-
-        const existenteComparacao = createClienteComparisonData(registro.dados)
-        const nomeIgual =
-          novoComparacao.nome &&
-          existenteComparacao.nome &&
-          novoComparacao.nome === existenteComparacao.nome
-        const documentoIgual =
-          novoComparacao.documento &&
-          novoComparacao.documento === existenteComparacao.documento
-        const rgIgual = novoComparacao.rg && novoComparacao.rg === existenteComparacao.rg
-
-        if (novoComparacao.signature === existenteComparacao.signature) {
-          registroCorrespondente = registro
-          break
-        }
-
-        if (documentoIgual || rgIgual) {
-          registroCorrespondente = registro
-          break
-        }
+    for (const registro of clientesSalvos) {
+      if (clienteEmEdicaoId && registro.id === clienteEmEdicaoId) {
+        continue
       }
 
-      const existingIds = new Set(prevRegistros.map((registro) => registro.id))
-      let registrosAtualizados: ClienteRegistro[] = prevRegistros
-      let registroAtualizado: ClienteRegistro | null = null
-      const registroIdAlvo = clienteEmEdicaoId ?? registroCorrespondente?.id ?? null
+      const existenteComparacao = createClienteComparisonData(registro.dados)
+      const documentoIgual =
+        novoComparacao.documento &&
+        novoComparacao.documento === existenteComparacao.documento
+      const rgIgual = novoComparacao.rg && novoComparacao.rg === existenteComparacao.rg
 
-      if (registroIdAlvo) {
-        let encontrado = false
-        registrosAtualizados = prevRegistros.map((registro) => {
-          if (registro.id === registroIdAlvo) {
-            encontrado = true
-            const atualizado: ClienteRegistro = {
-              ...registro,
-              dados: dadosClonados,
-              atualizadoEm: agoraIso,
-              propostaSnapshot: snapshotClonado,
-              consumption_kwh_month: resolvedConsumption,
-              system_kwp: resolvedSystemKwp,
-              term_months: resolvedTermMonths,
-            }
-            registroAtualizado = atualizado
-            return atualizado
-          }
-          return registro
-        })
+      if (novoComparacao.signature === existenteComparacao.signature) {
+        registroCorrespondente = registro
+        break
+      }
 
-        if (!encontrado) {
-          const novoRegistro: ClienteRegistro = {
-            id: generateClienteId(existingIds),
-            criadoEm: agoraIso,
-            atualizadoEm: agoraIso,
+      if (documentoIgual || rgIgual) {
+        registroCorrespondente = registro
+        break
+      }
+    }
+
+    const existingIds = new Set(clientesSalvos.map((registro) => registro.id))
+    let registrosAtualizados: ClienteRegistro[] = clientesSalvos
+    let registroSalvo: ClienteRegistro | null = null
+    const registroIdAlvo = clienteEmEdicaoId ?? registroCorrespondente?.id ?? null
+
+    if (registroIdAlvo) {
+      let encontrado = false
+      registrosAtualizados = clientesSalvos.map((registro) => {
+        if (registro.id === registroIdAlvo) {
+          encontrado = true
+          const atualizado: ClienteRegistro = {
+            ...registro,
             dados: dadosClonados,
+            atualizadoEm: agoraIso,
             propostaSnapshot: snapshotClonado,
             consumption_kwh_month: resolvedConsumption,
             system_kwp: resolvedSystemKwp,
             term_months: resolvedTermMonths,
           }
-          registroAtualizado = novoRegistro
-          registrosAtualizados = [novoRegistro, ...prevRegistros]
+          registroSalvo = atualizado
+          return atualizado
         }
-      } else {
+        return registro
+      })
+
+      if (!encontrado) {
         const novoRegistro: ClienteRegistro = {
           id: generateClienteId(existingIds),
           criadoEm: agoraIso,
@@ -16561,31 +16674,82 @@ export default function App() {
           system_kwp: resolvedSystemKwp,
           term_months: resolvedTermMonths,
         }
-        registroAtualizado = novoRegistro
-        registrosAtualizados = [novoRegistro, ...prevRegistros]
+        registroSalvo = novoRegistro
+        registrosAtualizados = [novoRegistro, ...clientesSalvos]
       }
-
-      const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
-
-      try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
-      } catch (error) {
-        console.error('Erro ao salvar cliente localmente.', error)
-        window.alert('Não foi possível salvar o cliente. Tente novamente.')
-        houveErro = true
-        return prevRegistros
+    } else {
+      const novoRegistro: ClienteRegistro = {
+        id: generateClienteId(existingIds),
+        criadoEm: agoraIso,
+        atualizadoEm: agoraIso,
+        dados: dadosClonados,
+        propostaSnapshot: snapshotClonado,
+        consumption_kwh_month: resolvedConsumption,
+        system_kwp: resolvedSystemKwp,
+        term_months: resolvedTermMonths,
       }
+      registroSalvo = novoRegistro
+      registrosAtualizados = [novoRegistro, ...clientesSalvos]
+    }
 
-      registroSalvo = registroAtualizado
-      return ordenados
-    })
+    const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
 
-    const salvo = registroSalvo as ClienteRegistro | null
-    if (houveErro || !salvo) {
+    // Persist to localStorage (best-effort, non-blocking for the save result).
+    try {
+      window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(ordenados))
+    } catch (error) {
+      if (isQuotaExceededError(error)) {
+        // Quota full — attempt progressive pruning: first drop snapshots entirely,
+        // then drop old records until it fits or we run out of options.
+        try {
+          const ultraLite = ordenados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+          console.warn('[ClienteSave] localStorage quota tight — saved without snapshots')
+        } catch {
+          try {
+            // Last resort: keep only the 5 most recently updated records without snapshots
+            const recent = ordenados.slice(0, 5).map((r) => ({ ...r, propostaSnapshot: undefined }))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(recent))
+            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records')
+            localSaveWarning =
+              'O armazenamento local atingiu o limite. Apenas os registros mais recentes foram mantidos localmente. Os dados completos estão no servidor.'
+          } catch (finalError) {
+            console.error('[ClienteSave] localStorage save failed even after pruning.', finalError)
+            localSaveWarning =
+              'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+          }
+        }
+      } else {
+        console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
+        localSaveWarning =
+          'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+      }
+    }
+
+    // Commit the pre-computed sorted list directly — no updater function needed since
+    // we already computed the new state above from the synchronous snapshot.
+    setClientesSalvos(ordenados)
+
+    if (!registroSalvo) {
+      adicionarNotificacao('Não foi possível salvar o cliente. Tente novamente.', 'error')
       return false
     }
 
-    const registroConfirmado: ClienteRegistro = salvo
+    // Surface localStorage quota warnings to the user (outside the state updater)
+    if (localSaveWarning) {
+      adicionarNotificacao(localSaveWarning, 'info')
+    }
+
+    // When the backend was unreachable (503/502/504) but local save succeeded, inform
+    // the user in degraded mode rather than showing a hard failure.
+    if (backendServiceUnavailable && !options?.silent) {
+      adicionarNotificacao(
+        'Servidor indisponível. Dados salvos localmente — serão sincronizados quando o serviço for restaurado.',
+        'info',
+      )
+    }
+
+    const registroConfirmado: ClienteRegistro = registroSalvo
 
     // Update server ID map now that we have the local ID (from state) and Neon ID.
     if (syncedToBackend && neonServerId) {
@@ -16701,6 +16865,8 @@ export default function App() {
     carregarClientesPrioritarios,
     cliente,
     clienteEmEdicaoId,
+    clientesSalvos,
+    custoFinalProjetadoCanonico,
     getCurrentSnapshot,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
@@ -16864,7 +17030,7 @@ export default function App() {
       }
 
       let removeuEdicaoAtual = false
-      let houveErro = false
+      let localCacheWarning: string | null = null
 
       setClientesSalvos((prevRegistros) => {
         const registrosAtualizados = prevRegistros.filter((item) => item.id !== registro.id)
@@ -16872,17 +17038,26 @@ export default function App() {
           return prevRegistros
         }
 
+        // Always commit the removal in React state first — backend already confirmed the delete.
+        // Cache update is best-effort and must never revert a successful backend operation.
         try {
           if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registrosAtualizados))
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
-        } catch (error) {
-          console.error('Erro ao excluir cliente salvo.', error)
-          window.alert('Não foi possível atualizar os clientes salvos. Tente novamente.')
-          houveErro = true
-          return prevRegistros
+        } catch (cacheError) {
+          // Quota or other local-storage failure: try progressively lighter payloads.
+          if (isQuotaExceededError(cacheError)) {
+            try {
+              const ultraLite = registrosAtualizados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+              window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+            } catch {
+              try { window.localStorage.removeItem(CLIENTES_STORAGE_KEY) } catch { /* noop */ }
+            }
+          }
+          console.warn('[clients][delete] local cache update failed (non-blocking — backend delete already confirmed)', cacheError)
+          localCacheWarning = 'Cache local não pôde ser atualizado por limite de armazenamento. O cliente foi excluído do servidor com sucesso.'
         }
 
         if (clienteEmEdicaoId === registro.id) {
@@ -16892,8 +17067,8 @@ export default function App() {
         return registrosAtualizados
       })
 
-      if (houveErro) {
-        return
+      if (localCacheWarning) {
+        adicionarNotificacao(localCacheWarning, 'info')
       }
 
       if (removeuEdicaoAtual) {
@@ -18848,6 +19023,13 @@ export default function App() {
       emailCorresponsavel: corresponsavelPayload?.email ?? '',
       telefoneCorresponsavel: corresponsavelPayload?.telefone ?? '',
       ...procuracaoTags,
+      // Valor atual de mercado (Preço Ideal da Análise Financeira) — preenche a tag {{valordemercado_atual}}
+      valordemercado_atual: Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
+        ? `R$ ${formatNumberBRWithOptions(custoFinalProjetadoCanonico, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : (() => {
+            console.warn('[contract][leasing] valordemercado_atual not available — tag {{valordemercado_atual}} will be empty')
+            return ''
+          })(),
     }
 
     return {
@@ -18856,6 +19038,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    custoFinalProjetadoCanonico,
     kcKwhMes,
     leasingContrato,
     leasingPrazoContratualMeses,

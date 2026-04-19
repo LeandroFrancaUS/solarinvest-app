@@ -105,6 +105,11 @@ function enrichPortfolioClientRow(row) {
   row.tipo_instalacao = row.usina_tipo_instalacao ?? meta.tipo_instalacao ?? null
   row.area_instalacao_m2 = row.usina_area_instalacao_m2 ?? meta.area_instalacao_m2 ?? null
   row.geracao_estimada_kwh = row.usina_geracao_estimada_kwh ?? meta.geracao_estimada_kwh ?? null
+  row.valordemercado = row.usina_valordemercado ?? null
+
+  // Parse contract_attachments_json into an array — preserve null when absent
+  const rawAttachments = row.contract_attachments_json
+  row.contract_attachments = Array.isArray(rawAttachments) ? rawAttachments : null
 
   // Expose plano fields from energy profile when available
   row.kwh_mes_contratado = row.kwh_contratado ?? null
@@ -142,6 +147,8 @@ function isEnergyProfileDependencyError(err) {
  * Detects errors caused by missing migration 0031 columns in client_contracts.
  * These columns (consultant_id, consultant_name, contract_file_*) were added
  * later and may be absent in environments where migration 0031 has not been applied.
+ * Also detects missing migration 0037 column (contract_attachments_json) and
+ * missing valordemercado column in client_usina_config.
  */
 function isContractExtensionColumnError(err) {
   const message = err instanceof Error ? err.message : String(err)
@@ -153,7 +160,9 @@ function isContractExtensionColumnError(err) {
     message.includes('consultant_name') ||
     message.includes('contract_file_name') ||
     message.includes('contract_file_url') ||
-    message.includes('contract_file_type')
+    message.includes('contract_file_type') ||
+    message.includes('contract_attachments_json') ||
+    message.includes('valordemercado')
   )
 }
 
@@ -271,7 +280,11 @@ export async function getPortfolioClient(sql, clientId) {
       cu.modelo_inversor                     AS usina_modelo_inversor,
       cu.tipo_instalacao                     AS usina_tipo_instalacao,
       cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
-      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
+      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh,
+      cu.valordemercado                      AS usina_valordemercado,
+
+      -- contract attachments (migration 0037 — optional)
+      cc.contract_attachments_json
 
     FROM public.clients c
     LEFT JOIN public.client_contracts cc
@@ -392,7 +405,14 @@ export async function getPortfolioClient(sql, clientId) {
       cu.modelo_inversor                     AS usina_modelo_inversor,
       cu.tipo_instalacao                     AS usina_tipo_instalacao,
       cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
-      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh
+      cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh,
+      -- valordemercado replaced with NULL so this fallback query succeeds even when
+      -- the column has not yet been added to client_usina_config
+      NULL::numeric                          AS usina_valordemercado,
+
+      -- contract attachments replaced with NULL so this fallback query succeeds even
+      -- when migration 0037 (contract_attachments_json) has not been applied
+      NULL::jsonb                            AS contract_attachments_json
 
     FROM public.clients c
     LEFT JOIN public.client_contracts cc
@@ -612,6 +632,11 @@ export async function updateClientLifecycle(sql, clientId, fields) {
  */
 export async function upsertClientContract(sql, clientId, fields) {
   const now = new Date().toISOString()
+  // Serialise contract_attachments_json to a JSON string for the query.
+  // null means "not provided → preserve existing value".
+  const attachmentsJsonStr = Array.isArray(fields.contract_attachments)
+    ? JSON.stringify(fields.contract_attachments)
+    : null
 
   if (fields.id) {
     const rows = await (async () => {
@@ -637,6 +662,7 @@ export async function upsertClientContract(sql, clientId, fields) {
             contract_file_name         = COALESCE(${fields.contract_file_name ?? null}, contract_file_name),
             contract_file_url          = COALESCE(${fields.contract_file_url ?? null}, contract_file_url),
             contract_file_type         = COALESCE(${fields.contract_file_type ?? null}, contract_file_type),
+            contract_attachments_json  = COALESCE(${attachmentsJsonStr}::jsonb, contract_attachments_json),
             updated_at                 = ${now}
           WHERE id = ${fields.id}
             AND client_id = ${clientId}
@@ -644,7 +670,7 @@ export async function upsertClientContract(sql, clientId, fields) {
         `
       } catch (err) {
         if (!isContractExtensionColumnError(err)) throw err
-        console.warn('[portfolio][contract] migration 0031 columns missing — retrying UPDATE without extension columns', {
+        console.warn('[portfolio][contract] optional columns missing — retrying UPDATE without extension columns', {
           clientId,
           contractId: fields.id,
           message: err instanceof Error ? err.message : String(err),
@@ -685,6 +711,7 @@ export async function upsertClientContract(sql, clientId, fields) {
           buyout_status, buyout_date, buyout_amount_reference, notes,
           consultant_id, consultant_name,
           contract_file_name, contract_file_url, contract_file_type,
+          contract_attachments_json,
           created_at, updated_at
         ) VALUES (
           ${clientId},
@@ -706,6 +733,7 @@ export async function upsertClientContract(sql, clientId, fields) {
           ${fields.contract_file_name ?? null},
           ${fields.contract_file_url ?? null},
           ${fields.contract_file_type ?? null},
+          ${attachmentsJsonStr ?? '[]'}::jsonb,
           ${now},
           ${now}
         )
@@ -713,7 +741,7 @@ export async function upsertClientContract(sql, clientId, fields) {
       `
     } catch (err) {
       if (!isContractExtensionColumnError(err)) throw err
-      console.warn('[portfolio][contract] migration 0031 columns missing — retrying INSERT without extension columns', {
+      console.warn('[portfolio][contract] optional columns missing — retrying INSERT without extension columns', {
         clientId,
         message: err instanceof Error ? err.message : String(err),
       })

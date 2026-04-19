@@ -72,7 +72,7 @@ export interface PortfolioClientRow {
   billing_start_date?: string | null
   expected_billing_end_date?: string | null
   contractual_term_months?: number | null
-  buyout_eligible?: boolean
+  buyout_eligible?: boolean | null
   buyout_status?: string | null
   buyout_date?: string | null
   buyout_amount_reference?: number | null
@@ -88,7 +88,7 @@ export interface PortfolioClientRow {
   billing_payment_status?: BillingPaymentStatus | null
   delinquency_status?: string | null
   collection_stage?: string | null
-  auto_reminder_enabled?: boolean
+  auto_reminder_enabled?: boolean | null
 
   // ── Installment-level payment tracking ──
   installments_json?: InstallmentPayment[] | null
@@ -101,6 +101,8 @@ export interface PortfolioClientRow {
   tipo_instalacao?: string | null
   area_instalacao_m2?: number | null
   geracao_estimada_kwh?: number | null
+  /** Valor atual de mercado do sistema fotovoltaico (sourced from client_usina_config.valordemercado) */
+  valordemercado?: number | null
 
   // ── Contract extensions ──
   contract_file_name?: string | null
@@ -108,6 +110,8 @@ export interface PortfolioClientRow {
   contract_file_type?: string | null
   consultant_id?: string | null
   consultant_name?: string | null
+  /** Multiple contract attachments (migration 0037). null when column not yet available. */
+  contract_attachments?: ContractAttachment[] | null
 
   // ── Leasing plan ──
   kwh_mes_contratado?: number | null
@@ -155,6 +159,17 @@ export interface InstallmentPayment {
   transaction_number: string | null
   attachment_url: string | null
   confirmed_by: string | null
+}
+
+/** Single contract attachment record stored inside contract_attachments_json */
+export interface ContractAttachment {
+  id: string
+  fileName: string
+  mimeType?: string | null
+  sizeBytes?: number | null
+  url?: string | null
+  storageKey?: string | null
+  uploadedAt?: string | null
 }
 
 export interface ClientNote {

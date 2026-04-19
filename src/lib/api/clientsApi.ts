@@ -131,6 +131,8 @@ export interface UpsertClientInput {
   term_months?: number | null
   metadata?: Record<string, unknown>
   energyProfile?: Partial<ClientEnergyProfile>
+  /** Valor atual de mercado do sistema fotovoltaico (persisted to client_usina_config.valordemercado) */
+  valordemercado?: number | null
 }
 
 export interface UpdateClientInput {
@@ -153,6 +155,8 @@ export interface UpdateClientInput {
   term_months?: number | null
   metadata?: Record<string, unknown>
   energyProfile?: Partial<ClientEnergyProfile>
+  /** Valor atual de mercado do sistema fotovoltaico (persisted to client_usina_config.valordemercado) */
+  valordemercado?: number | null
 }
 
 export class ClientsApiError extends Error {
