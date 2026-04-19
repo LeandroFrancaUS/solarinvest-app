@@ -15798,6 +15798,7 @@ export default function App() {
       } catch (error) {
         if (isQuotaExceededError(error)) {
           try {
+            // snapshots already stripped via spread, so raw stringify is safe here
             const ultraLite = combinados.map((r) => ({ ...r, propostaSnapshot: undefined }))
             window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
           } catch {
