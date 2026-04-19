@@ -21,6 +21,7 @@ import {
   ForecastPanel,
   DrilldownTable,
 } from '../components/dashboard/index.js'
+import { useAppAuth } from '../auth/guards/RequireAuthorizedUser.js'
 
 type LoadingState = 'idle' | 'loading' | 'loaded' | 'error'
 
@@ -29,6 +30,15 @@ export function DashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters())
   const [loadState, setLoadState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
+
+  // Gate data loading on a confirmed authenticated session from the auth context.
+  // DashboardPage is rendered inside RequireAuthorizedUser which guarantees the user
+  // is authenticated, but the API token providers (proposalsApi, clientsApi) are
+  // registered in a parent component's useEffect that runs AFTER child effects.
+  // Reading `me` from the auth context lets us defer the API call until after the
+  // parent's effect has set the token providers.
+  const { me } = useAppAuth()
+  const isAuthenticated = Boolean(me?.authenticated)
 
   // ── Fetch data from real APIs ───────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -69,9 +79,11 @@ export function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    // Only load data after auth is fully established so token providers are ready.
+    if (!isAuthenticated) return
     void loadData()
     trackEvent('dashboard_viewed')
-  }, [loadData])
+  }, [isAuthenticated, loadData])
 
   // ── Compute snapshot (memoised inside engine) ───────────────────────────
   const snapshot = useMemo(

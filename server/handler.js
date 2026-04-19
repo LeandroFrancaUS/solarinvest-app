@@ -445,11 +445,55 @@ export default async function handler(req, res) {
       return
     }
 
+    if (pathname === '/api/health/auth') {
+      // Check Stack Auth connectivity: can we verify a user with the configured JWKS?
+      const authEnabled = stackAuthEnabled
+      const bypassMode = !stackAuthEnabled
+      sendJson(res, 200, {
+        ok: true,
+        service: 'auth',
+        status: bypassMode ? 'bypass' : 'configured',
+        stackAuthEnabled: authEnabled,
+      })
+      return
+    }
+
+    if (pathname === '/api/health/storage') {
+      if (!storageService || !databaseClient || !databaseConfig.connectionString) {
+        sendJson(res, 503, {
+          ok: false,
+          service: 'storage',
+          status: 'not_configured',
+          error: 'DATABASE_URL não definido ou storage indisponível.',
+        })
+        return
+      }
+      const startTime = Date.now()
+      try {
+        await databaseClient.sql`SELECT 1 AS ok`
+        sendJson(res, 200, {
+          ok: true,
+          service: 'storage',
+          status: 'connected',
+          latencyMs: Date.now() - startTime,
+        })
+      } catch (err) {
+        sendJson(res, 503, {
+          ok: false,
+          service: 'storage',
+          status: 'error',
+          error: 'Falha ao conectar ao banco de dados.',
+          latencyMs: Date.now() - startTime,
+        })
+      }
+      return
+    }
+
+
     if (pathname === DEFAULT_PROXY_BASE) {
       await handleAneelProxyRequest(req, res)
       return
     }
-
     if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
       await handleLeasingContractsAvailabilityRequest(req, res)
       return
@@ -496,7 +540,7 @@ export default async function handler(req, res) {
 
     if (pathname === STORAGE_API_PATH) {
       if (!storageService) {
-        sendJson(res, 503, { error: 'Persistência indisponível' })
+        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Persistência indisponível' })
         return
       }
 
@@ -509,18 +553,28 @@ export default async function handler(req, res) {
       try {
         actor = await resolveActor(req)
       } catch (actorErr) {
+        // Classify the error: auth/permission failures should be 401/403, not 503.
+        const errMsg = actorErr?.message ?? String(actorErr)
+        const isAuthError = errMsg.includes('Unauthorized') || errMsg.includes('401') ||
+          errMsg.includes('unauthenticated') || errMsg.includes('token')
         console.error('[storage] resolveActor failed:', {
           message: actorErr?.message,
           code: actorErr?.code,
           stack: actorErr?.stack,
         })
-        sendJson(res, 503, { error: 'Não foi possível verificar permissões. Tente novamente.' })
+        if (isAuthError) {
+          sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+        } else {
+          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Não foi possível verificar permissões. Tente novamente.' })
+        }
         return
       }
 
       const userId = actor?.userId ?? fallbackUserId
       const resolvedRole = actorRole(actor)
-      console.log('[storage] auth context', { userId, resolvedRole })
+      if (import.meta?.env?.DEV || process.env.NODE_ENV !== 'production') {
+        console.log('[storage] auth context', { userId, resolvedRole })
+      }
 
       if (method === 'OPTIONS') {
         res.setHeader('Allow', CORS_ALLOWED_METHODS)
@@ -529,22 +583,21 @@ export default async function handler(req, res) {
       }
 
       if (stackAuthEnabled && !userId) {
-        sendJson(res, 401, { error: 'Autenticação obrigatória.' })
+        sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
         return
       }
       if (stackAuthEnabled && !resolvedRole) {
         sendJson(res, 403, {
-          error: {
-            code: 'RLS_CONTEXT_MISSING_INTERNAL_ROLE',
-            message: 'Unable to resolve internal app role for SQL session.',
-          },
+          ok: false,
+          code: 'FORBIDDEN',
+          message: 'Unable to resolve internal app role for SQL session.',
         })
         return
       }
 
       if (method === 'GET') {
         try {
-          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
+          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
           const entries = await storageService.listEntries({ userId, userRole: resolvedRole })
           sendJson(res, 200, { entries })
         } catch (storageErr) {
@@ -553,9 +606,8 @@ export default async function handler(req, res) {
             userRole: resolvedRole,
             message: storageErr?.message,
             code: storageErr?.code,
-            stack: storageErr?.stack,
           })
-          sendJson(res, 503, { error: 'Falha ao acessar armazenamento. Tente novamente.' })
+          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao acessar armazenamento. Tente novamente.', requestId })
         }
         return
       }
@@ -564,9 +616,9 @@ export default async function handler(req, res) {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         const value = body.value === undefined ? null : body.value
-        if (!key) return sendJson(res, 400, { error: 'Chave de armazenamento inválida.' })
+        if (!key) return sendJson(res, 400, { ok: false, code: 'VALIDATION_ERROR', message: 'Chave de armazenamento inválida.' })
         try {
-          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
+          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
           await storageService.setEntry({ userId, userRole: resolvedRole }, key, value)
           sendNoContent(res)
         } catch (storageErr) {
@@ -575,9 +627,8 @@ export default async function handler(req, res) {
             userRole: resolvedRole,
             message: storageErr?.message,
             code: storageErr?.code,
-            stack: storageErr?.stack,
           })
-          sendJson(res, 503, { error: 'Falha ao salvar no armazenamento. Tente novamente.' })
+          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao salvar no armazenamento. Tente novamente.', requestId })
         }
         return
       }
@@ -586,7 +637,7 @@ export default async function handler(req, res) {
         const body = await readJsonBody(req)
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         try {
-          console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
+          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
           if (!key) {
             await storageService.clear({ userId, userRole: resolvedRole })
           } else {
@@ -599,14 +650,13 @@ export default async function handler(req, res) {
             userRole: resolvedRole,
             message: storageErr?.message,
             code: storageErr?.code,
-            stack: storageErr?.stack,
           })
-          sendJson(res, 503, { error: 'Falha ao remover do armazenamento. Tente novamente.' })
+          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao remover do armazenamento. Tente novamente.', requestId })
         }
         return
       }
 
-      sendJson(res, 405, { error: 'Método não suportado.' })
+      sendJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Método não suportado.' })
       return
     }
 

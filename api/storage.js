@@ -118,7 +118,7 @@ export default async function handler(req, res) {
       storageUnavailableWarningLogged = true
       console.warn('[storage] Persistência Neon indisponível no ambiente serverless. Defina DATABASE_URL para habilitar.')
     }
-    sendJson(res, 503, { error: 'Persistência indisponível' })
+    sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Persistência indisponível' })
     return
   }
 
@@ -132,8 +132,16 @@ export default async function handler(req, res) {
   try {
     actor = await resolveActor(req)
   } catch (actorErr) {
-    console.error('[storage] resolveActor failed:', actorErr?.message ?? actorErr)
-    sendJson(res, 503, { error: 'Não foi possível verificar permissões. Tente novamente.' })
+    // Classify the error: auth/permission failures should be 401/403, not 503.
+    const errMsg = actorErr?.message ?? String(actorErr)
+    const isAuthError = errMsg.includes('Unauthorized') || errMsg.includes('401') ||
+      errMsg.includes('unauthenticated') || errMsg.includes('token')
+    console.error('[storage] resolveActor failed:', errMsg)
+    if (isAuthError) {
+      sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+    } else {
+      sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Não foi possível verificar permissões. Tente novamente.' })
+    }
     return
   }
 
@@ -143,15 +151,14 @@ export default async function handler(req, res) {
   console.log('[storage] auth context', { userId, resolvedRole })
 
   if (stackAuthEnabled && !userId) {
-    sendJson(res, 401, { error: 'Autenticação obrigatória.' })
+    sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
     return
   }
   if (stackAuthEnabled && !resolvedRole) {
     sendJson(res, 403, {
-      error: {
-        code: 'RLS_CONTEXT_MISSING_INTERNAL_ROLE',
-        message: 'Unable to resolve internal app role for SQL session.',
-      },
+      ok: false,
+      code: 'FORBIDDEN',
+      message: 'Unable to resolve internal app role for SQL session.',
     })
     return
   }
@@ -204,6 +211,6 @@ export default async function handler(req, res) {
       code: error?.code,
       stack: error?.stack,
     })
-    sendJson(res, 503, { error: 'Falha ao acessar armazenamento persistente.' })
+    sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao acessar armazenamento persistente.' })
   }
 }
