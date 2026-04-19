@@ -84,11 +84,15 @@ export interface BuyoutBreakdown {
 /**
  * Retorna o percentual de piso residual mínimo aplicável no mês contratual m.
  *
- * Interpretação operacional da cláusula contratual de valor mínimo de exercício:
+ * Comportamento por faixa:
  *   - m < 6  : 0 (opção de compra não exercível; o contrato impede o exercício antes do mês 6)
- *   - m 6–24 : 40% do valor original do ativo (piso fixo)
+ *   - m 6–24 : 40% do valor-base original do ativo (piso fixo)
  *   - m 25–prazo: redução linear de 40% até 10% (progressão por faixa)
  *   - Clamped: sempre entre 10% e 40% para m ≥ 6
+ *
+ * Comportamento para prazo < 26: o denominador é fixado em max(26, prazo) - 25 = 1,
+ * o que significa que todo mês ≥ 25 recebe imediatamente o piso de 10%.
+ * Isso é conservador e seguro para contratos de prazo muito curto (< 25 meses).
  *
  * NOTA JURÍDICA: A curva progressiva entre o mês 25 e o mês final do prazo é
  * uma interpretação operacional linear desta cláusula. Caso haja entendimento
@@ -134,7 +138,7 @@ export function getResidualFloorValue(
 /**
  * Calcula o Fator de Depreciação Econômica F(m) usando capitalização composta mensal.
  *
- * F(m) = (1 − δ_mensal)^m, onde δ_mensal = (1 + depreciacaoAa)^(1/12) − 1.
+ * F(m) = (1 − depMensal)^m, onde depMensal = (1 + depreciacaoAa)^(1/12) − 1.
  *
  * @param depreciacaoAa Taxa de depreciação anual em decimal (ex.: 0.12 para 12% a.a.).
  * @param m             Mês contratual (base 1).
