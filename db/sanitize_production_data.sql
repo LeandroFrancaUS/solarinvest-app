@@ -464,25 +464,36 @@ LIMIT 30;
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 -- A10) Chaves técnicas indevidas na tabela storage
+--      Detecta: _STACK_AUTH.*, __vercel_toolbar*, clear, getItem, key, length,
+--      e outras chaves de debug/framework que não deveriam estar persistidas.
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 SELECT
   'A10 - storage com chaves técnicas/lixo' AS check_name,
   COUNT(*) AS total
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 -- Listagem completa das chaves técnicas:
-SELECT id, user_id, "key", created_at, updated_at
+SELECT
+  id,
+  user_id,
+  "key",
+  pg_size_pretty(octet_length(value::text)::bigint) AS value_size,
+  updated_at
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%'
-ORDER BY "key", user_id;
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%'
+ORDER BY user_id, "key";
 
 -- Visão geral do storage (todas as chaves distintas existentes):
 SELECT "key", COUNT(*) AS users_com_essa_chave
@@ -707,10 +718,12 @@ ALTER TABLE data_hygiene.storage_backup
 INSERT INTO data_hygiene.storage_backup
 SELECT s.*, now(), 'technical_key'
 FROM public.storage s
-WHERE s."key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR s."key" LIKE '_STACK_AUTH%'
+WHERE s."key" LIKE '_STACK_AUTH%'
    OR s."key" LIKE '__vercel_toolbar%'
-   OR s."key" LIKE 'vercel-%';
+   OR s."key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR s."key" LIKE '%debug%'
+   OR s."key" LIKE '%__test__%'
+   OR s."key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1197,10 +1210,12 @@ WHERE deleted_at IS NULL
 -- Backupadas no BLOCO B antes desta remoção.
 
 DELETE FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1325,10 +1340,12 @@ SELECT
   'D6 - storage com chaves técnicas restantes' AS check_name,
   COUNT(*) AS total
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
