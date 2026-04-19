@@ -39,17 +39,31 @@ export class StorageService {
     }
 
     try {
-      await this.sql`
-        CREATE TABLE IF NOT EXISTS storage (
-          id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-          user_id TEXT NOT NULL,
-          "key" TEXT NOT NULL,
-          value JSONB,
-          created_at TIMESTAMP DEFAULT now(),
-          updated_at TIMESTAMP DEFAULT now(),
-          UNIQUE (user_id, "key")
-        )
+      // Check whether the storage table already exists before attempting to create
+      // it.  In production the DB role typically has no CREATE TABLE privilege (DDL
+      // is handled separately via migrations), so issuing CREATE TABLE would throw
+      // 42501 (permission denied for schema public) and permanently disable storage
+      // — even though the table was already created by the migration and is usable.
+      const [tableCheck] = await this.sql`
+        SELECT to_regclass('public.storage') AS table_name
       `
+      const tableExists = Boolean(tableCheck?.table_name)
+
+      if (!tableExists) {
+        // Table absent — try to create it (works in dev / fresh environments where
+        // the DB role has DDL rights; fails gracefully in restricted prod envs).
+        await this.sql`
+          CREATE TABLE IF NOT EXISTS storage (
+            id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_id TEXT NOT NULL,
+            "key" TEXT NOT NULL,
+            value JSONB,
+            created_at TIMESTAMP DEFAULT now(),
+            updated_at TIMESTAMP DEFAULT now(),
+            UNIQUE (user_id, "key")
+          )
+        `
+      }
 
       await this.migrateLegacyStorage()
 
