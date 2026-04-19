@@ -16439,6 +16439,11 @@ export default function App() {
     const upsertPayload: UpsertClientInput = {
       ...buildClientUpsertPayload(dadosClonados, 'manual_save', snapshotClonado),
       energyProfile,
+      // Persist the official "valor de mercado" (Preço Ideal da Análise Financeira) for leasing proposals.
+      // Uses the same source as custoFinalProjetadoCanonico (computed at component level).
+      ...(isLeasingTab && Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
+        ? { valordemercado: custoFinalProjetadoCanonico }
+        : {}),
     }
 
     // Neon DB save FIRST so data is durable before the local cache is updated.
@@ -16701,6 +16706,7 @@ export default function App() {
     carregarClientesPrioritarios,
     cliente,
     clienteEmEdicaoId,
+    custoFinalProjetadoCanonico,
     getCurrentSnapshot,
     isOneDriveIntegrationAvailable,
     persistClienteRegistroToOneDrive,
@@ -18848,6 +18854,13 @@ export default function App() {
       emailCorresponsavel: corresponsavelPayload?.email ?? '',
       telefoneCorresponsavel: corresponsavelPayload?.telefone ?? '',
       ...procuracaoTags,
+      // Valor atual de mercado (Preço Ideal da Análise Financeira) — preenche a tag {{valordemercado_atual}}
+      valordemercado_atual: Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
+        ? `R$ ${formatNumberBRWithOptions(custoFinalProjetadoCanonico, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : (() => {
+            console.warn('[contract][leasing] valordemercado_atual not available — tag {{valordemercado_atual}} will be empty')
+            return ''
+          })(),
     }
 
     return {
@@ -18856,6 +18869,7 @@ export default function App() {
     }
   }, [
     adicionarNotificacao,
+    custoFinalProjetadoCanonico,
     kcKwhMes,
     leasingContrato,
     leasingPrazoContratualMeses,

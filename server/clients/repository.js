@@ -867,6 +867,7 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
     tipo_instalacao = null,
     area_instalacao_m2 = null,
     geracao_estimada_kwh = null,
+    valordemercado = null,
   } = config ?? {}
 
   try {
@@ -874,10 +875,12 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
       INSERT INTO public.client_usina_config (
         client_id, potencia_modulo_wp, numero_modulos, modelo_modulo,
         modelo_inversor, tipo_instalacao, area_instalacao_m2, geracao_estimada_kwh,
+        valordemercado,
         created_at, updated_at
       ) VALUES (
         ${clientId}, ${potencia_modulo_wp}, ${numero_modulos}, ${modelo_modulo},
         ${modelo_inversor}, ${tipo_instalacao}, ${area_instalacao_m2}, ${geracao_estimada_kwh},
+        ${valordemercado},
         now(), now()
       )
       ON CONFLICT (client_id) DO UPDATE SET
@@ -888,16 +891,44 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
         tipo_instalacao      = COALESCE(EXCLUDED.tipo_instalacao,      client_usina_config.tipo_instalacao),
         area_instalacao_m2   = COALESCE(EXCLUDED.area_instalacao_m2,   client_usina_config.area_instalacao_m2),
         geracao_estimada_kwh = COALESCE(EXCLUDED.geracao_estimada_kwh, client_usina_config.geracao_estimada_kwh),
+        valordemercado       = COALESCE(EXCLUDED.valordemercado,       client_usina_config.valordemercado),
         updated_at           = now()
       RETURNING *
     `
     return rows[0] ?? null
   } catch (err) {
     const code = err?.code ?? null
+    const message = err instanceof Error ? err.message : String(err)
     // 42P01 = undefined_table: migration 0032 not applied yet — fall back silently
     if (code === '42P01') {
       console.warn('[clients][upsertUsinaConfig] client_usina_config table not found — skipping')
       return null
+    }
+    // 42703 = undefined_column: valordemercado column not yet added — retry without it
+    if (code === '42703' && message.includes('valordemercado')) {
+      console.warn('[clients][upsertUsinaConfig] valordemercado column absent — retrying without it (run migration for valordemercado)')
+      const rows = await sql`
+        INSERT INTO public.client_usina_config (
+          client_id, potencia_modulo_wp, numero_modulos, modelo_modulo,
+          modelo_inversor, tipo_instalacao, area_instalacao_m2, geracao_estimada_kwh,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId}, ${potencia_modulo_wp}, ${numero_modulos}, ${modelo_modulo},
+          ${modelo_inversor}, ${tipo_instalacao}, ${area_instalacao_m2}, ${geracao_estimada_kwh},
+          now(), now()
+        )
+        ON CONFLICT (client_id) DO UPDATE SET
+          potencia_modulo_wp   = COALESCE(EXCLUDED.potencia_modulo_wp,   client_usina_config.potencia_modulo_wp),
+          numero_modulos       = COALESCE(EXCLUDED.numero_modulos,       client_usina_config.numero_modulos),
+          modelo_modulo        = COALESCE(EXCLUDED.modelo_modulo,        client_usina_config.modelo_modulo),
+          modelo_inversor      = COALESCE(EXCLUDED.modelo_inversor,      client_usina_config.modelo_inversor),
+          tipo_instalacao      = COALESCE(EXCLUDED.tipo_instalacao,      client_usina_config.tipo_instalacao),
+          area_instalacao_m2   = COALESCE(EXCLUDED.area_instalacao_m2,   client_usina_config.area_instalacao_m2),
+          geracao_estimada_kwh = COALESCE(EXCLUDED.geracao_estimada_kwh, client_usina_config.geracao_estimada_kwh),
+          updated_at           = now()
+        RETURNING *
+      `
+      return rows[0] ?? null
     }
     throw err
   }

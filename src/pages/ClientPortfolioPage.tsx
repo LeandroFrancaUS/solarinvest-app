@@ -10,7 +10,7 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   patchPortfolioContract,
@@ -146,6 +146,116 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', confirmColo
         </div>
       </div>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Attachment helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function isPreviewable(mimeType?: string | null, fileName?: string | null): boolean {
+  const name = (fileName ?? '').toLowerCase()
+  const mime = (mimeType ?? '').toLowerCase()
+  return (
+    mime.includes('pdf') ||
+    mime.startsWith('image/') ||
+    name.endsWith('.pdf') ||
+    name.endsWith('.png') ||
+    name.endsWith('.jpg') ||
+    name.endsWith('.jpeg') ||
+    name.endsWith('.webp')
+  )
+}
+
+function isPdf(mimeType?: string | null, fileName?: string | null): boolean {
+  return (mimeType ?? '').includes('pdf') || (fileName ?? '').toLowerCase().endsWith('.pdf')
+}
+
+function isImage(mimeType?: string | null, fileName?: string | null): boolean {
+  const name = (fileName ?? '').toLowerCase()
+  return (
+    (mimeType ?? '').startsWith('image/') ||
+    name.endsWith('.png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.webp')
+  )
+}
+
+interface AttachmentItemProps {
+  att: ContractAttachment
+  onRemove?: (() => void) | undefined
+  editMode: boolean
+}
+
+function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
+  const [showPreview, setShowPreview] = useState(false)
+  const previewable = att.url && isPreviewable(att.mimeType, att.fileName)
+  const pdf = att.url && isPdf(att.mimeType, att.fileName)
+  const image = att.url && isImage(att.mimeType, att.fileName)
+  const sizeLabel = att.sizeBytes != null ? `${(att.sizeBytes / 1024).toFixed(1)} KB` : null
+  const icon = pdf ? '📄' : image ? '🖼️' : '📎'
+
+  return (
+    <>
+      <div style={{
+        display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+        padding: '6px 8px', borderRadius: 6,
+        background: 'var(--surface-2, rgba(255,255,255,0.04))',
+        border: '1px solid var(--border, #334155)',
+      }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        <span style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {att.fileName}
+        </span>
+        {sizeLabel && <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{sizeLabel}</span>}
+        {previewable && (
+          <button type="button" onClick={() => setShowPreview(true)}
+            style={{ fontSize: 11, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+            👁️ Visualizar
+          </button>
+        )}
+        {att.url && (
+          <a href={att.url} download={att.fileName}
+            style={{ fontSize: 11, color: '#3b82f6', textDecoration: 'none', padding: '2px 6px' }}>
+            ⬇️ Baixar
+          </a>
+        )}
+        {editMode && onRemove && (
+          <button type="button" onClick={onRemove}
+            style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+            ✕
+          </button>
+        )}
+      </div>
+      {showPreview && att.url && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPreview(false) }}
+        >
+          <div style={{ width: '100%', maxWidth: 900, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{att.fileName}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <a href={att.url} download={att.fileName}
+                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>⬇️ Baixar</a>
+                <button type="button" onClick={() => setShowPreview(false)}
+                  style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
+              </div>
+            </div>
+            {pdf && (
+              <iframe src={att.url} title={att.fileName}
+                style={{ width: '100%', height: '75vh', border: 'none', borderRadius: 6 }} />
+            )}
+            {image && (
+              <img src={att.url} alt={att.fileName}
+                style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 6 }} />
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -440,12 +550,33 @@ function EditarTab({
 // ─────────────────────────────────────────────────────────────────────────────
 const CONTRACT_TYPE_LABELS: Record<string, string> = { leasing: 'Leasing', sale: 'Venda', buyout: 'Buy Out' }
 
+function buildBuyoutEligibleDefault(contractType: string, persisted: boolean | null | undefined): boolean {
+  if (persisted != null) return persisted
+  return contractType === 'leasing' || contractType === 'buyout'
+}
+
 function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
+  const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
+    if (Array.isArray(client.contract_attachments) && client.contract_attachments.length > 0) {
+      return client.contract_attachments
+    }
+    // Backward compatibility: promote legacy single file to array
+    if (client.contract_file_url) {
+      return [{
+        id: 'legacy',
+        fileName: client.contract_file_name ?? 'contrato',
+        mimeType: client.contract_file_type ?? null,
+        url: client.contract_file_url,
+      }]
+    }
+    return []
+  })
   const [form, setForm] = useState({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
@@ -455,7 +586,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
     expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
-    buyout_eligible: client.buyout_eligible ?? true,
+    buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
     buyout_status: client.buyout_status ?? '',
     buyout_date: client.buyout_date?.slice(0, 10) ?? '',
     buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
@@ -474,7 +605,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
     expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
-    buyout_eligible: client.buyout_eligible ?? true,
+    buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
     buyout_status: client.buyout_status ?? '',
     buyout_date: client.buyout_date?.slice(0, 10) ?? '',
     buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
@@ -503,6 +634,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
+        contract_attachments: contractAttachments,
       })
       onSaved({
         contract_type: form.contract_type,
@@ -521,6 +653,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
         contract_file_name: form.contract_file_name || null,
+        contract_attachments: contractAttachments,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
     } catch (err: unknown) {
@@ -530,6 +663,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     }
   }
 
+  const isVenda = form.contract_type === 'sale'
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
   }
@@ -586,25 +720,40 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             Prazo Contratual (meses)
             <input type="number" value={form.contractual_term_months} onChange={(e) => setForm((f) => ({ ...f, contractual_term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
-          <label className="pf-checkbox-label">
-            <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#f59e0b' }} />
-            Elegível para Buy Out
-          </label>
-          {form.buyout_eligible && (
-            <div style={gridSty}>
-              <label className="pf-label" style={labelSty}>
-                Status do Buy Out
-                <input type="text" value={form.buyout_status} onChange={(e) => setForm((f) => ({ ...f, buyout_status: e.target.value }))} disabled={!editMode} style={inputStyle} />
-              </label>
-              <label className="pf-label" style={labelSty}>
-                Data do Buy Out
-                <input type="date" value={form.buyout_date} onChange={(e) => setForm((f) => ({ ...f, buyout_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-              </label>
-              <label className="pf-label" style={labelSty}>
-                Valor de Referência Buy Out (R$)
-                <input type="number" min={0} step="0.01" value={form.buyout_amount_reference} onChange={(e) => setForm((f) => ({ ...f, buyout_amount_reference: e.target.value }))} disabled={!editMode} style={inputStyle} />
-              </label>
+          {/* Valor do Sistema Fotovoltaico — shown for all contract types */}
+          {client.valordemercado != null && (
+            <div style={{ fontSize: 13 }}>
+              <span className="pf-label" style={{ display: 'block', marginBottom: 2 }}>Valor do Sistema Fotovoltaico</span>
+              <strong style={{ color: 'var(--text-primary, #f8fafc)' }}>
+                {client.valordemercado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </strong>
+              <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>(Preço Ideal da Análise Financeira)</span>
             </div>
+          )}
+          {/* Elegível para Buy Out — hidden for sale contracts */}
+          {!isVenda && (
+            <>
+              <label className="pf-checkbox-label">
+                <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#f59e0b' }} />
+                Elegível para Buy Out
+              </label>
+              {form.buyout_eligible && (
+                <div style={gridSty}>
+                  <label className="pf-label" style={labelSty}>
+                    Status do Buy Out
+                    <input type="text" value={form.buyout_status} onChange={(e) => setForm((f) => ({ ...f, buyout_status: e.target.value }))} disabled={!editMode} style={inputStyle} />
+                  </label>
+                  <label className="pf-label" style={labelSty}>
+                    Data do Buy Out
+                    <input type="date" value={form.buyout_date} onChange={(e) => setForm((f) => ({ ...f, buyout_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
+                  </label>
+                  <label className="pf-label" style={labelSty}>
+                    Valor de Referência Buy Out (R$)
+                    <input type="number" min={0} step="0.01" value={form.buyout_amount_reference} onChange={(e) => setForm((f) => ({ ...f, buyout_amount_reference: e.target.value }))} disabled={!editMode} style={inputStyle} />
+                  </label>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -624,75 +773,54 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </div>
       </div>
 
-      {/* Contract file upload section */}
+      {/* Contract attachments section — supports multiple files */}
       <div className="pf-section-card">
-        <div className="pf-section-title"><span className="pf-icon">📎</span> Arquivo do Contrato</div>
+        <div className="pf-section-title"><span className="pf-icon">📎</span> Anexos do Contrato</div>
         <div style={{ display: 'grid', gap: 10 }}>
+          {/* List existing attachments */}
+          {contractAttachments.length > 0 ? (
+            contractAttachments.map((att, idx) => (
+              <AttachmentItem
+                key={att.id}
+                att={att}
+                editMode={editMode}
+                onRemove={editMode ? () => setContractAttachments((prev) => prev.filter((_, i) => i !== idx)) : undefined}
+              />
+            ))
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+              Nenhum anexo adicionado.
+            </div>
+          )}
+          {/* Add new attachments in edit mode */}
           {editMode && (
-            <label style={{ ...labelSty, cursor: 'pointer' }}>
-              Selecionar arquivo (PDF ou imagem)
+            <label style={{ cursor: 'pointer', marginTop: 4 }}>
+              <span style={{ fontSize: 13, color: '#3b82f6' }}>➕ Adicionar anexo</span>
               <input
                 type="file"
-                accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+                multiple
+                accept="application/pdf,image/png,image/jpeg,image/jpg,image/webp,.docx,.doc,.xlsx,.xls"
                 onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  const accepted = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp']
-                  if (!accepted.includes(file.type)) {
-                    alert('Formato não aceito. Use PDF, PNG, JPEG ou WebP.')
-                    e.target.value = ''
-                    return
-                  }
-                  setForm((f) => ({ ...f, contract_file_name: file.name }))
+                  const files = Array.from(e.target.files ?? [])
+                  if (files.length === 0) return
+                  const newAtts: ContractAttachment[] = files.map((file) => ({
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    fileName: file.name,
+                    mimeType: file.type || null,
+                    sizeBytes: file.size,
+                    url: null,
+                    storageKey: null,
+                    uploadedAt: new Date().toISOString(),
+                  }))
+                  setContractAttachments((prev) => [...prev, ...newAtts])
+                  e.target.value = ''
                 }}
-                style={{ display: 'block', marginTop: 4, fontSize: 13, cursor: 'pointer' }}
+                style={{ display: 'none' }}
               />
-              <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 4 }}>
-                Formatos aceitos: PDF, PNG, JPEG, WebP
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #94a3b8)', marginTop: 2 }}>
+                PDF, imagem, Word, Excel — múltiplos arquivos permitidos
               </div>
             </label>
-          )}
-          {form.contract_file_name && (
-            <div style={{ fontSize: 12, color: '#94a3b8' }}>
-              📄 <strong>{form.contract_file_name}</strong>
-            </div>
-          )}
-          {/* Preview of existing uploaded file */}
-          {client.contract_file_url && (
-            <div>
-              {client.contract_file_type?.startsWith('image/') ? (
-                <div style={{ marginBottom: 8 }}>
-                  <img
-                    src={client.contract_file_url}
-                    alt={client.contract_file_name ?? 'Contrato'}
-                    style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 6, border: '1px solid var(--border, #334155)' }}
-                  />
-                </div>
-              ) : client.contract_file_type === 'application/pdf' ? (
-                <div style={{ marginBottom: 8 }}>
-                  <iframe
-                    src={client.contract_file_url}
-                    title="Preview do contrato"
-                    style={{ width: '100%', height: 400, borderRadius: 6, border: '1px solid var(--border, #334155)' }}
-                  />
-                </div>
-              ) : null}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <a href={client.contract_file_url} target="_blank" rel="noopener noreferrer"
-                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
-                  👁️ Abrir em nova aba
-                </a>
-                <a href={client.contract_file_url} download={client.contract_file_name ?? 'contrato'}
-                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>
-                  ⬇️ Download
-                </a>
-              </div>
-            </div>
-          )}
-          {!client.contract_file_url && !form.contract_file_name && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-              Nenhum arquivo anexado.
-            </div>
           )}
         </div>
       </div>

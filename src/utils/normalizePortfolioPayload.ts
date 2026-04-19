@@ -23,7 +23,7 @@
 // substitute with proposal-derived values.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import type { PortfolioClientRow } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
 
 /** Shape of the raw API row (superset — may contain aliases + metadata blob). */
 interface RawPortfolioRow extends Partial<PortfolioClientRow> {
@@ -36,9 +36,12 @@ interface RawPortfolioRow extends Partial<PortfolioClientRow> {
   usina_tipo_instalacao?: string | null
   usina_area_instalacao_m2?: number | null
   usina_geracao_estimada_kwh?: number | null
+  usina_valordemercado?: number | null
   // Energy-profile alias used for plano leasing
   kwh_contratado?: number | null
   marca_inversor?: string | null
+  // Raw JSONB from DB before parsing
+  contract_attachments_json?: ContractAttachment[] | null
 }
 
 /**
@@ -133,6 +136,8 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     tipo_instalacao: first(raw.tipo_instalacao, raw.usina_tipo_instalacao, metaStr(meta, 'tipo_instalacao')),
     area_instalacao_m2: first(raw.area_instalacao_m2, raw.usina_area_instalacao_m2, metaNum(meta, 'area_instalacao_m2')),
     geracao_estimada_kwh: first(raw.geracao_estimada_kwh, raw.usina_geracao_estimada_kwh, metaNum(meta, 'geracao_estimada_kwh')),
+    // valordemercado: top-level (set by enrichPortfolioClientRow) > usina alias > null
+    valordemercado: first(raw.valordemercado, raw.usina_valordemercado),
 
     // ── Contract (top-level only — never from metadata) ──
     contract_id: raw.contract_id ?? null,
@@ -144,7 +149,8 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     billing_start_date: raw.billing_start_date ?? null,
     expected_billing_end_date: raw.expected_billing_end_date ?? null,
     contractual_term_months: raw.contractual_term_months ?? null,
-    buyout_eligible: raw.buyout_eligible ?? false,
+    // Default null so CobrancaTab / ContratoTab can apply their own type-specific defaults
+    buyout_eligible: raw.buyout_eligible ?? null,
     buyout_status: raw.buyout_status ?? null,
     buyout_date: raw.buyout_date ?? null,
     buyout_amount_reference: raw.buyout_amount_reference ?? null,
@@ -154,6 +160,11 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     contract_file_type: raw.contract_file_type ?? null,
     consultant_id: raw.consultant_id ?? null,
     consultant_name: raw.consultant_name ?? null,
+    // Multiple attachments — prefer contract_attachments (set by enrichPortfolioClientRow),
+    // fall back to contract_attachments_json (raw DB array), else null.
+    contract_attachments: Array.isArray(raw.contract_attachments)
+      ? raw.contract_attachments
+      : (Array.isArray(raw.contract_attachments_json) ? raw.contract_attachments_json : null),
 
     // ── Project (top-level only — never from metadata) ──
     project_id: raw.project_id ?? null,
@@ -181,7 +192,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     billing_payment_status: raw.billing_payment_status ?? null,
     delinquency_status: raw.delinquency_status ?? null,
     collection_stage: raw.collection_stage ?? null,
-    auto_reminder_enabled: raw.auto_reminder_enabled ?? false,
+    auto_reminder_enabled: raw.auto_reminder_enabled ?? null,
     // installments_json is the persisted array of confirmed/pending payments.
     // Must be mapped here so CobrancaTab can seed confirmedPayments on remount.
     installments_json: Array.isArray(raw.installments_json) ? raw.installments_json : null,
