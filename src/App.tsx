@@ -12841,7 +12841,7 @@ export default function App() {
 
       if (houveAtualizacaoIds) {
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+          window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
         } catch (error) {
           console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
         }
@@ -12981,7 +12981,7 @@ export default function App() {
         }
       }
       // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(filteredRegistros)) } catch {}
+      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(filteredRegistros)) } catch {}
       setClientsSyncState('online-db')
       setClientsSource('api')
       setLastSuccessfulApiLoadAt(Date.now())
@@ -13027,7 +13027,7 @@ export default function App() {
             ? oneDrivePayload
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
         const reconciled = registros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
         setClientsSource('server-storage')
         console.info('[clients][load] source', {
@@ -13087,7 +13087,7 @@ export default function App() {
       if (typeof window !== 'undefined') {
         try {
           if (registros.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registros))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
@@ -15794,11 +15794,17 @@ export default function App() {
       )
 
       try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(combinados))
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(combinados))
       } catch (error) {
-        console.error('Erro ao persistir clientes importados.', error)
-        window.alert('Não foi possível salvar os clientes importados. Tente novamente.')
-        return
+        if (isQuotaExceededError(error)) {
+          try {
+            const ultraLite = combinados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+          } catch {
+            try { window.localStorage.removeItem(CLIENTES_STORAGE_KEY) } catch { /* noop */ }
+          }
+        }
+        console.warn('[bulk-import] local cache update failed (non-blocking)', error)
       }
 
       setClientesSalvos(combinados)
@@ -16714,9 +16720,9 @@ export default function App() {
             }
           }
         } else {
-          console.error('Erro ao salvar cliente localmente.', error)
-          houveErro = true
-          return prevRegistros
+          console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
+          localSaveWarning =
+            'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
         }
       }
 
@@ -17024,7 +17030,7 @@ export default function App() {
       }
 
       let removeuEdicaoAtual = false
-      let houveErro = false
+      let localCacheWarning: string | null = null
 
       setClientesSalvos((prevRegistros) => {
         const registrosAtualizados = prevRegistros.filter((item) => item.id !== registro.id)
@@ -17032,17 +17038,26 @@ export default function App() {
           return prevRegistros
         }
 
+        // Always commit the removal in React state first — backend already confirmed the delete.
+        // Cache update is best-effort and must never revert a successful backend operation.
         try {
           if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(registrosAtualizados))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registrosAtualizados))
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
-        } catch (error) {
-          console.error('Erro ao excluir cliente salvo.', error)
-          window.alert('Não foi possível atualizar os clientes salvos. Tente novamente.')
-          houveErro = true
-          return prevRegistros
+        } catch (cacheError) {
+          // Quota or other local-storage failure: try progressively lighter payloads.
+          if (isQuotaExceededError(cacheError)) {
+            try {
+              const ultraLite = registrosAtualizados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+              window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+            } catch {
+              try { window.localStorage.removeItem(CLIENTES_STORAGE_KEY) } catch { /* noop */ }
+            }
+          }
+          console.warn('[clients][delete] local cache update failed (non-blocking — backend delete already confirmed)', cacheError)
+          localCacheWarning = 'Cache local não pôde ser atualizado por limite de armazenamento. O cliente foi excluído do servidor com sucesso.'
         }
 
         if (clienteEmEdicaoId === registro.id) {
@@ -17052,8 +17067,8 @@ export default function App() {
         return registrosAtualizados
       })
 
-      if (houveErro) {
-        return
+      if (localCacheWarning) {
+        adicionarNotificacao(localCacheWarning, 'info')
       }
 
       if (removeuEdicaoAtual) {
