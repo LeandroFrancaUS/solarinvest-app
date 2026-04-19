@@ -15980,9 +15980,7 @@ export default function App() {
     const kcKwhMesFinal = kcAtual || kcFallback
 
     if (isHydratingRef.current) {
-      console.warn('[getCurrentSnapshot] skipped during hydration', {
-        budgetId,
-      })
+      if (import.meta.env.DEV) console.debug('[getCurrentSnapshot] skipped during hydration', { budgetId })
       return createEmptySnapshot(budgetId, tab)
     }
 
@@ -17287,6 +17285,10 @@ export default function App() {
   }, [adicionarNotificacao, carregarOrcamentosSalvos, parseOrcamentosSalvos])
 
   useEffect(() => {
+    // Only load proposals once the backend session is confirmed authenticated.
+    // Without this guard the effect fires before the token provider is registered,
+    // producing a noisy 401 on /api/proposals and an unnecessary fallback cascade.
+    if (meAuthState !== 'authenticated') return
     let cancelado = false
     const carregar = async () => {
       if (cancelado) {
@@ -17304,7 +17306,7 @@ export default function App() {
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carregarOrcamentosPrioritarios, authSyncKey])
+  }, [carregarOrcamentosPrioritarios, authSyncKey, meAuthState])
 
   // Carregar draft do formulário do IndexedDB na inicialização
   useEffect(() => {

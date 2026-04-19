@@ -49,7 +49,18 @@ let storageTokenProvider: GetAccessToken | null = null
 export function setStorageTokenProvider(fn: GetAccessToken): void {
   storageTokenProvider = fn
   // If the previous init ran unauthenticated, reset so we can retry with auth.
+  // However, do NOT reset if we recently received a 503 (storage unavailable) —
+  // avoid hammering a consistently failing backend on every auth token refresh.
   if (!syncEnabled) {
+    const sinceLastUnavailable = Date.now() - lastStorageUnavailableAt
+    if (lastStorageUnavailableAt > 0 && sinceLastUnavailable < STORAGE_UNAVAILABLE_COOLDOWN_MS) {
+      if (import.meta.env.DEV) {
+        console.debug(
+          `[serverStorage] Storage unavailable cooldown active — skipping reset (${Math.round((STORAGE_UNAVAILABLE_COOLDOWN_MS - sinceLastUnavailable) / 1000)}s remaining)`,
+        )
+      }
+      return
+    }
     initializationPromise = null
     initializationWaitPromise = null
   }
@@ -106,6 +117,14 @@ const SYNC_BACKOFF_BASE_MS = 2_000
 let syncPaused = false
 /** Timeout ID for the backoff timer so it can be cleaned up. */
 let syncBackoffTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * Timestamp (ms) of the last 503/service-unavailable response from /api/storage.
+ * Used to prevent re-initialization during a cooldown window so the same unavailable
+ * backend is not hammered on every auth change.
+ */
+let lastStorageUnavailableAt = 0
+/** Cooldown window after a 503 — do not retry during this period. */
+const STORAGE_UNAVAILABLE_COOLDOWN_MS = 60_000
 
 function handleSyncFailure(): void {
   consecutiveSyncFailures += 1
@@ -222,11 +241,21 @@ export const persistRemoteStorageEntry = async (
   })
 }
 
+/** Record a storage-unavailable event and timestamp for cooldown enforcement. */
+function recordStorageUnavailable(): void {
+  lastStorageUnavailableAt = Date.now()
+}
+
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const headers = await buildHeaders()
   const response = await fetch(STORAGE_ENDPOINT, { headers, credentials: 'include', signal })
   if (response.status === 401 || response.status === 403) {
     throw new ServerStorageUnauthorizedError(response.status)
+  }
+  if (response.status === 503 || response.status === 502 || response.status === 504) {
+    // Record timestamp so the cooldown in setStorageTokenProvider can take effect.
+    recordStorageUnavailable()
+    throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
   }
   if (!response.ok) {
     throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
@@ -310,7 +339,10 @@ const initializeSync = async (signal?: AbortSignal) => {
         '[serverStorage] Sincronização remota desabilitada para sessões não autenticadas. Mantendo armazenamento local.',
       )
     } else {
-      console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local.', error)
+      // Record the unavailability so setStorageTokenProvider enforces a cooldown
+      // and avoids hammering the backend on every token refresh.
+      recordStorageUnavailable()
+      console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local. Próxima tentativa após cooldown de 60s.')
     }
     syncEnabled = false
     return
