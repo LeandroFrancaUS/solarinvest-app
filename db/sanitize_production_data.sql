@@ -1,735 +1,863 @@
--- =============================================================================
--- db/sanitize_production_data.sql
--- =============================================================================
--- Script de sanitização e cleanse de dados de produção.
--- Dividido em 4 blocos independentes, executáveis separadamente no
--- SQL Editor do Neon / pgAdmin / psql.
+-- ============================================================================================================================
+-- SOLARINVEST — SCRIPT DE SANITIZAÇÃO E CLEANSE DE BAD DATA EM PRODUÇÃO
+-- ============================================================================================================================
 --
--- BLOCOS:
---   A — Preview / Auditoria   (somente leitura — seguro para rodar a qualquer hora)
---   B — Backup / Segurança    (cria schema data_hygiene e tabelas de backup)
---   C — Sanitização           (envolvido em BEGIN/COMMIT — troque por ROLLBACK para simular)
---   D — Relatórios pós-limpeza (somente leitura — valida o resultado final)
+-- OBJETIVO:
+--   Identificar e corrigir/remover dados inconsistentes, duplicados, inválidos ou tecnicamente irrelevantes
+--   nas principais tabelas do banco SolarInvest, de forma conservadora, auditável e reversível.
 --
--- USO RECOMENDADO:
---   1. Execute o Bloco A e revise os resultados.
---   2. Execute o Bloco B para fazer backup dos registros que serão alterados.
---      Confirme com a query B7 que os backups estão ok.
---   3. Troque COMMIT por ROLLBACK no Bloco C, execute e valide as linhas afetadas.
---   4. Se o resultado estiver correto, troque ROLLBACK de volta por COMMIT e execute.
---   5. Execute o Bloco D para validar o resultado final.
+-- TABELAS COBERTAS:
+--   public.clients                  — fonte de identidade de clientes
+--   public.proposals                — propostas comerciais (leasing / venda)
+--   public.client_contracts         — contratos operacionais
+--   public.client_billing_profile   — perfil de cobrança recorrente
+--   public.client_usina_config      — configuração da usina solar (UFV)
+--   public.storage                  — storage key-value (app state, preferências)
 --
--- ATENÇÃO:
---   - Execute em um ambiente de staging/preview antes de rodar em produção.
---   - O Bloco C modifica dados. Faça backup antes.
---   - As queries de backup no Bloco B devem ser executadas ANTES do Bloco C.
+-- ESTRUTURA DO SCRIPT:
+--   A) Preview / Auditoria          ← rodar primeiro, inspecionar resultados
+--   B) Backup / Segurança           ← criar backups antes de alterar qualquer dado
+--   C) Sanitização / Limpeza        ← limpeza conservadora dentro de transação
+--   D) Relatórios pós-limpeza       ← validar resultado após commit
 --
--- Schema de referência: public (tabelas: clients, client_contracts,
---   client_billing_profile, client_project_status, client_usina_config,
---   proposals, storage)
--- =============================================================================
+-- COMO USAR:
+--   1. Rodar o BLOCO A e revisar os volumes retornados.
+--   2. Rodar o BLOCO B para criar os backups.
+--   3. Rodar o BLOCO C (já envolto em BEGIN/COMMIT) para aplicar as limpezas.
+--      - Se quiser simular sem commitar: trocar COMMIT por ROLLBACK no final.
+--   4. Rodar o BLOCO D para conferir o estado final.
+--
+-- REGRAS GERAIS:
+--   • Nunca DELETE sem backup prévio no schema data_hygiene.
+--   • Preferir UPDATE campo = NULL → soft-delete → DELETE somente em último caso.
+--   • Nunca apagar registros com contrato ativo, billing ou portfólio vinculado.
+--   • Comentários explicam cada decisão para auditoria.
+--
+-- ATENÇÃO: Fazer pg_dump do banco antes de rodar em produção.
+-- ============================================================================================================================
 
 
--- =============================================================================
--- BLOCO A — PREVIEW / AUDITORIA (somente leitura)
--- =============================================================================
--- Execute cada query individualmente para revisar os dados antes de qualquer
--- alteração. Nenhuma modificação é feita neste bloco.
--- =============================================================================
+-- ============================================================================================================================
+-- A) BLOCO DE PREVIEW / AUDITORIA
+-- ============================================================================================================================
+-- Rodar estas queries ANTES de qualquer alteração.
+-- Inspecionar volumes e amostras para confirmar o impacto antes de prosseguir.
+-- ============================================================================================================================
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A1 — Clientes com client_name inválido
--- ─────────────────────────────────────────────────────────────────────────────
--- Detecta: NULL, vazio/whitespace, '[object Object]', sequências sem nenhuma
--- letra do alfabeto português (a-z, incluindo acentos e cedilha).
--- ─────────────────────────────────────────────────────────────────────────────
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A1) Clientes com client_name inválido
+--     Inválido = NULL | vazio | sem nenhuma letra do alfabeto português/latino
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Contagem:
 SELECT
-  c.id,
-  c.client_name,
-  c.identity_status,
-  c.deleted_at,
-  c.in_portfolio,
-  -- Links ativos que impedem soft-delete direto
-  (SELECT COUNT(*) FROM client_contracts cc
-    WHERE cc.client_id = c.id
-      AND cc.contract_status NOT IN ('draft','cancelled')) AS contratos_ativos,
-  (SELECT COUNT(*) FROM proposals p
-    WHERE p.client_name = c.client_name
-      AND p.deleted_at IS NULL
-      AND p.status NOT IN ('draft','cancelled')) AS propostas_ativas
-FROM clients c
-WHERE c.deleted_at IS NULL
+  'A1 - clientes com nome inválido' AS check_name,
+  COUNT(*)                          AS total
+FROM public.clients
+WHERE deleted_at IS NULL
   AND (
-    -- NULL ou vazio/whitespace
-    c.client_name IS NULL
-    OR btrim(c.client_name) = ''
-    -- Placeholder literal do JavaScript
-    OR c.client_name = '[object Object]'
-    -- Sem nenhuma letra portuguesa (a-z, á-ü, ã, õ, ç)
-    OR NOT (c.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
-  )
-ORDER BY c.id;
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
+  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A2 — Clientes com documento placeholder / inválido
--- ─────────────────────────────────────────────────────────────────────────────
--- Detecta: todos os dígitos iguais (00000000000, 11111111111...),
--- menos de 11 dígitos (CPF) ou 14 dígitos (CNPJ) após remoção de formatação,
--- campo vazio ou somente caracteres não-numéricos.
--- ─────────────────────────────────────────────────────────────────────────────
+-- Amostra (até 50 linhas):
 SELECT
-  c.id,
-  c.client_name,
-  c.document,
-  c.cpf_raw,
-  c.cnpj_raw,
-  c.cpf_normalized,
-  c.cnpj_normalized,
-  c.identity_status,
-  c.document_type,
-  REGEXP_REPLACE(COALESCE(c.cpf_raw, c.document, ''), '[^0-9]', '', 'g') AS cpf_digits,
-  REGEXP_REPLACE(COALESCE(c.cnpj_raw, ''), '[^0-9]', '', 'g')             AS cnpj_digits
-FROM clients c
-WHERE c.deleted_at IS NULL
+  id,
+  client_name,
+  client_document,
+  client_email,
+  client_phone,
+  cpf_normalized,
+  cnpj_normalized,
+  identity_status,
+  in_portfolio,
+  created_at
+FROM public.clients
+WHERE deleted_at IS NULL
   AND (
-    -- CPF placeholder: todos os dígitos iguais ou menos de 11 dígitos
-    (c.document_type = 'cpf' OR (c.document_type IS NULL AND c.cpf_raw IS NOT NULL))
-    AND (
-      REGEXP_REPLACE(COALESCE(c.cpf_raw, c.document, ''), '[^0-9]', '', 'g') ~ '^(\d)\1{10}$'
-      OR LENGTH(REGEXP_REPLACE(COALESCE(c.cpf_raw, c.document, ''), '[^0-9]', '', 'g')) < 11
-    )
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
   )
-  OR (
-    -- CNPJ placeholder: todos os dígitos iguais ou menos de 14 dígitos
-    c.document_type = 'cnpj'
-    AND (
-      REGEXP_REPLACE(COALESCE(c.cnpj_raw, ''), '[^0-9]', '', 'g') ~ '^(\d)\1{13}$'
-      OR LENGTH(REGEXP_REPLACE(COALESCE(c.cnpj_raw, ''), '[^0-9]', '', 'g')) < 14
-    )
-  )
-ORDER BY c.id;
+ORDER BY created_at DESC
+LIMIT 50;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A3 — Clientes com telefone inválido
--- ─────────────────────────────────────────────────────────────────────────────
--- Detecta: '[object Object]', menos de 10 dígitos após limpeza, somente zeros
--- ou caracteres não-numéricos.
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A2) Clientes com documento placeholder / inválido
+--     Placeholder = vazio após remover não-dígitos | todo zero | sequências conhecidas
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Contagem:
 SELECT
-  c.id,
-  c.client_name,
-  c.phone,
-  LENGTH(REGEXP_REPLACE(COALESCE(c.phone,''), '[^0-9]','','g')) AS phone_digit_count,
-  REGEXP_REPLACE(COALESCE(c.phone,''), '[^0-9]','','g')         AS phone_digits
-FROM clients c
-WHERE c.deleted_at IS NULL
-  AND c.phone IS NOT NULL
-  AND btrim(c.phone) <> ''
+  'A2 - clientes com documento placeholder' AS check_name,
+  COUNT(*)                                  AS total
+FROM public.clients
+WHERE deleted_at IS NULL
   AND (
-    -- Placeholder do JavaScript
-    c.phone = '[object Object]'
-    -- Menos de 10 dígitos (mínimo para telefone brasileiro com DDD)
-    OR LENGTH(REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g')) < 10
-    -- Somente zeros
-    OR REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') ~ '^0+$'
-    -- Todos dígitos iguais (suspeito)
-    OR REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') ~ '^(\d)\1{9,}$'
+    -- client_document original
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
+    OR
+    -- cpf_normalized
+    (cpf_normalized IS NOT NULL AND (
+       btrim(regexp_replace(cpf_normalized, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
+    OR
+    -- cnpj_normalized
+    (cnpj_normalized IS NOT NULL AND (
+       btrim(regexp_replace(cnpj_normalized, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
+  );
+
+-- Amostra:
+SELECT
+  id,
+  client_name,
+  client_document,
+  cpf_normalized,
+  cnpj_normalized,
+  identity_status,
+  in_portfolio,
+  created_at
+FROM public.clients
+WHERE deleted_at IS NULL
+  AND (
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
+    OR
+    (cpf_normalized IS NOT NULL AND (
+       btrim(regexp_replace(cpf_normalized, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
+    OR
+    (cnpj_normalized IS NOT NULL AND (
+       btrim(regexp_replace(cnpj_normalized, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$'
+    ))
   )
-ORDER BY c.id;
+ORDER BY created_at DESC
+LIMIT 50;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A4 — Duplicatas de CPF e CNPJ
--- ─────────────────────────────────────────────────────────────────────────────
--- A4a: Duplicatas por CPF normalizado (cpf_normalized)
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A3) Clientes com telefone inválido
+--     Inválido = "[object Object]" | vazio | sem dígitos | menos de 10 dígitos
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  c.cpf_normalized,
-  COUNT(*)                                  AS total_clientes,
-  ARRAY_AGG(c.id ORDER BY c.id)             AS ids,
-  ARRAY_AGG(c.client_name ORDER BY c.id)    AS nomes,
-  ARRAY_AGG(c.in_portfolio ORDER BY c.id)   AS em_portfolio,
-  ARRAY_AGG(c.updated_at ORDER BY c.id)     AS atualizados_em,
-  ARRAY_AGG(c.identity_status ORDER BY c.id) AS status_identidade
-FROM clients c
-WHERE c.cpf_normalized IS NOT NULL
-  AND c.deleted_at IS NULL
-  AND c.merged_into_client_id IS NULL
-GROUP BY c.cpf_normalized
+  'A3 - clientes com telefone inválido' AS check_name,
+  COUNT(*) AS total
+FROM public.clients
+WHERE deleted_at IS NULL
+  AND client_phone IS NOT NULL
+  AND (
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
+  );
+
+-- Amostra:
+SELECT id, client_name, client_phone, created_at
+FROM public.clients
+WHERE deleted_at IS NULL
+  AND client_phone IS NOT NULL
+  AND (
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
+  )
+LIMIT 50;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A4) Clientes duplicados por CPF normalizado
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  'A4 - grupos de duplicata por CPF' AS check_name,
+  COUNT(DISTINCT cpf_normalized)     AS grupos_duplicados,
+  SUM(cnt - 1)                       AS linhas_excedentes
+FROM (
+  SELECT cpf_normalized, COUNT(*) AS cnt
+  FROM public.clients
+  WHERE cpf_normalized IS NOT NULL
+    AND deleted_at IS NULL
+    AND merged_into_client_id IS NULL
+    AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+  GROUP BY cpf_normalized
+  HAVING COUNT(*) > 1
+) t;
+
+-- Amostra de duplicatas:
+SELECT
+  cpf_normalized,
+  COUNT(*)                            AS copies,
+  array_agg(id ORDER BY id)          AS ids,
+  array_agg(client_name ORDER BY id) AS nomes,
+  array_agg(in_portfolio ORDER BY id) AS em_carteira,
+  array_agg(updated_at ORDER BY id)  AS updated_ats
+FROM public.clients
+WHERE cpf_normalized IS NOT NULL
+  AND deleted_at IS NULL
+  AND merged_into_client_id IS NULL
+  AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+GROUP BY cpf_normalized
 HAVING COUNT(*) > 1
-ORDER BY total_clientes DESC, c.cpf_normalized;
+ORDER BY copies DESC
+LIMIT 30;
 
--- A4b: Duplicatas por CNPJ normalizado (cnpj_normalized)
+-- Duplicatas por CNPJ:
 SELECT
-  c.cnpj_normalized,
-  COUNT(*)                                  AS total_clientes,
-  ARRAY_AGG(c.id ORDER BY c.id)             AS ids,
-  ARRAY_AGG(c.client_name ORDER BY c.id)    AS nomes,
-  ARRAY_AGG(c.in_portfolio ORDER BY c.id)   AS em_portfolio,
-  ARRAY_AGG(c.updated_at ORDER BY c.id)     AS atualizados_em
-FROM clients c
-WHERE c.cnpj_normalized IS NOT NULL
-  AND c.deleted_at IS NULL
-  AND c.merged_into_client_id IS NULL
-GROUP BY c.cnpj_normalized
+  'A4b - grupos de duplicata por CNPJ' AS check_name,
+  COUNT(DISTINCT cnpj_normalized)       AS grupos_duplicados,
+  SUM(cnt - 1)                          AS linhas_excedentes
+FROM (
+  SELECT cnpj_normalized, COUNT(*) AS cnt
+  FROM public.clients
+  WHERE cnpj_normalized IS NOT NULL
+    AND deleted_at IS NULL
+    AND merged_into_client_id IS NULL
+    AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+  GROUP BY cnpj_normalized
+  HAVING COUNT(*) > 1
+) t;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A5) Contratos duplicados (mesmo client_id + contract_type + contractual_term_months, status = draft)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  'A5 - grupos de contratos draft duplicados' AS check_name,
+  COUNT(*) AS grupos,
+  SUM(cnt - 1) AS excedentes
+FROM (
+  SELECT client_id, contract_type, contractual_term_months, COUNT(*) AS cnt
+  FROM public.client_contracts
+  WHERE contract_status = 'draft'
+  GROUP BY client_id, contract_type, contractual_term_months
+  HAVING COUNT(*) > 1
+) t;
+
+-- Amostra:
+SELECT
+  client_id,
+  contract_type,
+  contractual_term_months,
+  COUNT(*) AS copies,
+  array_agg(id ORDER BY updated_at DESC)              AS contract_ids,
+  array_agg(contract_status ORDER BY updated_at DESC) AS statuses,
+  array_agg(contract_file_name ORDER BY updated_at DESC) AS arquivos,
+  array_agg(updated_at ORDER BY updated_at DESC)      AS updated_ats
+FROM public.client_contracts
+WHERE contract_status = 'draft'
+GROUP BY client_id, contract_type, contractual_term_months
 HAVING COUNT(*) > 1
-ORDER BY total_clientes DESC, c.cnpj_normalized;
+ORDER BY copies DESC
+LIMIT 30;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A5 — Contratos draft duplicados
--- ─────────────────────────────────────────────────────────────────────────────
--- Mesmo client_id + contract_type + contractual_term_months → provável duplicata.
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A6) Contratos com datas incoerentes
+--     Incoerente = expected_billing_end_date anterior a contract_start_date
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  cc.client_id,
-  c.client_name,
-  cc.contract_type,
-  cc.contractual_term_months,
-  COUNT(*)                                      AS total_drafts,
-  ARRAY_AGG(cc.id ORDER BY cc.id)               AS ids,
-  ARRAY_AGG(cc.contract_status ORDER BY cc.id)  AS statuses,
-  ARRAY_AGG(cc.created_at ORDER BY cc.id)       AS criados_em,
-  ARRAY_AGG(
-    CASE WHEN cc.contract_file_url IS NOT NULL OR
-              jsonb_array_length(COALESCE(cc.contract_attachments_json,'[]'::jsonb)) > 0
-         THEN 'sim' ELSE 'não' END
-    ORDER BY cc.id
-  )                                             AS tem_arquivo
-FROM client_contracts cc
-JOIN clients c ON c.id = cc.client_id
-WHERE cc.contract_status = 'draft'
-GROUP BY cc.client_id, c.client_name, cc.contract_type, cc.contractual_term_months
-HAVING COUNT(*) > 1
-ORDER BY total_drafts DESC, cc.client_id;
+  'A6 - contratos com datas incoerentes' AS check_name,
+  COUNT(*) AS total
+FROM public.client_contracts
+WHERE contract_start_date IS NOT NULL
+  AND expected_billing_end_date IS NOT NULL
+  AND expected_billing_end_date < contract_start_date;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A6 — Contratos com expected_billing_end_date inconsistente
--- ─────────────────────────────────────────────────────────────────────────────
--- expected_billing_end_date < contract_start_date → data final antes do início.
--- ─────────────────────────────────────────────────────────────────────────────
+-- Amostra:
 SELECT
-  cc.id,
-  cc.client_id,
-  c.client_name,
-  cc.contract_type,
-  cc.contract_status,
-  cc.contract_start_date,
-  cc.expected_billing_end_date,
-  cc.contractual_term_months,
-  -- Data calculada correta (para referência)
-  (cc.contract_start_date + (COALESCE(cc.contractual_term_months,0) * INTERVAL '1 month'))::DATE
-    AS end_date_calculada
-FROM client_contracts cc
-JOIN clients c ON c.id = cc.client_id
-WHERE cc.expected_billing_end_date IS NOT NULL
-  AND cc.contract_start_date IS NOT NULL
-  AND cc.expected_billing_end_date < cc.contract_start_date
-ORDER BY cc.client_id, cc.id;
+  id,
+  client_id,
+  contract_type,
+  contract_status,
+  contract_start_date,
+  expected_billing_end_date,
+  contractual_term_months,
+  billing_start_date
+FROM public.client_contracts
+WHERE contract_start_date IS NOT NULL
+  AND expected_billing_end_date IS NOT NULL
+  AND expected_billing_end_date < contract_start_date
+ORDER BY client_id
+LIMIT 30;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A7 — Billing com datas incoerentes
--- ─────────────────────────────────────────────────────────────────────────────
--- A7a: expected_last_billing_date < first_billing_date
--- A7b: first_billing_date < commissioning_date (cobrança antes da vistoria)
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A7) Billing com datas incoerentes
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  'A7 - billing com expected_last < first_billing_date' AS check_name,
+  COUNT(*) AS total
+FROM public.client_billing_profile
+WHERE first_billing_date IS NOT NULL
+  AND expected_last_billing_date IS NOT NULL
+  AND expected_last_billing_date < first_billing_date;
+
+SELECT
+  'A7b - billing com first_billing_date < commissioning_date' AS check_name,
+  COUNT(*) AS total
+FROM public.client_billing_profile
+WHERE first_billing_date IS NOT NULL
+  AND commissioning_date IS NOT NULL
+  AND first_billing_date < commissioning_date;
+
+-- Amostra:
 SELECT
   bp.id,
   bp.client_id,
-  c.client_name,
   bp.first_billing_date,
   bp.expected_last_billing_date,
   bp.commissioning_date,
-  bp.auto_reminder_enabled,
   bp.payment_status,
-  CASE
-    WHEN bp.expected_last_billing_date < bp.first_billing_date  THEN 'last < first'
-    WHEN bp.first_billing_date < bp.commissioning_date          THEN 'first < commissioning'
-    ELSE 'ok'
-  END AS problema
-FROM client_billing_profile bp
-JOIN clients c ON c.id = bp.client_id
-WHERE c.deleted_at IS NULL
+  bp.auto_reminder_enabled
+FROM public.client_billing_profile bp
+WHERE (
+  (bp.first_billing_date IS NOT NULL
+   AND bp.expected_last_billing_date IS NOT NULL
+   AND bp.expected_last_billing_date < bp.first_billing_date)
+  OR
+  (bp.first_billing_date IS NOT NULL
+   AND bp.commissioning_date IS NOT NULL
+   AND bp.first_billing_date < bp.commissioning_date)
+)
+LIMIT 30;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A8) Proposals com dados inválidos (nome, documento, email)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Proposals com client_name inválido:
+SELECT
+  'A8a - proposals com client_name inválido' AS check_name,
+  COUNT(*) AS total
+FROM public.proposals
+WHERE deleted_at IS NULL
   AND (
-    (bp.expected_last_billing_date IS NOT NULL AND bp.first_billing_date IS NOT NULL
-      AND bp.expected_last_billing_date < bp.first_billing_date)
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
+  );
+
+-- Proposals com client_document placeholder:
+SELECT
+  'A8b - proposals com client_document placeholder' AS check_name,
+  COUNT(*) AS total
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND client_document IS NOT NULL
+  AND (
+    btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
+  );
+
+-- Proposals com client_email lixo:
+SELECT
+  'A8c - proposals com client_email lixo' AS check_name,
+  COUNT(*) AS total
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND client_email IS NOT NULL
+  AND (
+    lower(btrim(client_email)) IN ('t', 'teste', 'test', 'null', 'undefined', '[object object]', 'n/a', 'na', '')
+    OR client_email NOT LIKE '%@%.%'
+    OR client_email ~ '\s'
+  );
+
+-- Proposals totalmente órfãs (sem nenhum dado útil), status draft:
+SELECT
+  'A8d - proposals draft totalmente órfãs' AS check_name,
+  COUNT(*) AS total
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND status = 'draft'
+  AND (client_name IS NULL OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]'))
+  AND (client_document IS NULL OR btrim(client_document) = '')
+  AND (client_phone IS NULL OR btrim(client_phone) = '')
+  AND (client_email IS NULL OR lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]',''))
+  AND (capex_total IS NULL OR capex_total = 0)
+  AND (contract_value IS NULL OR contract_value = 0);
+
+-- Amostra de proposals inválidas:
+SELECT
+  id,
+  proposal_type,
+  status,
+  client_name,
+  client_document,
+  client_email,
+  client_phone,
+  is_conflicted,
+  conflict_reason,
+  created_at
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND (
+    (client_name IS NULL OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]'))
     OR
-    (bp.first_billing_date IS NOT NULL AND bp.commissioning_date IS NOT NULL
-      AND bp.first_billing_date < bp.commissioning_date)
+    (client_document IS NOT NULL
+     AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
+    OR
+    (client_email IS NOT NULL
+     AND lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]',''))
   )
-ORDER BY bp.client_id;
+ORDER BY created_at DESC
+LIMIT 50;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A8 — Proposals com dados inválidos e drafts totalmente orphaned
--- ─────────────────────────────────────────────────────────────────────────────
--- A8a: Proposals com client_name, client_document ou client_email com valores lixo
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A9) client_usina_config órfãs ou quase vazias
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- Órfãs (cliente não existe ou está soft-deleted):
 SELECT
-  p.id,
-  p.proposal_type,
-  p.status,
-  p.client_name,
-  p.client_document,
-  p.client_email,
-  p.client_phone,
-  p.deleted_at,
-  p.created_at,
-  CASE WHEN p.client_name = '[object Object]'
-            OR (p.client_name IS NOT NULL AND NOT (p.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]'))
-       THEN 'nome_inválido' ELSE NULL END                                                      AS nome_flag,
-  CASE WHEN p.client_email IS NOT NULL
-            AND p.client_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'
-       THEN 'email_inválido' ELSE NULL END                                                     AS email_flag,
-  CASE WHEN p.client_phone IS NOT NULL
-            AND LENGTH(REGEXP_REPLACE(p.client_phone,'[^0-9]','','g')) < 10
-       THEN 'telefone_inválido' ELSE NULL END                                                  AS phone_flag
-FROM proposals p
-WHERE p.deleted_at IS NULL
-  AND (
-    p.client_name = '[object Object]'
-    OR (p.client_name IS NOT NULL AND btrim(p.client_name) <> ''
-        AND NOT (p.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]'))
-    OR (p.client_email IS NOT NULL AND btrim(p.client_email) <> ''
-        AND p.client_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
-    OR (p.client_phone IS NOT NULL AND btrim(p.client_phone) <> ''
-        AND LENGTH(REGEXP_REPLACE(p.client_phone,'[^0-9]','','g')) < 10)
-  )
-ORDER BY p.created_at DESC;
+  'A9a - client_usina_config órfãs' AS check_name,
+  COUNT(*) AS total
+FROM public.client_usina_config uc
+LEFT JOIN public.clients c ON c.id = uc.client_id
+WHERE c.id IS NULL OR c.deleted_at IS NOT NULL;
 
--- A8b: Drafts totalmente orphaned — sem client_id linkado (source_proposal_id) e sem
---      dados mínimos (sem nome, sem tipo de proposta válido, payload vazio).
+-- Quase vazias (todos os campos técnicos são NULL):
 SELECT
-  p.id,
-  p.proposal_type,
-  p.status,
-  p.client_name,
-  p.owner_user_id,
-  p.created_at,
-  p.updated_at,
-  jsonb_strip_nulls(p.payload_json) AS payload_resumido
-FROM proposals p
-WHERE p.deleted_at IS NULL
-  AND p.status = 'draft'
-  AND (p.client_name IS NULL OR btrim(p.client_name) = '')
-  AND (p.client_document IS NULL OR btrim(p.client_document) = '')
-  AND (p.client_email IS NULL OR btrim(p.client_email) = '')
-  AND (p.consumption_kwh_month IS NULL)
-  AND (p.system_kwp IS NULL)
-  AND (p.capex_total IS NULL)
-  AND (p.contract_value IS NULL)
-  -- Payload praticamente vazio (≤ 2 chaves de metadados)
-  AND jsonb_typeof(p.payload_json) = 'object'
-  AND (SELECT COUNT(*) FROM jsonb_object_keys(jsonb_strip_nulls(p.payload_json))) <= 2
-ORDER BY p.created_at;
+  'A9b - client_usina_config quase vazias (sem nenhum campo técnico)' AS check_name,
+  COUNT(*) AS total
+FROM public.client_usina_config
+WHERE potencia_modulo_wp IS NULL
+  AND numero_modulos IS NULL
+  AND modelo_modulo IS NULL
+  AND modelo_inversor IS NULL
+  AND tipo_instalacao IS NULL
+  AND area_instalacao_m2 IS NULL
+  AND geracao_estimada_kwh IS NULL;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A9 — client_usina_config órfãs ou quase-vazias
--- ─────────────────────────────────────────────────────────────────────────────
--- Órfãs: client_id referencia um cliente soft-deleted.
--- Quase-vazias: todos os 7 campos técnicos são NULL.
--- ─────────────────────────────────────────────────────────────────────────────
--- A9a: Usina configs cujo cliente foi soft-deleted (ON DELETE CASCADE resolve
---      automaticamente, mas podem existir registros anteriores à constraint)
+-- Amostra de quase vazias:
+SELECT uc.*, c.client_name, c.deleted_at AS client_deleted_at
+FROM public.client_usina_config uc
+LEFT JOIN public.clients c ON c.id = uc.client_id
+WHERE uc.potencia_modulo_wp IS NULL
+  AND uc.numero_modulos IS NULL
+  AND uc.modelo_modulo IS NULL
+  AND uc.modelo_inversor IS NULL
+  AND uc.tipo_instalacao IS NULL
+  AND uc.area_instalacao_m2 IS NULL
+  AND uc.geracao_estimada_kwh IS NULL
+LIMIT 30;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- A10) Chaves técnicas indevidas na tabela storage
+--      Detecta: _STACK_AUTH.*, __vercel_toolbar*, clear, getItem, key, length,
+--      e outras chaves de debug/framework que não deveriam estar persistidas.
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  uc.id,
-  uc.client_id,
-  c.client_name,
-  c.deleted_at   AS cliente_deleted_at
-FROM client_usina_config uc
-JOIN clients c ON c.id = uc.client_id
-WHERE c.deleted_at IS NOT NULL
-ORDER BY uc.client_id;
+  'A10 - storage com chaves técnicas/lixo' AS check_name,
+  COUNT(*) AS total
+FROM public.storage
+WHERE "key" LIKE '_STACK_AUTH%'
+   OR "key" LIKE '__vercel_toolbar%'
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
--- A9b: Usina configs quase-vazias (todos os 7 campos técnicos NULL)
+-- Listagem completa das chaves técnicas:
 SELECT
-  uc.id,
-  uc.client_id,
-  c.client_name,
-  c.in_portfolio,
-  c.deleted_at,
-  uc.potencia_modulo_wp,
-  uc.numero_modulos,
-  uc.modelo_modulo,
-  uc.modelo_inversor,
-  uc.tipo_instalacao,
-  uc.area_instalacao_m2,
-  uc.geracao_estimada_kwh,
-  -- Contrato ativo existente?
-  (SELECT COUNT(*) FROM client_contracts cc
-    WHERE cc.client_id = uc.client_id
-      AND cc.contract_status IN ('active','signed')) AS contratos_ativos
-FROM client_usina_config uc
-JOIN clients c ON c.id = uc.client_id
-WHERE c.deleted_at IS NULL
-  AND uc.potencia_modulo_wp    IS NULL
-  AND uc.numero_modulos        IS NULL
-  AND uc.modelo_modulo         IS NULL
-  AND uc.modelo_inversor       IS NULL
-  AND uc.tipo_instalacao       IS NULL
-  AND uc.area_instalacao_m2    IS NULL
-  AND uc.geracao_estimada_kwh  IS NULL
-ORDER BY c.in_portfolio DESC, uc.client_id;
+  id,
+  user_id,
+  "key",
+  pg_size_pretty(octet_length(value::text)::bigint) AS value_size,
+  updated_at
+FROM public.storage
+WHERE "key" LIKE '_STACK_AUTH%'
+   OR "key" LIKE '__vercel_toolbar%'
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%'
+ORDER BY user_id, "key";
 
--- ─────────────────────────────────────────────────────────────────────────────
--- A10 — Chaves técnicas no storage
--- ─────────────────────────────────────────────────────────────────────────────
--- Detecta: _STACK_AUTH.*, __vercel_toolbar*, clear, getItem,
--- e outras chaves de debug/framework que não deveriam estar persistidas.
--- ─────────────────────────────────────────────────────────────────────────────
-SELECT
-  s.id,
-  s.user_id,
-  s.key,
-  pg_size_pretty(octet_length(s.value::text)::bigint) AS value_size,
-  s.updated_at
-FROM storage s
-WHERE s.key LIKE '_STACK_AUTH%'
-   OR s.key LIKE '__vercel_toolbar%'
-   OR s.key IN ('clear','getItem','setItem','removeItem','key','length')
-   OR s.key LIKE '%debug%'
-   OR s.key LIKE '%__test__%'
-   OR s.key LIKE 'vite-%'
-ORDER BY s.user_id, s.key;
+-- Visão geral do storage (todas as chaves distintas existentes):
+SELECT "key", COUNT(*) AS users_com_essa_chave
+FROM public.storage
+GROUP BY "key"
+ORDER BY "key";
 
 
--- =============================================================================
--- BLOCO B — BACKUP / SEGURANÇA
--- =============================================================================
--- Cria o schema data_hygiene e 6 tabelas de backup append-only.
--- Execute ANTES do Bloco C.
--- Os backups permitem restaurar registros alterados/removidos se necessário.
--- =============================================================================
+-- ============================================================================================================================
+-- B) BLOCO DE BACKUP / SEGURANÇA
+-- ============================================================================================================================
+-- Criar schema auxiliar e copiar para lá todos os registros que serão
+-- alterados ou removidos no BLOCO C.
+-- Execute este bloco ANTES do BLOCO C.
+-- ============================================================================================================================
 
--- Cria o schema de backup (idempotente)
+-- Criar schema de backup (idempotente):
 CREATE SCHEMA IF NOT EXISTS data_hygiene;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B1 — Backup: clientes que terão client_name zerado (→ NULL)
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_clients_name_nulled (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.clients
-);
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B1) Backup de clientes que serão alterados
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-INSERT INTO data_hygiene.bkp_clients_name_nulled
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), c.*
-FROM clients c
+-- Cria a tabela sem NOT NULL nem constraints (CREATE TABLE AS ... WITH NO DATA):
+CREATE TABLE IF NOT EXISTS data_hygiene.clients_backup
+  AS TABLE public.clients WITH NO DATA;
+-- Adicionar colunas de auditoria de backup:
+ALTER TABLE data_hygiene.clients_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+-- Inserir clientes com nome inválido (ativos):
+INSERT INTO data_hygiene.clients_backup
+SELECT c.*, now(), 'invalid_name'
+FROM public.clients c
 WHERE c.deleted_at IS NULL
   AND (
-    c.client_name IS NULL
-    OR btrim(c.client_name) = ''
-    OR c.client_name = '[object Object]'
-    OR NOT (c.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
-  )
-  -- Tem ao menos um vínculo ativo (não pode ser soft-deleted diretamente)
-  AND (
-    c.in_portfolio = true
-    OR EXISTS (
-      SELECT 1 FROM client_contracts cc
-      WHERE cc.client_id = c.id
-        AND cc.contract_status NOT IN ('draft','cancelled')
-    )
-    OR EXISTS (
-      SELECT 1 FROM proposals p
-      WHERE p.deleted_at IS NULL
-        AND p.status NOT IN ('draft','cancelled')
-        AND p.owner_user_id = c.owner_user_id
-    )
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B2 — Backup: clientes que serão soft-deleted (sem vínculo ativo + nome inválido)
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_clients_soft_deleted (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.clients
-);
-
-INSERT INTO data_hygiene.bkp_clients_soft_deleted
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), c.*
-FROM clients c
+-- Inserir clientes com documento placeholder:
+INSERT INTO data_hygiene.clients_backup
+SELECT c.*, now(), 'placeholder_document'
+FROM public.clients c
 WHERE c.deleted_at IS NULL
   AND (
-    c.client_name IS NULL
-    OR btrim(c.client_name) = ''
-    OR c.client_name = '[object Object]'
-    OR NOT (c.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
-  )
-  AND c.in_portfolio = false
-  AND NOT EXISTS (
-    SELECT 1 FROM client_contracts cc
-    WHERE cc.client_id = c.id
-      AND cc.contract_status NOT IN ('draft','cancelled')
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM proposals p
-    WHERE p.deleted_at IS NULL
-      AND p.status NOT IN ('draft','cancelled')
-      AND p.owner_user_id = c.owner_user_id
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
+    OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
+    OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B3 — Backup: contratos draft que serão cancelados (duplicatas)
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_contracts_drafts_cancelled (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.client_contracts
-);
+-- Inserir clientes com telefone inválido:
+INSERT INTO data_hygiene.clients_backup
+SELECT c.*, now(), 'invalid_phone'
+FROM public.clients c
+WHERE c.deleted_at IS NULL
+  AND client_phone IS NOT NULL
+  AND (
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
+  );
 
-INSERT INTO data_hygiene.bkp_contracts_drafts_cancelled
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), cc.*
-FROM client_contracts cc
+-- Inserir duplicatas por CPF (todas as cópias):
+INSERT INTO data_hygiene.clients_backup
+SELECT c.*, now(), 'cpf_duplicate'
+FROM public.clients c
+WHERE c.deleted_at IS NULL
+  AND c.merged_into_client_id IS NULL
+  AND c.cpf_normalized IS NOT NULL
+  AND regexp_replace(c.cpf_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+  AND c.cpf_normalized IN (
+    SELECT cpf_normalized
+    FROM public.clients
+    WHERE cpf_normalized IS NOT NULL
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    GROUP BY cpf_normalized
+    HAVING COUNT(*) > 1
+  );
+
+-- Inserir duplicatas por CNPJ:
+INSERT INTO data_hygiene.clients_backup
+SELECT c.*, now(), 'cnpj_duplicate'
+FROM public.clients c
+WHERE c.deleted_at IS NULL
+  AND c.merged_into_client_id IS NULL
+  AND c.cnpj_normalized IS NOT NULL
+  AND regexp_replace(c.cnpj_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+  AND c.cnpj_normalized IN (
+    SELECT cnpj_normalized
+    FROM public.clients
+    WHERE cnpj_normalized IS NOT NULL
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    GROUP BY cnpj_normalized
+    HAVING COUNT(*) > 1
+  );
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B2) Backup de contratos que serão alterados
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS data_hygiene.client_contracts_backup
+  AS TABLE public.client_contracts WITH NO DATA;
+ALTER TABLE data_hygiene.client_contracts_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+-- Backupar contratos draft duplicados:
+INSERT INTO data_hygiene.client_contracts_backup
+SELECT cc.*, now(), 'draft_duplicate'
+FROM public.client_contracts cc
 WHERE cc.contract_status = 'draft'
-  -- É duplicata: existe outro draft com mesmo client_id + type + prazo
-  AND EXISTS (
-    SELECT 1
-    FROM client_contracts cc2
-    WHERE cc2.client_id            = cc.client_id
-      AND cc2.contract_type        = cc.contract_type
-      AND COALESCE(cc2.contractual_term_months,-1) = COALESCE(cc.contractual_term_months,-1)
-      AND cc2.id < cc.id          -- Mantém o de menor id (mais antigo); remove os mais novos
+  AND (cc.client_id, cc.contract_type, cc.contractual_term_months) IN (
+    SELECT client_id, contract_type, contractual_term_months
+    FROM public.client_contracts
+    WHERE contract_status = 'draft'
+    GROUP BY client_id, contract_type, contractual_term_months
+    HAVING COUNT(*) > 1
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B4 — Backup: registros de billing que serão atualizados
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_billing_updated (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.client_billing_profile
-);
+-- Backupar contratos com datas incoerentes:
+INSERT INTO data_hygiene.client_contracts_backup
+SELECT cc.*, now(), 'inconsistent_dates'
+FROM public.client_contracts cc
+WHERE cc.contract_start_date IS NOT NULL
+  AND cc.expected_billing_end_date IS NOT NULL
+  AND cc.expected_billing_end_date < cc.contract_start_date;
 
-INSERT INTO data_hygiene.bkp_billing_updated
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), bp.*
-FROM client_billing_profile bp
-JOIN clients c ON c.id = bp.client_id
-WHERE c.deleted_at IS NULL
-  AND (
-    -- expected_last_billing_date incoerente
-    (bp.expected_last_billing_date IS NOT NULL AND bp.first_billing_date IS NOT NULL
-      AND bp.expected_last_billing_date < bp.first_billing_date)
-    -- first_billing_date anterior ao comissionamento
-    OR (bp.first_billing_date IS NOT NULL AND bp.commissioning_date IS NOT NULL
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B3) Backup de billing que será alterado
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS data_hygiene.client_billing_profile_backup
+  AS TABLE public.client_billing_profile WITH NO DATA;
+ALTER TABLE data_hygiene.client_billing_profile_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+INSERT INTO data_hygiene.client_billing_profile_backup
+SELECT bp.*, now(), 'inconsistent_dates'
+FROM public.client_billing_profile bp
+WHERE (bp.first_billing_date IS NOT NULL
+       AND bp.expected_last_billing_date IS NOT NULL
+       AND bp.expected_last_billing_date < bp.first_billing_date)
+  OR (bp.first_billing_date IS NOT NULL
+      AND bp.commissioning_date IS NOT NULL
       AND bp.first_billing_date < bp.commissioning_date)
-    -- auto_reminder_enabled desligado indevidamente
-    OR bp.auto_reminder_enabled = false
-  );
+  OR bp.auto_reminder_enabled IS NULL;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B5 — Backup: proposals que serão alteradas (campos normalizados ou soft-deleted)
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_proposals_modified (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.proposals
-);
 
-INSERT INTO data_hygiene.bkp_proposals_modified
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), p.*
-FROM proposals p
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B4) Backup de client_usina_config que será alterado
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS data_hygiene.client_usina_config_backup
+  AS TABLE public.client_usina_config WITH NO DATA;
+ALTER TABLE data_hygiene.client_usina_config_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+-- Backupar usina config órfãs:
+INSERT INTO data_hygiene.client_usina_config_backup
+SELECT uc.*, now(), 'orphaned'
+FROM public.client_usina_config uc
+LEFT JOIN public.clients c ON c.id = uc.client_id
+WHERE c.id IS NULL OR c.deleted_at IS NOT NULL;
+
+-- Backupar usina config quase vazias (somente as que têm cliente ativo, mas sem nenhum campo técnico):
+INSERT INTO data_hygiene.client_usina_config_backup
+SELECT uc.*, now(), 'nearly_empty'
+FROM public.client_usina_config uc
+INNER JOIN public.clients c ON c.id = uc.client_id AND c.deleted_at IS NULL
+WHERE uc.potencia_modulo_wp IS NULL
+  AND uc.numero_modulos IS NULL
+  AND uc.modelo_modulo IS NULL
+  AND uc.modelo_inversor IS NULL
+  AND uc.tipo_instalacao IS NULL
+  AND uc.area_instalacao_m2 IS NULL
+  AND uc.geracao_estimada_kwh IS NULL;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B5) Backup de proposals que serão alteradas
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS data_hygiene.proposals_backup
+  AS TABLE public.proposals WITH NO DATA;
+ALTER TABLE data_hygiene.proposals_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+-- Proposals com dados inválidos:
+INSERT INTO data_hygiene.proposals_backup
+SELECT p.*, now(), 'invalid_client_data'
+FROM public.proposals p
 WHERE p.deleted_at IS NULL
   AND (
-    -- client_name com valor lixo
-    p.client_name = '[object Object]'
-    OR (p.client_name IS NOT NULL AND btrim(p.client_name) <> ''
-        AND NOT (p.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]'))
-    -- client_email inválido
-    OR (p.client_email IS NOT NULL AND btrim(p.client_email) <> ''
-        AND p.client_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
-    -- client_phone inválido
-    OR (p.client_phone IS NOT NULL AND btrim(p.client_phone) <> ''
-        AND LENGTH(REGEXP_REPLACE(p.client_phone,'[^0-9]','','g')) < 10)
-    -- Draft totalmente vazio (candidato a soft-delete)
-    OR (
-      p.status = 'draft'
-      AND (p.client_name IS NULL OR btrim(p.client_name) = '')
-      AND (p.client_document IS NULL OR btrim(p.client_document) = '')
-      AND p.consumption_kwh_month IS NULL
-      AND p.system_kwp IS NULL
-      AND p.capex_total IS NULL
-    )
+    (p.client_name IS NULL OR NOT (coalesce(p.client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]'))
+    OR (p.client_document IS NOT NULL AND regexp_replace(p.client_document, '[^0-9]', '', 'g') ~ '^0+$')
+    OR (p.client_email IS NOT NULL AND lower(btrim(p.client_email)) IN ('t','teste','test','null','undefined','[object object]',''))
+    OR (p.client_email IS NOT NULL AND p.client_email NOT LIKE '%@%.%')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B6 — Backup: chaves técnicas do storage que serão removidas
--- ─────────────────────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS data_hygiene.bkp_storage_technical_keys (
-  backedup_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  run_label    TEXT,
-  LIKE public.storage
-);
 
-INSERT INTO data_hygiene.bkp_storage_technical_keys
-SELECT now(), 'sanitize_run_' || TO_CHAR(now(),'YYYYMMDD_HH24MI'), s.*
-FROM storage s
-WHERE s.key LIKE '_STACK_AUTH%'
-   OR s.key LIKE '__vercel_toolbar%'
-   OR s.key IN ('clear','getItem','setItem','removeItem','key','length')
-   OR s.key LIKE '%debug%'
-   OR s.key LIKE '%__test__%'
-   OR s.key LIKE 'vite-%';
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B6) Backup de storage que será removido
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
--- ─────────────────────────────────────────────────────────────────────────────
--- B7 — Confirmação: quantas linhas foram backupadas por tabela
--- ─────────────────────────────────────────────────────────────────────────────
-SELECT 'bkp_clients_name_nulled'        AS tabela, COUNT(*) AS linhas FROM data_hygiene.bkp_clients_name_nulled
-UNION ALL
-SELECT 'bkp_clients_soft_deleted',               COUNT(*) FROM data_hygiene.bkp_clients_soft_deleted
-UNION ALL
-SELECT 'bkp_contracts_drafts_cancelled',          COUNT(*) FROM data_hygiene.bkp_contracts_drafts_cancelled
-UNION ALL
-SELECT 'bkp_billing_updated',                     COUNT(*) FROM data_hygiene.bkp_billing_updated
-UNION ALL
-SELECT 'bkp_proposals_modified',                  COUNT(*) FROM data_hygiene.bkp_proposals_modified
-UNION ALL
-SELECT 'bkp_storage_technical_keys',              COUNT(*) FROM data_hygiene.bkp_storage_technical_keys
-ORDER BY tabela;
+CREATE TABLE IF NOT EXISTS data_hygiene.storage_backup
+  AS TABLE public.storage WITH NO DATA;
+ALTER TABLE data_hygiene.storage_backup
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
+  ADD COLUMN IF NOT EXISTS backup_reason TEXT;
+
+INSERT INTO data_hygiene.storage_backup
+SELECT s.*, now(), 'technical_key'
+FROM public.storage s
+WHERE s."key" LIKE '_STACK_AUTH%'
+   OR s."key" LIKE '__vercel_toolbar%'
+   OR s."key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR s."key" LIKE '%debug%'
+   OR s."key" LIKE '%__test__%'
+   OR s."key" LIKE 'vite-%';
 
 
--- =============================================================================
--- BLOCO C — SANITIZAÇÃO
--- =============================================================================
--- ATENÇÃO: Este bloco modifica dados em produção.
--- Execute o Bloco B (backup) antes.
--- Para simular sem alterar: troque COMMIT por ROLLBACK ao final.
--- =============================================================================
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- B7) Confirmar backup criado
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT 'data_hygiene.clients_backup'              AS tabela, COUNT(*) AS linhas_backup FROM data_hygiene.clients_backup
+UNION ALL
+SELECT 'data_hygiene.client_contracts_backup',      COUNT(*) FROM data_hygiene.client_contracts_backup
+UNION ALL
+SELECT 'data_hygiene.client_billing_profile_backup',COUNT(*) FROM data_hygiene.client_billing_profile_backup
+UNION ALL
+SELECT 'data_hygiene.client_usina_config_backup',   COUNT(*) FROM data_hygiene.client_usina_config_backup
+UNION ALL
+SELECT 'data_hygiene.proposals_backup',             COUNT(*) FROM data_hygiene.proposals_backup
+UNION ALL
+SELECT 'data_hygiene.storage_backup',               COUNT(*) FROM data_hygiene.storage_backup;
+
+
+-- ============================================================================================================================
+-- C) BLOCO DE SANITIZAÇÃO / LIMPEZA
+-- ============================================================================================================================
+-- ATENÇÃO: O bloco C está envolto em BEGIN / COMMIT.
+-- Para simular sem commitar, substitua COMMIT por ROLLBACK no final do bloco.
+-- Execute o BLOCO B antes de rodar este bloco.
+-- ============================================================================================================================
 
 BEGIN;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1a — client_name inválido → NULL (clientes com vínculos ativos)
--- ─────────────────────────────────────────────────────────────────────────────
--- Preserva o registro mas limpa o nome para revisão manual posterior.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE clients c
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C1) LIMPEZA DE CLIENTES
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- C1a) Normalizar client_name inválido para NULL (não deletar o cliente se houver vínculo)
+--      Vinculado = in_portfolio OR contrato OR billing OR proposta ativa
+UPDATE public.clients c
 SET
   client_name = NULL,
   updated_at  = now()
 WHERE c.deleted_at IS NULL
   AND (
-    c.client_name = '[object Object]'
-    OR (c.client_name IS NOT NULL AND btrim(c.client_name) = '')
-    OR (c.client_name IS NOT NULL AND NOT (c.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]'))
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
   )
   AND (
     c.in_portfolio = true
-    OR EXISTS (
-      SELECT 1 FROM client_contracts cc
-      WHERE cc.client_id = c.id
-        AND cc.contract_status NOT IN ('draft','cancelled')
-    )
-    OR EXISTS (
-      SELECT 1 FROM proposals p
-      WHERE p.deleted_at IS NULL
-        AND p.status NOT IN ('draft','cancelled')
-        AND p.owner_user_id = c.owner_user_id
-    )
+    OR EXISTS (SELECT 1 FROM public.client_contracts cc WHERE cc.client_id = c.id AND cc.contract_status NOT IN ('cancelled','completed'))
+    OR EXISTS (SELECT 1 FROM public.client_billing_profile bp WHERE bp.client_id = c.id AND bp.payment_status NOT IN ('cancelled','written_off'))
+    OR EXISTS (SELECT 1 FROM public.proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL AND p.status NOT IN ('cancelled','rejected'))
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1b — Cliente totalmente inválido sem vínculo ativo → soft-delete
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE clients c
+-- C1b) Soft-delete de clientes totalmente inválidos sem vínculo algum
+--      (nome inválido + sem portfolio + sem contrato + sem billing + sem proposta)
+UPDATE public.clients c
 SET
-  deleted_at = now(),
-  updated_at = now()
+  deleted_at      = now(),
+  identity_status = 'rejected',
+  updated_at      = now()
 WHERE c.deleted_at IS NULL
   AND (
-    c.client_name IS NULL
-    OR btrim(c.client_name) = ''
-    OR c.client_name = '[object Object]'
-    OR NOT (c.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
   )
   AND c.in_portfolio = false
-  AND NOT EXISTS (
-    SELECT 1 FROM client_contracts cc
-    WHERE cc.client_id = c.id
-      AND cc.contract_status NOT IN ('draft','cancelled')
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM proposals p
-    WHERE p.deleted_at IS NULL
-      AND p.status NOT IN ('draft','cancelled')
-      AND p.owner_user_id = c.owner_user_id
+  AND NOT EXISTS (SELECT 1 FROM public.client_contracts cc WHERE cc.client_id = c.id)
+  AND NOT EXISTS (SELECT 1 FROM public.client_billing_profile bp WHERE bp.client_id = c.id)
+  AND NOT EXISTS (SELECT 1 FROM public.proposals p WHERE p.client_id = c.id AND p.deleted_at IS NULL);
+
+-- C1c) Normalizar documento placeholder para NULL
+--      Se identity_status = 'confirmed' e o documento for placeholder, rebaixar para 'pending_cpf'
+UPDATE public.clients
+SET
+  client_document = NULL,
+  cpf_raw        = CASE WHEN regexp_replace(coalesce(cpf_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_raw END,
+  cpf_normalized = CASE WHEN regexp_replace(coalesce(cpf_normalized,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_normalized END,
+  cnpj_raw       = CASE WHEN regexp_replace(coalesce(cnpj_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cnpj_raw END,
+  cnpj_normalized= CASE WHEN regexp_replace(coalesce(cnpj_normalized,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cnpj_normalized END,
+  identity_status = CASE
+                      WHEN identity_status = 'confirmed'
+                       AND (
+                         (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
+                         OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
+                         OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
+                       )
+                      THEN 'pending_cpf'
+                      ELSE identity_status
+                    END,
+  updated_at = now()
+WHERE deleted_at IS NULL
+  AND (
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
+    OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
+    OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1c — Documento placeholder → NULL; rebaixa identity_status para pending_cpf/pending_cnpj
--- ─────────────────────────────────────────────────────────────────────────────
--- CPF placeholder
-UPDATE clients c
+-- C1d) Normalizar telefone inválido para NULL
+UPDATE public.clients
 SET
-  document        = NULL,
-  cpf_raw         = NULL,
-  cpf_normalized  = NULL,
-  identity_status = CASE
-    WHEN c.identity_status = 'confirmed' THEN 'pending_cpf'
-    ELSE c.identity_status
-  END,
-  updated_at      = now()
-WHERE c.deleted_at IS NULL
-  AND (c.document_type = 'cpf' OR c.document_type IS NULL)
-  AND (
-    REGEXP_REPLACE(COALESCE(c.cpf_raw, c.document, ''), '[^0-9]', '', 'g') ~ '^(\d)\1{10}$'
-    OR LENGTH(REGEXP_REPLACE(COALESCE(c.cpf_raw, c.document, ''), '[^0-9]', '', 'g')) < 11
-  )
-  AND (c.cpf_raw IS NOT NULL OR (c.document_type IS NULL AND c.document IS NOT NULL));
-
--- CNPJ placeholder
-UPDATE clients c
-SET
-  cnpj_raw        = NULL,
-  cnpj_normalized = NULL,
-  identity_status = CASE
-    WHEN c.identity_status = 'confirmed' THEN 'pending_cpf'
-    ELSE c.identity_status
-  END,
-  updated_at      = now()
-WHERE c.deleted_at IS NULL
-  AND c.document_type = 'cnpj'
-  AND (
-    REGEXP_REPLACE(COALESCE(c.cnpj_raw, ''), '[^0-9]', '', 'g') ~ '^(\d)\1{13}$'
-    OR LENGTH(REGEXP_REPLACE(COALESCE(c.cnpj_raw, ''), '[^0-9]', '', 'g')) < 14
-  )
-  AND c.cnpj_raw IS NOT NULL;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- C1d — Telefone inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE clients c
-SET
-  phone      = NULL,
+  client_phone = CASE
+                 WHEN lower(btrim(client_phone)) = '[object object]'
+                   OR btrim(client_phone) = ''
+                   OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+                   OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
+                 THEN NULL
+                 ELSE client_phone
+               END,
   updated_at = now()
-WHERE c.deleted_at IS NULL
-  AND c.phone IS NOT NULL
-  AND btrim(c.phone) <> ''
+WHERE deleted_at IS NULL
+  AND client_phone IS NOT NULL
   AND (
-    c.phone = '[object Object]'
-    OR LENGTH(REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g')) < 10
-    OR REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') ~ '^0+$'
-    OR REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') ~ '^(\d)\1{9,}$'
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1e — Email inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE clients c
+-- C1e) Normalizar email inválido para NULL nos clientes
+UPDATE public.clients
 SET
-  email      = NULL,
-  updated_at = now()
-WHERE c.deleted_at IS NULL
-  AND c.email IS NOT NULL
-  AND btrim(c.email) <> ''
-  AND c.email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$';
+  client_email = NULL,
+  updated_at   = now()
+WHERE deleted_at IS NULL
+  AND client_email IS NOT NULL
+  AND (
+    lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
+    OR client_email NOT LIKE '%@%.%'
+    OR client_email ~ '\s'
+  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1f — Deduplicação CPF: soft-delete dos perdedores
--- ─────────────────────────────────────────────────────────────────────────────
--- Critério de vencedor: in_portfolio DESC → updated_at DESC → id DESC (maior id)
--- Perdedor: recebe deleted_at + merged_into_client_id do vencedor
--- ─────────────────────────────────────────────────────────────────────────────
-WITH cpf_ranked AS (
+-- C1f) Deduplicação por CPF: soft-delete das duplicatas, mantendo o "vencedor"
+--      Critério vencedor: in_portfolio DESC → updated_at DESC → created_at DESC → id DESC
+WITH ranked_cpf AS (
   SELECT
     id,
     cpf_normalized,
@@ -737,35 +865,47 @@ WITH cpf_ranked AS (
       PARTITION BY cpf_normalized
       ORDER BY
         in_portfolio DESC,
-        updated_at   DESC,
+        updated_at   DESC NULLS LAST,
+        created_at   DESC NULLS LAST,
         id           DESC
-    ) AS rn,
-    FIRST_VALUE(id) OVER (
-      PARTITION BY cpf_normalized
-      ORDER BY
-        in_portfolio DESC,
-        updated_at   DESC,
-        id           DESC
-    ) AS winner_id
-  FROM clients
+    ) AS rn
+  FROM public.clients
   WHERE cpf_normalized IS NOT NULL
     AND deleted_at IS NULL
     AND merged_into_client_id IS NULL
+    AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+),
+survivors AS (
+  SELECT cpf_normalized, id AS survivor_id
+  FROM ranked_cpf WHERE rn = 1
+),
+duplicates AS (
+  SELECT r.id AS dup_id, s.survivor_id
+  FROM ranked_cpf r
+  JOIN survivors s ON s.cpf_normalized = r.cpf_normalized
+  WHERE r.rn > 1
 )
-UPDATE clients c
+UPDATE public.clients c
 SET
+  merged_into_client_id = d.survivor_id,
   deleted_at            = now(),
-  merged_into_client_id = cpf_ranked.winner_id,
   identity_status       = 'merged',
   updated_at            = now()
-FROM cpf_ranked
-WHERE cpf_ranked.id = c.id
-  AND cpf_ranked.rn > 1;
+FROM duplicates d
+WHERE c.id = d.dup_id
+  -- Não mesclar se tiver contrato ativo ou estiver em portfólio:
+  AND c.in_portfolio = false
+  AND NOT EXISTS (
+    SELECT 1 FROM public.client_contracts cc
+    WHERE cc.client_id = c.id AND cc.contract_status IN ('active','signed','suspended')
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.client_billing_profile bp
+    WHERE bp.client_id = c.id AND bp.payment_status NOT IN ('cancelled','written_off')
+  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C1g — Deduplicação CNPJ: soft-delete dos perdedores
--- ─────────────────────────────────────────────────────────────────────────────
-WITH cnpj_ranked AS (
+-- C1g) Deduplicação por CNPJ: mesma lógica
+WITH ranked_cnpj AS (
   SELECT
     id,
     cnpj_normalized,
@@ -773,560 +913,556 @@ WITH cnpj_ranked AS (
       PARTITION BY cnpj_normalized
       ORDER BY
         in_portfolio DESC,
-        updated_at   DESC,
+        updated_at   DESC NULLS LAST,
+        created_at   DESC NULLS LAST,
         id           DESC
-    ) AS rn,
-    FIRST_VALUE(id) OVER (
-      PARTITION BY cnpj_normalized
-      ORDER BY
-        in_portfolio DESC,
-        updated_at   DESC,
-        id           DESC
-    ) AS winner_id
-  FROM clients
+    ) AS rn
+  FROM public.clients
   WHERE cnpj_normalized IS NOT NULL
     AND deleted_at IS NULL
     AND merged_into_client_id IS NULL
+    AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') !~ '^0+$'
+),
+survivors_cnpj AS (
+  SELECT cnpj_normalized, id AS survivor_id
+  FROM ranked_cnpj WHERE rn = 1
+),
+duplicates_cnpj AS (
+  SELECT r.id AS dup_id, s.survivor_id
+  FROM ranked_cnpj r
+  JOIN survivors_cnpj s ON s.cnpj_normalized = r.cnpj_normalized
+  WHERE r.rn > 1
 )
-UPDATE clients c
+UPDATE public.clients c
 SET
+  merged_into_client_id = d.survivor_id,
   deleted_at            = now(),
-  merged_into_client_id = cnpj_ranked.winner_id,
   identity_status       = 'merged',
   updated_at            = now()
-FROM cnpj_ranked
-WHERE cnpj_ranked.id = c.id
-  AND cnpj_ranked.rn > 1;
+FROM duplicates_cnpj d
+WHERE c.id = d.dup_id
+  AND c.in_portfolio = false
+  AND NOT EXISTS (
+    SELECT 1 FROM public.client_contracts cc
+    WHERE cc.client_id = c.id AND cc.contract_status IN ('active','signed','suspended')
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.client_billing_profile bp
+    WHERE bp.client_id = c.id AND bp.payment_status NOT IN ('cancelled','written_off')
+  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C2a — Cancela contratos draft duplicados
--- ─────────────────────────────────────────────────────────────────────────────
--- Mantém o draft mais antigo (menor id) ou o que tem arquivo, cancela os demais.
--- Estratégia: vencedor = menor id COM arquivo (se houver), ou menor id sem arquivo.
--- ─────────────────────────────────────────────────────────────────────────────
-WITH draft_ranked AS (
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C2) LIMPEZA DE CONTRATOS
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- C2a) Remover drafts duplicados do mesmo cliente+tipo+prazo
+--      Manter o mais completo/recente (com arquivo de contrato se houver, senão mais recente)
+--      Remover os excedentes via soft-delete (contract_status = 'cancelled')
+WITH ranked_drafts AS (
   SELECT
-    cc.id,
-    cc.client_id,
-    cc.contract_type,
-    cc.contractual_term_months,
+    id,
+    client_id,
+    contract_type,
+    contractual_term_months,
     ROW_NUMBER() OVER (
-      PARTITION BY cc.client_id, cc.contract_type,
-                   COALESCE(cc.contractual_term_months, -1)
+      PARTITION BY client_id, contract_type, contractual_term_months
       ORDER BY
-        -- Prefere o draft com arquivo anexado
-        CASE WHEN cc.contract_file_url IS NOT NULL
-                  OR jsonb_array_length(COALESCE(cc.contract_attachments_json,'[]'::jsonb)) > 0
-             THEN 0 ELSE 1 END ASC,
-        cc.id ASC
+        -- Prioridade: tem arquivo de contrato > updated_at mais recente > id maior
+        (CASE WHEN contract_file_name IS NOT NULL THEN 1 ELSE 0 END) DESC,
+        updated_at DESC NULLS LAST,
+        id         DESC
     ) AS rn
-  FROM client_contracts cc
-  WHERE cc.contract_status = 'draft'
+  FROM public.client_contracts
+  WHERE contract_status = 'draft'
+    AND (client_id, contract_type, contractual_term_months) IN (
+      SELECT client_id, contract_type, contractual_term_months
+      FROM public.client_contracts
+      WHERE contract_status = 'draft'
+      GROUP BY client_id, contract_type, contractual_term_months
+      HAVING COUNT(*) > 1
+    )
 )
-UPDATE client_contracts cc
+UPDATE public.client_contracts cc
 SET
   contract_status = 'cancelled',
-  updated_at      = now(),
-  notes           = COALESCE(cc.notes || ' | ', '') ||
-                    '[sanitize] Draft duplicado cancelado automaticamente em ' ||
-                    TO_CHAR(now(), 'YYYY-MM-DD')
-FROM draft_ranked
-WHERE draft_ranked.id = cc.id
-  AND draft_ranked.rn > 1;
+  notes           = coalesce(notes || ' | ', '') || 'Cancelado por limpeza: draft duplicado em ' || now()::text,
+  updated_at      = now()
+FROM ranked_drafts rd
+WHERE cc.id = rd.id
+  AND rd.rn > 1;  -- Mantém rn=1, cancela os excedentes
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C2b — Recalcula expected_billing_end_date incoerente em contratos
--- ─────────────────────────────────────────────────────────────────────────────
--- Quando expected_billing_end_date < contract_start_date, recalcula usando
--- contract_start_date + contractual_term_months.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_contracts cc
+-- C2b) Corrigir expected_billing_end_date incoerente
+--      Se expected_billing_end_date < contract_start_date E contractual_term_months IS NOT NULL,
+--      recalcular expected_billing_end_date = contract_start_date + contractual_term_months
+UPDATE public.client_contracts
 SET
-  expected_billing_end_date =
-    (cc.contract_start_date +
-     (COALESCE(cc.contractual_term_months, 0) * INTERVAL '1 month'))::DATE,
+  expected_billing_end_date = contract_start_date + (contractual_term_months * INTERVAL '1 month'),
+  notes      = coalesce(notes || ' | ', '') || 'Data fim recalculada por limpeza em ' || now()::text,
   updated_at = now()
-WHERE cc.expected_billing_end_date IS NOT NULL
-  AND cc.contract_start_date IS NOT NULL
-  AND cc.expected_billing_end_date < cc.contract_start_date
-  AND cc.contractual_term_months IS NOT NULL
-  AND cc.contractual_term_months > 0;
+WHERE contract_start_date IS NOT NULL
+  AND expected_billing_end_date IS NOT NULL
+  AND expected_billing_end_date < contract_start_date
+  AND contractual_term_months IS NOT NULL
+  AND contractual_term_months > 0
+  AND contract_status NOT IN ('cancelled','completed');
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C2d — Corrige buyout_eligible = true em contratos leasing ativos/assinados
--- ─────────────────────────────────────────────────────────────────────────────
--- Contratos de leasing que estão 'active' ou 'signed' deveriam ter
--- buyout_eligible = true para permitir resgate antecipado.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_contracts cc
+-- C2c) Para contratos leasing sem prazo definido que têm datas incoerentes e não podem ser recalculados:
+--      apenas registrar nota de alerta para revisão manual
+UPDATE public.client_contracts
+SET
+  notes      = coalesce(notes || ' | ', '') || 'ALERTA: data fim anterior ao início — revisar manualmente. Detectado em ' || now()::text,
+  updated_at = now()
+WHERE contract_start_date IS NOT NULL
+  AND expected_billing_end_date IS NOT NULL
+  AND expected_billing_end_date < contract_start_date
+  AND (contractual_term_months IS NULL OR contractual_term_months = 0)
+  AND contract_status NOT IN ('cancelled','completed');
+
+-- C2d) Corrigir buyout_eligible para leasing ativos (alinhamento operacional)
+--      Regra: contratos leasing ativos ou assinados devem ter buyout_eligible = true
+UPDATE public.client_contracts
 SET
   buyout_eligible = true,
   updated_at      = now()
-WHERE cc.contract_type   = 'leasing'
-  AND cc.contract_status IN ('active','signed')
-  AND cc.buyout_eligible = false;
+WHERE contract_type = 'leasing'
+  AND contract_status IN ('active','signed')
+  AND buyout_eligible = false;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C3a — Billing: recalcula expected_last_billing_date quando < first_billing_date
--- ─────────────────────────────────────────────────────────────────────────────
--- Usa contractual_term_months do contrato vinculado (se existir) ou do próprio billing.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_billing_profile bp
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C3) LIMPEZA DE BILLING
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- C3a) Corrigir expected_last_billing_date quando for anterior a first_billing_date
+--      Estratégia: buscar o prazo contratual no contrato vinculado e recalcular
+UPDATE public.client_billing_profile bp
 SET
-  expected_last_billing_date =
-    (bp.first_billing_date +
-     (COALESCE(cc.contractual_term_months, 0) * INTERVAL '1 month') - INTERVAL '1 month')::DATE,
-  updated_at = now()
-FROM client_contracts cc
-WHERE bp.contract_id = cc.id
+  expected_last_billing_date = bp.first_billing_date + (cc.contractual_term_months * INTERVAL '1 month'),
+  updated_at                 = now()
+FROM public.client_contracts cc
+WHERE cc.id = bp.contract_id
   AND bp.first_billing_date IS NOT NULL
   AND bp.expected_last_billing_date IS NOT NULL
   AND bp.expected_last_billing_date < bp.first_billing_date
   AND cc.contractual_term_months IS NOT NULL
   AND cc.contractual_term_months > 0;
 
--- Para billing sem contrato vinculado mas com datas incoerentes — mantém como NULL
--- (melhor que uma data errada; será preenchida manualmente)
-UPDATE client_billing_profile bp
+-- C3b) Para billing sem contrato vinculado com datas incoerentes: marcar para revisão via delinquency_status
+UPDATE public.client_billing_profile
 SET
-  expected_last_billing_date = NULL,
-  updated_at                 = now()
-WHERE bp.contract_id IS NULL
-  AND bp.first_billing_date IS NOT NULL
-  AND bp.expected_last_billing_date IS NOT NULL
-  AND bp.expected_last_billing_date < bp.first_billing_date;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- C3b — Billing: alinha first_billing_date ao commissioning_date
--- ─────────────────────────────────────────────────────────────────────────────
--- Se first_billing_date < commissioning_date, a cobrança começa antes da vistoria.
--- Corrige: first_billing_date = commissioning_date (início do mês do commissioning).
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_billing_profile bp
-SET
-  first_billing_date = bp.commissioning_date,
+  delinquency_status = coalesce(delinquency_status || '|', '') || 'ALERTA_DATA_INCONSISTENTE',
   updated_at         = now()
-WHERE bp.first_billing_date IS NOT NULL
-  AND bp.commissioning_date IS NOT NULL
-  AND bp.first_billing_date < bp.commissioning_date;
+WHERE first_billing_date IS NOT NULL
+  AND expected_last_billing_date IS NOT NULL
+  AND expected_last_billing_date < first_billing_date
+  AND (contract_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.client_contracts cc
+    WHERE cc.id = contract_id AND cc.contractual_term_months IS NOT NULL
+  ));
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C3c — Billing: garante auto_reminder_enabled = true para clientes ativos
--- ─────────────────────────────────────────────────────────────────────────────
--- Clientes com contrato ativo/assinado deveriam ter lembretes automáticos ativos.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_billing_profile bp
+-- C3c) Corrigir first_billing_date anterior a commissioning_date
+--      Se a data de comissionamento existe e é depois do início de billing, alinhar
+UPDATE public.client_billing_profile
+SET
+  first_billing_date = commissioning_date,
+  updated_at         = now()
+WHERE first_billing_date IS NOT NULL
+  AND commissioning_date IS NOT NULL
+  AND first_billing_date < commissioning_date
+  AND payment_status NOT IN ('cancelled','written_off');
+
+-- C3d) Garantir auto_reminder_enabled = true onde estiver NULL
+--      (regra operacional: o padrão é lembrete ativo)
+UPDATE public.client_billing_profile
 SET
   auto_reminder_enabled = true,
   updated_at            = now()
-WHERE bp.auto_reminder_enabled = false
-  AND bp.payment_status NOT IN ('cancelled','written_off')
-  AND EXISTS (
-    SELECT 1 FROM client_contracts cc
-    WHERE cc.id = bp.contract_id
-      AND cc.contract_status IN ('active','signed')
-  );
+WHERE auto_reminder_enabled IS NULL;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C3d — Billing: recalcula expected_last_billing_date após alinhamento do first_billing
--- ─────────────────────────────────────────────────────────────────────────────
--- Após C3b, o first_billing_date pode ter mudado; recalcula o expected_last.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE client_billing_profile bp
-SET
-  expected_last_billing_date =
-    (bp.first_billing_date +
-     (COALESCE(cc.contractual_term_months, 0) * INTERVAL '1 month') - INTERVAL '1 month')::DATE,
-  updated_at = now()
-FROM client_contracts cc
-WHERE bp.contract_id = cc.id
-  AND bp.first_billing_date IS NOT NULL
-  AND cc.contractual_term_months IS NOT NULL
-  AND cc.contractual_term_months > 0
-  -- Recalcula apenas se expected ainda está inconsistente após C3a
-  AND (
-    bp.expected_last_billing_date IS NULL
-    OR bp.expected_last_billing_date < bp.first_billing_date
-  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C4a — Remove client_usina_config órfãs (cliente soft-deleted)
--- ─────────────────────────────────────────────────────────────────────────────
--- ON DELETE CASCADE já cuida disso automaticamente em novos deletes,
--- mas registros pré-constraint podem ter ficado órfãos.
--- ─────────────────────────────────────────────────────────────────────────────
-DELETE FROM client_usina_config uc
-USING clients c
-WHERE uc.client_id = c.id
-  AND c.deleted_at IS NOT NULL;
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C4) LIMPEZA DE USINA CONFIG
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C4b — Remove client_usina_config quase-vazias sem portfólio nem contrato ativo
--- ─────────────────────────────────────────────────────────────────────────────
--- Remove apenas se: todos os 7 campos técnicos são NULL E o cliente
--- não está no portfólio E não tem contrato ativo/assinado.
--- ─────────────────────────────────────────────────────────────────────────────
-DELETE FROM client_usina_config uc
-USING clients c
-WHERE uc.client_id = c.id
-  AND c.deleted_at IS NULL
-  AND c.in_portfolio = false
-  AND uc.potencia_modulo_wp   IS NULL
-  AND uc.numero_modulos       IS NULL
-  AND uc.modelo_modulo        IS NULL
-  AND uc.modelo_inversor      IS NULL
-  AND uc.tipo_instalacao      IS NULL
-  AND uc.area_instalacao_m2   IS NULL
+-- C4a) Remover registros órfãos (cliente não existe ou está soft-deleted)
+DELETE FROM public.client_usina_config
+WHERE client_id NOT IN (
+  SELECT id FROM public.clients WHERE deleted_at IS NULL
+);
+
+-- C4b) Remover registros quase vazios (todos os campos técnicos são NULL)
+--      somente quando o cliente já tem outro registro com dados válidos,
+--      ou quando é uma duplicata (caso raro — client_id é UNIQUE, então duplicatas não ocorrem)
+--      Portanto: remover apenas os completamente vazios cujo cliente está ativo mas sem dados reais
+--
+--      CONSERVADOR: só remove se TODOS os 7 campos técnicos são NULL.
+--      Manter se houver qualquer dado técnico, mesmo que mínimo.
+DELETE FROM public.client_usina_config uc
+WHERE uc.potencia_modulo_wp IS NULL
+  AND uc.numero_modulos IS NULL
+  AND uc.modelo_modulo IS NULL
+  AND uc.modelo_inversor IS NULL
+  AND uc.tipo_instalacao IS NULL
+  AND uc.area_instalacao_m2 IS NULL
   AND uc.geracao_estimada_kwh IS NULL
+  -- Só remove se o cliente NÃO estiver em portfólio e NÃO tiver contrato ativo
+  AND EXISTS (
+    SELECT 1 FROM public.clients c
+    WHERE c.id = uc.client_id
+      AND c.deleted_at IS NULL
+      AND c.in_portfolio = false
+  )
   AND NOT EXISTS (
-    SELECT 1 FROM client_contracts cc
+    SELECT 1 FROM public.client_contracts cc
     WHERE cc.client_id = uc.client_id
-      AND cc.contract_status IN ('active','signed')
+      AND cc.contract_status IN ('active','signed','suspended')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C5a — Proposals: normaliza client_name inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C5) LIMPEZA DE PROPOSALS
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+-- C5a) Normalizar client_name inválido para NULL nas proposals
+UPDATE public.proposals
 SET
   client_name = NULL,
   updated_at  = now()
-WHERE p.deleted_at IS NULL
-  AND p.client_name IS NOT NULL
+WHERE deleted_at IS NULL
   AND (
-    p.client_name = '[object Object]'
-    OR (btrim(p.client_name) = '')
-    OR NOT (p.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C5b — Proposals: normaliza client_document inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
+-- C5b) Normalizar client_document placeholder para NULL
+UPDATE public.proposals
 SET
   client_document = NULL,
   updated_at      = now()
-WHERE p.deleted_at IS NULL
-  AND p.client_document IS NOT NULL
-  AND btrim(p.client_document) <> ''
+WHERE deleted_at IS NULL
+  AND client_document IS NOT NULL
   AND (
-    -- Todos dígitos iguais (placeholder)
-    REGEXP_REPLACE(p.client_document, '[^0-9]', '', 'g') ~ '^(\d)\1{10,}$'
-    -- Muito poucos dígitos para ser CPF ou CNPJ
-    OR LENGTH(REGEXP_REPLACE(p.client_document, '[^0-9]', '', 'g')) < 11
+    btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C5c — Proposals: normaliza client_email inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
+-- C5c) Normalizar client_email lixo para NULL
+UPDATE public.proposals
 SET
   client_email = NULL,
   updated_at   = now()
-WHERE p.deleted_at IS NULL
-  AND p.client_email IS NOT NULL
-  AND btrim(p.client_email) <> ''
-  AND p.client_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$';
+WHERE deleted_at IS NULL
+  AND client_email IS NOT NULL
+  AND (
+    lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
+    OR client_email NOT LIKE '%@%.%'
+    OR client_email ~ '\s'
+  );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C5d — Proposals: normaliza client_phone inválido → NULL
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
+-- C5d) Normalizar client_phone inválido para NULL nas proposals
+UPDATE public.proposals
 SET
   client_phone = NULL,
   updated_at   = now()
-WHERE p.deleted_at IS NULL
-  AND p.client_phone IS NOT NULL
-  AND btrim(p.client_phone) <> ''
+WHERE deleted_at IS NULL
+  AND client_phone IS NOT NULL
   AND (
-    p.client_phone = '[object Object]'
-    OR LENGTH(REGEXP_REPLACE(p.client_phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
--- ─────────────────────────────────────────────────────────────────────────────
--- C5e — Proposals: soft-delete de drafts totalmente vazios
--- ─────────────────────────────────────────────────────────────────────────────
--- Apenas drafts sem nome, sem documento, sem consumo, sem valor e payload
--- praticamente vazio (≤ 2 chaves não-nulas). Estes são registros fantasma
--- gerados por criações abortadas no frontend.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
+-- C5e) Soft-delete de proposals draft totalmente órfãs e sem dados úteis
+UPDATE public.proposals
 SET
   deleted_at = now(),
+  status     = 'cancelled',
   updated_at = now()
-WHERE p.deleted_at IS NULL
-  AND p.status = 'draft'
-  AND (p.client_name IS NULL OR btrim(p.client_name) = '')
-  AND (p.client_document IS NULL OR btrim(p.client_document) = '')
-  AND (p.client_email IS NULL OR btrim(p.client_email) = '')
-  AND p.consumption_kwh_month IS NULL
-  AND p.system_kwp IS NULL
-  AND p.capex_total IS NULL
-  AND p.contract_value IS NULL
-  AND jsonb_typeof(p.payload_json) = 'object'
-  AND (SELECT COUNT(*) FROM jsonb_object_keys(jsonb_strip_nulls(p.payload_json))) <= 2;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- C5f — Proposals: sinaliza conflituosas com identity_status = 'conflict'
--- ─────────────────────────────────────────────────────────────────────────────
--- Proposals sent/approved para clientes que foram marcados como 'merged' ou
--- 'conflict' precisam de revisão manual. Adiciona nota no payload_json.
--- ─────────────────────────────────────────────────────────────────────────────
-UPDATE proposals p
-SET
-  payload_json = jsonb_set(
-    COALESCE(p.payload_json, '{}'::jsonb),
-    '{_sanitize_conflict_flag}',
-    to_jsonb('revisão_manual_necessária — cliente origem mesclado em ' || TO_CHAR(now(),'YYYY-MM-DD'))
-  ),
-  updated_at = now()
-WHERE p.deleted_at IS NULL
-  AND p.status IN ('sent','approved')
-  AND p.owner_user_id IN (
-    SELECT owner_user_id FROM clients
-    WHERE identity_status IN ('merged','conflict')
-      AND deleted_at IS NOT NULL
-  )
-  AND NOT (p.payload_json ? '_sanitize_conflict_flag');
-
--- ─────────────────────────────────────────────────────────────────────────────
--- C6 — Remove chaves técnicas do storage
--- ─────────────────────────────────────────────────────────────────────────────
--- Estas chaves foram geradas por vazamentos de estado do framework/autenticação.
--- Backupadas em B6 antes da remoção.
--- ─────────────────────────────────────────────────────────────────────────────
-DELETE FROM storage s
-WHERE s.key LIKE '_STACK_AUTH%'
-   OR s.key LIKE '__vercel_toolbar%'
-   OR s.key IN ('clear','getItem','setItem','removeItem','key','length')
-   OR s.key LIKE '%debug%'
-   OR s.key LIKE '%__test__%'
-   OR s.key LIKE 'vite-%';
-
--- =============================================================================
--- ↓↓↓  ATENÇÃO: troque COMMIT por ROLLBACK na linha abaixo para simular  ↓↓↓
---       sem persistir nenhuma alteração (dry-run / modo simulação).
--- =============================================================================
-COMMIT;  -- ← Troque por ROLLBACK para dry-run
-
-
--- =============================================================================
--- BLOCO D — RELATÓRIOS PÓS-LIMPEZA
--- =============================================================================
--- Execute após o Bloco C para validar que o resultado final está correto.
--- Nenhuma modificação é feita neste bloco.
--- =============================================================================
-
--- ─────────────────────────────────────────────────────────────────────────────
--- D1 — Contagem de clientes com client_name ainda inválido
--- ─────────────────────────────────────────────────────────────────────────────
--- Esperado: clientes restantes com nome NULL devem ser apenas os que têm
--- vínculos ativos (aguardando revisão manual).
--- ─────────────────────────────────────────────────────────────────────────────
-SELECT
-  'clientes_nome_null_com_portfolio'   AS categoria,
-  COUNT(*) AS total
-FROM clients
-WHERE deleted_at IS NULL AND client_name IS NULL AND in_portfolio = true
-UNION ALL
-SELECT
-  'clientes_nome_null_sem_portfolio',
-  COUNT(*)
-FROM clients
-WHERE deleted_at IS NULL AND client_name IS NULL AND in_portfolio = false
-UNION ALL
-SELECT
-  'clientes_nome_invalido_restantes',
-  COUNT(*)
-FROM clients
 WHERE deleted_at IS NULL
-  AND client_name IS NOT NULL
-  AND NOT (client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')
-ORDER BY categoria;
+  AND status = 'draft'
+  AND (client_name IS NULL OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]'))
+  AND (client_document IS NULL OR btrim(client_document) = '')
+  AND (client_phone IS NULL OR btrim(client_phone) = '')
+  AND (client_email IS NULL OR btrim(client_email) = '')
+  AND (capex_total IS NULL OR capex_total = 0)
+  AND (contract_value IS NULL OR contract_value = 0);
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D2 — Duplicatas de CPF/CNPJ restantes
--- ─────────────────────────────────────────────────────────────────────────────
--- Esperado: 0 duplicatas ativas.
--- ─────────────────────────────────────────────────────────────────────────────
+-- C5f) Proposals conflituosas com documento fake: marcar is_conflicted = true para revisão
+--      Não apagar — apenas sinalizar para revisão operacional
+UPDATE public.proposals
+SET
+  is_conflicted   = true,
+  conflict_reason = coalesce(conflict_reason, '') || ' | bad_data_cleanse:document_placeholder',
+  updated_at      = now()
+WHERE deleted_at IS NULL
+  AND is_conflicted = false
+  AND client_document IS NOT NULL
+  AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$';
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- C6) LIMPEZA DE STORAGE
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- Remover chaves técnicas que não representam dados de negócio.
+-- Backupadas no BLOCO B antes desta remoção.
+
+DELETE FROM public.storage
+WHERE "key" LIKE '_STACK_AUTH%'
+   OR "key" LIKE '__vercel_toolbar%'
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- COMMIT — confirmar todas as alterações
+-- Para simular sem commitar, trocar por ROLLBACK
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+COMMIT;
+
+
+-- ============================================================================================================================
+-- D) BLOCO DE RELATÓRIOS PÓS-LIMPEZA
+-- ============================================================================================================================
+-- Rodar após o COMMIT do BLOCO C para validar o resultado.
+-- ============================================================================================================================
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D1) Clientes inválidos restantes (deveria ser 0 ou apenas os que têm vínculo e precisam de revisão manual)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  'duplicatas_cpf_ativas' AS categoria,
-  COUNT(*) AS grupos_com_duplicata
+  'D1 - clientes com nome inválido restantes' AS check_name,
+  COUNT(*) AS total
+FROM public.clients
+WHERE deleted_at IS NULL
+  AND (
+    client_name IS NULL
+    OR btrim(client_name) = ''
+    OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
+  );
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D2) Duplicatas por CPF/CNPJ restantes
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  'D2a - duplicatas CPF restantes' AS check_name,
+  COUNT(DISTINCT cpf_normalized) AS grupos
 FROM (
   SELECT cpf_normalized
-  FROM clients
+  FROM public.clients
   WHERE cpf_normalized IS NOT NULL
     AND deleted_at IS NULL
     AND merged_into_client_id IS NULL
+    AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') !~ '^0+$'
   GROUP BY cpf_normalized
   HAVING COUNT(*) > 1
-) AS dup_cpf
-UNION ALL
+) t;
+
 SELECT
-  'duplicatas_cnpj_ativas',
-  COUNT(*)
+  'D2b - duplicatas CNPJ restantes' AS check_name,
+  COUNT(DISTINCT cnpj_normalized) AS grupos
 FROM (
   SELECT cnpj_normalized
-  FROM clients
+  FROM public.clients
   WHERE cnpj_normalized IS NOT NULL
     AND deleted_at IS NULL
     AND merged_into_client_id IS NULL
+    AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') !~ '^0+$'
   GROUP BY cnpj_normalized
   HAVING COUNT(*) > 1
-) AS dup_cnpj
-ORDER BY categoria;
+) t;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D3 — Contratos draft duplicados restantes
--- ─────────────────────────────────────────────────────────────────────────────
--- Esperado: 0 grupos de drafts duplicados.
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D3) Contratos draft duplicados restantes
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  COUNT(*) AS grupos_com_draft_duplicado
+  'D3 - contratos draft duplicados restantes' AS check_name,
+  COUNT(*) AS grupos,
+  SUM(cnt - 1) AS excedentes
 FROM (
-  SELECT client_id, contract_type, COALESCE(contractual_term_months,-1)
-  FROM client_contracts
+  SELECT client_id, contract_type, contractual_term_months, COUNT(*) AS cnt
+  FROM public.client_contracts
   WHERE contract_status = 'draft'
-  GROUP BY client_id, contract_type, COALESCE(contractual_term_months,-1)
+  GROUP BY client_id, contract_type, contractual_term_months
   HAVING COUNT(*) > 1
-) AS drafts_dup;
+) t;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D4 — Contratos com expected_billing_end_date ainda inconsistente
--- ─────────────────────────────────────────────────────────────────────────────
--- Esperado: 0. Contratos sem contractual_term_months não puderam ser corrigidos
--- automaticamente e aparecem aqui para revisão manual.
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D4) Billing incoerente restante
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  cc.id,
-  cc.client_id,
-  c.client_name,
-  cc.contract_type,
-  cc.contract_status,
-  cc.contract_start_date,
-  cc.expected_billing_end_date,
-  cc.contractual_term_months,
-  'Requer revisão manual — sem contractual_term_months para recalcular' AS observacao
-FROM client_contracts cc
-JOIN clients c ON c.id = cc.client_id
-WHERE cc.expected_billing_end_date IS NOT NULL
-  AND cc.contract_start_date IS NOT NULL
-  AND cc.expected_billing_end_date < cc.contract_start_date
-ORDER BY cc.client_id;
+  'D4 - billing com datas incoerentes restantes' AS check_name,
+  COUNT(*) AS total
+FROM public.client_billing_profile
+WHERE (first_billing_date IS NOT NULL
+       AND expected_last_billing_date IS NOT NULL
+       AND expected_last_billing_date < first_billing_date)
+  OR (first_billing_date IS NOT NULL
+      AND commissioning_date IS NOT NULL
+      AND first_billing_date < commissioning_date);
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D5 — Billing com datas ainda inconsistentes
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D5) Proposals órfãs restantes
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  COUNT(*) FILTER (WHERE bp.expected_last_billing_date < bp.first_billing_date) AS last_menor_que_first,
-  COUNT(*) FILTER (WHERE bp.first_billing_date < bp.commissioning_date)          AS first_antes_comissionamento,
-  COUNT(*) FILTER (WHERE bp.auto_reminder_enabled = false
-                     AND bp.payment_status NOT IN ('cancelled','written_off'))   AS reminder_desligado_indevidamente
-FROM client_billing_profile bp
-JOIN clients c ON c.id = bp.client_id
-WHERE c.deleted_at IS NULL;
+  'D5 - proposals draft órfãs restantes' AS check_name,
+  COUNT(*) AS total
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND status = 'draft'
+  AND (client_name IS NULL OR NOT (coalesce(client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]'))
+  AND (client_document IS NULL OR btrim(client_document) = '')
+  AND (client_phone IS NULL OR btrim(client_phone) = '')
+  AND (client_email IS NULL OR btrim(client_email) = '')
+  AND (capex_total IS NULL OR capex_total = 0)
+  AND (contract_value IS NULL OR contract_value = 0);
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D6 — client_usina_config quase-vazias restantes
--- ─────────────────────────────────────────────────────────────────────────────
--- As que restaram são de clientes em portfólio ou com contratos ativos
--- (mantidas intencionalmente para revisão manual).
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D6) Storage técnico restante (deveria ser 0)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  c.in_portfolio,
-  COUNT(*) AS usinas_quasi_vazias
-FROM client_usina_config uc
-JOIN clients c ON c.id = uc.client_id
-WHERE c.deleted_at IS NULL
-  AND uc.potencia_modulo_wp   IS NULL
-  AND uc.numero_modulos       IS NULL
-  AND uc.modelo_modulo        IS NULL
-  AND uc.modelo_inversor      IS NULL
-  AND uc.tipo_instalacao      IS NULL
-  AND uc.area_instalacao_m2   IS NULL
-  AND uc.geracao_estimada_kwh IS NULL
-GROUP BY c.in_portfolio
-ORDER BY c.in_portfolio DESC;
+  'D6 - storage com chaves técnicas restantes' AS check_name,
+  COUNT(*) AS total
+FROM public.storage
+WHERE "key" LIKE '_STACK_AUTH%'
+   OR "key" LIKE '__vercel_toolbar%'
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D7 — Proposals com dados inválidos restantes
--- ─────────────────────────────────────────────────────────────────────────────
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D7) Resumo geral — quantos registros foram afetados por tabela (via backups criados)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
-  COUNT(*) FILTER (WHERE p.client_name = '[object Object]'
-                      OR (p.client_name IS NOT NULL AND NOT (p.client_name ~* '[a-záéíóúàèìòùâêîôûãõç]')))
-    AS proposals_nome_invalido,
-  COUNT(*) FILTER (WHERE p.client_email IS NOT NULL AND btrim(p.client_email) <> ''
-                      AND p.client_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
-    AS proposals_email_invalido,
-  COUNT(*) FILTER (WHERE p.client_phone IS NOT NULL AND btrim(p.client_phone) <> ''
-                      AND LENGTH(REGEXP_REPLACE(p.client_phone,'[^0-9]','','g')) < 10)
-    AS proposals_phone_invalido,
-  COUNT(*) FILTER (WHERE p.status = 'draft'
-                      AND (p.client_name IS NULL OR btrim(p.client_name) = '')
-                      AND (p.client_document IS NULL OR btrim(p.client_document) = '')
-                      AND p.consumption_kwh_month IS NULL AND p.system_kwp IS NULL)
-    AS proposals_draft_vazios
-FROM proposals p
-WHERE p.deleted_at IS NULL;
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.clients_backup
+GROUP BY backup_reason
+ORDER BY backup_reason;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D8 — Chaves técnicas restantes no storage
--- ─────────────────────────────────────────────────────────────────────────────
--- Esperado: 0.
--- ─────────────────────────────────────────────────────────────────────────────
-SELECT COUNT(*) AS chaves_tecnicas_restantes
-FROM storage s
-WHERE s.key LIKE '_STACK_AUTH%'
-   OR s.key LIKE '__vercel_toolbar%'
-   OR s.key IN ('clear','getItem','setItem','removeItem','key','length')
-   OR s.key LIKE '%debug%'
-   OR s.key LIKE '%__test__%'
-   OR s.key LIKE 'vite-%';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- D9 — Resumo geral pós-limpeza
--- ─────────────────────────────────────────────────────────────────────────────
 SELECT
-  (SELECT COUNT(*) FROM clients WHERE deleted_at IS NULL)                                     AS clientes_ativos,
-  (SELECT COUNT(*) FROM clients WHERE deleted_at IS NOT NULL)                                 AS clientes_soft_deleted,
-  (SELECT COUNT(*) FROM clients WHERE in_portfolio = true AND deleted_at IS NULL)             AS clientes_em_portfolio,
-  (SELECT COUNT(*) FROM client_contracts WHERE contract_status IN ('active','signed'))        AS contratos_ativos_assinados,
-  (SELECT COUNT(*) FROM client_contracts WHERE contract_status = 'draft')                    AS contratos_draft,
-  (SELECT COUNT(*) FROM proposals WHERE deleted_at IS NULL AND status NOT IN ('draft'))       AS proposals_ativas,
-  (SELECT COUNT(*) FROM proposals WHERE deleted_at IS NULL AND status = 'draft')              AS proposals_draft,
-  (SELECT COUNT(*) FROM storage)                                                              AS storage_total_chaves;
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.client_contracts_backup
+GROUP BY backup_reason;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- D10 — Lista de clientes que precisam de revisão manual (nome NULL + vínculo ativo)
--- ─────────────────────────────────────────────────────────────────────────────
--- Estes clientes tiveram o nome zerado (C1a) porque têm vínculos ativos.
--- Devem ser revisados e o nome correto deve ser inserido manualmente.
--- ─────────────────────────────────────────────────────────────────────────────
+SELECT
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.client_billing_profile_backup
+GROUP BY backup_reason;
+
+SELECT
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.client_usina_config_backup
+GROUP BY backup_reason;
+
+SELECT
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.proposals_backup
+GROUP BY backup_reason;
+
+SELECT
+  backup_reason,
+  COUNT(*) AS registros_afetados
+FROM data_hygiene.storage_backup
+GROUP BY backup_reason;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D8) Estado geral do banco após limpeza
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  (SELECT COUNT(*) FROM public.clients WHERE deleted_at IS NULL)                                         AS clientes_ativos,
+  (SELECT COUNT(*) FROM public.clients WHERE deleted_at IS NOT NULL)                                     AS clientes_soft_deleted,
+  (SELECT COUNT(*) FROM public.clients WHERE identity_status = 'merged')                                 AS clientes_merged,
+  (SELECT COUNT(*) FROM public.clients WHERE deleted_at IS NULL AND client_name IS NULL)                 AS clientes_sem_nome_vinculados,
+  (SELECT COUNT(*) FROM public.proposals WHERE deleted_at IS NULL)                                       AS proposals_ativas,
+  (SELECT COUNT(*) FROM public.client_contracts WHERE contract_status IN ('active','signed'))             AS contratos_ativos,
+  (SELECT COUNT(*) FROM public.client_billing_profile WHERE payment_status NOT IN ('cancelled','written_off')) AS billing_ativos,
+  (SELECT COUNT(*) FROM public.client_usina_config)                                                      AS usina_configs,
+  (SELECT COUNT(*) FROM public.storage)                                                                  AS storage_total_keys;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D9) Clientes que ainda precisam de revisão manual
+--     (nome NULL + vínculo ativo — não puderam ser auto-limpados)
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 SELECT
   c.id,
+  c.client_name,
+  c.client_email,
+  c.cpf_normalized,
+  c.cnpj_normalized,
   c.identity_status,
   c.in_portfolio,
-  c.email,
-  c.phone,
-  c.city,
-  c.state,
-  c.owner_user_id,
-  c.updated_at,
-  -- Contexto dos vínculos para ajudar na identificação do cliente
-  (SELECT MAX(p.client_name)
-    FROM proposals p
-    WHERE p.owner_user_id = c.owner_user_id
-      AND p.client_name IS NOT NULL
-      AND p.deleted_at IS NULL
-    LIMIT 1)                                                             AS nome_na_proposta,
-  (SELECT COUNT(*) FROM client_contracts cc
-    WHERE cc.client_id = c.id
-      AND cc.contract_status IN ('active','signed'))                     AS contratos_ativos,
-  (SELECT COUNT(*) FROM proposals p
-    WHERE p.owner_user_id = c.owner_user_id
-      AND p.status NOT IN ('draft','cancelled')
-      AND p.deleted_at IS NULL)                                          AS propostas_ativas
-FROM clients c
+  CASE
+    WHEN EXISTS (SELECT 1 FROM public.client_contracts cc WHERE cc.client_id = c.id AND cc.contract_status IN ('active','signed')) THEN 'tem_contrato_ativo'
+    WHEN EXISTS (SELECT 1 FROM public.client_billing_profile bp WHERE bp.client_id = c.id AND bp.payment_status NOT IN ('cancelled','written_off')) THEN 'tem_billing_ativo'
+    ELSE 'tem_proposta_ativa'
+  END AS motivo_retencao,
+  c.created_at
+FROM public.clients c
 WHERE c.deleted_at IS NULL
-  AND c.client_name IS NULL
-ORDER BY c.in_portfolio DESC, c.updated_at DESC;
+  AND (
+    c.client_name IS NULL
+    OR NOT (coalesce(c.client_name, '') ~* '[A-Za-zÀ-ÖØ-öø-ÿ]')
+  )
+ORDER BY c.created_at;
+
+
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- D10) Proposals conflituosas aguardando revisão
+-- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+SELECT
+  id,
+  proposal_type,
+  status,
+  client_name,
+  client_document,
+  client_email,
+  is_conflicted,
+  conflict_reason,
+  created_at
+FROM public.proposals
+WHERE deleted_at IS NULL
+  AND is_conflicted = true
+ORDER BY created_at DESC
+LIMIT 50;
+
+-- ============================================================================================================================
+-- FIM DO SCRIPT DE SANITIZAÇÃO
+-- ============================================================================================================================
+-- Para reverter qualquer alteração feita no BLOCO C, os dados originais
+-- estão preservados nas tabelas do schema data_hygiene.
+--
+-- Para restaurar um registro específico de clientes, por exemplo:
+--   INSERT INTO public.clients SELECT <colunas> FROM data_hygiene.clients_backup WHERE id = <id>;
+--
+-- Para limpar os backups após validação completa (somente quando seguro):
+--   DROP SCHEMA data_hygiene CASCADE;
+-- ============================================================================================================================
