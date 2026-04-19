@@ -66,9 +66,9 @@ WHERE deleted_at IS NULL
 SELECT
   id,
   client_name,
-  document,
-  email,
-  phone,
+  client_document,
+  client_email,
+  client_phone,
   cpf_normalized,
   cnpj_normalized,
   identity_status,
@@ -97,10 +97,10 @@ SELECT
 FROM public.clients
 WHERE deleted_at IS NULL
   AND (
-    -- document original
-    (document IS NOT NULL AND (
-       btrim(regexp_replace(document, '[^0-9]', '', 'g')) = ''
-    OR regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$'
+    -- client_document original
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
     ))
     OR
     -- cpf_normalized
@@ -120,7 +120,7 @@ WHERE deleted_at IS NULL
 SELECT
   id,
   client_name,
-  document,
+  client_document,
   cpf_normalized,
   cnpj_normalized,
   identity_status,
@@ -129,9 +129,9 @@ SELECT
 FROM public.clients
 WHERE deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND (
-       btrim(regexp_replace(document, '[^0-9]', '', 'g')) = ''
-    OR regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$'
+    (client_document IS NOT NULL AND (
+       btrim(regexp_replace(client_document, '[^0-9]', '', 'g')) = ''
+    OR regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$'
     ))
     OR
     (cpf_normalized IS NOT NULL AND (
@@ -158,24 +158,24 @@ SELECT
   COUNT(*) AS total
 FROM public.clients
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- Amostra:
-SELECT id, client_name, phone, created_at
+SELECT id, client_name, client_phone, created_at
 FROM public.clients
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   )
 LIMIT 50;
 
@@ -464,25 +464,36 @@ LIMIT 30;
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 -- A10) Chaves técnicas indevidas na tabela storage
+--      Detecta: _STACK_AUTH.*, __vercel_toolbar*, clear, getItem, key, length,
+--      e outras chaves de debug/framework que não deveriam estar persistidas.
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 SELECT
   'A10 - storage com chaves técnicas/lixo' AS check_name,
   COUNT(*) AS total
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 -- Listagem completa das chaves técnicas:
-SELECT id, user_id, "key", created_at, updated_at
+SELECT
+  id,
+  user_id,
+  "key",
+  pg_size_pretty(octet_length(value::text)::bigint) AS value_size,
+  updated_at
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%'
-ORDER BY "key", user_id;
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%'
+ORDER BY user_id, "key";
 
 -- Visão geral do storage (todas as chaves distintas existentes):
 SELECT "key", COUNT(*) AS users_com_essa_chave
@@ -531,7 +542,7 @@ SELECT c.*, now(), 'placeholder_document'
 FROM public.clients c
 WHERE c.deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
@@ -541,12 +552,12 @@ INSERT INTO data_hygiene.clients_backup
 SELECT c.*, now(), 'invalid_phone'
 FROM public.clients c
 WHERE c.deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- Inserir duplicatas por CPF (todas as cópias):
@@ -707,10 +718,12 @@ ALTER TABLE data_hygiene.storage_backup
 INSERT INTO data_hygiene.storage_backup
 SELECT s.*, now(), 'technical_key'
 FROM public.storage s
-WHERE s."key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR s."key" LIKE '_STACK_AUTH%'
+WHERE s."key" LIKE '_STACK_AUTH%'
    OR s."key" LIKE '__vercel_toolbar%'
-   OR s."key" LIKE 'vercel-%';
+   OR s."key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR s."key" LIKE '%debug%'
+   OR s."key" LIKE '%__test__%'
+   OR s."key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -785,7 +798,7 @@ WHERE c.deleted_at IS NULL
 --      Se identity_status = 'confirmed' e o documento for placeholder, rebaixar para 'pending_cpf'
 UPDATE public.clients
 SET
-  document       = NULL,
+  client_document = NULL,
   cpf_raw        = CASE WHEN regexp_replace(coalesce(cpf_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_raw END,
   cpf_normalized = CASE WHEN regexp_replace(coalesce(cpf_normalized,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cpf_normalized END,
   cnpj_raw       = CASE WHEN regexp_replace(coalesce(cnpj_raw,''), '[^0-9]', '', 'g') ~ '^0+$' THEN NULL ELSE cnpj_raw END,
@@ -793,7 +806,7 @@ SET
   identity_status = CASE
                       WHEN identity_status = 'confirmed'
                        AND (
-                         (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+                         (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
                          OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
                          OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
                        )
@@ -803,7 +816,7 @@ SET
   updated_at = now()
 WHERE deleted_at IS NULL
   AND (
-    (document IS NOT NULL AND regexp_replace(document, '[^0-9]', '', 'g') ~ '^0+$')
+    (client_document IS NOT NULL AND regexp_replace(client_document, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cpf_normalized IS NOT NULL AND regexp_replace(cpf_normalized, '[^0-9]', '', 'g') ~ '^0+$')
     OR (cnpj_normalized IS NOT NULL AND regexp_replace(cnpj_normalized, '[^0-9]', '', 'g') ~ '^0+$')
   );
@@ -811,35 +824,35 @@ WHERE deleted_at IS NULL
 -- C1d) Normalizar telefone inválido para NULL
 UPDATE public.clients
 SET
-  phone      = CASE
-                 WHEN lower(btrim(phone)) = '[object object]'
-                   OR btrim(phone) = ''
-                   OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-                   OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+  client_phone = CASE
+                 WHEN lower(btrim(client_phone)) = '[object object]'
+                   OR btrim(client_phone) = ''
+                   OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+                   OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
                  THEN NULL
-                 ELSE phone
+                 ELSE client_phone
                END,
   updated_at = now()
 WHERE deleted_at IS NULL
-  AND phone IS NOT NULL
+  AND client_phone IS NOT NULL
   AND (
-    lower(btrim(phone)) = '[object object]'
-    OR btrim(phone) = ''
-    OR regexp_replace(phone, '[^0-9]', '', 'g') = ''
-    OR length(regexp_replace(phone, '[^0-9]', '', 'g')) < 10
+    lower(btrim(client_phone)) = '[object object]'
+    OR btrim(client_phone) = ''
+    OR regexp_replace(client_phone, '[^0-9]', '', 'g') = ''
+    OR length(regexp_replace(client_phone, '[^0-9]', '', 'g')) < 10
   );
 
 -- C1e) Normalizar email inválido para NULL nos clientes
 UPDATE public.clients
 SET
-  email      = NULL,
-  updated_at = now()
+  client_email = NULL,
+  updated_at   = now()
 WHERE deleted_at IS NULL
-  AND email IS NOT NULL
+  AND client_email IS NOT NULL
   AND (
-    lower(btrim(email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
-    OR email NOT LIKE '%@%.%'
-    OR email ~ '\s'
+    lower(btrim(client_email)) IN ('t','teste','test','null','undefined','[object object]','na','n/a','')
+    OR client_email NOT LIKE '%@%.%'
+    OR client_email ~ '\s'
   );
 
 -- C1f) Deduplicação por CPF: soft-delete das duplicatas, mantendo o "vencedor"
@@ -1197,10 +1210,12 @@ WHERE deleted_at IS NULL
 -- Backupadas no BLOCO B antes desta remoção.
 
 DELETE FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1325,10 +1340,12 @@ SELECT
   'D6 - storage com chaves técnicas restantes' AS check_name,
   COUNT(*) AS total
 FROM public.storage
-WHERE "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'vercel-toolbar-position')
-   OR "key" LIKE '_STACK_AUTH%'
+WHERE "key" LIKE '_STACK_AUTH%'
    OR "key" LIKE '__vercel_toolbar%'
-   OR "key" LIKE 'vercel-%';
+   OR "key" IN ('clear', 'getItem', 'setItem', 'removeItem', 'key', 'length')
+   OR "key" LIKE '%debug%'
+   OR "key" LIKE '%__test__%'
+   OR "key" LIKE 'vite-%';
 
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1397,7 +1414,7 @@ SELECT
 SELECT
   c.id,
   c.client_name,
-  c.email,
+  c.client_email,
   c.cpf_normalized,
   c.cnpj_normalized,
   c.identity_status,
