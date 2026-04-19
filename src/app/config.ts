@@ -107,6 +107,7 @@ export const PAINEL_OPCOES = [450, 500, 540, 545, 550, 600, 605, 610, 625, 640, 
 export const STORAGE_KEYS = {
   activePage: 'solarinvest-active-page',
   activeTab: 'solarinvest-active-tab',
+  simulacoesSection: 'solarinvest-simulacoes-section',
   proposalPdfReminderAt: 'solarinvest-proposal-pdf-reminder-at',
 }
 

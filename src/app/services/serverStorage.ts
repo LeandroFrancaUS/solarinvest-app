@@ -95,8 +95,36 @@ const normalizeRemoteValue = (value: unknown): string | null => {
   }
 }
 
+/** Consecutive sync failure counter — used to temporarily back off without
+ *  permanently disabling sync on a single transient error. */
+let consecutiveSyncFailures = 0
+/** Maximum consecutive failures before temporarily pausing sync. */
+const MAX_SYNC_FAILURES = 5
+/** Base delay (ms) for exponential backoff on sync failures. */
+const SYNC_BACKOFF_BASE_MS = 2_000
+/** Whether sync is temporarily paused due to consecutive failures. */
+let syncPaused = false
+
+function handleSyncFailure(): void {
+  consecutiveSyncFailures += 1
+  if (consecutiveSyncFailures >= MAX_SYNC_FAILURES) {
+    syncPaused = true
+    const backoffMs = Math.min(SYNC_BACKOFF_BASE_MS * 2 ** (consecutiveSyncFailures - MAX_SYNC_FAILURES), 60_000)
+    console.warn(`[serverStorage] ${consecutiveSyncFailures} consecutive sync failures — pausing for ${backoffMs}ms`)
+    setTimeout(() => {
+      syncPaused = false
+      console.info('[serverStorage] Sync resumed after backoff')
+    }, backoffMs)
+  }
+}
+
+function handleSyncSuccess(): void {
+  consecutiveSyncFailures = 0
+  syncPaused = false
+}
+
 const persistPut = (key: string, value: string) => {
-  if (!syncEnabled) {
+  if (!syncEnabled || syncPaused) {
     return
   }
 
@@ -116,12 +144,15 @@ const persistPut = (key: string, value: string) => {
       signal: controller.signal,
     }),
   )
+    .then(() => {
+      handleSyncSuccess()
+    })
     .catch((error) => {
       if (error?.name === 'AbortError') {
         return
       }
       console.warn('[serverStorage] Falha ao sincronizar chave com o backend Neon.', error)
-      syncEnabled = false
+      handleSyncFailure()
     })
     .finally(() => {
       if (pendingUploads.get(key) === controller) {
@@ -131,7 +162,7 @@ const persistPut = (key: string, value: string) => {
 }
 
 const persistDelete = (key: string | null) => {
-  if (!syncEnabled) {
+  if (!syncEnabled || syncPaused) {
     return
   }
 
@@ -153,12 +184,15 @@ const persistDelete = (key: string | null) => {
       signal: controller.signal,
     }),
   )
+    .then(() => {
+      handleSyncSuccess()
+    })
     .catch((error) => {
       if (error?.name === 'AbortError') {
         return
       }
       console.warn('[serverStorage] Falha ao excluir chave no backend Neon.', error)
-      syncEnabled = false
+      handleSyncFailure()
     })
     .finally(() => {
       if (key && pendingUploads.get(key) === controller) {

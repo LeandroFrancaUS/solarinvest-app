@@ -2,6 +2,7 @@
 // Centralized logout orchestrator — browser-safe, Safari-hardened.
 
 import { clearAllClientData } from '../persist/clearOnLogout'
+import { clearAllPageStates } from '../persist/pageState'
 import { perfLog, perfMeasure, perfNow } from '../../utils/perf'
 
 type SignOutFn = () => Promise<unknown>
@@ -96,6 +97,7 @@ async function runLogout(signOut?: SignOutFn): Promise<void> {
     logDev('[LOGOUT][LOCAL_CLEAR_START]')
     const clearStart = perfNow()
     const clearResult = await withTimeout(clearAllClientData(), LOCAL_CLEAR_TIMEOUT_MS)
+    clearAllPageStates()
     logDev(clearResult === null ? '[LOGOUT][LOCAL_CLEAR_TIMEOUT]' : '[LOGOUT][LOCAL_CLEAR_DONE]')
     perfMeasure('LOGOUT', 'LOCAL_CLEAR_DONE', clearStart, {
       timedOut: clearResult === null,

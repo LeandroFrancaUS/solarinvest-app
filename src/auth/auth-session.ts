@@ -16,9 +16,9 @@ interface UseAuthSessionResult {
 
 const POLL_INTERVAL_MS = 15 * 60 * 1000 // re-check every 15 minutes
 /** Retry delay after a transient server/network error (before the next poll fires). */
-const ERROR_RETRY_MS = 3 * 1000
+const ERROR_RETRY_BASE_MS = 3 * 1000
 /** After this many consecutive failures we stop retrying and show an error screen. */
-const MAX_RETRIES = 2
+const MAX_RETRIES = 5
 /**
  * When Stack Auth is configured (getAccessToken is provided) but the access token
  * is not yet available (session initializing, token being refreshed, or session
@@ -148,7 +148,9 @@ export function useAuthSession(getAccessToken?: GetAccessToken | null): UseAuthS
       failCountRef.current += 1
       console.warn('[auth] fetchMe failed (attempt', failCountRef.current, ') —', err instanceof Error ? err.message : err)
       if (failCountRef.current < MAX_RETRIES) {
-        retryRef.current = setTimeout(() => { void load() }, ERROR_RETRY_MS)
+        // Exponential backoff: 3s, 6s, 12s, 24s, ...
+        const delay = Math.min(ERROR_RETRY_BASE_MS * 2 ** (failCountRef.current - 1), 30_000)
+        retryRef.current = setTimeout(() => { void load() }, delay)
       } else {
         setAuthState('error')
       }

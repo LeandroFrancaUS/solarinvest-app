@@ -1,17 +1,21 @@
 import React from 'react'
+import { saveFormDraft } from '../lib/persist/formDraft'
 
 type BoundaryProps = {
   children: React.ReactNode
+  /** Optional callback to get a snapshot of the current state before crashing. */
+  getSnapshot?: () => unknown
 }
 
 type BoundaryState = {
   error: Error | null
+  snapshotSaved: boolean
 }
 
 export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
-  state: BoundaryState = { error: null }
+  state: BoundaryState = { error: null, snapshotSaved: false }
 
-  static getDerivedStateFromError(error: Error): BoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<BoundaryState> {
     return { error }
   }
 
@@ -19,10 +23,28 @@ export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
     if (typeof console !== 'undefined') {
       console.error('Boundary captured error', error, info)
     }
+
+    // Attempt to save a snapshot before the crash renders the error screen.
+    // This preserves form state even when a rendering error occurs.
+    if (this.props.getSnapshot) {
+      try {
+        const snapshot = this.props.getSnapshot()
+        if (snapshot && typeof snapshot === 'object' && Object.keys(snapshot).length > 0) {
+          void saveFormDraft(snapshot).then(() => {
+            this.setState({ snapshotSaved: true })
+            console.info('[Boundary] Emergency snapshot saved to IndexedDB')
+          }).catch((e) => {
+            console.warn('[Boundary] Failed to save emergency snapshot:', e)
+          })
+        }
+      } catch {
+        // Best effort — don't make the crash worse
+      }
+    }
   }
 
   render(): React.ReactNode {
-    const { error } = this.state
+    const { error, snapshotSaved } = this.state
     if (error) {
       return (
         <section
@@ -41,6 +63,11 @@ export class Boundary extends React.Component<BoundaryProps, BoundaryState> {
           <p style={{ color: '#555', marginBottom: 8 }}>
             Tente recarregar a página ou entrar em contato com o suporte.
           </p>
+          {snapshotSaved && (
+            <p style={{ color: '#16a34a', fontSize: 13, marginBottom: 8 }}>
+              ✓ Seu progresso foi salvo automaticamente e será restaurado ao recarregar.
+            </p>
+          )}
           <p style={{ color: '#888', fontSize: 13, marginBottom: 24 }}>
             Se você tem extensões de carteira cripto instaladas (ex: Yoroi, MetaMask, Nami), tente
             desativá-las ou usar uma janela anônima e recarregar.
