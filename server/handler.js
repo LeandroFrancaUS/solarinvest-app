@@ -572,7 +572,7 @@ export default async function handler(req, res) {
 
       const userId = actor?.userId ?? fallbackUserId
       const resolvedRole = actorRole(actor)
-      if (import.meta?.env?.DEV || process.env.NODE_ENV !== 'production') {
+      if (process.env.NODE_ENV !== 'production') {
         console.log('[storage] auth context', { userId, resolvedRole })
       }
 

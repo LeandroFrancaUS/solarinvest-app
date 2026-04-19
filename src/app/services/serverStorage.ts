@@ -241,6 +241,11 @@ export const persistRemoteStorageEntry = async (
   })
 }
 
+/** Record a storage-unavailable event and timestamp for cooldown enforcement. */
+function recordStorageUnavailable(): void {
+  lastStorageUnavailableAt = Date.now()
+}
+
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const headers = await buildHeaders()
   const response = await fetch(STORAGE_ENDPOINT, { headers, credentials: 'include', signal })
@@ -248,8 +253,8 @@ const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEnt
     throw new ServerStorageUnauthorizedError(response.status)
   }
   if (response.status === 503 || response.status === 502 || response.status === 504) {
-    // Record the time so the cooldown in setStorageTokenProvider can take effect.
-    lastStorageUnavailableAt = Date.now()
+    // Record timestamp so the cooldown in setStorageTokenProvider can take effect.
+    recordStorageUnavailable()
     throw new Error(`Falha ao consultar armazenamento (status ${response.status})`)
   }
   if (!response.ok) {
@@ -334,9 +339,9 @@ const initializeSync = async (signal?: AbortSignal) => {
         '[serverStorage] Sincronização remota desabilitada para sessões não autenticadas. Mantendo armazenamento local.',
       )
     } else {
-      // Record the time of this storage-unavailable failure so setStorageTokenProvider
-      // can enforce a cooldown and avoid hammering the backend on every token refresh.
-      lastStorageUnavailableAt = Date.now()
+      // Record the unavailability so setStorageTokenProvider enforces a cooldown
+      // and avoids hammering the backend on every token refresh.
+      recordStorageUnavailable()
       console.warn('[serverStorage] Não foi possível carregar dados remotos, mantendo armazenamento local. Próxima tentativa após cooldown de 60s.')
     }
     syncEnabled = false
