@@ -511,7 +511,7 @@ CREATE TABLE IF NOT EXISTS data_hygiene.clients_backup
   AS TABLE public.clients WITH NO DATA;
 -- Adicionar colunas de auditoria de backup:
 ALTER TABLE data_hygiene.clients_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 -- Inserir clientes com nome inválido (ativos):
@@ -593,7 +593,7 @@ WHERE c.deleted_at IS NULL
 CREATE TABLE IF NOT EXISTS data_hygiene.client_contracts_backup
   AS TABLE public.client_contracts WITH NO DATA;
 ALTER TABLE data_hygiene.client_contracts_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 -- Backupar contratos draft duplicados:
@@ -625,7 +625,7 @@ WHERE cc.contract_start_date IS NOT NULL
 CREATE TABLE IF NOT EXISTS data_hygiene.client_billing_profile_backup
   AS TABLE public.client_billing_profile WITH NO DATA;
 ALTER TABLE data_hygiene.client_billing_profile_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 INSERT INTO data_hygiene.client_billing_profile_backup
@@ -647,7 +647,7 @@ WHERE (bp.first_billing_date IS NOT NULL
 CREATE TABLE IF NOT EXISTS data_hygiene.client_usina_config_backup
   AS TABLE public.client_usina_config WITH NO DATA;
 ALTER TABLE data_hygiene.client_usina_config_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 -- Backupar usina config órfãs:
@@ -678,7 +678,7 @@ WHERE uc.potencia_modulo_wp IS NULL
 CREATE TABLE IF NOT EXISTS data_hygiene.proposals_backup
   AS TABLE public.proposals WITH NO DATA;
 ALTER TABLE data_hygiene.proposals_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 -- Proposals com dados inválidos:
@@ -701,7 +701,7 @@ WHERE p.deleted_at IS NULL
 CREATE TABLE IF NOT EXISTS data_hygiene.storage_backup
   AS TABLE public.storage WITH NO DATA;
 ALTER TABLE data_hygiene.storage_backup
-  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS backed_up_at  TIMESTAMPTZ NOT NULL,
   ADD COLUMN IF NOT EXISTS backup_reason TEXT;
 
 INSERT INTO data_hygiene.storage_backup
@@ -1038,7 +1038,7 @@ WHERE cc.id = bp.contract_id
 -- C3b) Para billing sem contrato vinculado com datas incoerentes: marcar para revisão via delinquency_status
 UPDATE public.client_billing_profile
 SET
-  delinquency_status = coalesce(delinquency_status, '') || '|ALERTA_DATA_INCONSISTENTE',
+  delinquency_status = coalesce(delinquency_status || '|', '') || 'ALERTA_DATA_INCONSISTENTE',
   updated_at         = now()
 WHERE first_billing_date IS NOT NULL
   AND expected_last_billing_date IS NOT NULL
