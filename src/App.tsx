@@ -16469,7 +16469,19 @@ export default function App() {
       return false
     }
 
+    console.info('[client-save] starting client mutation', {
+      clientId: clienteEmEdicaoId ?? null,
+      hasExistingClient: Boolean(clienteEmEdicaoId),
+      skipGuard: Boolean(options?.skipGuard),
+    })
+
     if (!validateClienteParaSalvar({ silent: options?.silent })) {
+      console.warn('[client-save] client mutation blocked by validation', {
+        clientId: clienteEmEdicaoId ?? null,
+        nome: Boolean(cliente.nome?.trim()),
+        documento: Boolean(cliente.documento?.trim()),
+        cep: Boolean(cliente.cep?.trim()),
+      })
       return false
     }
     setClientLastSaveStatus('saving')
@@ -16572,10 +16584,16 @@ export default function App() {
         const knownServerId = clienteEmEdicaoId
           ? (clientServerIdMapRef.current[clienteEmEdicaoId] ?? null)
           : null
+        console.info('[client-save] dispatching client API call', {
+          clientId: clienteEmEdicaoId ?? null,
+          serverId: knownServerId ?? null,
+          operation: knownServerId ? 'PUT /api/clients/:id' : 'POST /api/clients/upsert-by-cpf',
+        })
         const serverRow = knownServerId
           ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
           : await upsertClientByDocument(upsertPayload)
         neonServerId = serverRow.id
+        console.info('[client-save] client mutation success', { clientId: serverRow.id, serverId: serverRow.id })
         clientLastPayloadSignatureRef.current = stableStringify(
           buildClientUpsertPayload(dadosClonados, 'client_autosave', snapshotClonado),
         )
@@ -16585,10 +16603,13 @@ export default function App() {
         lastSavedSignatureRef.current = computeSignatureRef.current()
         syncedToBackend = true
         setClientsSyncState('online-db')
+      } else {
+        console.info('[client-save] client mutation skipped: offline — will save to localStorage only')
       }
     } catch (error) {
       setClientLastSaveStatus('error')
       setClientsSyncState('degraded-api')
+      console.warn('[client-save] client mutation failed', error)
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
       // 503/502/504 means the backend is unreachable or not configured (e.g. no DATABASE_URL
       // in a Vercel preview deployment).  Treat this like an offline event so the data is
@@ -16695,6 +16716,11 @@ export default function App() {
     const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
 
     // Persist to localStorage (best-effort, non-blocking for the save result).
+    // When syncedToBackend is true the data is already safe on the server, so any
+    // cache/quota failure here is purely cosmetic and must NOT produce a user-visible
+    // toast that competes with the success message.  Demote such failures to console
+    // warnings only.  User-visible warnings are reserved for offline / degraded mode
+    // where localStorage really is the primary store.
     try {
       window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(ordenados))
     } catch (error) {
@@ -16710,19 +16736,27 @@ export default function App() {
             // Last resort: keep only the 5 most recently updated records without snapshots
             const recent = ordenados.slice(0, 5).map((r) => ({ ...r, propostaSnapshot: undefined }))
             window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(recent))
-            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records')
-            localSaveWarning =
-              'O armazenamento local atingiu o limite. Apenas os registros mais recentes foram mantidos localmente. Os dados completos estão no servidor.'
+            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records; data is safe on server')
+            // Only surface to the user when the server is unavailable — in that case the
+            // local cache is the only copy and the user needs to know it was trimmed.
+            if (!syncedToBackend) {
+              localSaveWarning =
+                'Dados salvos localmente com espaço reduzido. Alguns registros antigos foram removidos do cache do navegador.'
+            }
           } catch (finalError) {
             console.error('[ClienteSave] localStorage save failed even after pruning.', finalError)
-            localSaveWarning =
-              'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            if (!syncedToBackend) {
+              localSaveWarning =
+                'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            }
           }
         }
       } else {
         console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
-        localSaveWarning =
-          'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+        if (!syncedToBackend) {
+          localSaveWarning =
+            'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+        }
       }
     }
 
@@ -16735,7 +16769,9 @@ export default function App() {
       return false
     }
 
-    // Surface localStorage quota warnings to the user (outside the state updater)
+    // Surface localStorage warnings only when the server was not available (offline /
+    // degraded mode).  When syncedToBackend is true the data is already persisted in
+    // the database and the cache issue is an implementation detail, not a user problem.
     if (localSaveWarning) {
       adicionarNotificacao(localSaveWarning, 'info')
     }
@@ -16746,6 +16782,15 @@ export default function App() {
       adicionarNotificacao(
         'Servidor indisponível. Dados salvos localmente — serão sincronizados quando o serviço for restaurado.',
         'info',
+      )
+    }
+
+    // Confirm to the user that their change was durably persisted in the database.
+    // This toast is intentionally skipped in silent mode (auto-saves, linked saves).
+    if (syncedToBackend && !options?.silent) {
+      adicionarNotificacao(
+        estaEditando ? 'Cliente atualizado com sucesso.' : 'Cliente criado com sucesso.',
+        'success',
       )
     }
 
@@ -16837,6 +16882,11 @@ export default function App() {
           const proposalType = activeTabRef.current === 'vendas' ? 'venda' : 'leasing'
           const proposalPayload = buildProposalUpsertPayload(snapshotClonado)
           const knownServerId = proposalServerIdMapRef.current[budgetId]
+          console.info('[client-save] proceeding to linked proposal save', {
+            budgetId,
+            proposalServerId: knownServerId ?? null,
+            operation: knownServerId ? 'PATCH /api/proposals/:id' : 'POST /api/proposals',
+          })
           const proposalRow = knownServerId
             ? await updateProposal(knownServerId, proposalPayload)
             : await createProposal({
@@ -17002,6 +17052,7 @@ export default function App() {
           setClientsSyncState('online-db')
           setClientsLastDeleteError(null)
           console.info('[clients][delete] success', { id: serverIdCandidate })
+          adicionarNotificacao(`"${nomeCliente}" removido com sucesso.`, 'success')
         } catch (error) {
           if (!isClientNotFoundError(error)) {
             console.error('Erro ao excluir cliente no backend.', error)
@@ -17017,7 +17068,11 @@ export default function App() {
             console.info('[clients][delete] rollback-local-hide', { id: registro.id, key: targetKey })
             deletedClientKeysRef.current.delete(targetKey)
             persistDeletedClientKeys(deletedClientKeysRef.current, Date.now())
-            window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
+            const motivo = error instanceof Error && error.message ? error.message : 'Erro desconhecido.'
+            adicionarNotificacao(
+              `Não foi possível excluir "${nomeCliente}" no servidor. ${motivo}`,
+              'error',
+            )
             deletingClientIdsRef.current.delete(registro.id)
             return
           }
@@ -19926,7 +19981,12 @@ export default function App() {
       return false
     }
 
-    await handleSalvarCliente({ skipGuard: true, silent: true })
+    console.info('[client-save] proceeding to proposal save', { proposalId: proposalServerIdMapRef.current })
+
+    const clienteSalvoComSucesso = await handleSalvarCliente({ skipGuard: true, silent: true })
+    if (!clienteSalvoComSucesso) {
+      console.warn('[client-save] client mutation did not succeed — proposal will still be saved, but client data may not be updated in DB')
+    }
 
     setSalvandoPropostaPdf(true)
 
@@ -19980,10 +20040,10 @@ export default function App() {
       const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
       setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
       if (!integracaoPdfDisponivel) {
-        adicionarNotificacao(
-          'Proposta armazenada localmente. Configure a integração de PDF para gerar o arquivo automaticamente.',
-          'info',
-        )
+        const mensagemLocal = clienteSalvoComSucesso
+          ? 'Cliente e proposta armazenados localmente. Configure a integração de PDF para gerar o arquivo automaticamente.'
+          : 'Proposta armazenada localmente. Os dados do cliente não foram atualizados no servidor.'
+        adicionarNotificacao(mensagemLocal, 'info')
         sucesso = true
       } else {
         await persistProposalPdf({
@@ -19993,10 +20053,14 @@ export default function App() {
           proposalType,
         })
 
-        const mensagemSucesso = salvouLocalmente
-          ? 'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.'
-          : 'Proposta salva em PDF com sucesso.'
-        adicionarNotificacao(mensagemSucesso, 'success')
+        const mensagemSucesso = clienteSalvoComSucesso
+          ? (salvouLocalmente
+            ? 'Cliente e proposta salvos com sucesso. Uma cópia foi armazenada localmente.'
+            : 'Cliente e proposta salvos com sucesso.')
+          : (salvouLocalmente
+            ? 'Proposta salva em PDF. Os dados do cliente não foram atualizados no servidor.'
+            : 'Proposta salva em PDF. Os dados do cliente não foram atualizados no servidor.')
+        adicionarNotificacao(mensagemSucesso, clienteSalvoComSucesso ? 'success' : 'info')
         sucesso = true
       }
     } catch (error) {
