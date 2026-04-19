@@ -147,16 +147,13 @@ export type BuyoutRow = {
 }
 
 export type BuyoutResumo = {
-  vm0: number
-  cashbackPct: number
+  /** Valor-base/original do ativo no início do contrato = Preço ideal da Análise Financeira. */
+  valorBaseOriginalAtivo: number
+  /** @deprecated Use valorBaseOriginalAtivo. Mantido para compatibilidade com snapshots antigos. */
+  vm0?: number
   depreciacaoPct: number
-  inadimplenciaPct: number
-  tributosPct: number
   infEnergia: number
   ipca: number
-  custosFixos: number
-  opex: number
-  seguro: number
   duracao: number
 }
 

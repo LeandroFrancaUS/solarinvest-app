@@ -11331,10 +11331,25 @@ export default function App() {
   }, [afModo, analiseFinanceiraResult])
 
   const custoFinalProjetadoCanonico = useMemo(() => {
-    // Prioritize preco_minimo_saudavel from financial analysis when available
-    const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
-    if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
-      return precoMin
+    // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
+    // valorBaseOriginalAtivo (VM contratual) para o cálculo de buyout.
+    // Prioridade:
+    //   1. preco_ideal_rs     — "Preço Ideal" da AF (venda com margem-alvo configurada).
+    //      É o valor canônico exibido na página de Análise Financeira como "Preço Ideal".
+    //   2. preco_minimo_saudavel_rs — fallback quando preco_ideal não está disponível
+    //      (ex.: modo leasing, ou sem margem-alvo configurada).
+    //   3. autoCustoFinal     — engine de auto-pricing (quando modoOrcamento === 'auto').
+    //   4. valorVendaAtual    — valor informado manualmente.
+    //   5. capex              — CAPEX bruto como último recurso.
+    // NÃO confundir com CAPEX do orçamento PDF nem com mensalidade.
+    const precoIdeal = analiseFinanceiraResult?.preco_ideal_rs
+    if (Number.isFinite(precoIdeal) && precoIdeal != null && precoIdeal > 0) {
+      return precoIdeal
+    }
+
+    const precoMinSaudavel = analiseFinanceiraResult?.preco_minimo_saudavel_rs
+    if (Number.isFinite(precoMinSaudavel) && precoMinSaudavel != null && precoMinSaudavel > 0) {
+      return precoMinSaudavel
     }
 
     const auto = Number(autoCustoFinal)
@@ -11839,16 +11854,13 @@ export default function App() {
   )
 
   const buyoutResumo: BuyoutResumo = {
-    vm0,
-    cashbackPct: cashbackPct,
+    // valorBaseOriginalAtivo = vm0 = Preço ideal da Análise Financeira (custoFinalProjetadoCanonico).
+    // É o valor-base/original do ativo no início do contrato — não é mensalidade nem CAPEX do PDF.
+    valorBaseOriginalAtivo: vm0,
+    vm0, // @deprecated: alias de compatibilidade com snapshots antigos
     depreciacaoPct: depreciacaoAa,
-    inadimplenciaPct: inadimplenciaAa,
-    tributosPct: tributosAa,
     infEnergia: inflacaoAa,
     ipca: ipcaAa,
-    custosFixos: custosFixosM,
-    opex: opexM,
-    seguro: seguroM,
     duracao: duracaoMeses,
   }
 
@@ -12249,7 +12261,7 @@ export default function App() {
           : Math.max(0, Math.round(leasingPrazoConsiderado * 12)),
         leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
         leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
-        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.vm0,
+        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.valorBaseOriginalAtivo,
         leasingInflacaoEnergiaAa: isVendaDiretaTab ? null : inflacaoAa,
         leasingModeloInversor: isVendaDiretaTab
           ? null
@@ -28723,8 +28735,8 @@ export default function App() {
               </Field>
               <Field
                 label={labelWithTooltip(
-                  'Pagos acumulados até o mês (R$)',
-                  'Total pago acumulado considerado até o mês de avaliação.',
+                  'Receita acumulada (R$) — referência',
+                  'Campo de referência histórica. O cálculo do VEC contratual não usa parcelas pagas como redutor.',
                 )}
               >
                 <input

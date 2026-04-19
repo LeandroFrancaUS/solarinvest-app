@@ -96,7 +96,6 @@ function PrintableBuyoutTableInner(
     buyoutPrimeiroRow && buyoutUltimoRow
       ? `${buyoutPrimeiroRow.mes}º ao ${buyoutUltimoRow.mes}º mês`
       : '—'
-  const buyoutPrestacaoAcumuladaTexto = formatCurrencyOrDash(buyoutUltimoRow?.prestacaoAcum)
   const buyoutPrimeiroValorTexto = formatCurrencyOrDash(buyoutPrimeiroRow?.valorResidual)
   const buyoutUltimoValorTexto = formatCurrencyOrDash(buyoutUltimoRow?.valorResidual)
 
@@ -104,8 +103,8 @@ function PrintableBuyoutTableInner(
     <>
       A tabela a seguir apresenta os valores estimados para transferir a posse da usina entre o{' '}
       <strong>{buyoutPrimeiroMesTexto}</strong> e o <strong>{buyoutUltimoMesTexto}</strong> mês do contrato de leasing.
-      Os valores consideram as prestações pagas ({buyoutPrestacaoAcumuladaTexto}). No primeiro mês elegível, o valor
-      projetado é{' '}
+      Os valores refletem a depreciação econômica do ativo e a amortização técnica acumulada ao longo do contrato. No primeiro
+      mês elegível, o valor projetado é{' '}
       <strong>{buyoutPrimeiroValorTexto}</strong>; ao final do contrato, a projeção é{' '}
       <strong>{buyoutUltimoValorTexto}</strong>.
     </>
@@ -128,14 +127,13 @@ function PrintableBuyoutTableInner(
   const prazoContratualTexto = formatPrazoContratual(prazoContratualNormalizado)
   const duracaoMesesExibicao = Math.max(7, prazoContratualNormalizado + 1)
 
-  const investimentoSolarinvestFormatado = Number.isFinite(buyoutResumo?.vm0)
-    ? formatMoneyBR(Math.max(0, buyoutResumo.vm0 ?? 0))
+  const investimentoSolarinvestFormatado = Number.isFinite(buyoutResumo?.valorBaseOriginalAtivo)
+    ? formatMoneyBR(Math.max(0, buyoutResumo.valorBaseOriginalAtivo ?? 0))
     : '—'
 
   const buyoutResumoIndicadores = [
     { label: 'Janela considerada', value: buyoutJanelaTexto },
-    { label: 'Valor de mercado estimado (VM0)', value: investimentoSolarinvestFormatado },
-    { label: 'Prestação acumulada até o mês final', value: buyoutPrestacaoAcumuladaTexto },
+    { label: 'Valor-base original do ativo', value: investimentoSolarinvestFormatado },
     { label: 'Compra no primeiro mês elegível', value: buyoutPrimeiroValorTexto },
     { label: 'Compra ao final do contrato', value: buyoutUltimoValorTexto },
   ]
@@ -209,7 +207,7 @@ function PrintableBuyoutTableInner(
           <section className="print-section keep-together avoid-break page-break-before break-after">
             <h2 className="section-title keep-with-next">Tabela de Valor de Transferencia Antecipada</h2>
             <p className="section-subtitle keep-with-next">
-              Valores estimados entre o mês 7 e o mês {duracaoMesesExibicao}, considerando prestações pagas acumuladas
+              Valores estimados entre o mês 7 e o mês {duracaoMesesExibicao}, conforme depreciação econômica e amortização técnica do ativo
             </p>
             {buyoutTabelaDisponivel ? (
               <>
@@ -234,8 +232,9 @@ function PrintableBuyoutTableInner(
                   </tbody>
                 </table>
                 <p className="buyout-footnote no-break-inside">
-                  Os valores consideram as prestações pagas deduzidas do preço de compra. Quando o valor indicado for R$ 0,00,
-                  a transferência é concluída automaticamente no término do contrato.
+                  Os valores refletem a depreciação econômica do ativo e a amortização técnica acumulada ao longo do contrato,
+                  respeitando o piso residual mínimo contratual. Quando o valor indicado for R$ 0,00, a transferência é
+                  concluída automaticamente no término do contrato.
                 </p>
               </>
             ) : (
