@@ -1104,9 +1104,10 @@ WHERE s.key LIKE '_STACK_AUTH%'
    OR s.key LIKE 'vite-%';
 
 -- =============================================================================
--- Troque por ROLLBACK para simular sem persistir as alterações.
+-- ↓↓↓  ATENÇÃO: troque COMMIT por ROLLBACK na linha abaixo para simular  ↓↓↓
+--       sem persistir nenhuma alteração (dry-run / modo simulação).
 -- =============================================================================
-COMMIT;
+COMMIT;  -- ← Troque por ROLLBACK para dry-run
 
 
 -- =============================================================================
