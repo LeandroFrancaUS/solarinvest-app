@@ -2397,13 +2397,12 @@ const cloneKitBudgetMissingInfo = (
 }
 
 const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => {
-  const s = (state && typeof state === 'object') ? state : ({} as Partial<KitBudgetState>)
+  const s: Partial<KitBudgetState> = (state && typeof state === 'object') ? state : {}
   return {
-    ...(s as KitBudgetState),
-    items: (Array.isArray(s?.items) ? s.items : []).map((item) => ({ ...item })),
-    warnings: [...(Array.isArray(s?.warnings) ? s.warnings : [])],
-    missingInfo: cloneKitBudgetMissingInfo((s as KitBudgetState)?.missingInfo),
-  }
+    items: (Array.isArray(s.items) ? s.items : []).map((item) => ({ ...item })),
+    warnings: [...(Array.isArray(s.warnings) ? s.warnings : [])],
+    missingInfo: cloneKitBudgetMissingInfo(s.missingInfo as KitBudgetMissingInfo),
+  } as KitBudgetState
 }
 
 const cloneStructuredItems = (items: StructuredItem[]): StructuredItem[] =>
@@ -2428,7 +2427,7 @@ const cloneVendasSimulacoes = (
   )
 
 const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => {
-  const s = (snapshot && typeof snapshot === 'object') ? snapshot : ({} as Partial<OrcamentoSnapshotData>)
+  const s: Partial<OrcamentoSnapshotData> = (snapshot && typeof snapshot === 'object') ? snapshot : {}
   return {
     ...(s as OrcamentoSnapshotData),
     cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
