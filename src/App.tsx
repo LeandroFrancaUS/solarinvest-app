@@ -16785,6 +16785,15 @@ export default function App() {
       )
     }
 
+    // Confirm to the user that their change was durably persisted in the database.
+    // This toast is intentionally skipped in silent mode (auto-saves, linked saves).
+    if (syncedToBackend && !options?.silent) {
+      adicionarNotificacao(
+        estaEditando ? 'Cliente atualizado com sucesso.' : 'Cliente criado com sucesso.',
+        'success',
+      )
+    }
+
     const registroConfirmado: ClienteRegistro = registroSalvo
 
     // Update server ID map now that we have the local ID (from state) and Neon ID.
@@ -17043,6 +17052,7 @@ export default function App() {
           setClientsSyncState('online-db')
           setClientsLastDeleteError(null)
           console.info('[clients][delete] success', { id: serverIdCandidate })
+          adicionarNotificacao(`"${nomeCliente}" removido com sucesso.`, 'success')
         } catch (error) {
           if (!isClientNotFoundError(error)) {
             console.error('Erro ao excluir cliente no backend.', error)
@@ -17058,7 +17068,11 @@ export default function App() {
             console.info('[clients][delete] rollback-local-hide', { id: registro.id, key: targetKey })
             deletedClientKeysRef.current.delete(targetKey)
             persistDeletedClientKeys(deletedClientKeysRef.current, Date.now())
-            window.alert('Não foi possível excluir o cliente no servidor. Tente novamente.')
+            const motivo = error instanceof Error && error.message ? error.message : 'Erro desconhecido.'
+            adicionarNotificacao(
+              `Não foi possível excluir "${nomeCliente}" no servidor. ${motivo}`,
+              'error',
+            )
             deletingClientIdsRef.current.delete(registro.id)
             return
           }
