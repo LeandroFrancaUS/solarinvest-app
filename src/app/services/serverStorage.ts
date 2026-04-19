@@ -146,8 +146,31 @@ function handleSyncSuccess(): void {
   syncPaused = false
 }
 
+/** Maximum safe body size for a single /api/storage PUT request. */
+const SAFE_STORAGE_PAYLOAD_BYTES = 250_000
+
+/** Returns the byte size of the serialised JSON. */
+const getJsonSizeBytes = (str: string): number => {
+  try {
+    if (typeof Blob !== 'undefined') {
+      return new Blob([str]).size
+    }
+    return str.length * 2 // worst-case UTF-16 estimate
+  } catch {
+    return str.length * 2
+  }
+}
+
 const persistPut = (key: string, value: string) => {
   if (!syncEnabled || syncPaused) {
+    return
+  }
+
+  const sizeBytes = getJsonSizeBytes(value)
+  if (sizeBytes > SAFE_STORAGE_PAYLOAD_BYTES) {
+    console.warn(
+      `[serverStorage] Skipping remote sync for key "${key}" — payload too large (${Math.round(sizeBytes / 1024)} KB > ${Math.round(SAFE_STORAGE_PAYLOAD_BYTES / 1024)} KB limit). Data is preserved locally.`,
+    )
     return
   }
 
@@ -167,7 +190,18 @@ const persistPut = (key: string, value: string) => {
       signal: controller.signal,
     }),
   )
-    .then(() => {
+    .then((response) => {
+      if (response.status === 413) {
+        // Payload too large — log a clear warning but do NOT count as sync failure
+        // since the data is preserved in localStorage.
+        console.warn(
+          `[serverStorage] Remote rejected key "${key}" — payload too large (413). Data preserved locally.`,
+        )
+        return
+      }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
       handleSyncSuccess()
     })
     .catch((error) => {

@@ -2374,10 +2374,15 @@ const cloneBudgetUploadProgress = (
   progress: BudgetUploadProgress | null,
 ): BudgetUploadProgress | null => (progress ? { ...progress } : null)
 
-const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => ({
-  ...info,
-  missingFields: [...info.missingFields],
-})
+const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => {
+  if (!info || typeof info !== 'object') {
+    return { missingFields: [], totalRequired: 0, totalFound: 0 }
+  }
+  return {
+    ...info,
+    missingFields: Array.isArray(info.missingFields) ? [...info.missingFields] : [],
+  }
+}
 
 const cloneKitBudgetMissingInfo = (
   info: KitBudgetMissingInfo,
@@ -2391,12 +2396,15 @@ const cloneKitBudgetMissingInfo = (
   }
 }
 
-const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => ({
-  ...state,
-  items: (Array.isArray(state?.items) ? state.items : []).map((item) => ({ ...item })),
-  warnings: [...(Array.isArray(state?.warnings) ? state.warnings : [])],
-  missingInfo: cloneKitBudgetMissingInfo(state.missingInfo),
-})
+const cloneKitBudgetState = (state: KitBudgetState): KitBudgetState => {
+  const s = (state && typeof state === 'object') ? state : ({} as Partial<KitBudgetState>)
+  return {
+    ...(s as KitBudgetState),
+    items: (Array.isArray(s?.items) ? s.items : []).map((item) => ({ ...item })),
+    warnings: [...(Array.isArray(s?.warnings) ? s.warnings : [])],
+    missingInfo: cloneKitBudgetMissingInfo((s as KitBudgetState)?.missingInfo),
+  }
+}
 
 const cloneStructuredItems = (items: StructuredItem[]): StructuredItem[] =>
   items.map((item) => ({ ...item }))
@@ -2419,44 +2427,129 @@ const cloneVendasSimulacoes = (
     Object.entries(simulations).map(([id, sim]) => [id, { ...sim }]),
   )
 
-const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => ({
-  ...snapshot,
-  cliente: cloneClienteDados(snapshot.cliente),
-  clienteMensagens: snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : undefined,
-  ucBeneficiarias: cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []),
-  pageShared: { ...snapshot.pageShared },
-  configuracaoUsinaObservacoes: snapshot.configuracaoUsinaObservacoes ?? '',
-  propostaImagens: Array.isArray(snapshot.propostaImagens)
-    ? snapshot.propostaImagens.map((imagem) => ({ ...imagem }))
-    : [],
-  budgetStructuredItems: cloneStructuredItems(snapshot.budgetStructuredItems),
-  kitBudget: cloneKitBudgetState(snapshot.kitBudget),
-  budgetProcessing: {
-    ...snapshot.budgetProcessing,
-    progress: cloneBudgetUploadProgress(snapshot.budgetProcessing.progress),
-  },
-  ufsDisponiveis: [...snapshot.ufsDisponiveis],
-  distribuidorasPorUf: cloneDistribuidorasMapa(snapshot.distribuidorasPorUf),
-  multiUc: {
-    ...snapshot.multiUc,
-    rows: snapshot.multiUc.rows.map((row) => ({ ...row })),
-  },
-  composicaoTelhado: { ...snapshot.composicaoTelhado },
-  composicaoSolo: { ...snapshot.composicaoSolo },
-  impostosOverridesDraft: cloneImpostosOverrides(snapshot.impostosOverridesDraft),
-  vendasConfig: JSON.parse(JSON.stringify(snapshot.vendasConfig)) as VendasConfig,
-  vendasSimulacoes: cloneVendasSimulacoes(snapshot.vendasSimulacoes),
-  vendaForm: { ...snapshot.vendaForm },
-  leasingAnexosSelecionados: Array.isArray(snapshot.leasingAnexosSelecionados)
-    ? [...snapshot.leasingAnexosSelecionados]
-    : [],
-  parsedVendaPdf: snapshot.parsedVendaPdf
-    ? (JSON.parse(JSON.stringify(snapshot.parsedVendaPdf)) as ParsedVendaPdfData)
-    : null,
-  estruturaTipoWarning: snapshot.estruturaTipoWarning ?? null,
-  vendaSnapshot: JSON.parse(JSON.stringify(snapshot.vendaSnapshot)) as VendaSnapshot,
-  leasingSnapshot: JSON.parse(JSON.stringify(snapshot.leasingSnapshot)) as LeasingState,
-})
+const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotData => {
+  const s = (snapshot && typeof snapshot === 'object') ? snapshot : ({} as Partial<OrcamentoSnapshotData>)
+  return {
+    ...(s as OrcamentoSnapshotData),
+    cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
+    clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
+    ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
+    pageShared: s.pageShared ? { ...s.pageShared } : ({} as OrcamentoSnapshotData['pageShared']),
+    configuracaoUsinaObservacoes: s.configuracaoUsinaObservacoes ?? '',
+    propostaImagens: Array.isArray(s.propostaImagens)
+      ? s.propostaImagens.map((imagem) => ({ ...imagem }))
+      : [],
+    budgetStructuredItems: cloneStructuredItems(Array.isArray(s.budgetStructuredItems) ? s.budgetStructuredItems : []),
+    kitBudget: cloneKitBudgetState((s.kitBudget ?? {}) as KitBudgetState),
+    budgetProcessing: s.budgetProcessing
+      ? {
+          ...s.budgetProcessing,
+          progress: cloneBudgetUploadProgress(s.budgetProcessing.progress ?? null),
+        }
+      : { isProcessing: false, error: null, progress: null, isTableCollapsed: false, ocrDpi: 150 },
+    ufsDisponiveis: Array.isArray(s.ufsDisponiveis) ? [...s.ufsDisponiveis] : [],
+    distribuidorasPorUf: s.distribuidorasPorUf ? cloneDistribuidorasMapa(s.distribuidorasPorUf) : {},
+    multiUc: s.multiUc
+      ? {
+          ...s.multiUc,
+          rows: Array.isArray(s.multiUc.rows) ? s.multiUc.rows.map((row) => ({ ...row })) : [],
+        }
+      : { rows: [] } as OrcamentoSnapshotData['multiUc'],
+    composicaoTelhado: s.composicaoTelhado ? { ...s.composicaoTelhado } : ({} as OrcamentoSnapshotData['composicaoTelhado']),
+    composicaoSolo: s.composicaoSolo ? { ...s.composicaoSolo } : ({} as OrcamentoSnapshotData['composicaoSolo']),
+    impostosOverridesDraft: cloneImpostosOverrides(s.impostosOverridesDraft ?? {}),
+    vendasConfig: s.vendasConfig ? (JSON.parse(JSON.stringify(s.vendasConfig)) as VendasConfig) : ({} as VendasConfig),
+    vendasSimulacoes: s.vendasSimulacoes ? cloneVendasSimulacoes(s.vendasSimulacoes) : {},
+    vendaForm: s.vendaForm ? { ...s.vendaForm } : ({} as VendaForm),
+    leasingAnexosSelecionados: Array.isArray(s.leasingAnexosSelecionados)
+      ? [...s.leasingAnexosSelecionados]
+      : [],
+    parsedVendaPdf: s.parsedVendaPdf
+      ? (JSON.parse(JSON.stringify(s.parsedVendaPdf)) as ParsedVendaPdfData)
+      : null,
+    estruturaTipoWarning: s.estruturaTipoWarning ?? null,
+    vendaSnapshot: s.vendaSnapshot
+      ? (JSON.parse(JSON.stringify(s.vendaSnapshot)) as VendaSnapshot)
+      : ({} as VendaSnapshot),
+    leasingSnapshot: s.leasingSnapshot
+      ? (JSON.parse(JSON.stringify(s.leasingSnapshot)) as LeasingState)
+      : ({} as LeasingState),
+  }
+}
+
+/** Safe JSON byte size estimate (using Blob for accuracy when available). */
+const getJsonSizeBytes = (obj: unknown): number => {
+  try {
+    const str = JSON.stringify(obj) ?? ''
+    if (typeof Blob !== 'undefined') {
+      return new Blob([str]).size
+    }
+    return str.length * 2 // worst-case UTF-16 estimate
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Conservative limit for a single key in the remote /api/storage.
+ * Keeps us well below any typical 1 MB server body limit once JSON overhead is added.
+ */
+const SAFE_STORAGE_PAYLOAD_BYTES = 250_000
+
+/**
+ * Strip large/reconstructable fields from a snapshot before writing it to
+ * localStorage or sending to /api/storage.  Returns a partial copy that
+ * preserves only the data that matters for offline recovery.
+ */
+const stripSnapshotForStorage = (
+  snapshot: OrcamentoSnapshotData | null | undefined,
+): OrcamentoSnapshotData | undefined => {
+  if (!snapshot) return undefined
+  const stripped: Partial<OrcamentoSnapshotData> = {
+    ...snapshot,
+    // Drop large blobs that are reconstructable from the proposal PDF / re-upload
+    parsedVendaPdf: null,
+    // Drop precomputed image list — not needed for client recovery
+    propostaImagens: [],
+    // Drop large budget item lists — can be re-parsed from PDF
+    budgetStructuredItems: [],
+    // Drop raw kit budget items — kept in proposals separately
+    kitBudget: snapshot.kitBudget
+      ? {
+          ...snapshot.kitBudget,
+          items: [],
+          missingInfo: null,
+          warnings: [],
+        }
+      : ({} as KitBudgetState),
+    // Drop transient processing state
+    budgetProcessing: {
+      isProcessing: false,
+      error: null,
+      progress: null,
+      isTableCollapsed: false,
+      ocrDpi: 150,
+    },
+    // Drop per-simulation cache — large and reconstructable
+    vendasSimulacoes: {},
+    // Drop static lookups
+    ufsDisponiveis: [],
+    distribuidorasPorUf: {},
+  }
+  return stripped as OrcamentoSnapshotData
+}
+
+/**
+ * Serialize a list of client records for localStorage / remote storage.
+ * Strips heavy snapshot fields so the payload stays within quota limits.
+ */
+const serializeClientesForStorage = (registros: ClienteRegistro[]): string => {
+  const lite = registros.map((r) => ({
+    ...r,
+    propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
+  }))
+  return JSON.stringify(lite)
+}
 
 const computeSnapshotSignature = (
   snapshot: OrcamentoSnapshotData,
@@ -2890,6 +2983,8 @@ const normalizeClienteRegistros = (
   const baseExistingIds = options.existingIds ? Array.from(options.existingIds) : []
   const existingIds = new Set<string>(baseExistingIds)
   let houveAtualizacaoIds = false
+  /** Warn only once per normalization batch to avoid console spam. */
+  let snapshotWarnedInBatch = false
 
   const normalizados = items.map((item) => {
     const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
@@ -2924,7 +3019,13 @@ const normalizeClienteRegistros = (
       try {
         propostaSnapshot = cloneSnapshotData(snapshotRaw as OrcamentoSnapshotData)
       } catch (error) {
-        console.warn('Não foi possível normalizar o snapshot do cliente.', error)
+        if (!snapshotWarnedInBatch) {
+          snapshotWarnedInBatch = true
+          console.warn(
+            `Não foi possível normalizar o snapshot do cliente (id: ${idNormalizado}). Os dados do cliente foram preservados.`,
+            error,
+          )
+        }
         propostaSnapshot = undefined
       }
     }
@@ -6395,6 +6496,8 @@ export default function App() {
   const lastUcGeradoraCepAppliedRef = useRef<string>('')
   const cepCidadeAvisoRef = useRef<string | null>(null)
   const budgetIdMismatchLoggedRef = useRef(false)
+  /** Timestamp (ms) of the last budget-id-mismatch warn log. Used to throttle spam. */
+  const budgetIdMismatchWarnedAtRef = useRef(0)
   const novaPropostaEmAndamentoRef = useRef(false)
   const lastUfSelecionadaRef = useRef<string>(cliente.uf)
 
@@ -15970,11 +16073,15 @@ export default function App() {
       !isHydratingRef.current &&
       !budgetIdTransitionRef.current
     ) {
-      console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
-        budgetIdRef: budgetIdRefNow,
-        budgetIdState: budgetIdStateNow,
-        activeBudgetId: budgetId,
-      })
+      const now = Date.now()
+      if (now - budgetIdMismatchWarnedAtRef.current > 30_000) {
+        budgetIdMismatchWarnedAtRef.current = now
+        console.warn('[getCurrentSnapshot] budget id mismatch (using active budgetId)', {
+          budgetIdRef: budgetIdRefNow,
+          budgetIdState: budgetIdStateNow,
+          activeBudgetId: budgetId,
+        })
+      }
     }
 
     if (import.meta.env.DEV) {
@@ -16486,6 +16593,7 @@ export default function App() {
 
     let registroSalvo: ClienteRegistro | null = null
     let houveErro = false
+    let localSaveWarning: string | null = null
     setClientesSalvos((prevRegistros) => {
       const novoComparacao = createClienteComparisonData(dadosClonados)
       let registroCorrespondente: ClienteRegistro | null = null
@@ -16573,12 +16681,34 @@ export default function App() {
       const ordenados = [...registrosAtualizados].sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
 
       try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ordenados))
+        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(ordenados))
       } catch (error) {
-        console.error('Erro ao salvar cliente localmente.', error)
-        window.alert('Não foi possível salvar o cliente. Tente novamente.')
-        houveErro = true
-        return prevRegistros
+        if (isQuotaExceededError(error)) {
+          // Quota full — attempt progressive pruning: first drop snapshots entirely,
+          // then drop old records until it fits or we run out of options.
+          try {
+            const ultraLite = ordenados.map((r) => ({ ...r, propostaSnapshot: undefined }))
+            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
+            console.warn('[ClienteSave] localStorage quota tight — saved without snapshots')
+          } catch {
+            try {
+              // Last resort: keep only the 5 most recently updated records without snapshots
+              const recent = ordenados.slice(0, 5).map((r) => ({ ...r, propostaSnapshot: undefined }))
+              window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(recent))
+              console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records')
+              localSaveWarning =
+                'O armazenamento local atingiu o limite. Apenas os registros mais recentes foram mantidos localmente. Os dados completos estão no servidor.'
+            } catch (finalError) {
+              console.error('[ClienteSave] localStorage save failed even after pruning.', finalError)
+              localSaveWarning =
+                'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            }
+          }
+        } else {
+          console.error('Erro ao salvar cliente localmente.', error)
+          houveErro = true
+          return prevRegistros
+        }
       }
 
       registroSalvo = registroAtualizado
@@ -16587,7 +16717,13 @@ export default function App() {
 
     const salvo = registroSalvo as ClienteRegistro | null
     if (houveErro || !salvo) {
+      adicionarNotificacao('Não foi possível salvar o cliente. Tente novamente.', 'error')
       return false
+    }
+
+    // Surface localStorage quota warnings to the user (outside the state updater)
+    if (localSaveWarning) {
+      adicionarNotificacao(localSaveWarning, 'info')
     }
 
     const registroConfirmado: ClienteRegistro = salvo
