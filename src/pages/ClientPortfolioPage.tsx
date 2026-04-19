@@ -563,7 +563,9 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
   const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
-    if (Array.isArray(client.contract_attachments) && client.contract_attachments.length > 0) {
+    // If DB has an explicit attachments array (even empty), use it — avoids clobbering a
+    // deliberate clear of legacy data. Only fall through when the column is null/absent.
+    if (Array.isArray(client.contract_attachments)) {
       return client.contract_attachments
     }
     // Backward compatibility: promote legacy single file to array
@@ -804,7 +806,9 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   const files = Array.from(e.target.files ?? [])
                   if (files.length === 0) return
                   const newAtts: ContractAttachment[] = files.map((file) => ({
-                    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                      ? crypto.randomUUID()
+                      : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
                     fileName: file.name,
                     mimeType: file.type || null,
                     sizeBytes: file.size,
