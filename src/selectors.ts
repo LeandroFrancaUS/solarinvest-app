@@ -164,7 +164,8 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
     prestacaoAcum += prestEfetiva
 
     // VEC contratual via computeContractualBuyout — ver buyout.ts para detalhes da fórmula.
-    // VM = vm0 (Análise Financeira / precoIdeal), F(m) = depreciação composta, A(m) = amortização linear.
+    // valorBaseOriginalAtivo = vm0 = Preço ideal da Análise Financeira (custoFinalProjetadoCanonico).
+    // NÃO usa mensalidades pagas, cashback ou custos futuros como redutor.
     let valorResidual = 0
     if (mes >= 7) {
       const f = computeDepreciationFactor(state.depreciacaoAa, mes)
@@ -172,8 +173,7 @@ export function selectBuyoutLinhas(state: SimulationState): BuyoutLinha[] {
       const { vecFinal } = computeContractualBuyout({
         mesContratual: mes,
         prazoContratualMeses: duracao,
-        valorMercadoUsina: vm0,
-        valorOriginalAtivo: vm0,
+        valorBaseOriginalAtivo: vm0,
         fatorDepreciacaoEconomica: f,
         amortizacaoTecnicaAcumulada: a,
       })

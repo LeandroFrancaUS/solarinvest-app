@@ -11331,7 +11331,10 @@ export default function App() {
   }, [afModo, analiseFinanceiraResult])
 
   const custoFinalProjetadoCanonico = useMemo(() => {
-    // Prioritize preco_minimo_saudavel from financial analysis when available
+    // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
+    // valorBaseOriginalAtivo (VM contratual) para o cálculo de buyout.
+    // Prioridade: preco_minimo_saudavel (Análise Financeira) > auto > venda > CAPEX.
+    // NÃO confundir com CAPEX do orçamento PDF nem com mensalidade.
     const precoMin = analiseFinanceiraResult?.preco_minimo_saudavel_rs
     if (Number.isFinite(precoMin) && precoMin != null && precoMin > 0) {
       return precoMin
@@ -11839,16 +11842,13 @@ export default function App() {
   )
 
   const buyoutResumo: BuyoutResumo = {
-    vm0,
-    cashbackPct: cashbackPct,
+    // valorBaseOriginalAtivo = vm0 = Preço ideal da Análise Financeira (custoFinalProjetadoCanonico).
+    // É o valor-base/original do ativo no início do contrato — não é mensalidade nem CAPEX do PDF.
+    valorBaseOriginalAtivo: vm0,
+    vm0, // @deprecated: alias de compatibilidade com snapshots antigos
     depreciacaoPct: depreciacaoAa,
-    inadimplenciaPct: inadimplenciaAa,
-    tributosPct: tributosAa,
     infEnergia: inflacaoAa,
     ipca: ipcaAa,
-    custosFixos: custosFixosM,
-    opex: opexM,
-    seguro: seguroM,
     duracao: duracaoMeses,
   }
 
@@ -12249,7 +12249,7 @@ export default function App() {
           : Math.max(0, Math.round(leasingPrazoConsiderado * 12)),
         leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
         leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
-        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.vm0,
+        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.valorBaseOriginalAtivo,
         leasingInflacaoEnergiaAa: isVendaDiretaTab ? null : inflacaoAa,
         leasingModeloInversor: isVendaDiretaTab
           ? null
@@ -28723,8 +28723,8 @@ export default function App() {
               </Field>
               <Field
                 label={labelWithTooltip(
-                  'Pagos acumulados até o mês (R$)',
-                  'Total pago acumulado considerado até o mês de avaliação.',
+                  'Receita acumulada (R$) — referência',
+                  'Campo de referência histórica. O cálculo do VEC contratual não usa parcelas pagas como redutor.',
                 )}
               >
                 <input

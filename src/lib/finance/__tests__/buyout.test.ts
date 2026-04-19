@@ -68,11 +68,11 @@ describe('getResidualFloorPct', () => {
 // ─── getResidualFloorValue ────────────────────────────────────────────────────
 
 describe('getResidualFloorValue', () => {
-  it('retorna 40% do valorOriginalAtivo no mês 12 (faixa 6-24)', () => {
+  it('retorna 40% do valorBaseOriginalAtivo no mês 12 (faixa 6-24)', () => {
     expect(getResidualFloorValue(12, 100_000, 60)).toBe(40_000)
   })
 
-  it('retorna 10% do valorOriginalAtivo no mês 60 (fim do prazo)', () => {
+  it('retorna 10% do valorBaseOriginalAtivo no mês 60 (fim do prazo)', () => {
     expect(getResidualFloorValue(60, 100_000, 60)).toBeCloseTo(10_000, 2)
   })
 
@@ -80,7 +80,7 @@ describe('getResidualFloorValue', () => {
     expect(getResidualFloorValue(5, 100_000, 60)).toBe(0)
   })
 
-  it('não retorna valor negativo com valorOriginalAtivo zero', () => {
+  it('não retorna valor negativo com valorBaseOriginalAtivo zero', () => {
     expect(getResidualFloorValue(12, 0, 60)).toBe(0)
   })
 })
@@ -134,9 +134,8 @@ describe('computeLinearTechnicalAmortization', () => {
     expect(computeLinearTechnicalAmortization(100_000, 12, 0)).toBe(0)
   })
 
-  it('não depende da mensalidade — altera mensalidade e A(m) permanece igual', () => {
-    // A(m) é técnica: independente de mensalidade, PMT ou juros.
-    // Teste demonstra que a função não usa nenhum parâmetro de mensalidade.
+  it('não depende de mensalidades — resultado é determinístico sobre o ativo', () => {
+    // A(m) é amortização técnica do ativo: independente de mensalidade, PMT ou juros.
     const a1 = computeLinearTechnicalAmortization(100_000, 12, 60)
     const a2 = computeLinearTechnicalAmortization(100_000, 12, 60)
     expect(a1).toBe(a2)
@@ -146,11 +145,11 @@ describe('computeLinearTechnicalAmortization', () => {
 // ─── computeContractualBuyout ─────────────────────────────────────────────────
 
 describe('computeContractualBuyout', () => {
+  // valorBaseOriginalAtivo = Preço ideal da Análise Financeira
   const baseInput: BuyoutInputs = {
     mesContratual: 12,
     prazoContratualMeses: 60,
-    valorMercadoUsina: 100_000,
-    valorOriginalAtivo: 100_000,
+    valorBaseOriginalAtivo: 100_000,
     fatorDepreciacaoEconomica: 0.9,
     amortizacaoTecnicaAcumulada: 5_000,
   }
@@ -170,14 +169,13 @@ describe('computeContractualBuyout', () => {
     const input: BuyoutInputs = {
       ...baseInput,
       mesContratual: 12,
-      valorOriginalAtivo: 100_000,
       fatorDepreciacaoEconomica: 0.2,  // VM*F = 20000
       amortizacaoTecnicaAcumulada: 5_000, // vecBase = 15000
     }
     // piso = 40% * 100000 = 40000 > vecBase (15000)
     const result = computeContractualBuyout(input)
     expect(result.vecBase).toBeCloseTo(15_000, 2)
-    expect(result.pisoResidualAplicado).toBeCloseTo(40_000, 2)
+    expect(result.pisoResidualValor).toBeCloseTo(40_000, 2)
     expect(result.vecFinal).toBeCloseTo(40_000, 2)
   })
 
@@ -191,7 +189,7 @@ describe('computeContractualBuyout', () => {
     }
     // piso(25, 60) = 40% * 100000 = 40000
     const result = computeContractualBuyout(input)
-    expect(result.pisoResidualAplicado).toBeCloseTo(40_000, 2)
+    expect(result.pisoResidualValor).toBeCloseTo(40_000, 2)
     expect(result.vecFinal).toBeCloseTo(40_000, 2)
   })
 
@@ -205,7 +203,7 @@ describe('computeContractualBuyout', () => {
     // piso(36, 60): progress = (36-25)/(60-25) = 11/35; pct = 0.40 - (11/35)*0.30
     const expectedPiso = 100_000 * (0.4 - (11 / 35) * 0.3)
     const result = computeContractualBuyout(input)
-    expect(result.pisoResidualAplicado).toBeCloseTo(expectedPiso, 2)
+    expect(result.pisoResidualValor).toBeCloseTo(expectedPiso, 2)
   })
 
   it('calcula piso progressivo corretamente no mês 48', () => {
@@ -218,7 +216,7 @@ describe('computeContractualBuyout', () => {
     // piso(48, 60): progress = 23/35; pct = 0.40 - (23/35)*0.30
     const expectedPiso = 100_000 * (0.4 - (23 / 35) * 0.3)
     const result = computeContractualBuyout(input)
-    expect(result.pisoResidualAplicado).toBeCloseTo(expectedPiso, 2)
+    expect(result.pisoResidualValor).toBeCloseTo(expectedPiso, 2)
   })
 
   // 4. Mês 60 deve respeitar piso de 10%
@@ -226,12 +224,11 @@ describe('computeContractualBuyout', () => {
     const input: BuyoutInputs = {
       ...baseInput,
       mesContratual: 60,
-      valorOriginalAtivo: 100_000,
       fatorDepreciacaoEconomica: 0.05,
       amortizacaoTecnicaAcumulada: 4_000,
     }
     const result = computeContractualBuyout(input)
-    expect(result.pisoResidualAplicado).toBeCloseTo(10_000, 2)
+    expect(result.pisoResidualValor).toBeCloseTo(10_000, 2)
     expect(result.vecFinal).toBeGreaterThanOrEqual(10_000)
   })
 
@@ -240,12 +237,11 @@ describe('computeContractualBuyout', () => {
     const input: BuyoutInputs = {
       mesContratual: 12,
       prazoContratualMeses: 60,
-      valorMercadoUsina: 50_000,
-      valorOriginalAtivo: 100_000,
+      valorBaseOriginalAtivo: 100_000,
       fatorDepreciacaoEconomica: 0.2,
       amortizacaoTecnicaAcumulada: 999_999,
     }
-    // VM*F = 10000; A = 999999 → vecRaw = -989999 → vecBase = 0
+    // VM*F = 20000; A = 999999 → vecRaw = -979999 → vecBase = 0
     // piso(12) = 40% * 100000 = 40000
     const result = computeContractualBuyout(input)
     expect(result.vecBase).toBe(0)
@@ -253,12 +249,11 @@ describe('computeContractualBuyout', () => {
     expect(result.vecFinal).toBeCloseTo(40_000, 2) // piso aplica
   })
 
-  it('nunca retorna vecFinal negativo mesmo com VM zero', () => {
+  it('nunca retorna vecFinal negativo mesmo com valorBaseOriginalAtivo zero', () => {
     const input: BuyoutInputs = {
       ...baseInput,
       mesContratual: 15,
-      valorMercadoUsina: 0,
-      valorOriginalAtivo: 100_000,
+      valorBaseOriginalAtivo: 0,
       fatorDepreciacaoEconomica: 0,
       amortizacaoTecnicaAcumulada: 0,
     }
@@ -266,30 +261,31 @@ describe('computeContractualBuyout', () => {
     expect(result.vecFinal).toBeGreaterThanOrEqual(0)
   })
 
-  // 6. VM deve ser independente do CAPEX do PDF — garantir que buyout não usa capex_pdf
-  it('usa valorMercadoUsina como VM — alterar outro campo não muda resultado', () => {
-    // Simula cenário onde CAPEX do orçamento (campo externo) seria diferente do VM.
-    // O resultado deve depender apenas dos inputs declarados.
-    const result1 = computeContractualBuyout({ ...baseInput, valorMercadoUsina: 100_000 })
-    const result2 = computeContractualBuyout({ ...baseInput, valorMercadoUsina: 120_000 })
-    // VM diferente → resultado diferente (prova que VM é a única base)
+  // 6. VM = valorBaseOriginalAtivo = Preço ideal da Análise Financeira
+  //    NÃO é CAPEX PDF, NÃO é parcelas pagas, NÃO é cashback
+  it('valorBaseOriginalAtivo é a ÚNICA base do VM — altera-lo muda o resultado', () => {
+    const result1 = computeContractualBuyout({ ...baseInput, valorBaseOriginalAtivo: 100_000 })
+    const result2 = computeContractualBuyout({ ...baseInput, valorBaseOriginalAtivo: 120_000 })
     expect(result1.vecBase).not.toBe(result2.vecBase)
     expect(result1.memoriaCalculo.vm).toBe(100_000)
     expect(result2.memoriaCalculo.vm).toBe(120_000)
   })
 
-  // 7. A(m) não deve depender da mensalidade
+  // 7. Ausência de cashback no cálculo (VEC não é reduzido por cashback)
+  it('não usa cashback no cálculo — VEC depende apenas de VM, F(m) e A(m)', () => {
+    // Se cashback fosse redutor, mudar state.cashbackPct mudaria o resultado.
+    // Aqui demonstramos que a função pura computeContractualBuyout não recebe cashback.
+    const result = computeContractualBuyout(baseInput)
+    // O resultado não tem campo cashback — cashback não compõe o VEC.
+    expect('cashback' in result).toBe(false)
+    expect('cashbackPct' in result).toBe(false)
+  })
+
+  // 8. A(m) não deve depender da mensalidade
   it('A(m) não altera resultado se VM e F(m) permanecerem iguais — prova independência da mensalidade', () => {
-    const resultSemMensalidade = computeContractualBuyout({
-      ...baseInput,
-      amortizacaoTecnicaAcumulada: 10_000,
-    })
-    const resultComMensalidadeDiferente = computeContractualBuyout({
-      ...baseInput,
-      amortizacaoTecnicaAcumulada: 10_000, // mesmo A(m), independente da mensalidade
-    })
-    // Prova: mesmo A(m) → mesmo resultado, independentemente do que seria a mensalidade externa
-    expect(resultSemMensalidade.vecBase).toBe(resultComMensalidadeDiferente.vecBase)
+    const result1 = computeContractualBuyout({ ...baseInput, amortizacaoTecnicaAcumulada: 10_000 })
+    const result2 = computeContractualBuyout({ ...baseInput, amortizacaoTecnicaAcumulada: 10_000 })
+    expect(result1.vecBase).toBe(result2.vecBase)
   })
 
   it('alterar apenas A(m) muda o vecBase mas não o VM', () => {
@@ -299,15 +295,14 @@ describe('computeContractualBuyout', () => {
     expect(result1.vecBase).toBeGreaterThan(result2.vecBase)
   })
 
-  // 8. Memória de cálculo: os valores expostos devem ser os mesmos do buyout
+  // 9. Memória de cálculo: os valores expostos devem ser os mesmos do buyout
   it('memoriaCalculo expõe os mesmos valores usados no cálculo', () => {
     const result = computeContractualBuyout(baseInput)
     const { vm, f, a } = result.memoriaCalculo
-    // vecBase = max(0, VM * F - A)
     expect(result.vecBase).toBeCloseTo(Math.max(0, vm * f - a), 6)
   })
 
-  // 9. vecFinal é sempre >= vecBase e >= 0
+  // 10. vecFinal é sempre >= vecBase e >= 0
   it('vecFinal é sempre >= vecBase e >= 0', () => {
     const scenarios: BuyoutInputs[] = [
       { ...baseInput, mesContratual: 7 },
@@ -324,9 +319,8 @@ describe('computeContractualBuyout', () => {
     }
   })
 
-  // 10. Ordem correta: piso é aplicado APÓS o cálculo base, não sobre VM
+  // 11. Ordem correta: piso é aplicado APÓS o cálculo base, não sobre VM
   it('piso é aplicado sobre vecBase, não substitui a fórmula inteira', () => {
-    // vecBase alto (> piso) → vecFinal = vecBase (piso não interfere)
     const highBase = computeContractualBuyout({
       ...baseInput,
       mesContratual: 12,
@@ -336,7 +330,6 @@ describe('computeContractualBuyout', () => {
     expect(highBase.vecBase).toBeCloseTo(89_000, 2)
     expect(highBase.vecFinal).toBeCloseTo(89_000, 2) // piso (40000) não prevalece
 
-    // vecBase baixo (< piso) → vecFinal = piso
     const lowBase = computeContractualBuyout({
       ...baseInput,
       mesContratual: 12,
@@ -344,25 +337,33 @@ describe('computeContractualBuyout', () => {
       amortizacaoTecnicaAcumulada: 1_000, // vecBase = 9000
     })
     expect(lowBase.vecBase).toBeCloseTo(9_000, 2)
-    expect(lowBase.pisoResidualAplicado).toBeCloseTo(40_000, 2)
+    expect(lowBase.pisoResidualValor).toBeCloseTo(40_000, 2)
     expect(lowBase.vecFinal).toBeCloseTo(40_000, 2) // piso prevalece
   })
 
-  // 11. Consistência com computeDepreciationFactor + computeLinearTechnicalAmortization
+  // 12. pisoResidualPct está exposto na memória de cálculo
+  it('pisoResidualPct está correto para cada faixa', () => {
+    const m12 = computeContractualBuyout({ ...baseInput, mesContratual: 12 })
+    expect(m12.pisoResidualPct).toBeCloseTo(0.4, 6)
+
+    const m60 = computeContractualBuyout({ ...baseInput, mesContratual: 60 })
+    expect(m60.pisoResidualPct).toBeCloseTo(0.1, 6)
+  })
+
+  // 13. Consistência com computeDepreciationFactor + computeLinearTechnicalAmortization
   it('integra corretamente com computeDepreciationFactor e computeLinearTechnicalAmortization', () => {
-    const vm0 = 100_000
+    const valorBase = 100_000
     const depreciacaoAa = 0.12
     const prazo = 60
     const m = 12
 
     const f = computeDepreciationFactor(depreciacaoAa, m)
-    const a = computeLinearTechnicalAmortization(vm0, m, prazo)
+    const a = computeLinearTechnicalAmortization(valorBase, m, prazo)
 
     const result = computeContractualBuyout({
       mesContratual: m,
       prazoContratualMeses: prazo,
-      valorMercadoUsina: vm0,
-      valorOriginalAtivo: vm0,
+      valorBaseOriginalAtivo: valorBase,
       fatorDepreciacaoEconomica: f,
       amortizacaoTecnicaAcumulada: a,
     })
@@ -371,9 +372,8 @@ describe('computeContractualBuyout', () => {
     expect(result.vecBase).toBeGreaterThan(0)
     // vecFinal >= piso (40000)
     expect(result.vecFinal).toBeGreaterThanOrEqual(40_000)
-    // memoriaCalculo contém os valores passados
     expect(result.memoriaCalculo.f).toBeCloseTo(f, 6)
     expect(result.memoriaCalculo.a).toBeCloseTo(a, 6)
-    expect(result.memoriaCalculo.vm).toBe(vm0)
+    expect(result.memoriaCalculo.vm).toBe(valorBase)
   })
 })

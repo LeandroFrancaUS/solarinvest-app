@@ -1,12 +1,23 @@
 /**
  * Módulo oficial e centralizado para cálculo do Valor de Exercício de Compra (VEC).
  *
+ * Buyout contratual:
+ * O valor de exercício de compra NÃO é reduzido por mensalidades pagas.
+ * As mensalidades remuneram exclusivamente os serviços prestados.
+ * O redutor do VEC decorre apenas da evolução econômica/técnica do ativo:
+ * depreciação econômica, amortização técnica acumulada e piso residual mínimo.
+ *
+ * Premissa operacional:
+ * O "Preço ideal" da Análise Financeira corresponde ao valor-base/original
+ * do ativo no início do contrato (valorBaseOriginalAtivo).
+ *
  * Fórmula contratual:
  *   VEC(m) = max(0, (VM × F(m)) – A(m))
  *   vecFinal = max(vecBase, pisoResidual(m))
  *
  * Onde:
- *   VM  = Valor de Mercado da Usina — proveniente da Análise Financeira / Preço ideal.
+ *   VM  = valorBaseOriginalAtivo — valor-base/original do ativo no início do contrato,
+ *         correspondente ao "Preço ideal" da Análise Financeira.
  *   F(m) = Fator de Depreciação Econômica no mês contratual m.
  *   A(m) = Amortização técnica acumulada até o mês m (independente da mensalidade).
  *   m   = Mês contratual vigente.
@@ -14,7 +25,6 @@
  * IMPORTANTE:
  * - Esta é a ÚNICA fonte oficial do cálculo de buyout.
  * - Toda tela, PDF, proposta, contrato e backend deve chamar computeContractualBuyout.
- * - O VM deve vir sempre da engine da Análise Financeira (campo precoIdeal / custoFinalProjetadoCanonico).
  * - O A(m) é amortização técnica do ativo — não usa mensalidade, PMT ou saldo financeiro.
  */
 
@@ -26,17 +36,12 @@ export interface BuyoutInputs {
   /** Prazo total do contrato em meses (ex.: 60). */
   prazoContratualMeses: number
   /**
-   * VM — Valor de Mercado da Usina.
-   * Deve ser extraído da engine da Análise Financeira (Preço ideal / precoIdeal).
-   * Alimenta também a tag {{valordemercado_atual}} nos contratos.
+   * VM — Valor-base/original do ativo no início do contrato.
+   * Deve ser o "Preço ideal" da Análise Financeira (precoIdeal / custoFinalProjetadoCanonico).
+   * É também a base para o piso residual mínimo.
+   * NÃO é mensalidade, NÃO é CAPEX do PDF, NÃO é reduzido por parcelas pagas.
    */
-  valorMercadoUsina: number
-  /**
-   * Valor original do ativo no momento zero do contrato.
-   * Usado como base para o piso residual e para a amortização técnica linear.
-   * Geralmente igual ao VM inicial (vm0).
-   */
-  valorOriginalAtivo: number
+  valorBaseOriginalAtivo: number
   /**
    * F(m) — Fator de Depreciação Econômica no mês m.
    * Deve ser um número em [0, 1]. Use computeDepreciationFactor para calculá-lo
@@ -55,16 +60,20 @@ export interface BuyoutInputs {
 export interface BuyoutBreakdown {
   /** Resultado base da fórmula: max(0, VM × F(m) – A(m)). */
   vecBase: number
-  /** Piso residual mínimo aplicável no mês m (em R$). */
-  pisoResidualAplicado: number
-  /** Valor final: max(vecBase, pisoResidualAplicado). */
+  /** Percentual de piso residual mínimo aplicável no mês m. */
+  pisoResidualPct: number
+  /** Valor absoluto do piso residual mínimo aplicável no mês m (em R$). */
+  pisoResidualValor: number
+  /** Valor final: max(vecBase, pisoResidualValor). */
   vecFinal: number
   /** Memória de cálculo para auditoria, exibição interna e rastreabilidade jurídica. */
   memoriaCalculo: {
+    /** VM = valorBaseOriginalAtivo = Preço ideal da Análise Financeira. */
     vm: number
+    /** F(m) = Fator de depreciação econômica. */
     f: number
+    /** A(m) = Amortização técnica acumulada (independente de mensalidades). */
     a: number
-    valorOriginalAtivo: number
     mesContratual: number
     prazoContratualMeses: number
   }
@@ -106,18 +115,18 @@ export function getResidualFloorPct(m: number, prazo: number): number {
 /**
  * Retorna o valor absoluto do piso residual mínimo em R$ para o mês m.
  *
- * @param m                Mês contratual vigente (base 1).
- * @param valorOriginalAtivo Valor do ativo no momento zero (base para o piso).
- * @param prazo            Prazo total do contrato em meses.
+ * @param m                    Mês contratual vigente (base 1).
+ * @param valorBaseOriginalAtivo Valor-base/original do ativo (= Preço ideal da Análise Financeira).
+ * @param prazo                Prazo total do contrato em meses.
  * @returns Valor em R$.
  */
 export function getResidualFloorValue(
   m: number,
-  valorOriginalAtivo: number,
+  valorBaseOriginalAtivo: number,
   prazo: number,
 ): number {
   const pct = getResidualFloorPct(m, prazo)
-  return Math.max(0, valorOriginalAtivo) * pct
+  return Math.max(0, valorBaseOriginalAtivo) * pct
 }
 
 // ─── Helpers de cálculo de F(m) e A(m) ──────────────────────────────────────
@@ -141,7 +150,7 @@ export function computeDepreciationFactor(depreciacaoAa: number, m: number): num
 /**
  * Calcula a Amortização Técnica Acumulada A(m) pelo método linear.
  *
- * A(m) = valorOriginalAtivo × m / prazoContratualMeses
+ * A(m) = valorBaseOriginalAtivo × m / prazoContratualMeses
  *
  * Esta amortização é:
  * - Baseada no valor do ativo (não na mensalidade de serviço)
@@ -152,19 +161,19 @@ export function computeDepreciationFactor(depreciacaoAa: number, m: number): num
  * (ex.: soma dos dígitos, exponencial), substituir esta função mantendo
  * a mesma assinatura.
  *
- * @param valorOriginalAtivo  Valor do ativo no momento zero (R$).
- * @param m                   Mês contratual (base 1).
- * @param prazoContratualMeses Prazo total do contrato em meses.
+ * @param valorBaseOriginalAtivo Valor-base/original do ativo (= Preço ideal da Análise Financeira).
+ * @param m                      Mês contratual (base 1).
+ * @param prazoContratualMeses   Prazo total do contrato em meses.
  * @returns Valor em R$.
  */
 export function computeLinearTechnicalAmortization(
-  valorOriginalAtivo: number,
+  valorBaseOriginalAtivo: number,
   m: number,
   prazoContratualMeses: number,
 ): number {
   if (prazoContratualMeses <= 0 || m <= 0) return 0
   const mEfetivo = Math.min(m, prazoContratualMeses)
-  return Math.max(0, valorOriginalAtivo) * (mEfetivo / prazoContratualMeses)
+  return Math.max(0, valorBaseOriginalAtivo) * (mEfetivo / prazoContratualMeses)
 }
 
 // ─── Cálculo Principal ───────────────────────────────────────────────────────
@@ -173,7 +182,7 @@ export function computeLinearTechnicalAmortization(
  * Calcula o Valor de Exercício de Compra (VEC) conforme a fórmula contratual.
  *
  * Fórmula: VEC(m) = max(0, (VM × F(m)) – A(m))
- * Piso:    vecFinal = max(vecBase, pisoResidual(m, valorOriginalAtivo, prazo))
+ * Piso:    vecFinal = max(vecBase, pisoResidual(m, valorBaseOriginalAtivo, prazo))
  *
  * Esta função é a ÚNICA fonte oficial do cálculo de buyout. Todos os pontos
  * do sistema (UI, PDF, proposta, contrato, backend, store) devem chamar esta
@@ -186,36 +195,36 @@ export function computeContractualBuyout(input: BuyoutInputs): BuyoutBreakdown {
   const {
     mesContratual: m,
     prazoContratualMeses,
-    valorMercadoUsina,
-    valorOriginalAtivo,
+    valorBaseOriginalAtivo,
     fatorDepreciacaoEconomica,
     amortizacaoTecnicaAcumulada,
   } = input
 
-  const vm = Math.max(0, valorMercadoUsina)
+  // VM = valorBaseOriginalAtivo = Preço ideal da Análise Financeira
+  const vm = Math.max(0, valorBaseOriginalAtivo)
   const f = Math.max(0, Math.min(1, fatorDepreciacaoEconomica))
   const a = Math.max(0, amortizacaoTecnicaAcumulada)
-  const voa = Math.max(0, valorOriginalAtivo)
 
   // Fórmula base: VEC = max(0, VM × F(m) − A(m))
   const vecRaw = vm * f - a
   const vecBase = Math.max(0, vecRaw)
 
   // Piso residual mínimo contratual
-  const pisoResidualAplicado = getResidualFloorValue(m, voa, prazoContratualMeses)
+  const pisoResidualPct = getResidualFloorPct(m, prazoContratualMeses)
+  const pisoResidualValor = vm * pisoResidualPct
 
   // Valor final: nunca abaixo do piso
-  const vecFinal = Math.max(vecBase, pisoResidualAplicado)
+  const vecFinal = Math.max(vecBase, pisoResidualValor)
 
   return {
     vecBase,
-    pisoResidualAplicado,
+    pisoResidualPct,
+    pisoResidualValor,
     vecFinal,
     memoriaCalculo: {
       vm,
       f,
       a,
-      valorOriginalAtivo: voa,
       mesContratual: m,
       prazoContratualMeses,
     },
