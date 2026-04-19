@@ -16555,6 +16555,10 @@ export default function App() {
     // Neon DB save FIRST so data is durable before the local cache is updated.
     let syncedToBackend = false
     let neonServerId: string | null = null
+    // True when the backend returned a 5xx "service unavailable" status (e.g. DATABASE_URL
+    // not configured in a preview deployment).  In that case we fall through to local save
+    // rather than blocking the entire operation.
+    let backendServiceUnavailable = false
     try {
       if (online) {
         // For edits use the known server ID; for new clients let the backend deduplicate.
@@ -16579,9 +16583,15 @@ export default function App() {
       setClientLastSaveStatus('error')
       setClientsSyncState('degraded-api')
       console.warn('[ClienteSave] Neon save failed; saving locally as fallback:', error)
+      // 503/502/504 means the backend is unreachable or not configured (e.g. no DATABASE_URL
+      // in a Vercel preview deployment).  Treat this like an offline event so the data is
+      // at least preserved in localStorage instead of being lost entirely.
+      if (error instanceof ClientsApiError && (error.status === 503 || error.status === 502 || error.status === 504)) {
+        backendServiceUnavailable = true
+      }
     }
 
-    if (online && !syncedToBackend) {
+    if (online && !syncedToBackend && !backendServiceUnavailable) {
       setClientLastSaveStatus('error')
       console.error('[clients][mutation] failed', { operation: estaEditando ? 'update' : 'create', reason: 'backend_not_confirmed' })
       if (!options?.silent) {
@@ -16723,6 +16733,15 @@ export default function App() {
     // Surface localStorage quota warnings to the user (outside the state updater)
     if (localSaveWarning) {
       adicionarNotificacao(localSaveWarning, 'info')
+    }
+
+    // When the backend was unreachable (503/502/504) but local save succeeded, inform
+    // the user in degraded mode rather than showing a hard failure.
+    if (backendServiceUnavailable && !options?.silent) {
+      adicionarNotificacao(
+        'Servidor indisponível. Dados salvos localmente — serão sincronizados quando o serviço for restaurado.',
+        'info',
+      )
     }
 
     const registroConfirmado: ClienteRegistro = salvo
