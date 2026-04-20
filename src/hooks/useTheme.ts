@@ -7,7 +7,8 @@ const DEFAULT_THEME: AppTheme = 'dark'
 
 function applyTheme(theme: AppTheme) {
   const root = document.documentElement
-  // Only manage app-theme classes; data-theme is managed by system preference detection
+  // Manage only the app-level theme classes; the system colour-scheme preference
+  // (data-theme='light'/'dark') is handled separately in App.tsx via matchMedia.
   root.classList.remove('theme-dark', 'theme-old')
 
   if (theme === 'old') {

@@ -58,15 +58,8 @@ export function Modal({
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
     if (!closeOnBackdrop) return
-    const rect = dialogRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const { clientX, clientY } = e
-    if (
-      clientX < rect.left ||
-      clientX > rect.right ||
-      clientY < rect.top ||
-      clientY > rect.bottom
-    ) {
+    // Close only when the click lands on the dialog backdrop (not on its content)
+    if (e.target === e.currentTarget) {
       onClose()
     }
   }
