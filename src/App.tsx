@@ -1979,7 +1979,7 @@ const persistBudgetsToLocalStorage = (
   }
 
   if (lastError) {
-    throw lastError instanceof Error ? lastError : new Error(String(lastError))
+    throw lastError instanceof Error ? lastError : new Error(String(lastError as unknown as string))
   }
 
   throw new Error('Falha ao salvar orçamentos no armazenamento local.')
@@ -2875,7 +2875,7 @@ const parseClientesCsv = (content: string): unknown[] => {
           return
         }
 
-        /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */
+        /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
         switch (key) {
           case 'id':
             registro.id = value
@@ -2933,9 +2933,9 @@ const parseClientesCsv = (content: string): unknown[] => {
            
           ;(registro.dados as Record<string, unknown>)[key] = value
       }
-        /* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */
+        /* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
       })
-
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return registro
     })
     .filter((item): item is Partial<ClienteRegistro> & { dados?: Partial<ClienteDados>; energyProfile?: Record<string, string | number | null> } => Boolean(item))
@@ -17392,7 +17392,7 @@ export default function App() {
       }
 
       try {
-        const parsed = JSON.parse(existenteRaw)
+        const parsed = JSON.parse(existenteRaw) as unknown
         if (!Array.isArray(parsed)) {
           return []
         }
@@ -17981,9 +17981,9 @@ export default function App() {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     snapshot.pageShared = {
       ...snapshot.pageShared,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
 
@@ -30353,8 +30353,7 @@ export default function App() {
                                     type="number"
                                     min={0}
                                     step="0.01"
-                                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                                    value={item.unitValue}
+                                    value={item.unitValue as unknown as number}
                                     onChange={(event) => {
                                       // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
                                       return handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
@@ -30363,8 +30362,7 @@ export default function App() {
                                   />
                                 </td>
                                 <td>
-                                  {/* eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access */}
-                                  <input type="text" value={currency(item.total)} readOnly aria-label="Total do item" />
+                                  <input type="text" value={currency(item.total as unknown as number)} readOnly aria-label="Total do item" />
                                 </td>
                                 <td>
                                   <button
