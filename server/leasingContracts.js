@@ -110,48 +110,51 @@ const toPositiveNumber = (value) => {
 }
 
 // Lookup tables for Brazilian Portuguese number words
-const _UNIDADES = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove']
-const _DEZENAS = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
-const _DEZENAS_ESPECIAIS = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
-const _CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos']
+const EXTENSO_UNIDADES = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove']
+const EXTENSO_DEZENAS = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
+const EXTENSO_DEZENAS_ESPECIAIS = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
+const EXTENSO_CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos']
+
+// Reusable BRL currency formatter
+const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 /**
  * Converts a non-negative integer to its Brazilian Portuguese word representation.
  * @param {number} n - Non-negative integer
  * @returns {string}
  */
-const _inteiroParaExtensoBR = (n) => {
+const inteiroParaExtensoBR = (n) => {
   if (n === 0) return 'zero'
   const partes = []
   let remaining = n
 
   if (remaining >= 1_000_000) {
     const milhoes = Math.floor(remaining / 1_000_000)
-    partes.push(_inteiroParaExtensoBR(milhoes) + (milhoes === 1 ? ' milhão' : ' milhões'))
+    partes.push(inteiroParaExtensoBR(milhoes) + (milhoes === 1 ? ' milhão' : ' milhões'))
     remaining %= 1_000_000
   }
 
   if (remaining >= 1_000) {
     const mil = Math.floor(remaining / 1_000)
-    partes.push(mil === 1 ? 'mil' : _inteiroParaExtensoBR(mil) + ' mil')
+    partes.push(mil === 1 ? 'mil' : inteiroParaExtensoBR(mil) + ' mil')
     remaining %= 1_000
   }
 
   if (remaining >= 100) {
     const c = Math.floor(remaining / 100)
     const resto = remaining % 100
-    partes.push(resto === 0 && c === 1 ? 'cem' : _CENTENAS[c])
+    partes.push(resto === 0 && c === 1 ? 'cem' : EXTENSO_CENTENAS[c])
     remaining = resto
   }
 
   if (remaining >= 20) {
     const d = Math.floor(remaining / 10)
     const u = remaining % 10
-    partes.push(u === 0 ? _DEZENAS[d] : `${_DEZENAS[d]} e ${_UNIDADES[u]}`)
+    partes.push(u === 0 ? EXTENSO_DEZENAS[d] : `${EXTENSO_DEZENAS[d]} e ${EXTENSO_UNIDADES[u]}`)
   } else if (remaining >= 10) {
-    partes.push(_DEZENAS_ESPECIAIS[remaining - 10])
+    partes.push(EXTENSO_DEZENAS_ESPECIAIS[remaining - 10])
   } else if (remaining > 0) {
-    partes.push(_UNIDADES[remaining])
+    partes.push(EXTENSO_UNIDADES[remaining])
   }
 
   return partes.join(' e ')
@@ -170,10 +173,10 @@ export const valorMonetarioPorExtensoBR = (value) => {
 
   const partes = []
   if (reais > 0) {
-    partes.push(`${_inteiroParaExtensoBR(reais)} ${reais === 1 ? 'real' : 'reais'}`)
+    partes.push(`${inteiroParaExtensoBR(reais)} ${reais === 1 ? 'real' : 'reais'}`)
   }
   if (centavos > 0) {
-    partes.push(`${_inteiroParaExtensoBR(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`)
+    partes.push(`${inteiroParaExtensoBR(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`)
   }
   return partes.length > 0 ? partes.join(' e ') : 'zero reais'
 }
@@ -183,8 +186,7 @@ export const valorMonetarioPorExtensoBR = (value) => {
  * @param {number} value
  * @returns {string}
  */
-const formatCurrencyBRL = (value) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+const formatCurrencyBRL = (value) => BRL_FORMATTER.format(value)
 
 /**
  * Resolves the "valor de mercado atual" (current market value) for a leasing contract.
@@ -199,13 +201,10 @@ const formatCurrencyBRL = (value) =>
  * @returns {Promise<number | null>}
  */
 const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId }) => {
-  const proposalId = rawDadosLeasing?._debug_proposalId ?? null
-
   // 1. Try the raw numeric value sent by the frontend in the request payload
   const fromPayload = toPositiveNumber(rawDadosLeasing?.valordemercado_atual_numero)
   if (fromPayload) {
     console.info('[contracts][leasing] resolving valordemercado', {
-      proposalId,
       clientId: clientId ?? null,
       source: 'payload.valordemercado_atual_numero',
       resolvedValorDeMercado: fromPayload,
@@ -222,10 +221,12 @@ const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId
 
       try {
         // Preferred: client_usina_config.valordemercado
+        // client_id is unique in this table so ORDER BY is not needed, but included for safety
         const usinaRows = await db.sql`
           SELECT valordemercado
           FROM public.client_usina_config
           WHERE client_id = ${clientId}
+          ORDER BY updated_at DESC
           LIMIT 1
         `
         usinaConfigValorDeMercado = toPositiveNumber(usinaRows?.[0]?.valordemercado)
@@ -243,6 +244,7 @@ const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId
             SELECT metadata
             FROM public.clients
             WHERE id = ${clientId} AND deleted_at IS NULL
+            ORDER BY updated_at DESC
             LIMIT 1
           `
           metadataValorDeMercado = toPositiveNumber(clientRows?.[0]?.metadata?.valordemercado)
