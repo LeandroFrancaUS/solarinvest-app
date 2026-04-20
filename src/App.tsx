@@ -13266,7 +13266,9 @@ export default function App() {
           if (myConsultor) {
             const current = clienteRef.current ?? cliente
             if (!current.consultorId) {
-              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: consultorDisplayName(myConsultor) })
+              // Prefer the logged-in user's own name as the default consultant display name (section 2)
+              const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
+              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: defaultNome })
             }
           }
         }
