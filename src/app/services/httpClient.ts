@@ -63,7 +63,14 @@ export async function apiFetch<TResponse = unknown>(path: string, options: ApiFe
   const payload = isJson ? await response.json().catch(() => null) : null
 
   if (!response.ok) {
-    const message = (payload as { error?: string } | null)?.error ?? `Erro HTTP ${response.status}`
+    const errPayload = payload as { error?: string | { message?: string } } | null
+    const rawError = errPayload?.error
+    const message =
+      typeof rawError === 'string'
+        ? rawError
+        : typeof rawError === 'object' && rawError !== null && typeof rawError.message === 'string'
+          ? rawError.message
+          : `Erro HTTP ${response.status}`
     throw buildApiError(message, response.status, payload)
   }
 
