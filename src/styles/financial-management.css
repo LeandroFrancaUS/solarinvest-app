@@ -1,0 +1,580 @@
+/* ============================================================
+   GESTÃO FINANCEIRA — DESIGN SYSTEM
+   Scoped component classes for the financial management area.
+   All colour tokens are inherited from :root (global theme).
+   Scope: .fm-page wrapper class.
+   ============================================================ */
+
+/* ── 1. PAGE WRAPPER ────────────────────────────────────────── */
+.fm-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text-base);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── 2. PAGE HEADER ─────────────────────────────────────────── */
+.fm-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.fm-page-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.fm-page-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fm-back-btn {
+  margin-top: 4px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.fm-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-heading, var(--text-base));
+  margin: 0;
+  line-height: 1.2;
+}
+
+.fm-page-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+/* ── 3. PERIOD FILTER BUTTONS ───────────────────────────────── */
+.fm-period-filters {
+  display: flex;
+  gap: 4px;
+}
+
+.fm-period-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--bg));
+  color: var(--text-base);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fm-period-btn:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+}
+
+.fm-period-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.fm-custom-period {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── 4. TAB BAR ─────────────────────────────────────────────── */
+.fm-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  padding: 0 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.fm-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.fm-tab {
+  padding: 12px 18px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.fm-tab:hover {
+  color: var(--text-base);
+}
+
+.fm-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── 5. TAB CONTENT ─────────────────────────────────────────── */
+.fm-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* ── 6. KPI GRID ────────────────────────────────────────────── */
+.fm-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.fm-kpi-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--bg-card, var(--bg));
+  border: 1px solid var(--border);
+  transition: box-shadow 0.15s;
+}
+
+.fm-kpi-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.fm-kpi-card--green {
+  border-left: 3px solid #22c55e;
+}
+
+.fm-kpi-card--red {
+  border-left: 3px solid #ef4444;
+}
+
+.fm-kpi-icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.fm-kpi-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fm-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fm-kpi-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-base);
+  white-space: nowrap;
+}
+
+.fm-kpi-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── 7. FILTERS BAR ─────────────────────────────────────────── */
+.fm-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.fm-filter-input {
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--bg));
+  color: var(--text-base);
+  font-size: 13px;
+  min-width: 220px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.fm-filter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(99, 102, 241, 0.15));
+}
+
+.fm-filter-select {
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--bg));
+  color: var(--text-base);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.fm-filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── 8. TABLE ───────────────────────────────────────────────── */
+.fm-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.fm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fm-table th {
+  padding: 10px 14px;
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.fm-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-base);
+  vertical-align: middle;
+}
+
+.fm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.fm-table tbody tr:hover td {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.025));
+}
+
+.fm-value--positive {
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.fm-value--negative {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* ── 9. BADGES ──────────────────────────────────────────────── */
+.fm-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fm-badge--leasing {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+.fm-badge--sale {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.fm-badge--buyout {
+  background: rgba(234, 179, 8, 0.12);
+  color: #a16207;
+}
+
+.fm-badge--income {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.fm-badge--expense {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.fm-badge--status-planned {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
+}
+
+.fm-badge--status-due {
+  background: rgba(234, 179, 8, 0.15);
+  color: #a16207;
+}
+
+.fm-badge--status-paid,
+.fm-badge--status-received {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+
+.fm-badge--status-cancelled {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+/* ── 10. ENTRIES HEADER ─────────────────────────────────────── */
+.fm-entries-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* ── 11. ACTIONS CELL ───────────────────────────────────────── */
+.fm-actions-cell {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.fm-action-btn {
+  padding: 4px 8px;
+  font-size: 14px;
+  border-radius: 5px;
+}
+
+.fm-action-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+/* ── 12. DRAWER / ENTRY FORM ────────────────────────────────── */
+.fm-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fm-drawer {
+  width: 420px;
+  max-width: 100%;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+  animation: fm-drawer-in 0.22s ease;
+}
+
+@keyframes fm-drawer-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.fm-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fm-drawer-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-base);
+}
+
+.fm-drawer-close {
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
+.fm-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fm-drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+/* ── 13. FORM FIELDS ────────────────────────────────────────── */
+.fm-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.fm-form-row--checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+
+.fm-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fm-form-input,
+.fm-form-select,
+.fm-form-textarea {
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card, var(--bg));
+  color: var(--text-base);
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.fm-form-input:focus,
+.fm-form-select:focus,
+.fm-form-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(99, 102, 241, 0.15));
+}
+
+.fm-form-textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* ── 14. STATES ─────────────────────────────────────────────── */
+.fm-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.fm-loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: fm-spin 0.7s linear infinite;
+}
+
+@keyframes fm-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fm-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #dc2626;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.fm-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── 15. SECTION CONTAINERS ─────────────────────────────────── */
+.fm-overview,
+.fm-projects,
+.fm-cashflow,
+.fm-entries,
+.fm-leasing,
+.fm-sales {
+  animation: fm-fade-in 0.18s ease;
+}
+
+@keyframes fm-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 16. RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .fm-page-header {
+    flex-direction: column;
+    padding: 14px 16px 12px;
+  }
+
+  .fm-tab-content {
+    padding: 16px;
+  }
+
+  .fm-kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
+
+  .fm-drawer {
+    width: 100%;
+  }
+
+  .fm-entries-header {
+    flex-direction: column;
+  }
+}

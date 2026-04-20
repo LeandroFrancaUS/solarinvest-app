@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   PAGE_CONTRACTS_LEGACY: "page:contracts",
   PAGE_FINANCIAL: "page_financial_analysis",
   PAGE_FINANCIAL_LEGACY: "page:financial_analysis",
+  PAGE_FINANCIAL_MANAGEMENT: "page_financial_management",
   PAGE_PREF: "page:preferences",
   PAGE_USERS: "page:users",
   PAGE_DASHBOARD: "page:dashboard",

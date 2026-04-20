@@ -103,6 +103,14 @@ import {
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
 } from './client-portfolio/handler.js'
+import {
+  handleFinancialSummary,
+  handleFinancialProjects,
+  handleFinancialCashflow,
+  handleFinancialEntries,
+  handleFinancialCategories,
+  handleFinancialDashboardFeed,
+} from './financial-management/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1210,6 +1218,60 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioNotesMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
+      return
+    }
+
+    // ── Financial Management routes ───────────────────────────────────────────
+
+    // GET /api/financial-management/summary
+    if (pathname === '/api/financial-management/summary') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialSummary(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/financial-management/projects
+    if (pathname === '/api/financial-management/projects') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialProjects(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/financial-management/cashflow
+    if (pathname === '/api/financial-management/cashflow') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialCashflow(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/financial-management/categories
+    if (pathname === '/api/financial-management/categories') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialCategories(req, res, { method, sendJson: sj })
+      return
+    }
+
+    // GET /api/financial-management/dashboard-feed
+    if (pathname === '/api/financial-management/dashboard-feed') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialDashboardFeed(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET|POST|PUT|DELETE /api/financial-management/entries[/:id]
+    if (pathname === '/api/financial-management/entries' || pathname.startsWith('/api/financial-management/entries/')) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => {
+        if (b === null) { sendNoContent(res); return }
+        sendJson(res, s, b)
+      }
+      const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
+      await handleFinancialEntries(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
       return
     }
 
