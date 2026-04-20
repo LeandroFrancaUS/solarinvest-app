@@ -378,8 +378,9 @@
 }
 
 .pf-row-btn-edit:hover {
-  background: rgba(45, 140, 255, 0.2);
+  background: var(--accent-soft);
   border-color: var(--accent-strong);
+  filter: brightness(1.15);
 }
 
 .pf-row-btn-delete {
@@ -389,8 +390,9 @@
 }
 
 .pf-row-btn-delete:hover {
-  background: rgba(255, 77, 79, 0.2);
+  background: var(--color-error-bg);
   border-color: var(--ds-danger);
+  filter: brightness(1.15);
 }
 
 /* ── 10c. SEARCH BAR ──────────────────────────────────────────── */
@@ -526,7 +528,8 @@
 }
 
 .pf-action-remove:hover:not(:disabled) {
-  background: rgba(245, 158, 11, 0.22);
+  background: var(--color-warning-bg);
+  filter: brightness(1.15);
 }
 
 .pf-action-remove:disabled {
@@ -547,7 +550,8 @@
 }
 
 .pf-action-delete:hover:not(:disabled) {
-  background: rgba(255, 77, 79, 0.22);
+  background: var(--color-error-bg);
+  filter: brightness(1.15);
 }
 
 .pf-action-delete:disabled {
