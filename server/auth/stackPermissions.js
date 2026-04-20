@@ -19,7 +19,7 @@ const ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
 const ADMIN_USER_ID = getBootstrapAdminUserId()
 const ADMIN_PERMISSION = 'role_admin'
 const STACK_API_BASE = 'https://api.stack-auth.com'
-const API_TIMEOUT_MS = 4000
+const API_TIMEOUT_MS = 6000
 
 // Maximum number of retry attempts for transient (5xx / network) errors.
 const API_MAX_RETRIES = 2
