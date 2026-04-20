@@ -146,32 +146,13 @@ function Toast({ message, type, onDismiss }: ToastProps) {
   }, [onDismiss])
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        zIndex: 9999,
-        padding: '12px 20px',
-        borderRadius: 10,
-        background: type === 'success' ? '#166534' : '#7f1d1d',
-        border: `1px solid ${type === 'success' ? '#22c55e' : '#ef4444'}`,
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: 500,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        maxWidth: 360,
-        display: 'flex',
-        gap: 10,
-        alignItems: 'center',
-      }}
-    >
+    <div className={`pf-toast pf-toast-${type}`}>
       <span>{type === 'success' ? '✅' : '❌'}</span>
       <span style={{ flex: 1 }}>{message}</span>
       <button
         type="button"
         onClick={onDismiss}
-        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, padding: 0 }}
+        className="pf-toast-dismiss"
       >
         ×
       </button>
@@ -186,17 +167,17 @@ interface ConfirmDialogProps {
   title: string
   message: string
   confirmLabel?: string
-  confirmColor?: string
+  variant?: 'primary' | 'success' | 'danger' | 'warning'
   onConfirm: () => void
   onCancel: () => void
 }
 
-function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', confirmColor = '#ef4444', onConfirm, onCancel }: ConfirmDialogProps) {
+function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', variant = 'danger', onConfirm, onCancel }: ConfirmDialogProps) {
   return (
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.65)',
+        background: 'var(--backdrop, rgba(0,0,0,0.65))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
@@ -204,28 +185,28 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', confirmColo
     >
       <div
         style={{
-          background: 'var(--surface, #1e293b)',
-          border: '1px solid var(--border, #334155)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
           borderRadius: 12,
           padding: 28,
           maxWidth: 420,
           width: '100%',
         }}
       >
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700 }}>{title}</h3>
-        <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-muted, #94a3b8)', lineHeight: 1.5 }}>{message}</p>
+        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 700, color: 'var(--text-strong)' }}>{title}</h3>
+        <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.5 }}>{message}</p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button
             type="button"
             onClick={onCancel}
-            style={{ padding: '8px 18px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+            className="pf-btn pf-btn-cancel"
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: confirmColor, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+            className={`pf-confirm-btn pf-confirm-btn-${variant}`}
           >
             {confirmLabel}
           </button>
@@ -290,22 +271,22 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
         <span style={{ fontSize: 12, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {att.fileName}
         </span>
-        {sizeLabel && <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{sizeLabel}</span>}
+        {sizeLabel && <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{sizeLabel}</span>}
         {previewable && (
           <button type="button" onClick={() => setShowPreview(true)}
-            style={{ fontSize: 11, color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+            style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
             👁️ Visualizar
           </button>
         )}
         {att.url && (
           <a href={att.url} download={att.fileName}
-            style={{ fontSize: 11, color: '#3b82f6', textDecoration: 'none', padding: '2px 6px' }}>
+            style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', padding: '2px 6px' }}>
             ⬇️ Baixar
           </a>
         )}
         {editMode && onRemove && (
           <button type="button" onClick={onRemove}
-            style={{ fontSize: 11, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+            style={{ fontSize: 11, color: 'var(--ds-danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
             ✕
           </button>
         )}
@@ -325,7 +306,7 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
               <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{att.fileName}</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <a href={att.url} download={att.fileName}
-                  style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>⬇️ Baixar</a>
+                  style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>⬇️ Baixar</a>
                 <button type="button" onClick={() => setShowPreview(false)}
                   style={{ background: 'none', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
               </div>
@@ -636,7 +617,7 @@ function EditarTab({
           title="Editar Cliente"
           message="Deseja realmente editar os dados do cliente?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -646,7 +627,7 @@ function EditarTab({
           title="Salvar Cliente"
           message="Deseja realmente salvar as alterações dos dados do cliente?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -846,7 +827,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           {!isVenda && (
             <>
               <label className="pf-checkbox-label">
-                <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#f59e0b' }} />
+                <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} />
                 Elegível para Buy Out
               </label>
               {form.buyout_eligible && (
@@ -907,7 +888,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           {/* Add new attachments in edit mode */}
           {editMode && (
             <label style={{ cursor: 'pointer', marginTop: 4 }}>
-              <span style={{ fontSize: 13, color: '#3b82f6' }}>➕ Adicionar anexo</span>
+              <span style={{ fontSize: 13, color: 'var(--accent)' }}>➕ Adicionar anexo</span>
               <input
                 type="file"
                 multiple
@@ -947,7 +928,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </label>
       </div>
 
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
+      {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
       <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
@@ -973,7 +954,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           title="Editar Contrato"
           message="Deseja realmente editar os dados do contrato?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -983,7 +964,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           title="Salvar Contrato"
           message="Deseja realmente salvar as alterações dos dados do contrato?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -1174,7 +1155,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           <textarea value={form.project_notes} onChange={(e) => setForm((f) => ({ ...f, project_notes: e.target.value }))} rows={3} disabled={!editMode} style={{ ...inputStyle, resize: 'vertical' }} />
         </label>
       </div>
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
+      {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
       <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
@@ -1200,7 +1181,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           title="Editar Projeto"
           message="Deseja realmente editar os dados do projeto?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -1210,7 +1191,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           title="Salvar Projeto"
           message="Deseja realmente salvar as alterações dos dados do projeto?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -1449,7 +1430,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <span className="pf-info-label">Status:</span>
               <span style={{
                 fontWeight: 600,
-                color: engineResult.status_calculo === 'ok' ? '#4ade80' : '#fbbf24',
+                color: engineResult.status_calculo === 'ok' ? 'var(--color-success-fg)' : 'var(--color-warning-fg)',
               }}>
                 {engineResult.status_calculo === 'ok' ? '✅ Calculado' : '⏳ Aguardando Comissionamento'}
               </span>
@@ -1529,13 +1510,13 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                                 setPaymentProof({ receipt_number: '', transaction_number: '' })
                                 setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
                               }}
-                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid #4ade80', background: 'rgba(74,222,128,0.1)', color: '#4ade80', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--color-success-border)', background: 'var(--color-success-bg)', color: 'var(--color-success-fg)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
                             >
                               Pagar
                             </button>
                           )}
                           {isConfirmed && (
-                            <span style={{ fontSize: 13, color: '#4ade80' }}>✓</span>
+                            <span style={{ fontSize: 13, color: 'var(--color-success-fg)' }}>✓</span>
                           )}
                         </td>
                       </tr>
@@ -1583,7 +1564,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
               * Informe pelo menos um: Nº do Comprovante ou Nº da Transação.
             </div>
-            {proofError && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 8 }}>{proofError}</p>}
+            {proofError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginTop: 8 }}>{proofError}</p>}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button
                 type="button"
@@ -1622,7 +1603,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     setProofError(err instanceof Error ? err.message : 'Erro ao registrar pagamento.')
                   })
                 }}
-                style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#4ade80,#16a34a)', color: '#0b1526', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'var(--ds-success, #22C55E)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
               >
                 ✅ Confirmar Pagamento
               </button>
@@ -1646,7 +1627,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           </div>
           <div style={{ display: 'grid', gap: 4 }}>
             {notifications.slice(0, 6).map((notif) => (
-              <div key={notif.id} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 5, background: 'rgba(245,158,11,0.06)', borderLeft: '2px solid var(--accent)' }}>
+              <div key={notif.id} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 5, background: 'var(--color-warning-bg)', borderLeft: '2px solid var(--accent)' }}>
                 <span style={{ fontWeight: 600 }}>{notif.channel === 'email' ? '✉️' : '📱'}</span>{' '}
                 <span style={{ color: 'var(--text-muted)' }}>Parcela #{notif.installmentNumber}</span>{' '}
                 — {BILLING_ALERT_LABELS[notif.level]}
@@ -1661,7 +1642,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </div>
       )}
 
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
+      {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
       <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
@@ -1687,7 +1668,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           title="Editar Cobrança"
           message="Deseja realmente editar os dados de cobrança?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -1697,7 +1678,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           title="Salvar Cobrança"
           message="Deseja realmente salvar as alterações dos dados de cobrança?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -1806,7 +1787,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
           title="Editar Usina"
           message="Deseja realmente editar os dados da usina?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -1816,7 +1797,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
           title="Salvar Usina"
           message="Deseja realmente salvar as alterações dos dados da usina?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -1975,7 +1956,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
           </label>
         </div>
       </div>
-      {saveError && <p style={{ color: '#ef4444', fontSize: 12 }}>{saveError}</p>}
+      {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
       <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
@@ -2001,7 +1982,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
           title="Editar Plano"
           message="Deseja realmente editar os dados do plano?"
           confirmLabel="Editar"
-          confirmColor="#3b82f6"
+          variant="primary"
           onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
           onCancel={() => setShowEditPrompt(false)}
         />
@@ -2011,7 +1992,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
           title="Salvar Plano"
           message="Deseja realmente salvar as alterações dos dados do plano?"
           confirmLabel="Salvar"
-          confirmColor="#22c55e"
+          variant="success"
           onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
           onCancel={() => setShowSavePrompt(false)}
         />
@@ -2088,12 +2069,12 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
             style={{ ...inputStyle, resize: 'none', flex: 1 }}
           />
           <button type="button" onClick={() => void handleAddNote()} disabled={addingNote || !newNote.trim()}
-            style={{ padding: '0 16px', borderRadius: 7, border: 'none', background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#0b1526', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
+            style={{ padding: '0 16px', borderRadius: 7, border: 'none', background: 'var(--ds-primary, #2D8CFF)', color: '#fff', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end', height: 40 }}>
             {addingNote ? '…' : '＋'}
           </button>
         </div>
       </div>
-      {addError && <p style={{ color: '#ef4444', fontSize: 12, marginBottom: 10 }}>{addError}</p>}
+      {addError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginBottom: 10 }}>{addError}</p>}
       <div style={{ marginBottom: addError ? 0 : 10 }} />
       {loadingNotes ? (
         <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>Carregando notas…</p>
@@ -2208,7 +2189,7 @@ function AddClientModal({
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box',
   }
   const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 10 }
-  const errStyle: React.CSSProperties = { color: '#ef4444', fontSize: 11, marginTop: 2 }
+  const errStyle: React.CSSProperties = { color: 'var(--ds-danger)', fontSize: 11, marginTop: 2 }
   const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   return (
@@ -2243,30 +2224,30 @@ function AddClientModal({
           <div className="pf-section-title"><span className="pf-icon">📇</span> Identificação</div>
           <label className="pf-label" style={labelStyle}>
             Nome / Razão Social *
-            <input type="text" value={form.name} onChange={set('name')} placeholder="Nome completo ou Razão Social" style={{ ...inputStyle, borderColor: errors.name ? '#ef4444' : undefined }} />
+            <input type="text" value={form.name} onChange={set('name')} placeholder="Nome completo ou Razão Social" style={{ ...inputStyle, borderColor: errors.name ? 'var(--ds-danger)' : undefined }} />
             {errors.name && <span style={errStyle}>{errors.name}</span>}
           </label>
           <label className="pf-label" style={labelStyle}>
             CPF / CNPJ *
-            <input type="text" value={form.document} onChange={set('document')} placeholder="000.000.000-00 ou 00.000.000/0000-00" style={{ ...inputStyle, borderColor: errors.document ? '#ef4444' : undefined }} />
+            <input type="text" value={form.document} onChange={set('document')} placeholder="000.000.000-00 ou 00.000.000/0000-00" style={{ ...inputStyle, borderColor: errors.document ? 'var(--ds-danger)' : undefined }} />
             {errors.document && <span style={errStyle}>{errors.document}</span>}
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
               Telefone
-              <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : undefined }} />
+              <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? 'var(--ds-danger)' : undefined }} />
               {errors.phone && <span style={errStyle}>{errors.phone}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
               E-mail
-              <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? '#ef4444' : undefined }} />
+              <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? 'var(--ds-danger)' : undefined }} />
               {errors.email && <span style={errStyle}>{errors.email}</span>}
             </label>
           </div>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
               CEP
-              <input type="text" value={form.cep} onChange={set('cep')} placeholder="XXXXX-XXX" maxLength={9} style={{ ...inputStyle, borderColor: errors.cep ? '#ef4444' : undefined }} />
+              <input type="text" value={form.cep} onChange={set('cep')} placeholder="XXXXX-XXX" maxLength={9} style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }} />
               {errors.cep && <span style={errStyle}>{errors.cep}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
@@ -2294,7 +2275,7 @@ function AddClientModal({
           </label>
           <label className="pf-label" style={labelStyle}>
             UC Geradora
-            <input type="text" value={form.uc} onChange={set('uc')} placeholder="000000000000000 (15 dígitos)" style={{ ...inputStyle, borderColor: errors.uc ? '#ef4444' : undefined }} />
+            <input type="text" value={form.uc} onChange={set('uc')} placeholder="000000000000000 (15 dígitos)" style={{ ...inputStyle, borderColor: errors.uc ? 'var(--ds-danger)' : undefined }} />
             {errors.uc && <span style={errStyle}>{errors.uc}</span>}
           </label>
           <div style={gridStyle}>
@@ -2310,11 +2291,7 @@ function AddClientModal({
         </div>
 
         {globalError && (
-          <div style={{
-            padding: '10px 14px', borderRadius: 7, background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444',
-            fontSize: 13, marginBottom: 14,
-          }}>
+          <div className="pf-error-banner" style={{ marginBottom: 14 }}>
             {globalError}
           </div>
         )}
@@ -2325,12 +2302,8 @@ function AddClientModal({
             Cancelar
           </button>
           <button type="button" onClick={() => void handleSave()} disabled={saving}
-            style={{
-              padding: '9px 22px', borderRadius: 7, border: 'none',
-              background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
-              fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14,
-              opacity: saving ? 0.7 : 1,
-            }}>
+            className="pf-btn-add-client"
+            style={{ opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
             {saving ? 'Salvando…' : '💾 Salvar Cliente'}
           </button>
         </div>
@@ -2440,7 +2413,7 @@ function ClientDetailPanel({
   if (error || !displayClient) {
     return (
       <div style={{ padding: 24 }}>
-        <p style={{ color: '#ef4444', fontSize: 13 }}>{error ?? 'Cliente não encontrado.'}</p>
+        <p style={{ color: 'var(--ds-danger)', fontSize: 13 }}>{error ?? 'Cliente não encontrado.'}</p>
         <button type="button" onClick={onClose}
           style={{ marginTop: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer' }}>
           ← Voltar
@@ -2524,7 +2497,7 @@ function ClientDetailPanel({
           title="Remover da Carteira"
           message={`Tem certeza que deseja remover "${displayClient.name}" da Carteira de Clientes? O cliente continuará existindo no sistema — apenas sairá da carteira.`}
           confirmLabel="Remover da Carteira"
-          confirmColor="#f59e0b"
+          variant="warning"
           onConfirm={() => void handleRemoveFromPortfolio()}
           onCancel={() => setConfirmRemove(false)}
         />
@@ -2534,7 +2507,7 @@ function ClientDetailPanel({
           title="Excluir Cliente"
           message={`Atenção: esta ação excluirá definitivamente o cliente "${displayClient.name}" do sistema. Esta ação não pode ser desfeita. Deseja continuar?`}
           confirmLabel="Excluir Definitivamente"
-          confirmColor="#ef4444"
+          variant="danger"
           onConfirm={() => void handleDeleteClient()}
           onCancel={() => setConfirmDelete(false)}
         />
@@ -2700,7 +2673,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
             <p style={{ fontSize: 13, color: 'var(--text-muted, #94a3b8)', margin: '4px 0 0' }}>
               Gestão operacional dos clientes contratados
               {!isLoading && hasClients && (
-                <span style={{ marginLeft: 8, fontWeight: 600, color: '#3b82f6' }}>
+                <span style={{ marginLeft: 8, fontWeight: 600, color: 'var(--accent)' }}>
                   · {total} {total === 1 ? 'cliente' : 'clientes'}
                 </span>
               )}
@@ -2783,12 +2756,12 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
             <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 14, marginTop: 8 }}>Carregando carteira…</p>
           )}
           {error && !isLoading && (
-            <div style={{ color: '#ef4444', fontSize: 13 }}>
+            <div style={{ color: 'var(--ds-danger)', fontSize: 13 }}>
               <p style={{ marginBottom: 10 }}>❌ {error}</p>
               <button
                 type="button"
                 onClick={reload}
-                style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid #ef4444', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
+                className="pf-action-delete"
               >
                 Tentar novamente
               </button>
@@ -2822,11 +2795,8 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
                   <button
                     type="button"
                     onClick={() => setShowAddClient(true)}
-                    style={{
-                      marginTop: 14, padding: '9px 20px', borderRadius: 7, border: 'none',
-                      background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
-                      fontWeight: 700, cursor: 'pointer', fontSize: 14,
-                    }}
+                    className="pf-btn-add-client"
+                    style={{ marginTop: 14 }}
                   >
                     ➕ Adicionar Cliente
                   </button>
@@ -2878,7 +2848,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
           title="Excluir Cliente"
           message={`Tem certeza que deseja excluir o cliente "${confirmDeleteClient.name ?? confirmDeleteId}"?\nEsta ação não pode ser desfeita.`}
           confirmLabel={deleting ? 'Excluindo…' : 'Confirmar exclusão'}
-          confirmColor="#ef4444"
+          variant="danger"
           onConfirm={() => void handleInlineDelete(confirmDeleteId)}
           onCancel={() => setConfirmDeleteId(null)}
         />
