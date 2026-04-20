@@ -22,6 +22,7 @@ import {
   fetchPortfolioNotes,
   addPortfolioNote,
 } from '../services/clientPortfolioApi'
+import { formatCurrencyBRL } from '../utils/formatters'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
@@ -727,7 +728,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <div style={{ fontSize: 13 }}>
               <span className="pf-label" style={{ display: 'block', marginBottom: 2 }}>Valor do Sistema Fotovoltaico</span>
               <strong style={{ color: 'var(--text-primary, #f8fafc)' }}>
-                {client.valordemercado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {formatCurrencyBRL(client.valordemercado)}
               </strong>
               <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 6 }}>(Preço Ideal da Análise Financeira)</span>
             </div>
