@@ -1,4 +1,5 @@
 import { resolveApiUrl } from '../../utils/apiUrl'
+import { getAccessTokenForFetch } from '../../lib/auth/fetchWithStackAuth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -57,13 +58,32 @@ export async function apiFetch<TResponse = unknown>(path: string, options: ApiFe
   }
 
   const targetUrl = resolveApiUrl(path)
+
+  // Inject Stack Auth Bearer token when available.
+  // This is the primary auth mechanism in production (Vercel) where
+  // AUTH_COOKIE_SECRET is not configured and session cookies are absent.
+  const accessToken = await getAccessTokenForFetch()
+  if (accessToken) {
+    headers.set('x-stack-access-token', accessToken)
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+  }
+
   const response = await fetch(targetUrl, init)
   const contentType = response.headers.get('content-type')
   const isJson = contentType && contentType.includes('application/json')
   const payload = isJson ? await response.json().catch(() => null) : null
 
   if (!response.ok) {
-    const message = (payload as { error?: string } | null)?.error ?? `Erro HTTP ${response.status}`
+    const errPayload = payload as { error?: string | { message?: string } } | null
+    const rawError = errPayload?.error
+    const message =
+      typeof rawError === 'string'
+        ? rawError
+        : typeof rawError === 'object' && rawError !== null && typeof rawError.message === 'string'
+          ? rawError.message
+          : `Erro HTTP ${response.status}`
     throw buildApiError(message, response.status, payload)
   }
 
