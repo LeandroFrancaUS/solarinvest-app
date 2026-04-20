@@ -462,7 +462,7 @@ export async function bootstrapProjectFinancialStructure(sql, proposalId, userId
 
 function inferProjectKind(proposal) {
   const t = String(proposal.proposal_type || '').toLowerCase()
-  if (t.includes('lease') || t.includes('leasing') || t === 'leasing') return 'leasing'
+  if (t.includes('lease') || t.includes('leasing')) return 'leasing'
   if (t.includes('venda') || t.includes('sale')) return 'sale'
   if (t.includes('buyout')) return 'buyout'
   // Default to sale when ambiguous — operator can change later.

@@ -150,6 +150,9 @@ ALTER TABLE financial_entries
                             REFERENCES project_financial_items(id) ON DELETE SET NULL;
 
 -- Allow 'partial' as a status value (existing CHECK only allows 5 values).
+-- Note: scripts/run-migrations.js wraps each .sql file in a single transaction,
+-- so the DROP + ADD CONSTRAINT pair below is atomic — the table is never left
+-- without the status check constraint.
 DO $$
 BEGIN
   IF EXISTS (

@@ -257,10 +257,7 @@ function EntryForm({ entry, categories, templates, onSave, onClose, isSaving }: 
   }, [templates, form.entry_type, form.project_kind])
 
   const applyTemplate = useCallback((templateId: string) => {
-    if (!templateId) {
-      setForm((prev) => ({ ...prev, project_financial_item_id: null }))
-      return
-    }
+    if (!templateId) return
     const tpl = templates.find((t) => t.id === templateId)
     if (!tpl) return
     setForm((prev) => ({
