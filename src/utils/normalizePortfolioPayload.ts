@@ -27,7 +27,7 @@ import type { PortfolioClientRow, ContractAttachment } from '../types/clientPort
 
 /** Shape of the raw API row (superset — may contain aliases + metadata blob). */
 interface RawPortfolioRow extends Partial<PortfolioClientRow> {
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown> | null
   // Aliases produced by the SQL query (usina_* prefixed columns)
   usina_potencia_modulo_wp?: number | null
   usina_numero_modulos?: number | null
@@ -85,6 +85,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
   const base: PortfolioClientRow = {
     id: raw.id!,
     name: raw.name ?? null,
+    metadata: raw.metadata ?? null,
     email: raw.email ?? null,
     phone: raw.phone ?? null,
     city: raw.city ?? null,

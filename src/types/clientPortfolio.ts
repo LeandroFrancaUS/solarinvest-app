@@ -4,6 +4,8 @@
 export interface PortfolioClientRow {
   id: number
   name: string | null
+  /** Raw metadata JSONB from clients table. Used internally by auto-fill to read/write `autoFilled` flag. */
+  metadata?: Record<string, unknown> | null
   email: string | null
   phone: string | null
   city: string | null
