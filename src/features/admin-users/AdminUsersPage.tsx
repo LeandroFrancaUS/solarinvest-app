@@ -1,14 +1,18 @@
 // src/features/admin-users/AdminUsersPage.tsx
 // Admin panel for managing user access to SolarInvest.
 // Only accessible to users with role=admin and approved access.
+// Tabs: Usuários | Consultores | Engenheiros | Instaladores
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAdminUsers, createUser } from '../../services/auth/admin-users'
 import { AdminUsersTable } from './AdminUsersTable'
+import { ConsultantsTab, EngineersTab, InstallersTab } from './PersonnelManagementTab'
 import type { AdminUser, StackPermission, CreateUserRequest } from '../../lib/auth/access-types'
 import { ALL_STACK_PERMISSIONS, stackPermissionLabel } from '../../lib/auth/access-mappers'
 
 const PAGE_SIZE = 20
+
+type AdminTab = 'users' | 'consultants' | 'engineers' | 'installers'
 
 interface Props {
   onBack?: () => void
@@ -148,9 +152,9 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
   )
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// ── Users sub-panel ────────────────────────────────────────────────────────────
 
-export function AdminUsersPage({ onBack }: Props) {
+function UsersPanel({ onShowAddModal }: { onShowAddModal: () => void }) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [pages, setPages] = useState(1)
@@ -159,7 +163,6 @@ export function AdminUsersPage({ onBack }: Props) {
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadUsers = useCallback(async (currentPage: number, currentSearch: string) => {
@@ -201,61 +204,36 @@ export function AdminUsersPage({ onBack }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      {showAddModal && (
-        <AddUserModal
-          onClose={() => setShowAddModal(false)}
-          onCreated={handleRefresh}
-        />
-      )}
-
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Gerencie o acesso dos usuários ao SolarInvest. Total: <strong>{total}</strong> usuário(s).
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <input
+              type="search"
+              placeholder="Buscar por nome ou e-mail..."
+              value={searchInput}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+            />
+            <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </div>
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
-            className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
           >
-            ＋ Adicionar Usuário
+            {loading ? 'Atualizando...' : 'Atualizar'}
           </button>
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              Voltar
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
-          <input
-            type="search"
-            placeholder="Buscar por nome ou e-mail..."
-            value={searchInput}
-            onChange={(e) => handleSearchInputChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-          />
-          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
         </div>
         <button
           type="button"
-          onClick={handleRefresh}
-          disabled={loading}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          onClick={onShowAddModal}
+          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
         >
-          {loading ? 'Atualizando...' : 'Atualizar'}
+          ＋ Adicionar Usuário
         </button>
       </div>
 
@@ -269,9 +247,7 @@ export function AdminUsersPage({ onBack }: Props) {
 
       {pages > 1 && (
         <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-          <span>
-            Página {page} de {pages}
-          </span>
+          <span>Página {page} de {pages} — {total} usuário(s)</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -292,6 +268,78 @@ export function AdminUsersPage({ onBack }: Props) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+const TABS: { id: AdminTab; label: string; emoji: string }[] = [
+  { id: 'users',       label: 'Usuários',     emoji: '👤' },
+  { id: 'consultants', label: 'Consultores',  emoji: '🤝' },
+  { id: 'engineers',   label: 'Engenheiros',  emoji: '⚙️' },
+  { id: 'installers',  label: 'Instaladores', emoji: '🔧' },
+]
+
+export function AdminUsersPage({ onBack }: Props) {
+  const [activeTab, setActiveTab] = useState<AdminTab>('users')
+  const [showAddModal, setShowAddModal] = useState(false)
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      {showAddModal && (
+        <AddUserModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={() => { /* UsersPanel has its own refresh */ }}
+        />
+      )}
+
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Gerencie usuários, consultores, engenheiros e instaladores.
+          </p>
+        </div>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Voltar
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-6 border-b border-slate-200">
+        <nav className="flex gap-1" aria-label="Tabs de gestão">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`inline-flex items-center gap-1.5 rounded-t-lg border border-b-0 px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-slate-200 bg-white text-amber-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <span>{tab.emoji}</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'users' && (
+        <UsersPanel onShowAddModal={() => setShowAddModal(true)} />
+      )}
+      {activeTab === 'consultants' && <ConsultantsTab />}
+      {activeTab === 'engineers' && <EngineersTab />}
+      {activeTab === 'installers' && <InstallersTab />}
     </div>
   )
 }

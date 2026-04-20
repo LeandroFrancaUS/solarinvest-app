@@ -1,7 +1,6 @@
-// server/routes/consultants.js
-// CRUD endpoints for /api/consultants
+// server/routes/installers.js
+// CRUD endpoints for /api/installers
 // Accessible to admin (write) and privileged users (read).
-// The consultants table is a dedicated entity distinct from app user accounts.
 
 import { resolveActor } from '../proposals/permissions.js'
 
@@ -13,7 +12,7 @@ function requireAdmin(actor, sendJson) {
     return false
   }
   if (!actor.isAdmin) {
-    sendJson(403, { error: { code: 'FORBIDDEN', message: 'Apenas administradores podem gerenciar consultores.' } })
+    sendJson(403, { error: { code: 'FORBIDDEN', message: 'Apenas administradores podem gerenciar instaladores.' } })
     return false
   }
   return true
@@ -31,11 +30,11 @@ function requireReadAccess(actor, sendJson) {
   return true
 }
 
-function validateConsultantBody(body, requireCode = true) {
+function validateInstallerBody(body, requireCode = true) {
   const errors = []
   if (requireCode) {
-    if (!body.consultant_code || !CODE_REGEX.test(body.consultant_code)) {
-      errors.push('consultant_code deve ter exatamente 4 caracteres alfanuméricos.')
+    if (!body.installer_code || !CODE_REGEX.test(body.installer_code)) {
+      errors.push('installer_code deve ter exatamente 4 caracteres alfanuméricos.')
     }
   }
   if (!body.full_name || !String(body.full_name).trim()) {
@@ -47,29 +46,22 @@ function validateConsultantBody(body, requireCode = true) {
   if (!body.email || !String(body.email).trim()) {
     errors.push('E-mail é obrigatório.')
   }
-  const regions = body.regions
-  if (!Array.isArray(regions) || regions.length === 0) {
-    errors.push('Ao menos uma região (UF) é obrigatória.')
-  }
   return errors
 }
 
 /**
- * GET /api/consultants
- * Lists all consultants. Optional ?active=true to return only active.
- * Privileged access (admin, office, financeiro).
+ * GET /api/installers
+ * Lists all installers. Optional ?active=true to return only active.
  */
-export async function handleConsultantsListRequest(req, res, { sendJson, getScopedSql, url }) {
+export async function handleInstallersListRequest(req, res, { sendJson, getScopedSql, url }) {
   const actor = await resolveActor(req)
   if (!requireReadAccess(actor, sendJson)) return
 
-  // Fallback for environments where consultants table may not yet exist
-  // (migration 0040 not applied). Returns empty array gracefully.
   let sql
   try {
     sql = await getScopedSql(actor)
   } catch {
-    sendJson(200, { consultants: [] })
+    sendJson(200, { installers: [] })
     return
   }
 
@@ -80,36 +72,35 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, consultant_code, full_name, phone, email, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
+          SELECT id, installer_code, full_name, phone, email, linked_user_id,
+                 is_active, created_at, updated_at, created_by_user_id
+          FROM public.installers
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, consultant_code, full_name, phone, email, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
+          SELECT id, installer_code, full_name, phone, email, linked_user_id,
+                 is_active, created_at, updated_at, created_by_user_id
+          FROM public.installers
           ORDER BY LOWER(full_name) ASC
         `
   } catch (err) {
-    // consultants table does not exist yet → return empty list
     if (err?.code === '42P01') {
-      sendJson(200, { consultants: [] })
+      sendJson(200, { installers: [] })
       return
     }
     throw err
   }
 
-  console.info('[consultants][list]', { count: rows.length, activeOnly })
-  sendJson(200, { consultants: rows })
+  console.info('[installers][list]', { count: rows.length, activeOnly })
+  sendJson(200, { installers: rows })
 }
 
 /**
- * POST /api/consultants
- * Creates a new consultant. Admin only.
+ * POST /api/installers
+ * Creates a new installer. Admin only.
  */
-export async function handleConsultantsCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
+export async function handleInstallersCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
@@ -121,7 +112,7 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const errors = validateConsultantBody(body)
+  const errors = validateInstallerBody(body)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
@@ -131,26 +122,23 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   // Check code uniqueness
   const existing = await sql`
-    SELECT id FROM public.consultants WHERE consultant_code = ${body.consultant_code}
+    SELECT id FROM public.installers WHERE installer_code = ${body.installer_code}
   `
   if (existing.length > 0) {
-    sendJson(409, { error: { code: 'DUPLICATE_CODE', message: `Código ${body.consultant_code} já está em uso.` } })
+    sendJson(409, { error: { code: 'DUPLICATE_CODE', message: `Código ${body.installer_code} já está em uso.` } })
     return
   }
 
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
-
   const rows = await sql`
-    INSERT INTO public.consultants (
-      consultant_code, full_name, phone, email, regions,
+    INSERT INTO public.installers (
+      installer_code, full_name, phone, email,
       linked_user_id, is_active, created_by_user_id, updated_by_user_id,
       created_at, updated_at
     ) VALUES (
-      ${body.consultant_code},
+      ${body.installer_code},
       ${String(body.full_name).trim()},
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
-      ${sql.array(regions)},
       ${body.linked_user_id ?? null},
       true,
       ${actor.userId ?? null},
@@ -160,15 +148,15 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     RETURNING *
   `
 
-  console.info('[consultants][create]', { id: rows[0]?.id, code: body.consultant_code })
-  sendJson(201, { consultant: rows[0] })
+  console.info('[installers][create]', { id: rows[0]?.id, code: body.installer_code })
+  sendJson(201, { installer: rows[0] })
 }
 
 /**
- * PUT /api/consultants/:id
- * Updates an existing consultant. Admin only.
+ * PUT /api/installers/:id
+ * Updates an existing installer. Admin only.
  */
-export async function handleConsultantsUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId }) {
+export async function handleInstallersUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, installerId }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
@@ -180,61 +168,59 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const errors = validateConsultantBody(body, false)
+  const errors = validateInstallerBody(body, false)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
   }
 
   const sql = await getScopedSql(actor)
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
 
   const rows = await sql`
-    UPDATE public.consultants SET
+    UPDATE public.installers SET
       full_name          = ${String(body.full_name).trim()},
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
-      regions            = ${sql.array(regions)},
       linked_user_id     = ${body.linked_user_id ?? null},
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
-    WHERE id = ${consultantId}
+    WHERE id = ${installerId}
     RETURNING *
   `
 
   if (rows.length === 0) {
-    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Instalador não encontrado.' } })
     return
   }
 
-  console.info('[consultants][update]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  console.info('[installers][update]', { id: installerId })
+  sendJson(200, { installer: rows[0] })
 }
 
 /**
- * PATCH /api/consultants/:id/deactivate
- * Soft-deletes (deactivates) a consultant. Admin only.
+ * PATCH /api/installers/:id/deactivate
+ * Soft-deletes (deactivates) an installer. Admin only.
  */
-export async function handleConsultantsDeactivateRequest(req, res, { sendJson, getScopedSql, consultantId }) {
+export async function handleInstallersDeactivateRequest(req, res, { sendJson, getScopedSql, installerId }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
   const sql = await getScopedSql(actor)
 
   const rows = await sql`
-    UPDATE public.consultants SET
+    UPDATE public.installers SET
       is_active          = false,
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
-    WHERE id = ${consultantId}
+    WHERE id = ${installerId}
     RETURNING *
   `
 
   if (rows.length === 0) {
-    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Instalador não encontrado.' } })
     return
   }
 
-  console.info('[consultants][deactivate]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  console.info('[installers][deactivate]', { id: installerId })
+  sendJson(200, { installer: rows[0] })
 }
