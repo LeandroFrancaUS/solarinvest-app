@@ -27,23 +27,30 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 12000)
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
     ...(await authHeaders()),
   }
-  const res = await fetch(url, { ...options, headers })
-  if (!res.ok) {
-    const body: unknown = await res.json().catch(() => ({}))
-    const msg =
-      (body as { error?: { message?: string } | string })?.error instanceof Object
-        ? (body as { error: { message?: string } }).error.message ?? `HTTP ${res.status}`
-        : typeof (body as { error?: string }).error === 'string'
-          ? (body as { error: string }).error
-          : `HTTP ${res.status}`
-    throw new Error(msg)
+  try {
+    const res = await fetch(url, { ...options, headers, signal: controller.signal })
+    if (!res.ok) {
+      const body: unknown = await res.json().catch(() => ({}))
+      const msg =
+        (body as { error?: { message?: string } | string })?.error instanceof Object
+          ? (body as { error: { message?: string } }).error.message ?? `HTTP ${res.status}`
+          : typeof (body as { error?: string }).error === 'string'
+            ? (body as { error: string }).error
+            : `HTTP ${res.status}`
+      throw new Error(msg)
+    }
+    return res.json() as Promise<T>
+  } finally {
+    clearTimeout(timeoutId)
   }
-  return res.json() as Promise<T>
 }
 
 function buildUrl(path: string, params?: Record<string, string | undefined>): string {

@@ -179,6 +179,13 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
       : EMPTY_ENTRY,
   )
 
+  useEffect(() => {
+    console.info('[financial-ui] entry form mounted', { editing: !!entry })
+    return () => {
+      console.info('[financial-ui] entry form unmounted')
+    }
+  }, [entry])
+
   const expenseCategories = useMemo(
     () => categories.filter((c) => c.type === 'expense' || c.type === 'both'),
     [categories],
@@ -196,6 +203,7 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
+      console.info('[financial-ui] entry form submit', { entry_type: form.entry_type, amount: form.amount })
       await onSave(form)
     },
     [form, onSave],
@@ -412,9 +420,9 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
   const [kindFilter, setKindFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
 
-  if (error) return <SectionError message={error} onRetry={onRetry} />
-
+  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const filtered = useMemo(() => {
+    if (error) return []
     return projects.filter((p) => {
       if (kindFilter && p.project_kind !== kindFilter) return false
       if (statusFilter && p.status !== statusFilter) return false
@@ -428,7 +436,9 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
       }
       return true
     })
-  }, [projects, search, kindFilter, statusFilter])
+  }, [projects, search, kindFilter, statusFilter, error])
+
+  if (error) return <SectionError message={error} onRetry={onRetry} />
 
   return (
     <div className="fm-projects">
@@ -679,8 +689,8 @@ function EntriesTab({ entries, error, onRetry, categories, onNew, onEdit, onDele
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
-  if (error) return <SectionError message={error} onRetry={onRetry} />
-  const leasingProjects = useMemo(() => projects.filter((p) => p.project_kind === 'leasing'), [projects])
+  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
+  const leasingProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'leasing')), [projects, error])
 
   const totals = useMemo(() => {
     const totalMrr = leasingProjects.reduce((sum, p) => sum + (p.monthly_revenue ?? 0), 0)
@@ -694,6 +704,8 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
       : null
     return { totalMrr, totalProjectedRevenue, totalCapex, avgRoi, avgPayback }
   }, [leasingProjects])
+
+  if (error) return <SectionError message={error} onRetry={onRetry} />
 
   return (
     <div className="fm-leasing">
@@ -750,8 +762,8 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
-  if (error) return <SectionError message={error} onRetry={onRetry} />
-  const saleProjects = useMemo(() => projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout'), [projects])
+  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
+  const saleProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout')), [projects, error])
 
   const totals = useMemo(() => {
     const totalRevenue = saleProjects.reduce((sum, p) => sum + (p.realized_revenue ?? p.projected_revenue ?? 0), 0)
@@ -763,6 +775,8 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
     const ticketMedio = saleProjects.length > 0 ? totalRevenue / saleProjects.length : null
     return { totalRevenue, totalCapex, totalProfit, avgMargin, ticketMedio }
   }, [saleProjects])
+
+  if (error) return <SectionError message={error} onRetry={onRetry} />
 
   return (
     <div className="fm-sales">
@@ -933,6 +947,7 @@ export function FinancialManagementPage({ onBack }: Props) {
   }, [loadData])
 
   const handleNewEntry = useCallback(() => {
+    console.info('[financial-ui] new entry click')
     setEditingEntry(null)
     setShowEntryForm(true)
   }, [])
