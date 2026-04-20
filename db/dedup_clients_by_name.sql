@@ -448,8 +448,12 @@ BEGIN;
 --   + documento válido (5) + email válido (3) + telefone válido (2)
 -- ============================================================================================================================
 
+-- Limpeza defensiva: remover tabelas temporárias de sessões anteriores, se existirem.
+DROP TABLE IF EXISTS _duplicate_map;
+DROP TABLE IF EXISTS _client_strength_scores;
+
 -- C1) Tabela temporária de scores por cliente duplicado
-CREATE TEMP TABLE IF NOT EXISTS _client_strength_scores ON COMMIT DROP AS
+CREATE TEMP TABLE IF NOT EXISTS _client_strength_scores AS
 WITH valid_dup_names AS (
   -- Apenas nomes normalizados que aparecem em mais de 1 cliente ativo e válido
   SELECT lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS normalized_name
@@ -495,7 +499,7 @@ CREATE INDEX ON _client_strength_scores (normalized_name, strength_score DESC, u
 
 
 -- C2) Tabela temporária do mapa canônico ↔ duplicado
-CREATE TEMP TABLE IF NOT EXISTS _duplicate_map ON COMMIT DROP AS
+CREATE TEMP TABLE IF NOT EXISTS _duplicate_map AS
 WITH ranked AS (
   SELECT
     client_id,
@@ -1227,6 +1231,10 @@ ORDER BY c.in_portfolio DESC, c.id;
 -- ============================================================================================================================
 
 COMMIT;
+
+-- Limpeza das tabelas temporárias da sessão após o commit.
+DROP TABLE IF EXISTS _duplicate_map;
+DROP TABLE IF EXISTS _client_strength_scores;
 
 
 -- ============================================================================================================================
