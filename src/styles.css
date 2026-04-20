@@ -24,6 +24,12 @@
   --ds-danger-hover: #e03031;
   --ds-warning: #F59E0B;
   --ds-input-bg: #0F2747;
+  --ds-primary-soft: rgba(45, 140, 255, 0.15);
+  --ds-danger-ring: rgba(255, 77, 79, 0.4);
+  --ds-ghost: rgba(255, 255, 255, 0.06);
+  --ds-ghost-hover: rgba(255, 255, 255, 0.12);
+  --ds-table-header: rgba(31, 61, 102, 0.6);
+  --ds-table-hover: rgba(45, 140, 255, 0.08);
 
   /* ── Tokens de contraste semânticos (WCAG AA/AAA) ────────── */
   --color-bg-primary: #0A1A2F;
@@ -140,6 +146,12 @@ body {
   --ds-text-muted: #64748b;
   --ds-primary: #2D8CFF;
   --ds-input-bg: #ffffff;
+  --ds-primary-soft: rgba(45, 140, 255, 0.12);
+  --ds-danger-ring: rgba(255, 77, 79, 0.3);
+  --ds-ghost: rgba(15, 23, 42, 0.04);
+  --ds-ghost-hover: rgba(15, 23, 42, 0.08);
+  --ds-table-header: rgba(15, 23, 42, 0.04);
+  --ds-table-hover: rgba(45, 140, 255, 0.06);
 
   --color-bg-primary: #f8fafc;
   --color-bg-secondary: #ffffff;
@@ -235,6 +247,12 @@ body {
   --ds-danger-hover: #e03031;
   --ds-warning: #F59E0B;
   --ds-input-bg: #0A1828;
+  --ds-primary-soft: rgba(232, 148, 42, 0.15);
+  --ds-danger-ring: rgba(255, 77, 79, 0.4);
+  --ds-ghost: rgba(255, 251, 242, 0.06);
+  --ds-ghost-hover: rgba(255, 251, 242, 0.12);
+  --ds-table-header: rgba(29, 58, 92, 0.6);
+  --ds-table-hover: rgba(232, 148, 42, 0.08);
 
   --color-bg-primary: #0D1B2A;
   --color-bg-secondary: #112233;

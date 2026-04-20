@@ -93,7 +93,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-ds-text-muted transition-colors hover:bg-white/10 hover:text-ds-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-ds-text-muted transition-colors hover:bg-ds-ghost-hover hover:text-ds-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-primary"
             aria-label="Fechar"
           >
             ✕

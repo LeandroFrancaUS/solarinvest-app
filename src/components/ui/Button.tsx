@@ -1,13 +1,13 @@
 /**
  * Button — Componente de botão padronizado do Design System SolarInvest
  *
- * Variantes: primary | success | danger | ghost
+ * Variantes: primary | secondary | success | danger | ghost
  * Tamanhos: sm | md (padrão) | lg
  */
 
 import React from 'react'
 
-export type ButtonVariant = 'primary' | 'success' | 'danger' | 'ghost'
+export type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'ghost'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -22,12 +22,14 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
     'bg-ds-primary hover:bg-ds-primary-hover text-white border border-transparent shadow-md',
+  secondary:
+    'bg-transparent border border-ds-border text-ds-text-primary hover:bg-ds-surface-hover',
   success:
     'bg-ds-success hover:bg-ds-success-hover text-white border border-transparent shadow-md',
   danger:
     'bg-ds-danger hover:bg-ds-danger-hover text-white border border-transparent shadow-md',
   ghost:
-    'bg-transparent hover:bg-white/10 text-ds-text-secondary hover:text-ds-text-primary border border-ds-border hover:border-ds-primary/40',
+    'bg-transparent hover:bg-ds-ghost-hover text-ds-text-secondary hover:text-ds-text-primary border border-ds-border hover:border-ds-primary',
 }
 
 const sizeStyles: Record<ButtonSize, string> = {

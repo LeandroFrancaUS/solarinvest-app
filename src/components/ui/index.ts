@@ -4,7 +4,7 @@
  * Importe todos os componentes padronizados a partir deste arquivo.
  *
  * @example
- * import { Button, Card, Badge, Input, Table, Modal } from '@/components/ui'
+ * import { Button, Card, Badge, Input, Table, Modal, FormField, Toggle } from '@/components/ui'
  */
 
 export { Button } from './Button'
@@ -24,3 +24,11 @@ export type { TableProps, TableColumn } from './Table'
 
 export { Modal } from './Modal'
 export type { ModalProps } from './Modal'
+
+export { FormField } from './FormField'
+export type { FormFieldProps } from './FormField'
+
+export { Toggle } from './Toggle'
+export type { ToggleProps, ToggleOption } from './Toggle'
+
+export { Switch } from './switch'
