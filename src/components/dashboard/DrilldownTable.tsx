@@ -46,30 +46,30 @@ export function DrilldownTable({ records }: Props) {
   const arrow = (key: SortKey) => (sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '')
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-700">Detalhamento</h3>
-        <span className="text-xs text-slate-400">{records.length} registros</span>
+    <div className="rounded-xl border border-ds-border bg-ds-surface shadow-sm">
+      <div className="flex items-center justify-between border-b border-ds-border px-4 py-3">
+        <h3 className="text-sm font-semibold text-ds-text-primary">Detalhamento</h3>
+        <span className="text-xs text-ds-text-muted">{records.length} registros</span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500">
+          <thead className="border-b border-ds-border bg-ds-background/40 text-xs font-semibold uppercase tracking-wide text-ds-text-muted">
             <tr>
-              <th className="cursor-pointer px-4 py-2" onClick={() => toggleSort('consultant')}>
+              <th className="cursor-pointer px-4 py-2 hover:text-ds-text-primary transition-colors" onClick={() => toggleSort('consultant')}>
                 Consultor{arrow('consultant')}
               </th>
-              <th className="cursor-pointer px-4 py-2" onClick={() => toggleSort('city')}>
+              <th className="cursor-pointer px-4 py-2 hover:text-ds-text-primary transition-colors" onClick={() => toggleSort('city')}>
                 Cidade{arrow('city')}
               </th>
               <th className="px-4 py-2">UF</th>
-              <th className="cursor-pointer px-4 py-2 text-right" onClick={() => toggleSort('contractValue')}>
+              <th className="cursor-pointer px-4 py-2 text-right hover:text-ds-text-primary transition-colors" onClick={() => toggleSort('contractValue')}>
                 Valor{arrow('contractValue')}
               </th>
-              <th className="cursor-pointer px-4 py-2 text-right" onClick={() => toggleSort('consumption')}>
+              <th className="cursor-pointer px-4 py-2 text-right hover:text-ds-text-primary transition-colors" onClick={() => toggleSort('consumption')}>
                 Consumo{arrow('consumption')}
               </th>
-              <th className="cursor-pointer px-4 py-2" onClick={() => toggleSort('closedAt')}>
+              <th className="cursor-pointer px-4 py-2 hover:text-ds-text-primary transition-colors" onClick={() => toggleSort('closedAt')}>
                 Fechamento{arrow('closedAt')}
               </th>
               <th className="px-4 py-2">Status</th>
@@ -77,7 +77,7 @@ export function DrilldownTable({ records }: Props) {
           </thead>
           <tbody>
             {pageData.map((r) => (
-              <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+              <tr key={r.id} className="border-b border-ds-border/40 text-ds-text-secondary transition-colors hover:bg-ds-surface-hover/60">
                 <td className="px-4 py-2">{r.consultant ?? '—'}</td>
                 <td className="px-4 py-2">{r.city ?? '—'}</td>
                 <td className="px-4 py-2">{r.state ?? '—'}</td>
@@ -91,16 +91,16 @@ export function DrilldownTable({ records }: Props) {
                     ? `${r.consumption.toLocaleString('pt-BR')} kWh`
                     : '—'}
                 </td>
-                <td className="px-4 py-2 text-slate-500">
+                <td className="px-4 py-2 text-ds-text-muted">
                   {r.closedAt ? new Date(r.closedAt).toLocaleDateString('pt-BR') : '—'}
                 </td>
                 <td className="px-4 py-2">
                   {r.isClosed ? (
-                    <span className="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <span className="inline-block rounded-full bg-ds-success/15 border border-ds-success/30 px-2 py-0.5 text-xs font-medium text-ds-success">
                       Fechado
                     </span>
                   ) : (
-                    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                    <span className="inline-block rounded-full bg-white/5 border border-ds-border px-2 py-0.5 text-xs font-medium text-ds-text-muted">
                       Aberto
                     </span>
                   )}
@@ -109,7 +109,7 @@ export function DrilldownTable({ records }: Props) {
             ))}
             {pageData.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={7} className="px-4 py-10 text-center text-ds-text-muted">
                   Nenhum registro encontrado
                 </td>
               </tr>
@@ -119,23 +119,23 @@ export function DrilldownTable({ records }: Props) {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
+        <div className="flex items-center justify-between border-t border-ds-border px-4 py-2">
           <button
             type="button"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="text-xs text-emerald-600 disabled:text-slate-300"
+            className="cursor-pointer text-xs text-ds-primary hover:text-ds-primary-hover transition-colors disabled:text-ds-text-muted disabled:cursor-not-allowed"
           >
             ← Anterior
           </button>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-ds-text-muted">
             Página {page + 1} de {totalPages}
           </span>
           <button
             type="button"
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            className="text-xs text-emerald-600 disabled:text-slate-300"
+            className="cursor-pointer text-xs text-ds-primary hover:text-ds-primary-hover transition-colors disabled:text-ds-text-muted disabled:cursor-not-allowed"
           >
             Próxima →
           </button>
@@ -144,3 +144,4 @@ export function DrilldownTable({ records }: Props) {
     </div>
   )
 }
+

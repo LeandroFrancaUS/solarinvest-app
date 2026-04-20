@@ -110,7 +110,7 @@ export function DashboardPage() {
   if (loadState === 'idle' || loadState === 'loading') {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-sm text-slate-400">Carregando dashboard…</div>
+        <div className="text-sm text-ds-text-muted">Carregando dashboard…</div>
       </div>
     )
   }
@@ -118,18 +118,18 @@ export function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-800">Dashboard Analítico</h1>
+        <h1 className="text-xl font-bold text-ds-text-primary">Dashboard Analítico</h1>
         <button
           type="button"
           onClick={() => void loadData()}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          className="cursor-pointer rounded-lg border border-ds-border px-3 py-1.5 text-xs text-ds-text-secondary transition-colors hover:border-ds-primary/50 hover:text-ds-primary"
         >
           ↻ Atualizar
         </button>
       </div>
 
       {error && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-700">
+        <div className="rounded-lg border border-ds-warning/30 bg-ds-warning/10 px-4 py-2 text-sm text-ds-warning">
           {error} — exibindo dados parciais.
         </div>
       )}

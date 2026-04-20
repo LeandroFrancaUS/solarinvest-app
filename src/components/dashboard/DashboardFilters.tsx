@@ -32,13 +32,13 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
     arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item]
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-ds-border bg-ds-surface p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         {/* Period selector */}
         <select
           value={filters.period}
           onChange={(e) => update({ period: e.target.value })}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+          className="rounded-lg border border-ds-border bg-ds-input-bg px-3 py-2 text-sm text-ds-text-primary focus:border-ds-primary focus:outline-none focus:ring-1 focus:ring-ds-primary/40"
           aria-label="Período"
         >
           {PERIOD_OPTIONS.map((o) => (
@@ -53,14 +53,14 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
               type="date"
               value={filters.startDate ?? ''}
               onChange={(e) => update({ startDate: e.target.value || null })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-ds-border bg-ds-input-bg px-3 py-2 text-sm text-ds-text-primary focus:border-ds-primary focus:outline-none"
               aria-label="Data inicial"
             />
             <input
               type="date"
               value={filters.endDate ?? ''}
               onChange={(e) => update({ endDate: e.target.value || null })}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="rounded-lg border border-ds-border bg-ds-input-bg px-3 py-2 text-sm text-ds-text-primary focus:border-ds-primary focus:outline-none"
               aria-label="Data final"
             />
           </>
@@ -70,7 +70,7 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="ml-auto text-sm text-emerald-600 hover:text-emerald-700"
+          className="ml-auto cursor-pointer text-sm text-ds-primary hover:text-ds-primary-hover transition-colors"
         >
           {expanded ? 'Menos filtros ▲' : 'Mais filtros ▼'}
         </button>
@@ -82,15 +82,15 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
           {/* Consultants */}
           {availableConsultants.length > 0 && (
             <fieldset>
-              <legend className="mb-1 text-xs font-medium text-slate-500">Consultor</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ds-text-muted">Consultor</legend>
               <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
                 {availableConsultants.map((c) => (
-                  <label key={c} className="flex items-center gap-1.5 text-sm">
+                  <label key={c} className="flex cursor-pointer items-center gap-1.5 text-sm text-ds-text-secondary hover:text-ds-text-primary">
                     <input
                       type="checkbox"
                       checked={filters.consultants.includes(c)}
                       onChange={() => update({ consultants: toggleArrayItem(filters.consultants, c) })}
-                      className="accent-emerald-500"
+                      className="accent-ds-primary"
                     />
                     {c}
                   </label>
@@ -102,15 +102,15 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
           {/* States */}
           {availableStates.length > 0 && (
             <fieldset>
-              <legend className="mb-1 text-xs font-medium text-slate-500">Estado</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ds-text-muted">Estado</legend>
               <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
                 {availableStates.map((s) => (
-                  <label key={s} className="flex items-center gap-1.5 text-sm">
+                  <label key={s} className="flex cursor-pointer items-center gap-1.5 text-sm text-ds-text-secondary hover:text-ds-text-primary">
                     <input
                       type="checkbox"
                       checked={filters.states.includes(s)}
                       onChange={() => update({ states: toggleArrayItem(filters.states, s) })}
-                      className="accent-emerald-500"
+                      className="accent-ds-primary"
                     />
                     {s}
                   </label>
@@ -122,15 +122,15 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
           {/* Regions */}
           {availableRegions.length > 0 && (
             <fieldset>
-              <legend className="mb-1 text-xs font-medium text-slate-500">Região</legend>
+              <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ds-text-muted">Região</legend>
               <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">
                 {availableRegions.map((r) => (
-                  <label key={r} className="flex items-center gap-1.5 text-sm">
+                  <label key={r} className="flex cursor-pointer items-center gap-1.5 text-sm text-ds-text-secondary hover:text-ds-text-primary">
                     <input
                       type="checkbox"
                       checked={filters.regions.includes(r)}
                       onChange={() => update({ regions: toggleArrayItem(filters.regions, r) })}
-                      className="accent-emerald-500"
+                      className="accent-ds-primary"
                     />
                     {r}
                   </label>
@@ -141,23 +141,23 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
 
           {/* Value range */}
           <fieldset>
-            <legend className="mb-1 text-xs font-medium text-slate-500">Valor (R$)</legend>
+            <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-ds-text-muted">Valor (R$)</legend>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 placeholder="Mín"
                 value={filters.minValue ?? ''}
                 onChange={(e) => update({ minValue: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                className="w-24 rounded-lg border border-ds-border bg-ds-input-bg px-2 py-1.5 text-sm text-ds-text-primary placeholder-ds-text-muted focus:border-ds-primary focus:outline-none"
                 aria-label="Valor mínimo"
               />
-              <span className="text-slate-400">–</span>
+              <span className="text-ds-text-muted">–</span>
               <input
                 type="number"
                 placeholder="Máx"
                 value={filters.maxValue ?? ''}
                 onChange={(e) => update({ maxValue: e.target.value ? Number(e.target.value) : null })}
-                className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                className="w-24 rounded-lg border border-ds-border bg-ds-input-bg px-2 py-1.5 text-sm text-ds-text-primary placeholder-ds-text-muted focus:border-ds-primary focus:outline-none"
                 aria-label="Valor máximo"
               />
             </div>
@@ -167,3 +167,4 @@ export function DashboardFiltersPanel({ filters, onChange, availableConsultants,
     </div>
   )
 }
+

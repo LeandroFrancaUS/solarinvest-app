@@ -1,16 +1,16 @@
-/* === TOKENS DE COR (alto contraste) === */
+/* === TOKENS DE COR (dark navy) === */
 :root {
-  --cfg-bg: #f8fafc;
-  --cfg-surface: #ffffff;
-  --cfg-border: #e5e7eb;
-  --cfg-text: #0f172a;
-  --cfg-muted: #475569;
-  --cfg-subtle: #64748b;
-  --cfg-accent: #0d47a1;
+  --cfg-bg: #0B1F3A;
+  --cfg-surface: #122B4A;
+  --cfg-border: #1F3D66;
+  --cfg-text: #FFFFFF;
+  --cfg-muted: #A8C1E0;
+  --cfg-subtle: #6B8BB5;
+  --cfg-accent: #2D8CFF;
   --cfg-accent-contrast: #ffffff;
-  --cfg-accent-soft: #e8f0fe;
-  --cfg-focus: #2563eb;
-  --cfg-danger: #b91c1c;
+  --cfg-accent-soft: rgba(45, 140, 255, 0.15);
+  --cfg-focus: #2D8CFF;
+  --cfg-danger: #FF4D4F;
 }
 
 /* === RESET LOCAL PARA EVITAR FOG/FROSTED NESTA PÁGINA === */
@@ -47,8 +47,8 @@
   --accent-strong: var(--cfg-accent);
   --accent-dark: var(--cfg-accent);
   --accent-soft: var(--cfg-accent-soft);
-  --input-bg: #ffffff;
-  --input-placeholder: #9ca3af;
+  --input-bg: #0F2747;
+  --input-placeholder: #6B8BB5;
 }
 
 .config-card {

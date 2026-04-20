@@ -21,7 +21,7 @@ type CardDef = {
   label: string
   value: string
   icon: string
-  color: string
+  accent: string
 }
 
 export function KpiCards({ kpis }: Props) {
@@ -30,43 +30,43 @@ export function KpiCards({ kpis }: Props) {
       label: 'Contratos Fechados',
       value: formatNumber(kpis.closedContracts),
       icon: '📄',
-      color: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+      accent: 'border-ds-success/30 text-ds-success',
     },
     {
       label: 'Clientes Ativos',
       value: formatNumber(kpis.activeClients),
       icon: '👥',
-      color: 'bg-blue-50 border-blue-200 text-blue-800',
+      accent: 'border-ds-primary/30 text-ds-primary',
     },
     {
       label: 'Valor Total Contratado',
       value: formatCurrency(kpis.totalContractValue),
       icon: '💰',
-      color: 'bg-amber-50 border-amber-200 text-amber-800',
+      accent: 'border-ds-warning/30 text-ds-warning',
     },
     {
       label: 'Ticket Médio',
       value: formatCurrency(kpis.averageTicket),
       icon: '🎫',
-      color: 'bg-purple-50 border-purple-200 text-purple-800',
+      accent: 'border-ds-primary/30 text-ds-primary',
     },
     {
       label: 'Consumo Total (kWh)',
       value: formatNumber(kpis.totalConsumption),
       icon: '⚡',
-      color: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+      accent: 'border-ds-warning/30 text-ds-warning',
     },
     {
       label: 'Consumo Médio (kWh)',
       value: formatNumber(kpis.averageConsumption, 1),
       icon: '📊',
-      color: 'bg-cyan-50 border-cyan-200 text-cyan-800',
+      accent: 'border-ds-primary/30 text-ds-primary',
     },
     {
       label: 'Taxa de Conversão',
       value: formatPercent(kpis.conversionRate),
       icon: '📈',
-      color: 'bg-rose-50 border-rose-200 text-rose-800',
+      accent: 'border-ds-success/30 text-ds-success',
     },
   ]
 
@@ -75,13 +75,14 @@ export function KpiCards({ kpis }: Props) {
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-4 shadow-sm ${c.color}`}
+          className={`rounded-xl border bg-ds-surface p-4 shadow-sm transition-colors hover:bg-ds-surface-hover ${c.accent.split(' ')[0]}`}
         >
           <div className="mb-1 text-lg">{c.icon}</div>
-          <div className="text-2xl font-bold">{c.value}</div>
-          <div className="mt-1 text-xs font-medium opacity-70">{c.label}</div>
+          <div className={`text-2xl font-bold ${c.accent.split(' ')[1]}`}>{c.value}</div>
+          <div className="mt-1 text-xs font-medium text-ds-text-muted">{c.label}</div>
         </div>
       ))}
     </div>
   )
 }
+
