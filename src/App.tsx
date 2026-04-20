@@ -330,7 +330,9 @@ import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
+import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
+import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -391,7 +393,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira'
+type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -5296,6 +5298,7 @@ export default function App() {
     canSeeProposals,
     canSeeUsers,
     canSeeDashboard,
+    canSeeFinancialManagement,
   } = useStackRbac()
 
   // Derive a memoized token getter so useAuthSession sends the Bearer header.
@@ -5348,6 +5351,10 @@ export default function App() {
 
   // Carteira de Clientes: admin | office | financeiro
   const canSeePortfolioEffective = isAdmin || isOffice || isFinanceiro
+
+  // Gestão Financeira: requires explicit page_financial_management permission or admin
+  const canSeeFinancialManagementEffective =
+    isAdmin || canSeeFinancialManagement || hasAuthzPermission('page_financial_management')
 
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
@@ -5420,6 +5427,7 @@ export default function App() {
     setClientsTokenProvider(getAccessToken)
     setAdminUsersTokenProvider(getAccessToken)
     setPortfolioTokenProvider(getAccessToken)
+    setFinancialManagementTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -5534,7 +5542,8 @@ export default function App() {
       storedPage === 'settings' ||
       storedPage === 'simulacoes' ||
       storedPage === 'admin-users' ||
-      storedPage === 'carteira'
+      storedPage === 'carteira' ||
+      storedPage === 'financial-management'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -5760,8 +5769,10 @@ export default function App() {
       setActivePage('app')
     } else if (activePage === 'carteira' && !canSeePortfolioEffective) {
       setActivePage('app')
+    } else if (activePage === 'financial-management' && !canSeeFinancialManagementEffective) {
+      setActivePage('app')
     }
-  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, canSeePortfolioEffective, isRbacLoading, setActivePage])
+  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, canSeePortfolioEffective, canSeeFinancialManagementEffective, isRbacLoading, setActivePage])
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -20471,6 +20482,13 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeePortfolioEffective])
 
+  const abrirGestaoFinanceira = useCallback(async () => {
+    if (!canSeeFinancialManagementEffective) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('financial-management')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('crm')
@@ -27317,6 +27335,24 @@ export default function App() {
           },
         ]
       : []),
+    ...(canSeeFinancialManagementEffective
+      ? [
+          {
+            id: 'gestao-financeira',
+            label: 'Financeiro',
+            items: [
+              {
+                id: 'gestao-financeira-home',
+                label: 'Gestão Financeira',
+                icon: '💰',
+                onSelect: () => {
+                  void abrirGestaoFinanceira()
+                },
+              },
+            ],
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
           {
@@ -27488,6 +27524,7 @@ export default function App() {
     ...(canSeeClientsEffective ? ['crm-clientes'] : []),
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
+    ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
     ...(isAdmin ? ['config-preferencias'] : []),
     ...(canSeeUsersEffective ? ['config-admin-users'] : []),
     'config-sair',
@@ -29589,6 +29626,10 @@ export default function App() {
                     .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
                 }}
               />
+            : null
+        ) : activePage === 'financial-management' ? (
+          canSeeFinancialManagementEffective
+            ? <FinancialManagementPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
             : null
         ) : (
           <div className="page">

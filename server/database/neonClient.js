@@ -1,17 +1,12 @@
 import { getNeonDatabaseConfig } from './neonConfig.js'
 
 let neonFactory
-let neonConfiguration
 let importError
 let dependencyWarningLogged = false
 
 try {
   const neonModule = await import('@neondatabase/serverless')
   neonFactory = neonModule.neon ?? neonModule.default
-  neonConfiguration = neonModule.neonConfig ?? null
-  if (neonConfiguration) {
-    neonConfiguration.fetchConnectionCache = true
-  }
 } catch (error) {
   importError = error
 }
