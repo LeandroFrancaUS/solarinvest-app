@@ -18,6 +18,8 @@ export type VendaClienteInfo = {
   distribuidora: string
   temIndicacao: boolean
   indicacaoNome: string
+  consultorId: string
+  consultorNome: string
   herdeiros: string[]
   nomeSindico: string
   cpfSindico: string
@@ -137,6 +139,8 @@ const createInitialState = (): VendaState => ({
     distribuidora: '',
     temIndicacao: false,
     indicacaoNome: '',
+    consultorId: '',
+    consultorNome: '',
     herdeiros: [''],
     nomeSindico: '',
     cpfSindico: '',

@@ -116,3 +116,24 @@ export async function deactivateInstaller(id: number): Promise<Installer> {
   )
   return res.installer
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Consultant Picker (any authenticated user)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lightweight consultant entry returned by /api/consultants/picker. */
+export interface ConsultantPickerEntry {
+  id: number
+  full_name: string
+  email: string
+  linked_user_id: string | null
+}
+
+/**
+ * Fetches active consultants for use in the proposal form dropdown.
+ * Accessible to any authenticated user. Does not expose sensitive fields (CPF, etc.).
+ */
+export async function fetchConsultantsForPicker(): Promise<ConsultantPickerEntry[]> {
+  const res = await apiFetch<{ consultants: ConsultantPickerEntry[] }>('/api/consultants/picker')
+  return res.consultants ?? []
+}

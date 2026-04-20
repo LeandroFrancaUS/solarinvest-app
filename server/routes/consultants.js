@@ -3,6 +3,8 @@
 // Accessible to admin (write) and privileged users (read).
 // The consultants table is a dedicated entity distinct from app user accounts.
 // consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
+// GET /api/consultants/picker is accessible to any authenticated user (used by
+// the proposal form to populate the consultant dropdown).
 
 import { resolveActor } from '../proposals/permissions.js'
 
@@ -117,6 +119,47 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   console.info('[consultants][list]', { count: rows.length, activeOnly })
   sendJson(200, { consultants: rows })
 }
+
+/**
+ * GET /api/consultants/picker
+ * Returns a lightweight list of active consultants for use in proposal form dropdowns.
+ * Accessible to any authenticated user (no privileged role required).
+ * Only exposes: id, full_name, email, linked_user_id — no CPF/document.
+ */
+export async function handleConsultantsPickerRequest(req, res, { sendJson, getScopedSql }) {
+  const actor = await resolveActor(req)
+  if (!actor) {
+    sendJson(401, { error: { code: 'UNAUTHENTICATED', message: 'Autenticação necessária.' } })
+    return
+  }
+
+  let sql
+  try {
+    sql = await getScopedSql(actor)
+  } catch {
+    sendJson(200, { consultants: [] })
+    return
+  }
+
+  let rows
+  try {
+    rows = await sql`
+      SELECT id, full_name, email, linked_user_id
+      FROM public.consultants
+      WHERE is_active = true
+      ORDER BY LOWER(full_name) ASC
+    `
+  } catch (err) {
+    if (err?.code === '42P01') {
+      sendJson(200, { consultants: [] })
+      return
+    }
+    throw err
+  }
+
+  sendJson(200, { consultants: rows })
+}
+
 
 /**
  * POST /api/consultants

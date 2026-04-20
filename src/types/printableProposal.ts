@@ -88,6 +88,8 @@ export type ClienteDados = {
   uf: string
   temIndicacao: boolean
   indicacaoNome: string
+  consultorId: string
+  consultorNome: string
   herdeiros: string[]
   nomeSindico: string
   cpfSindico: string

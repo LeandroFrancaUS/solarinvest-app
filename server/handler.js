@@ -70,6 +70,7 @@ import {
   handleConsultantsCreateRequest,
   handleConsultantsUpdateRequest,
   handleConsultantsDeactivateRequest,
+  handleConsultantsPickerRequest,
 } from './routes/consultants.js'
 import {
   handleEngineersListRequest,
@@ -863,8 +864,22 @@ export default async function handler(req, res) {
     }
 
     // ── Consultants API ───────────────────────────────────────────────────────
+    // GET  /api/consultants/picker  — lightweight list for form dropdowns (any auth)
     // GET  /api/consultants         — list consultants (privileged read)
     // POST /api/consultants         — create consultant (admin only)
+    if (pathname === '/api/consultants/picker') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleConsultantsPickerRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
+      return
+    }
+
     if (pathname === '/api/consultants') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
       if (method === 'GET') {

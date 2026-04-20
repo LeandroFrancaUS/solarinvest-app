@@ -331,6 +331,7 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -1291,6 +1292,8 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
     indicacaoNome: hasIndicacao ? indicacaoNome : '',
+    consultorId: (meta.consultor_id as string | undefined) ?? '',
+    consultorNome: (meta.consultor_nome as string | undefined) ?? '',
     herdeiros: (() => {
       if (!Array.isArray(meta.herdeiros)) return ['']
       const filtered = (meta.herdeiros as string[]).filter((h) => typeof h === 'string' && h.trim())
@@ -1569,6 +1572,8 @@ const CLIENTE_INICIAL: ClienteDados = {
   uf: 'GO',
   temIndicacao: false,
   indicacaoNome: '',
+  consultorId: '',
+  consultorNome: '',
   herdeiros: [''],
   nomeSindico: '',
   cpfSindico: '',
@@ -6491,6 +6496,7 @@ export default function App() {
   const [lastDeleteReconciledAt, setLastDeleteReconciledAt] = useState<number | null>(null)
   const [reconciliationReady, setReconciliationReady] = useState(false)
   const [allConsultores, setAllConsultores] = useState<ConsultantEntry[]>([])
+  const [formConsultores, setFormConsultores] = useState<ConsultantPickerEntry[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
@@ -7272,6 +7278,7 @@ export default function App() {
   
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
+  const clienteConsultorSelectId = useId()
   const clienteHerdeirosContentId = useId()
   const [clienteHerdeirosExpandidos, setClienteHerdeirosExpandidos] = useState(false)
   const [isCorresponsavelModalOpen, setIsCorresponsavelModalOpen] = useState(false)
@@ -7306,6 +7313,8 @@ export default function App() {
       distribuidora: cliente.distribuidora ?? '',
       temIndicacao: cliente.temIndicacao ?? false,
       indicacaoNome: cliente.indicacaoNome ?? '',
+      consultorId: cliente.consultorId ?? '',
+      consultorNome: cliente.consultorNome ?? '',
       herdeiros: Array.isArray(cliente.herdeiros)
         ? [...cliente.herdeiros]
         : [''],
@@ -13191,6 +13200,42 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
+
+  // Fetch active consultants for the proposal form picker (any authenticated user).
+  // Auto-selects the logged-in user's consultant entry on first load.
+  useEffect(() => {
+    if (!user) {
+      setFormConsultores([])
+      return
+    }
+    let cancelado = false
+    fetchConsultantsForPicker()
+      .then((entries) => {
+        if (cancelado) return
+        setFormConsultores(entries)
+        // Auto-select the logged-in user's consultant if not already set
+        if (entries.length > 0 && me) {
+          const myConsultor = entries.find(
+            (c) =>
+              (me.id && c.linked_user_id === me.id) ||
+              (me.email && c.email && c.email.toLowerCase() === me.email.toLowerCase()),
+          )
+          if (myConsultor) {
+            const current = clienteRef.current ?? cliente
+            if (!current.consultorId) {
+              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: myConsultor.full_name })
+            }
+          }
+        }
+      })
+      .catch(() => {
+        // Non-critical: form works without the dropdown
+      })
+    return () => {
+      cancelado = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authSyncKey])
 
   useEffect(() => {
     return () => {
@@ -22933,6 +22978,32 @@ export default function App() {
               />
             ) : null}
           </div>
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Consultor',
+            'Consultor responsável por este cliente. O campo é preenchido automaticamente com o consultor vinculado ao usuário logado.',
+          )}
+        >
+          <select
+            id={clienteConsultorSelectId}
+            className="cfg-input"
+            value={cliente.consultorId}
+            onChange={(event) => {
+              const selectedId = event.target.value
+              const consultor = formConsultores.find((c) => String(c.id) === selectedId)
+              handleClienteChange('consultorId', selectedId)
+              handleClienteChange('consultorNome', consultor?.full_name ?? '')
+            }}
+            aria-label="Consultor responsável"
+          >
+            <option value="">— Selecione um consultor —</option>
+            {formConsultores.map((c) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.full_name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field
           label={labelWithTooltip(
