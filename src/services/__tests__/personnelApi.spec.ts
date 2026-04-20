@@ -14,19 +14,19 @@ describe('consultorDisplayName', () => {
     expect(consultorDisplayName(c)).toBe('Kim')
   })
 
-  it('returns full_name when apelido is null', () => {
+  it('returns first name when apelido is null', () => {
     const c: Entry = { full_name: 'Joaquim Amarildo de Oliveira', apelido: null }
-    expect(consultorDisplayName(c)).toBe('Joaquim Amarildo de Oliveira')
+    expect(consultorDisplayName(c)).toBe('Joaquim')
   })
 
-  it('returns full_name when apelido is empty string', () => {
+  it('returns first name when apelido is empty string', () => {
     const c: Entry = { full_name: 'Joaquim Amarildo de Oliveira', apelido: '' }
-    expect(consultorDisplayName(c)).toBe('Joaquim Amarildo de Oliveira')
+    expect(consultorDisplayName(c)).toBe('Joaquim')
   })
 
-  it('returns full_name when apelido is whitespace only', () => {
+  it('returns first name when apelido is whitespace only', () => {
     const c: Entry = { full_name: 'Joaquim Amarildo de Oliveira', apelido: '   ' }
-    expect(consultorDisplayName(c)).toBe('Joaquim Amarildo de Oliveira')
+    expect(consultorDisplayName(c)).toBe('Joaquim')
   })
 
   it('trims apelido before returning', () => {
@@ -77,9 +77,10 @@ describe('formatConsultantOptionLabel', () => {
     expect(consultorDisplayName(c)).toBe('Kim')
   })
 
-  it('option label equals read label when apelido is absent', () => {
+  it('option label uses full_name when apelido is absent, read label uses first name', () => {
     const c: Entry = { full_name: 'Joaquim Amarildo de Oliveira', apelido: null }
-    expect(formatConsultantOptionLabel(c)).toBe(consultorDisplayName(c))
+    expect(formatConsultantOptionLabel(c)).toBe('Joaquim Amarildo de Oliveira')
+    expect(consultorDisplayName(c)).toBe('Joaquim')
   })
 
   it('consultant_id remains unchanged — only display is affected', () => {

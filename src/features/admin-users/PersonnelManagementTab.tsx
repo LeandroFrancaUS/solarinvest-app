@@ -354,7 +354,7 @@ function ConsultantModal({
                 className={inputCls(false)}
               />
               <p className="mt-1 text-xs text-ds-text-muted">
-                Nome exibido nas propostas e carteira. Deixe em branco para usar o nome completo.
+                Nome exibido nas propostas e carteira. Deixe em branco para usar o primeiro nome.
               </p>
             </div>
             <div>
@@ -1044,7 +1044,8 @@ export function ConsultantsTab() {
           <thead className="bg-ds-table-header text-left">
             <tr>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">ID</th>
-              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Nome</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Nome completo</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Apelido</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">CPF/CNPJ</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">Telefone</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">E-mail</th>
@@ -1055,20 +1056,18 @@ export function ConsultantsTab() {
           </thead>
           <tbody className="divide-y divide-ds-border">
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Nenhum consultor encontrado.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-6 text-center text-ds-text-muted">Nenhum consultor encontrado.</td></tr>
             ) : (
               filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-ds-table-hover">
                   <td className="px-4 py-3 font-mono text-xs text-ds-text-muted">{c.consultant_code}</td>
-                  <td className="px-4 py-3 font-medium text-ds-text-primary">
-                    {c.apelido?.trim() ? (
-                      <span title={c.full_name}>
-                        {c.apelido.trim()}
-                        <span className="ml-1 text-xs text-ds-text-muted font-normal">({c.full_name})</span>
-                      </span>
-                    ) : c.full_name}
+                  <td className="px-4 py-3 font-medium text-ds-text-primary">{c.full_name}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">
+                    {c.apelido?.trim() ? c.apelido.trim() : (
+                      <span className="text-ds-text-muted italic text-xs">{c.full_name.split(' ')[0] ?? c.full_name}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-ds-text-secondary text-xs">{c.document ?? '—'}</td>
                   <td className="px-4 py-3 text-ds-text-secondary">{c.phone}</td>

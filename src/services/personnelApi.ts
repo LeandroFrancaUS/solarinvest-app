@@ -131,11 +131,17 @@ export interface ConsultantPickerEntry {
   linked_user_id: string | null
 }
 
-/** Returns the display name for a consultant: apelido when set, full_name otherwise. Used in read view. */
+/**
+ * Returns the display name for a consultant in closed/read-view fields.
+ * Priority: apelido → first name → full_name → fallback.
+ * This ensures proposals and client portfolio show a short, friendly name.
+ */
 export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
   const nickname = c.apelido?.trim() ?? ''
+  if (nickname) return nickname
   const fullName = c.full_name?.trim() ?? ''
-  return nickname || fullName || 'Consultor não informado'
+  const firstName = fullName.split(' ')[0] ?? ''
+  return firstName || fullName || 'Consultor não informado'
 }
 
 /**
