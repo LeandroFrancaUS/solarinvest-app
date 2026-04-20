@@ -23,30 +23,36 @@ function formatBRL(value: number): string {
 export function RevenueChart({ data }: Props) {
   if (data.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400">
+      <div className="flex h-64 items-center justify-center rounded-xl border border-ds-border bg-ds-surface p-4 text-sm text-ds-text-muted">
         Sem dados de receita
       </div>
     )
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-slate-700">Receita Contratada</h3>
+    <div className="rounded-xl border border-ds-border bg-ds-surface p-4 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-ds-text-primary">Receita Contratada</h3>
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-          <YAxis tickFormatter={formatBRL} tick={{ fontSize: 11 }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#1F3D66" />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9FB3C8' }} />
+          <YAxis tickFormatter={formatBRL} tick={{ fontSize: 11, fill: '#9FB3C8' }} />
           <Tooltip
             formatter={(value: number) => [formatBRL(value), 'Receita']}
-            contentStyle={{ borderRadius: 8, fontSize: 12 }}
+            contentStyle={{
+              borderRadius: 8,
+              fontSize: 12,
+              backgroundColor: 'var(--ds-surface)',
+              border: '1px solid var(--ds-border)',
+              color: 'var(--ds-text-secondary)',
+            }}
           />
           <Area
             type="monotone"
             dataKey="revenue"
-            fill="#6366f1"
+            fill="#2D8CFF"
             fillOpacity={0.15}
-            stroke="#6366f1"
+            stroke="#2D8CFF"
             strokeWidth={2}
             name="Receita"
           />
@@ -55,3 +61,4 @@ export function RevenueChart({ data }: Props) {
     </div>
   )
 }
+

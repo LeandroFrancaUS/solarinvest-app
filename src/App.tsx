@@ -195,6 +195,7 @@ import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
+import { useTheme } from './hooks/useTheme'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
   ANALISE_ANOS_PADRAO,
@@ -5263,6 +5264,7 @@ function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Pro
 }
 
 export default function App() {
+  const { appTheme, cycleAppTheme } = useTheme()
   const user = useStackUser()
   const {
     isAdmin: isAdminFromStack,
@@ -29465,6 +29467,8 @@ export default function App() {
                 }
               : undefined
           }
+          theme={appTheme}
+          onCycleTheme={cycleAppTheme}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>

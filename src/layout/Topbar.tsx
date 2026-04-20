@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { AppTheme } from '../hooks/useTheme'
 
 export interface TopbarUserInfo {
   name: string
@@ -11,11 +12,24 @@ export interface TopbarProps {
   actions?: ReactNode
   mobileSubtitle?: string
   userInfo?: TopbarUserInfo
+  theme?: AppTheme
+  onCycleTheme?: () => void
 }
 
-export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo }: TopbarProps) {
+const THEME_ICON: Record<AppTheme, string> = {
+  dark: '🌙',
+  old: '🏛️',
+}
+
+const THEME_NEXT_LABEL: Record<AppTheme, string> = {
+  dark: 'Alternar para modo legado',
+  old: 'Alternar para modo escuro',
+}
+
+export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, theme, onCycleTheme }: TopbarProps) {
   const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
+  const currentTheme = theme ?? 'dark'
 
   return (
     <header className="topbar app-topbar">
@@ -40,7 +54,20 @@ export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo }: T
             <span className="topbar-user-role">{userInfo.role}</span>
           </div>
         ) : null}
-        {hasActions ? <div className="top-actions">{actions}</div> : null}
+        <div className="topbar-end-cluster">
+          {hasActions ? <div className="top-actions">{actions}</div> : null}
+          {onCycleTheme ? (
+            <button
+              type="button"
+              className="theme-toggle-btn"
+              onClick={onCycleTheme}
+              aria-label={THEME_NEXT_LABEL[currentTheme]}
+              title={THEME_NEXT_LABEL[currentTheme]}
+            >
+              {THEME_ICON[currentTheme]}
+            </button>
+          ) : null}
+        </div>
         {mobileSubtitle ? (
           <div className="topbar-mobile-subtitle" aria-live="polite">
             {mobileSubtitle}
