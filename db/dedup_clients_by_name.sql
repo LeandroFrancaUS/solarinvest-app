@@ -551,68 +551,70 @@ LIMIT 50;
 --     Para cada grupo, usa o primeiro valor não-nulo/não-vazio encontrado nos duplicados
 --     (ordenado por strength_score DESC = mais forte primeiro)
 WITH best_from_dups AS (
-  -- Para cada canônico, agregar os melhores valores disponíveis nos seus duplicados
-  SELECT DISTINCT ON (dm.canonical_id)
+  -- Para cada canônico, agregar os melhores valores disponíveis nos seus duplicados.
+  -- Usa array_agg com ORDER BY dentro do agregado + FILTER para filtrar valores
+  -- inválidos — compatível com PostgreSQL (FILTER não é suportado em window functions).
+  SELECT
     dm.canonical_id,
     -- Documento: pegar do duplicado mais forte que tenha um valor não-vazio
-    first_value(d.client_document)   FILTER (WHERE d.client_document   IS NOT NULL AND btrim(d.client_document) <> '')
-      OVER w AS best_document,
-    first_value(d.cpf_normalized)    FILTER (WHERE d.cpf_normalized    IS NOT NULL AND btrim(d.cpf_normalized) <> '')
-      OVER w AS best_cpf_normalized,
-    first_value(d.cpf_raw)           FILTER (WHERE d.cpf_raw           IS NOT NULL AND btrim(d.cpf_raw) <> '')
-      OVER w AS best_cpf_raw,
-    first_value(d.cnpj_normalized)   FILTER (WHERE d.cnpj_normalized   IS NOT NULL AND btrim(d.cnpj_normalized) <> '')
-      OVER w AS best_cnpj_normalized,
-    first_value(d.cnpj_raw)          FILTER (WHERE d.cnpj_raw          IS NOT NULL AND btrim(d.cnpj_raw) <> '')
-      OVER w AS best_cnpj_raw,
-    first_value(d.document_type)     FILTER (WHERE d.document_type     IS NOT NULL AND btrim(d.document_type) <> '')
-      OVER w AS best_document_type,
-    first_value(d.client_email)      FILTER (WHERE d.client_email      IS NOT NULL AND d.client_email LIKE '%@%.%')
-      OVER w AS best_email,
-    first_value(d.client_phone)      FILTER (WHERE d.client_phone      IS NOT NULL
-                                               AND length(regexp_replace(d.client_phone, '[^0-9]', '', 'g')) >= 10)
-      OVER w AS best_phone,
-    first_value(d.client_city)       FILTER (WHERE d.client_city       IS NOT NULL AND btrim(d.client_city) <> '')
-      OVER w AS best_city,
-    first_value(d.client_state)      FILTER (WHERE d.client_state      IS NOT NULL AND btrim(d.client_state) <> '')
-      OVER w AS best_state,
-    first_value(d.client_address)    FILTER (WHERE d.client_address    IS NOT NULL AND btrim(d.client_address) <> '')
-      OVER w AS best_address,
-    first_value(d.cep)               FILTER (WHERE d.cep               IS NOT NULL AND btrim(d.cep) <> '')
-      OVER w AS best_cep,
-    first_value(d.uc_geradora)       FILTER (WHERE d.uc_geradora       IS NOT NULL AND btrim(d.uc_geradora) <> '')
-      OVER w AS best_uc_geradora,
-    first_value(d.uc_beneficiaria)   FILTER (WHERE d.uc_beneficiaria   IS NOT NULL AND btrim(d.uc_beneficiaria) <> '')
-      OVER w AS best_uc_beneficiaria,
-    first_value(d.distribuidora)     FILTER (WHERE d.distribuidora     IS NOT NULL AND btrim(d.distribuidora) <> '')
-      OVER w AS best_distribuidora,
-    first_value(d.consumption_kwh_month) FILTER (WHERE d.consumption_kwh_month IS NOT NULL AND d.consumption_kwh_month > 0)
-      OVER w AS best_consumption_kwh_month,
-    first_value(d.system_kwp)        FILTER (WHERE d.system_kwp        IS NOT NULL AND d.system_kwp > 0)
-      OVER w AS best_system_kwp,
-    first_value(d.term_months)       FILTER (WHERE d.term_months       IS NOT NULL AND btrim(d.term_months) <> '')
-      OVER w AS best_term_months,
-    first_value(d.nome_razao)        FILTER (WHERE d.nome_razao        IS NOT NULL AND btrim(d.nome_razao) <> '')
-      OVER w AS best_nome_razao,
-    first_value(d.logradouro)        FILTER (WHERE d.logradouro        IS NOT NULL AND btrim(d.logradouro) <> '')
-      OVER w AS best_logradouro,
-    first_value(d.numero)            FILTER (WHERE d.numero            IS NOT NULL AND btrim(d.numero) <> '')
-      OVER w AS best_numero,
-    first_value(d.complemento)       FILTER (WHERE d.complemento       IS NOT NULL AND btrim(d.complemento) <> '')
-      OVER w AS best_complemento,
-    first_value(d.bairro)            FILTER (WHERE d.bairro            IS NOT NULL AND btrim(d.bairro) <> '')
-      OVER w AS best_bairro,
-    first_value(d.telefone_secundario) FILTER (WHERE d.telefone_secundario IS NOT NULL
-                                                 AND length(regexp_replace(d.telefone_secundario, '[^0-9]', '', 'g')) >= 10)
-      OVER w AS best_telefone_secundario,
-    first_value(d.origem)            FILTER (WHERE d.origem            IS NOT NULL AND btrim(d.origem) <> '')
-      OVER w AS best_origem,
-    first_value(d.observacoes)       FILTER (WHERE d.observacoes       IS NOT NULL AND btrim(d.observacoes) <> '')
-      OVER w AS best_observacoes
+    (array_agg(d.client_document   ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_document   IS NOT NULL AND btrim(d.client_document) <> ''))[1]   AS best_document,
+    (array_agg(d.cpf_normalized    ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.cpf_normalized    IS NOT NULL AND btrim(d.cpf_normalized) <> ''))[1]    AS best_cpf_normalized,
+    (array_agg(d.cpf_raw           ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.cpf_raw           IS NOT NULL AND btrim(d.cpf_raw) <> ''))[1]           AS best_cpf_raw,
+    (array_agg(d.cnpj_normalized   ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.cnpj_normalized   IS NOT NULL AND btrim(d.cnpj_normalized) <> ''))[1]   AS best_cnpj_normalized,
+    (array_agg(d.cnpj_raw          ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.cnpj_raw          IS NOT NULL AND btrim(d.cnpj_raw) <> ''))[1]          AS best_cnpj_raw,
+    (array_agg(d.document_type     ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.document_type     IS NOT NULL AND btrim(d.document_type) <> ''))[1]     AS best_document_type,
+    (array_agg(d.client_email      ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_email      IS NOT NULL AND d.client_email LIKE '%@%.%'))[1]      AS best_email,
+    (array_agg(d.client_phone      ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_phone      IS NOT NULL
+                AND length(regexp_replace(d.client_phone, '[^0-9]', '', 'g')) >= 10))[1]      AS best_phone,
+    (array_agg(d.client_city       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_city       IS NOT NULL AND btrim(d.client_city) <> ''))[1]       AS best_city,
+    (array_agg(d.client_state      ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_state      IS NOT NULL AND btrim(d.client_state) <> ''))[1]      AS best_state,
+    (array_agg(d.client_address    ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.client_address    IS NOT NULL AND btrim(d.client_address) <> ''))[1]    AS best_address,
+    (array_agg(d.cep               ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.cep               IS NOT NULL AND btrim(d.cep) <> ''))[1]               AS best_cep,
+    (array_agg(d.uc_geradora       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.uc_geradora       IS NOT NULL AND btrim(d.uc_geradora) <> ''))[1]       AS best_uc_geradora,
+    (array_agg(d.uc_beneficiaria   ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.uc_beneficiaria   IS NOT NULL AND btrim(d.uc_beneficiaria) <> ''))[1]   AS best_uc_beneficiaria,
+    (array_agg(d.distribuidora     ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.distribuidora     IS NOT NULL AND btrim(d.distribuidora) <> ''))[1]     AS best_distribuidora,
+    (array_agg(d.consumption_kwh_month ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.consumption_kwh_month IS NOT NULL AND d.consumption_kwh_month > 0))[1]  AS best_consumption_kwh_month,
+    (array_agg(d.system_kwp        ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.system_kwp        IS NOT NULL AND d.system_kwp > 0))[1]                 AS best_system_kwp,
+    (array_agg(d.term_months       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.term_months       IS NOT NULL AND btrim(d.term_months) <> ''))[1]       AS best_term_months,
+    (array_agg(d.nome_razao        ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.nome_razao        IS NOT NULL AND btrim(d.nome_razao) <> ''))[1]        AS best_nome_razao,
+    (array_agg(d.logradouro        ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.logradouro        IS NOT NULL AND btrim(d.logradouro) <> ''))[1]        AS best_logradouro,
+    (array_agg(d.numero            ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.numero            IS NOT NULL AND btrim(d.numero) <> ''))[1]            AS best_numero,
+    (array_agg(d.complemento       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.complemento       IS NOT NULL AND btrim(d.complemento) <> ''))[1]       AS best_complemento,
+    (array_agg(d.bairro            ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.bairro            IS NOT NULL AND btrim(d.bairro) <> ''))[1]            AS best_bairro,
+    (array_agg(d.telefone_secundario ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.telefone_secundario IS NOT NULL
+                AND length(regexp_replace(d.telefone_secundario, '[^0-9]', '', 'g')) >= 10))[1] AS best_telefone_secundario,
+    (array_agg(d.origem            ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.origem            IS NOT NULL AND btrim(d.origem) <> ''))[1]            AS best_origem,
+    (array_agg(d.observacoes       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+      FILTER (WHERE d.observacoes       IS NOT NULL AND btrim(d.observacoes) <> ''))[1]       AS best_observacoes
   FROM _duplicate_map dm
   JOIN public.clients d ON d.id = dm.duplicate_id
   JOIN _client_strength_scores sc ON sc.client_id = dm.duplicate_id
-  WINDOW w AS (PARTITION BY dm.canonical_id ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
+  GROUP BY dm.canonical_id
 )
 UPDATE public.clients c
 SET
