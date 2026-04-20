@@ -343,6 +343,113 @@
   color: var(--accent, #f59e0b);
 }
 
+/* ── 10b. LIST ROW LAYOUT ─────────────────────────────────────── */
+.pf-client-row {
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pf-row-info {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-row-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-row-doc {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-row-contract {
+  font-size: 12px;
+  color: var(--text-base);
+  white-space: nowrap;
+}
+
+.pf-row-remaining {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pf-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pf-row-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.pf-row-btn-edit {
+  border: 1px solid rgba(96, 160, 220, 0.4);
+  background: rgba(96, 160, 220, 0.1);
+  color: #90c2e8;
+}
+
+.pf-row-btn-edit:hover {
+  background: rgba(96, 160, 220, 0.2);
+  border-color: rgba(96, 160, 220, 0.65);
+}
+
+.pf-row-btn-delete {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+.pf-row-btn-delete:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* ── 10c. LIST HEADER ROW ─────────────────────────────────────── */
+.pf-list-header {
+  display: grid;
+  grid-template-columns: 2fr 1.4fr 1fr 1fr auto;
+  gap: 10px;
+  padding: 6px 14px;
+  margin-top: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pf-list-col {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pf-list-col-actions {
+  min-width: 130px;
+}
+
 /* ── 11. BILLING CALCULATION RESULT ROWS ─────────────────────── */
 .pf-info-row {
   display: flex;
