@@ -32,6 +32,8 @@ import {
   isValidUc,
 } from '../lib/validation/clientReadiness'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { getDistribuidorasFallback } from '../utils/distribuidorasAneel'
+import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
@@ -80,6 +82,15 @@ function calcRemainingMonths(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Brazilian state UF list (used by AddClientModal)
+// ─────────────────────────────────────────────────────────────────────────────
+const BR_STATES = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+  'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+]
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Client form validation (used by AddClientModal)
 // ─────────────────────────────────────────────────────────────────────────────
 interface ClientFormErrors {
@@ -88,6 +99,12 @@ interface ClientFormErrors {
   phone?: string
   email?: string
   cep?: string
+  city?: string
+  state?: string
+  address?: string
+  distribuidora?: string
+  consumption_kwh_month?: string
+  term_months?: string
   uc?: string
 }
 
@@ -117,14 +134,38 @@ function validateClientForm(data: AddClientFormData): ClientFormErrors {
     else if (digits.length === 14) errors.document = 'CNPJ inválido'
     else errors.document = 'CPF/CNPJ inválido'
   }
-  if (data.phone && !isValidBrazilPhone(data.phone)) {
+  if (!data.phone.trim()) {
+    errors.phone = 'Telefone obrigatório'
+  } else if (!isValidBrazilPhone(data.phone)) {
     errors.phone = 'Telefone incompleto'
   }
-  if (data.email && !isValidEmail(data.email)) {
+  if (!data.email.trim()) {
+    errors.email = 'E-mail obrigatório'
+  } else if (!isValidEmail(data.email)) {
     errors.email = 'E-mail inválido'
   }
-  if (data.cep && !isValidCep(data.cep)) {
+  if (!data.cep.trim()) {
+    errors.cep = 'CEP obrigatório'
+  } else if (!isValidCep(data.cep)) {
     errors.cep = 'CEP inválido'
+  }
+  if (!data.city.trim()) {
+    errors.city = 'Cidade obrigatória'
+  }
+  if (!data.state.trim()) {
+    errors.state = 'Estado obrigatório'
+  }
+  if (!data.address.trim()) {
+    errors.address = 'Endereço obrigatório'
+  }
+  if (!data.distribuidora.trim()) {
+    errors.distribuidora = 'Distribuidora obrigatória'
+  }
+  if (!data.consumption_kwh_month.trim() || Number(data.consumption_kwh_month) <= 0) {
+    errors.consumption_kwh_month = 'Consumo mensal obrigatório'
+  }
+  if (!data.term_months.trim() || Number(data.term_months) <= 0) {
+    errors.term_months = 'Prazo contratual obrigatório'
   }
   if (data.uc && !isValidUc(data.uc)) {
     errors.uc = 'UC deve ter 15 dígitos numéricos'
@@ -2264,6 +2305,8 @@ function AddClientModal({
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<ClientFormErrors>({})
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const [cepLoading, setCepLoading] = useState(false)
+  const [cepError, setCepError] = useState<string | null>(null)
   const [form, setForm] = useState<AddClientFormData>({
     name: '',
     document: '',
@@ -2276,13 +2319,58 @@ function AddClientModal({
     distribuidora: '',
     uc: '',
     consumption_kwh_month: '',
-    term_months: '',
+    term_months: '60',
   })
+
+  const distribuidorasData = useMemo(() => getDistribuidorasFallback(), [])
+  const distribuidorasList = useMemo(() => {
+    if (form.state && distribuidorasData.distribuidorasPorUf[form.state]) {
+      return distribuidorasData.distribuidorasPorUf[form.state]
+    }
+    const all = Object.values(distribuidorasData.distribuidorasPorUf).flat()
+    return [...new Set(all)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [form.state, distribuidorasData])
 
   const set = (field: keyof AddClientFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
     setErrors((prev) => ({ ...prev, [field]: undefined }))
     setGlobalError(null)
+  }
+
+  async function handleCepChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setForm((f) => ({ ...f, cep: val }))
+    setErrors((prev) => ({ ...prev, cep: undefined }))
+    setCepError(null)
+    setGlobalError(null)
+    const digits = val.replace(/\D/g, '')
+    if (digits.length === 8) {
+      setCepLoading(true)
+      try {
+        const result = await lookupCep(val)
+        if (result) {
+          setForm((f) => ({
+            ...f,
+            cep: val,
+            city: result.cidade ?? f.city,
+            state: result.uf ?? f.state,
+            address: result.logradouro
+              ? result.bairro
+                ? `${result.logradouro}, ${result.bairro}`
+                : result.logradouro
+              : f.address,
+            distribuidora: '',
+          }))
+          setErrors((prev) => ({ ...prev, city: undefined, state: undefined, address: undefined }))
+        } else {
+          setCepError('CEP não encontrado')
+        }
+      } catch {
+        setCepError('Falha ao buscar CEP. Preencha manualmente.')
+      } finally {
+        setCepLoading(false)
+      }
+    }
   }
 
   async function handleSave() {
@@ -2295,27 +2383,19 @@ function AddClientModal({
     setSaving(true)
     setGlobalError(null)
     try {
-      const phoneVal = form.phone.trim()
-      const emailVal = form.email.trim()
-      const cepVal = form.cep.trim()
-      const cityVal = form.city.trim()
-      const stateVal = form.state.trim()
-      const addressVal = form.address.trim()
-      const distribuidoraVal = form.distribuidora.trim()
-      const ucVal = form.uc.trim()
       const created = await upsertClientByDocument({
         name: form.name.trim(),
         document: form.document.trim(),
-        ...(phoneVal && { phone: phoneVal }),
-        ...(emailVal && { email: emailVal }),
-        ...(cepVal && { cep: cepVal }),
-        ...(cityVal && { city: cityVal }),
-        ...(stateVal && { state: stateVal }),
-        ...(addressVal && { address: addressVal }),
-        ...(distribuidoraVal && { distribuidora: distribuidoraVal }),
-        ...(ucVal && { uc: ucVal }),
-        consumption_kwh_month: form.consumption_kwh_month ? Number(form.consumption_kwh_month) : null,
-        term_months: form.term_months ? Number(form.term_months) : null,
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        cep: form.cep.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        address: form.address.trim(),
+        distribuidora: form.distribuidora.trim(),
+        ...(form.uc.trim() && { uc: form.uc.trim() }),
+        consumption_kwh_month: Number(form.consumption_kwh_month),
+        term_months: Number(form.term_months),
       })
       const clientId = Number(created.id)
       console.log('[clients][create] success', { clientId, name: form.name })
@@ -2342,10 +2422,14 @@ function AddClientModal({
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 1200,
+        position: 'fixed', inset: 0, zIndex: 1250,
         background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        padding: '24px 16px', overflowY: 'auto',
+        paddingTop: 'calc(var(--header-h, 64px) + 16px)',
+        paddingBottom: 24,
+        paddingLeft: 16,
+        paddingRight: 16,
+        overflowY: 'auto',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
@@ -2381,35 +2465,60 @@ function AddClientModal({
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
-              Telefone
+              Telefone *
               <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? 'var(--ds-danger)' : undefined }} />
               {errors.phone && <span style={errStyle}>{errors.phone}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
-              E-mail
+              E-mail *
               <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? 'var(--ds-danger)' : undefined }} />
               {errors.email && <span style={errStyle}>{errors.email}</span>}
             </label>
           </div>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
-              CEP
-              <input type="text" value={form.cep} onChange={set('cep')} placeholder="XXXXX-XXX" maxLength={9} style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }} />
-              {errors.cep && <span style={errStyle}>{errors.cep}</span>}
+              CEP *
+              <input
+                type="text"
+                value={form.cep}
+                onChange={(e) => { void handleCepChange(e) }}
+                placeholder="XXXXX-XXX"
+                maxLength={9}
+                style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }}
+              />
+              {cepLoading && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Buscando CEP…</span>}
+              {cepError && !cepLoading && <span style={errStyle}>{cepError}</span>}
+              {errors.cep && !cepLoading && <span style={errStyle}>{errors.cep}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
-              Estado (UF)
-              <input type="text" value={form.state} onChange={(e) => { setForm((f) => ({ ...f, state: e.target.value.toUpperCase() })) }} placeholder="SP" maxLength={2} style={inputStyle} />
+              Estado (UF) *
+              <select
+                value={form.state}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, state: e.target.value, distribuidora: '' }))
+                  setErrors((prev) => ({ ...prev, state: undefined, distribuidora: undefined }))
+                  setGlobalError(null)
+                }}
+                style={{ ...inputStyle, borderColor: errors.state ? 'var(--ds-danger)' : undefined }}
+              >
+                <option value="">Selecione o estado…</option>
+                {BR_STATES.map((uf) => (
+                  <option key={uf} value={uf}>{uf}</option>
+                ))}
+              </select>
+              {errors.state && <span style={errStyle}>{errors.state}</span>}
             </label>
           </div>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
-              Cidade
-              <input type="text" value={form.city} onChange={set('city')} placeholder="Cidade" style={inputStyle} />
+              Cidade *
+              <input type="text" value={form.city} onChange={set('city')} placeholder="Cidade" style={{ ...inputStyle, borderColor: errors.city ? 'var(--ds-danger)' : undefined }} />
+              {errors.city && <span style={errStyle}>{errors.city}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
-              Endereço
-              <input type="text" value={form.address} onChange={set('address')} placeholder="Rua, número, bairro" style={inputStyle} />
+              Endereço *
+              <input type="text" value={form.address} onChange={set('address')} placeholder="Rua, número, bairro" style={{ ...inputStyle, borderColor: errors.address ? 'var(--ds-danger)' : undefined }} />
+              {errors.address && <span style={errStyle}>{errors.address}</span>}
             </label>
           </div>
         </div>
@@ -2417,8 +2526,22 @@ function AddClientModal({
         <div className="pf-section-card" style={{ marginBottom: 14 }}>
           <div className="pf-section-title"><span className="pf-icon">⚡</span> Energia</div>
           <label className="pf-label" style={labelStyle}>
-            Distribuidora
-            <input type="text" value={form.distribuidora} onChange={set('distribuidora')} placeholder="Ex: ENEL, CEMIG, CPFL…" style={inputStyle} />
+            Distribuidora *
+            <select
+              value={form.distribuidora}
+              onChange={(e) => {
+                setForm((f) => ({ ...f, distribuidora: e.target.value }))
+                setErrors((prev) => ({ ...prev, distribuidora: undefined }))
+                setGlobalError(null)
+              }}
+              style={{ ...inputStyle, borderColor: errors.distribuidora ? 'var(--ds-danger)' : undefined }}
+            >
+              <option value="">Selecione a distribuidora…</option>
+              {distribuidorasList.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            {errors.distribuidora && <span style={errStyle}>{errors.distribuidora}</span>}
           </label>
           <label className="pf-label" style={labelStyle}>
             UC Geradora
@@ -2427,12 +2550,14 @@ function AddClientModal({
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
-              Consumo (kWh/mês)
-              <input type="number" value={form.consumption_kwh_month} onChange={set('consumption_kwh_month')} placeholder="0" min={0} style={inputStyle} />
+              Consumo (kWh/mês) *
+              <input type="number" value={form.consumption_kwh_month} onChange={set('consumption_kwh_month')} placeholder="0" min={0} style={{ ...inputStyle, borderColor: errors.consumption_kwh_month ? 'var(--ds-danger)' : undefined }} />
+              {errors.consumption_kwh_month && <span style={errStyle}>{errors.consumption_kwh_month}</span>}
             </label>
             <label className="pf-label" style={labelStyle}>
-              Prazo Contratual (meses)
-              <input type="number" value={form.term_months} onChange={set('term_months')} placeholder="0" min={1} style={inputStyle} />
+              Prazo Contratual (meses) *
+              <input type="number" value={form.term_months} onChange={set('term_months')} placeholder="60" min={1} style={{ ...inputStyle, borderColor: errors.term_months ? 'var(--ds-danger)' : undefined }} />
+              {errors.term_months && <span style={errStyle}>{errors.term_months}</span>}
             </label>
           </div>
         </div>
