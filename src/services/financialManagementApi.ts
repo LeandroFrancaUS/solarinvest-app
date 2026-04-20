@@ -17,6 +17,9 @@ import { resolveApiUrl } from '../utils/apiUrl'
 type GetAccessToken = () => Promise<string | null>
 let financialTokenProvider: GetAccessToken | null = null
 
+// Maximum time to wait for a single API response before aborting.
+const API_FETCH_TIMEOUT_MS = 12_000
+
 export function setFinancialManagementTokenProvider(fn: GetAccessToken): void {
   financialTokenProvider = fn
 }
@@ -28,7 +31,7 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 12000)
+  const timeoutId = setTimeout(() => controller.abort(), API_FETCH_TIMEOUT_MS)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
