@@ -289,7 +289,12 @@ const databaseConfig = getNeonDatabaseConfig()
 const databaseClient = getDatabaseClient()
 let storageService = null
 
-// Shared helper: creates a user-scoped RLS sql client for route handlers.
+/**
+ * Creates a user-scoped RLS SQL client for use in route handlers.
+ * @param {object} actor - Resolved actor from resolveActor(req). Must have userId and permissions.
+ * @returns {Promise<import('postgres').Sql>} A scoped SQL instance with RLS context set.
+ * @throws {Error} With statusCode 503 when the database is not configured.
+ */
 async function createHandlerScopedSql(actor) {
   const db = getDatabaseClient()
   if (!db?.sql) {
