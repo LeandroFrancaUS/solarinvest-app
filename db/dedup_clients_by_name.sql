@@ -40,9 +40,12 @@
 --   1. Fazer pg_dump do banco ANTES de rodar este script em produção.
 --   2. Rodar o BLOCO A e revisar os resultados com cuidado.
 --   3. Rodar o BLOCO B para criar os backups.
---   4. Rodar os BLOCOS C–G (BEGIN/COMMIT) na mesma sessão de banco.
+--   4. Rodar o BLOCO C separadamente (sem BEGIN/COMMIT) para criar as tabelas de mapeamento.
+--      - As tabelas auto-commitam e ficam visíveis em qualquer conexão posterior.
+--      - IMPORTANTE: execute este bloco antes de D–G. Se precisar re-executar, rode C novamente.
+--   5. Rodar os BLOCOS D–G (BEGIN/COMMIT) na mesma sessão de banco.
 --      - Para simular sem commitar: substituir COMMIT por ROLLBACK ao final.
---   5. Rodar o BLOCO H para validar o resultado.
+--   6. Rodar o BLOCO H para validar o resultado.
 --
 -- NORMALIZAÇÃO DE NOME (sem dependência de unaccent):
 --   lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
@@ -1238,9 +1241,13 @@ ORDER BY c.in_portfolio DESC, c.id;
 
 COMMIT;
 
--- Limpeza das tabelas de mapeamento após o commit (podem ser descartadas com segurança).
-DROP TABLE IF EXISTS data_hygiene._duplicate_map;
-DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
+-- NOTA: As tabelas data_hygiene._duplicate_map e data_hygiene._client_strength_scores
+-- são mantidas após o COMMIT para permitir re-execuções parciais (ex: rodar apenas Block E
+-- novamente sem precisar re-executar Block C). O Bloco C já possui DROP TABLE IF EXISTS
+-- nas linhas iniciais, portanto execuções futuras limpam as tabelas automaticamente.
+-- Para descartá-las manualmente (opcional):
+--   DROP TABLE IF EXISTS data_hygiene._duplicate_map;
+--   DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
 
 
 -- ============================================================================================================================
