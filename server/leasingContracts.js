@@ -258,7 +258,6 @@ const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId
 
       const resolvedFromDb = usinaConfigValorDeMercado ?? metadataValorDeMercado ?? null
       console.info('[contracts][leasing] resolving valordemercado', {
-        proposalId,
         clientId,
         proposalValorDeMercado: fromPayload,
         usinaConfigValorDeMercado,
@@ -275,7 +274,6 @@ const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId
   }
 
   console.warn('[contracts][leasing] valordemercado could not be resolved from any source', {
-    proposalId,
     clientId: clientId ?? null,
     payloadValuePresent: rawDadosLeasing?.valordemercado_atual_numero != null,
   })
