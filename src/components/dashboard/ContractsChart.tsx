@@ -29,8 +29,8 @@ export function ContractsChart({ data }: Props) {
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1F3D66" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6B8BB5' }} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#6B8BB5' }} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9FB3C8' }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#9FB3C8' }} />
           <Tooltip
             formatter={(value: number) => [value, 'Contratos']}
             contentStyle={{

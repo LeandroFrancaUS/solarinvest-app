@@ -27,13 +27,13 @@ export default {
         },
         // Design System — paleta oficial SolarInvest
         ds: {
-          background: '#0B1F3A',
+          background: '#0A1A2F',
           surface: '#122B4A',
           'surface-hover': '#16345C',
           border: '#1F3D66',
           'text-primary': '#FFFFFF',
-          'text-secondary': '#A8C1E0',
-          'text-muted': '#6B8BB5',
+          'text-secondary': '#D6E4F0',
+          'text-muted': '#9FB3C8',
           primary: '#2D8CFF',
           'primary-hover': '#2070d0',
           success: '#22C55E',

@@ -35,8 +35,8 @@ export function RevenueChart({ data }: Props) {
       <ResponsiveContainer width="100%" height={280}>
         <AreaChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1F3D66" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#6B8BB5' }} />
-          <YAxis tickFormatter={formatBRL} tick={{ fontSize: 11, fill: '#6B8BB5' }} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9FB3C8' }} />
+          <YAxis tickFormatter={formatBRL} tick={{ fontSize: 11, fill: '#9FB3C8' }} />
           <Tooltip
             formatter={(value: number) => [formatBRL(value), 'Receita']}
             contentStyle={{
