@@ -1,82 +1,22 @@
 // src/utils/__tests__/financialProjectCalcs.test.ts
-// Unit tests for the pure calculation helpers in FinancialManagementPage:
-//   computeItemExpectedTotal, computeProjectTotals
-//
-// We replicate the helpers here (same logic) so the tests don't need to
-// import from a React component file.
+// Unit tests for the pure calculation helpers in src/utils/financialProjectCalcs.ts.
 
 import { describe, it, expect } from 'vitest'
+import { computeItemExpectedTotal, computeProjectTotals } from '../financialProjectCalcs'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Replicated helpers (must stay in sync with the ones in FinancialManagementPage.tsx)
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface Item {
-  id: string
+  id?: string
   nature: 'expense' | 'income'
   item_name?: string | null
   category?: string | null
   expected_amount?: number | null
   expected_quantity?: number | null
   expected_total?: number | null
-  value_mode?: string
 }
-
-function computeItemExpectedTotal(item: Item): number {
-  if (item.expected_total != null) return item.expected_total
-  if (item.expected_amount != null && item.expected_quantity != null) {
-    return item.expected_amount * item.expected_quantity
-  }
-  return item.expected_amount ?? 0
-}
-
-interface ProjectTotals {
-  expectedCost: number
-  expectedRevenue: number
-  saldoPrevisto: number
-  margem: number | null
-  roi: number | null
-  payback: number | null
-}
-
-function computeProjectTotals(items: Item[], proposalType?: string): ProjectTotals {
-  let expectedCost = 0
-  let expectedRevenue = 0
-  let monthlyRevenue: number | null = null
-
-  for (const item of items) {
-    const total = computeItemExpectedTotal(item)
-    if (item.nature === 'expense') {
-      expectedCost += total
-    } else {
-      expectedRevenue += total
-      if (
-        proposalType === 'leasing' &&
-        monthlyRevenue == null &&
-        (item.item_name?.toLowerCase().includes('mensalidade') ||
-          item.category?.toLowerCase().includes('mensalidade'))
-      ) {
-        monthlyRevenue = item.expected_amount ?? null
-      }
-    }
-  }
-
-  const saldoPrevisto = expectedRevenue - expectedCost
-  const margem = expectedRevenue > 0 ? (saldoPrevisto / expectedRevenue) * 100 : null
-  const roi = expectedCost > 0 ? (saldoPrevisto / expectedCost) * 100 : null
-  const payback =
-    proposalType === 'leasing' && monthlyRevenue != null && monthlyRevenue > 0
-      ? expectedCost / monthlyRevenue
-      : expectedCost > 0 && expectedRevenue > 0
-        ? expectedCost / (expectedRevenue / Math.max(items.length, 1))
-        : null
-
-  return { expectedCost, expectedRevenue, saldoPrevisto, margem, roi, payback }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────────────────────
 
 function makeItem(overrides: Partial<Item>): Item {
   return {
@@ -190,5 +130,23 @@ describe('computeProjectTotals', () => {
     expect(totals.margem).toBeNull()
     expect(totals.roi).toBeNull()
     expect(totals.payback).toBeNull()
+  })
+
+  it('payback is null for venda type (not estimated from item data)', () => {
+    const items: Item[] = [
+      makeItem({ nature: 'expense', expected_total: 20000 }),
+      makeItem({ nature: 'income', expected_total: 25000 }),
+    ]
+    const { payback } = computeProjectTotals(items, 'venda')
+    expect(payback).toBeNull()
+  })
+
+  it('payback is null for buyout type', () => {
+    const items: Item[] = [
+      makeItem({ nature: 'expense', expected_total: 15000 }),
+      makeItem({ nature: 'income', expected_total: 18000 }),
+    ]
+    const { payback } = computeProjectTotals(items, 'buyout')
+    expect(payback).toBeNull()
   })
 })

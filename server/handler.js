@@ -1319,7 +1319,7 @@ export default async function handler(req, res) {
     }
 
     // GET /api/financial-management/projects/:proposalId  (detail — no trailing segment)
-    if (/^\/api\/financial-management\/projects\/[0-9a-f-]{36}$/.test(pathname)) {
+    if (/^\/api\/financial-management\/projects\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(pathname)) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleFinancialProjectDetail(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })

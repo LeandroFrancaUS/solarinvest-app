@@ -33,6 +33,10 @@ import {
   type ProjectFinancialItemInput,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
+import {
+  computeItemExpectedTotal,
+  computeProjectTotals,
+} from '../utils/financialProjectCalcs'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -605,62 +609,6 @@ function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Calculation helpers — pure functions, no side-effects
-// ─────────────────────────────────────────────────────────────────────────────
-
-function computeItemExpectedTotal(item: ProjectFinancialItem): number {
-  if (item.expected_total != null) return item.expected_total
-  if (item.expected_amount != null && item.expected_quantity != null) {
-    return item.expected_amount * item.expected_quantity
-  }
-  return item.expected_amount ?? 0
-}
-
-interface ProjectTotals {
-  expectedCost: number
-  expectedRevenue: number
-  saldoPrevisto: number
-  margem: number | null
-  roi: number | null
-  payback: number | null
-}
-
-function computeProjectTotals(items: ProjectFinancialItem[], proposalType?: string): ProjectTotals {
-  let expectedCost = 0
-  let expectedRevenue = 0
-  let monthlyRevenue: number | null = null
-
-  for (const item of items) {
-    const total = computeItemExpectedTotal(item)
-    if (item.nature === 'expense') {
-      expectedCost += total
-    } else {
-      expectedRevenue += total
-      // Heuristic: mensalidade item for leasing payback calculation
-      if (
-        proposalType === 'leasing' &&
-        monthlyRevenue == null &&
-        (item.item_name?.toLowerCase().includes('mensalidade') || item.category?.toLowerCase().includes('mensalidade'))
-      ) {
-        monthlyRevenue = item.expected_amount ?? null
-      }
-    }
-  }
-
-  const saldoPrevisto = expectedRevenue - expectedCost
-  const margem = expectedRevenue > 0 ? (saldoPrevisto / expectedRevenue) * 100 : null
-  const roi = expectedCost > 0 ? (saldoPrevisto / expectedCost) * 100 : null
-  const payback =
-    proposalType === 'leasing' && monthlyRevenue != null && monthlyRevenue > 0
-      ? expectedCost / monthlyRevenue
-      : expectedCost > 0 && expectedRevenue > 0
-        ? expectedCost / (expectedRevenue / Math.max(items.length, 1))
-        : null
-
-  return { expectedCost, expectedRevenue, saldoPrevisto, margem, roi, payback }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // FinancialProjectsSummaryCards — aggregate cards from all project summaries
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1114,7 +1062,11 @@ function ProjectDetailView({
     setIsSaving(true)
     setSaveError(null)
     const kind: 'leasing' | 'sale' | 'buyout' =
-      detail?.proposal_type === 'leasing' ? 'leasing' : 'sale'
+      detail?.proposal_type === 'leasing'
+        ? 'leasing'
+        : detail?.proposal_type === 'buyout'
+          ? 'buyout'
+          : 'sale'
     try {
       await createProjectFinancialItem({
         ...(newItemForm as ProjectFinancialItemInput),

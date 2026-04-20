@@ -519,7 +519,7 @@ export async function handleFinancialProjectDetail(req, res, { method, sendJson,
 
   const url = new URL(requestUrl, 'http://localhost')
   // Match /api/financial-management/projects/:proposalId (no trailing path segment)
-  const match = url.pathname.match(/\/api\/financial-management\/projects\/([0-9a-f-]{36})$/)
+  const match = url.pathname.match(/\/api\/financial-management\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/)
   const proposalId = match?.[1] ?? null
 
   if (!proposalId) {
