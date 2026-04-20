@@ -274,8 +274,9 @@ export async function getFinancialSummary(sql, { from, to } = {}) {
       COALESCE(SUM(contract_value) FILTER (WHERE project_kind IN ('sale', 'buyout')), 0)::float AS closed_sales_revenue,
       COALESCE(AVG(default_rate_percent), 0)::float                       AS avg_default_rate_percent
     FROM project_financial_snapshots
-    ${fromDate ? sql`WHERE created_at >= ${fromDate}` : sql``}
-    ${toDate ? (fromDate ? sql`AND created_at <= ${toDate}` : sql`WHERE created_at <= ${toDate}`) : sql``}
+    WHERE TRUE
+      ${fromDate ? sql`AND created_at >= ${fromDate}` : sql``}
+      ${toDate ? sql`AND created_at <= ${toDate}` : sql``}
   `
 
   // Aggregate from financial_entries
@@ -300,7 +301,7 @@ export async function getFinancialSummary(sql, { from, to } = {}) {
   const totalRealizedRevenue = (toFloat(snap.total_realized_revenue) ?? 0) + totalEntriesIncome
   const netProfit = totalRealizedRevenue - totalCost
   const avgNetMarginPct = totalRealizedRevenue > 0 ? (netProfit / totalRealizedRevenue) * 100 : 0
-  const activeProjectsCount = (parseInt(String(snap.leasing_count ?? 0), 10)) + (parseInt(String(snap.sale_count ?? 0), 10))
+  const activeProjectsCount = (snap.leasing_count ?? 0) + (snap.sale_count ?? 0)
 
   return {
     total_projected_revenue: totalProjectedRevenue,

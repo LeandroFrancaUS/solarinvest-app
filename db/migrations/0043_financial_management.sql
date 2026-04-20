@@ -39,7 +39,7 @@ INSERT INTO financial_categories (name, type, scope, sort_order) VALUES
   ('Software/Ferramentas',  'expense', 'company', 140),
   ('Jurídico',              'expense', 'company', 150),
   ('Administrativo',        'expense', 'company', 160),
-  ('Salários / Prestadores','expense', 'company', 170),
+  ('Salários e Prestadores','expense', 'company', 170),
   ('Impostos',              'expense', 'both',    180),
   ('Aluguel',               'expense', 'company', 190),
   ('Outros',                'expense', 'both',    200),
