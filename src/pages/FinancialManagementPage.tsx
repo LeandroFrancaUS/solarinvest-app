@@ -108,6 +108,21 @@ function KpiCard({ label, value, icon, color, subtitle }: KpiCardProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Section Error Banner
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SectionError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="fm-error" role="alert">
+      <strong>Erro ao carregar:</strong> {message}
+      <button type="button" className="ghost" onClick={onRetry}>
+        Tentar novamente
+      </button>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Entry Form (Drawer / Modal)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -354,7 +369,8 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
 // Overview Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OverviewTab({ summary }: { summary: FinancialSummary | null }) {
+function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | null; error: string | null; onRetry: () => void }) {
+  if (error) return <SectionError message={error} onRetry={onRetry} />
   if (!summary) {
     return <div className="fm-empty">Carregando indicadores…</div>
   }
@@ -381,10 +397,12 @@ function OverviewTab({ summary }: { summary: FinancialSummary | null }) {
 // Projects Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProjectsTab({ projects }: { projects: FinancialProject[] }) {
+function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
+
+  if (error) return <SectionError message={error} onRetry={onRetry} />
 
   const filtered = useMemo(() => {
     return projects.filter((p) => {
@@ -478,7 +496,8 @@ function ProjectsTab({ projects }: { projects: FinancialProject[] }) {
 // Cashflow Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function CashflowTab({ cashflow }: { cashflow: CashflowPeriod[] }) {
+function CashflowTab({ cashflow, error, onRetry }: { cashflow: CashflowPeriod[]; error: string | null; onRetry: () => void }) {
+  if (error) return <SectionError message={error} onRetry={onRetry} />
   return (
     <div className="fm-cashflow">
       {cashflow.length === 0 ? (
@@ -523,6 +542,8 @@ function CashflowTab({ cashflow }: { cashflow: CashflowPeriod[] }) {
 
 interface EntriesTabProps {
   entries: FinancialEntry[]
+  error: string | null
+  onRetry: () => void
   categories: FinancialCategory[]
   onNew: () => void
   onEdit: (entry: FinancialEntry) => void
@@ -530,10 +551,12 @@ interface EntriesTabProps {
   isDeleting: boolean
 }
 
-function EntriesTab({ entries, categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
+function EntriesTab({ entries, error, onRetry, categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
+
+  if (error) return <SectionError message={error} onRetry={onRetry} />
 
   const filtered = useMemo(() => {
     return entries.filter((e) => {
@@ -648,7 +671,8 @@ function EntriesTab({ entries, categories, onNew, onEdit, onDelete, isDeleting }
 // Leasing Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function LeasingTab({ projects }: { projects: FinancialProject[] }) {
+function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  if (error) return <SectionError message={error} onRetry={onRetry} />
   const leasingProjects = useMemo(() => projects.filter((p) => p.project_kind === 'leasing'), [projects])
 
   const totals = useMemo(() => {
@@ -718,7 +742,8 @@ function LeasingTab({ projects }: { projects: FinancialProject[] }) {
 // Sales Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SalesTab({ projects }: { projects: FinancialProject[] }) {
+function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  if (error) return <SectionError message={error} onRetry={onRetry} />
   const saleProjects = useMemo(() => projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout'), [projects])
 
   const totals = useMemo(() => {
@@ -797,13 +822,20 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [customTo, setCustomTo] = useState('')
 
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+
   const [projects, setProjects] = useState<FinancialProject[]>([])
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+
   const [cashflow, setCashflow] = useState<CashflowPeriod[]>([])
+  const [cashflowError, setCashflowError] = useState<string | null>(null)
+
   const [entries, setEntries] = useState<FinancialEntry[]>([])
+  const [entriesError, setEntriesError] = useState<string | null>(null)
+
   const [categories, setCategories] = useState<FinancialCategory[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const [showEntryForm, setShowEntryForm] = useState(false)
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
@@ -834,27 +866,59 @@ export function FinancialManagementPage({ onBack }: Props) {
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    setError(null)
-    try {
-      const params = getPeriodParams()
-      const [summaryData, projectsData, cashflowData, entriesData, categoriesData] = await Promise.all([
-        fetchFinancialSummary(params),
-        fetchFinancialProjects(params),
-        fetchFinancialCashflow(params),
-        fetchFinancialEntries(params),
-        fetchFinancialCategories(),
-      ])
-      setSummary(summaryData)
-      setProjects(projectsData)
-      setCashflow(cashflowData)
-      setEntries(entriesData)
-      setCategories(categoriesData)
-    } catch (err) {
-      console.error('[financial-management] loadData error', err)
-      setError(err instanceof Error ? err.message : 'Erro ao carregar dados financeiros.')
-    } finally {
-      setIsLoading(false)
+    // Clear per-section errors before reload
+    setSummaryError(null)
+    setProjectsError(null)
+    setCashflowError(null)
+    setEntriesError(null)
+
+    const params = getPeriodParams()
+
+    // Load each section independently so one failure doesn't break the whole page
+    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes] = await Promise.allSettled([
+      fetchFinancialSummary(params),
+      fetchFinancialProjects(params),
+      fetchFinancialCashflow(params),
+      fetchFinancialEntries(params),
+      fetchFinancialCategories(),
+    ])
+
+    if (summaryRes.status === 'fulfilled') {
+      setSummary(summaryRes.value)
+    } else {
+      console.error('[financial-management] summary error', summaryRes.reason)
+      setSummaryError(summaryRes.reason instanceof Error ? summaryRes.reason.message : 'Erro ao carregar indicadores.')
     }
+
+    if (projectsRes.status === 'fulfilled') {
+      setProjects(projectsRes.value)
+    } else {
+      console.error('[financial-management] projects error', projectsRes.reason)
+      setProjectsError(projectsRes.reason instanceof Error ? projectsRes.reason.message : 'Erro ao carregar projetos.')
+    }
+
+    if (cashflowRes.status === 'fulfilled') {
+      setCashflow(cashflowRes.value)
+    } else {
+      console.error('[financial-management] cashflow error', cashflowRes.reason)
+      setCashflowError(cashflowRes.reason instanceof Error ? cashflowRes.reason.message : 'Erro ao carregar fluxo de caixa.')
+    }
+
+    if (entriesRes.status === 'fulfilled') {
+      setEntries(entriesRes.value)
+    } else {
+      console.error('[financial-management] entries error', entriesRes.reason)
+      setEntriesError(entriesRes.reason instanceof Error ? entriesRes.reason.message : 'Erro ao carregar lançamentos.')
+    }
+
+    if (categoriesRes.status === 'fulfilled') {
+      setCategories(categoriesRes.value)
+    } else {
+      console.error('[financial-management] categories error', categoriesRes.reason)
+      // categories are non-critical; leave existing list intact
+    }
+
+    setIsLoading(false)
   }, [getPeriodParams])
 
   useEffect(() => {
@@ -983,21 +1047,16 @@ export function FinancialManagementPage({ onBack }: Props) {
             <span className="fm-loading-spinner" aria-hidden="true" />
             Carregando dados financeiros…
           </div>
-        ) : error ? (
-          <div className="fm-error" role="alert">
-            <strong>Erro ao carregar dados:</strong> {error}
-            <button type="button" className="ghost" onClick={() => void loadData()}>
-              Tentar novamente
-            </button>
-          </div>
         ) : (
           <>
-            {activeTab === 'overview' && <OverviewTab summary={summary} />}
-            {activeTab === 'projects' && <ProjectsTab projects={projects} />}
-            {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} />}
+            {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
+            {activeTab === 'projects' && <ProjectsTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+            {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
             {activeTab === 'entries' && (
               <EntriesTab
                 entries={entries}
+                error={entriesError}
+                onRetry={() => void loadData()}
                 categories={categories}
                 onNew={handleNewEntry}
                 onEdit={handleEditEntry}
@@ -1005,8 +1064,8 @@ export function FinancialManagementPage({ onBack }: Props) {
                 isDeleting={isDeletingEntry}
               />
             )}
-            {activeTab === 'leasing' && <LeasingTab projects={projects} />}
-            {activeTab === 'sales' && <SalesTab projects={projects} />}
+            {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+            {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
           </>
         )}
       </div>
