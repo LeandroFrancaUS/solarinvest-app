@@ -19159,20 +19159,33 @@ export default function App() {
       telefoneCorresponsavel: corresponsavelPayload?.telefone ?? '',
       ...procuracaoTags,
       // Valor atual de mercado (Preço Ideal da Análise Financeira) — preenche a tag {{valordemercado_atual}}
+      // The formatted string is kept for direct pass-through; the raw number enables backend extenso generation
+      // and DB-fallback resolution if this value is zero.
       valordemercado_atual: Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
         ? `R$ ${formatNumberBRWithOptions(custoFinalProjetadoCanonico, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : (() => {
-            console.warn('[contract][leasing] valordemercado_atual not available — tag {{valordemercado_atual}} will be empty')
+            console.warn('[contract][leasing] valordemercado_atual not available — backend will attempt DB fallback')
             return ''
           })(),
+      // Raw numeric value for the backend to use when generating the extenso and for DB fallback
+      valordemercado_atual_numero: Number.isFinite(custoFinalProjetadoCanonico) && custoFinalProjetadoCanonico > 0
+        ? custoFinalProjetadoCanonico
+        : 0,
     }
+
+    // Server-side client ID for DB fallback lookup of valordemercado
+    const serverClientId = clienteEmEdicaoId
+      ? (clientServerIdMapRef.current[clienteEmEdicaoId] ?? clienteEmEdicaoId)
+      : null
 
     return {
       tipoContrato: leasingContrato.tipoContrato,
       dadosLeasing,
+      clientId: serverClientId,
     }
   }, [
     adicionarNotificacao,
+    clienteEmEdicaoId,
     custoFinalProjetadoCanonico,
     kcKwhMes,
     leasingContrato,
@@ -19867,6 +19880,7 @@ export default function App() {
         body: JSON.stringify({
           tipoContrato: payload.tipoContrato,
           dadosLeasing: payload.dadosLeasing,
+          clientId: payload.clientId ?? null,
           anexosSelecionados,
           propostaHtml,
         }),
