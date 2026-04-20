@@ -49,7 +49,7 @@ export function Table<T>({
     <div className={`w-full overflow-x-auto rounded-xl border border-ds-border ${className}`}>
       <table className="w-full text-left text-sm text-ds-text-secondary">
         <thead
-          className={`border-b border-ds-border bg-ds-surface/80 text-xs font-semibold uppercase tracking-wide text-ds-text-muted ${
+          className={`border-b border-ds-border bg-ds-surface/95 text-xs font-semibold uppercase tracking-wide text-ds-text-muted backdrop-blur-sm ${
             stickyHeader ? 'sticky top-0 z-10' : ''
           }`}
         >
@@ -61,10 +61,10 @@ export function Table<T>({
                   'px-4 py-3',
                   col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left',
                   col.sortable && onSort ? 'cursor-pointer select-none hover:text-ds-text-primary transition-colors' : '',
-                  col.width ? `w-[${col.width}]` : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                style={col.width ? { width: col.width } : undefined}
                 onClick={col.sortable && onSort ? () => onSort(col.key) : undefined}
                 aria-sort={
                   col.sortable && sortKey === col.key

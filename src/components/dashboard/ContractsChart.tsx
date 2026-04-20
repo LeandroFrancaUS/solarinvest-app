@@ -36,9 +36,9 @@ export function ContractsChart({ data }: Props) {
             contentStyle={{
               borderRadius: 8,
               fontSize: 12,
-              backgroundColor: '#122B4A',
-              border: '1px solid #1F3D66',
-              color: '#A8C1E0',
+              backgroundColor: 'var(--ds-surface)',
+              border: '1px solid var(--ds-border)',
+              color: 'var(--ds-text-secondary)',
             }}
           />
           <Bar dataKey="contracts" fill="#22C55E" radius={[4, 4, 0, 0]} name="Contratos" />
