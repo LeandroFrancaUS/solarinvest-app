@@ -24,6 +24,7 @@ import {
   deleteClientFromPortfolio as apiDeleteClient,
 } from '../services/clientPortfolioApi'
 import { normalizePortfolioClientPayload } from '../utils/normalizePortfolioPayload'
+import { queueBatchAutoFill, runAutoFillForClient } from '../services/portfolioAutoFill'
 
 export interface UseClientPortfolioResult {
   clients: PortfolioClientRow[]
@@ -45,7 +46,11 @@ export function useClientPortfolio(): UseClientPortfolioResult {
     setIsLoading(true)
     setError(null)
     fetchPortfolioClients(search || undefined)
-      .then((rows) => setClients(rows))
+      .then((rows) => {
+        setClients(rows)
+        // Auto-fill computed fields for converted clients in the background.
+        queueBatchAutoFill(rows)
+      })
       .catch((err: unknown) =>
         setError(err instanceof Error ? err.message : 'Não foi possível carregar a carteira de clientes.'),
       )
@@ -91,7 +96,12 @@ export function usePortfolioClient(clientId: number | null): UsePortfolioClientR
     fetchPortfolioClient(clientId)
       .then((row) => {
         if (!row) setError('Cliente não encontrado na carteira.')
-        else setClient(normalizePortfolioClientPayload(row))
+        else {
+          const normalized = normalizePortfolioClientPayload(row)
+          setClient(normalized)
+          // Auto-fill computed fields in the background (single-client trigger).
+          void runAutoFillForClient(normalized)
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Erro ao carregar cliente.'))
       .finally(() => setIsLoading(false))
