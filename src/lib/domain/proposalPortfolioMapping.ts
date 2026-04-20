@@ -328,6 +328,12 @@ export function mapProposalDataToPortfolioFields(
   const mensalidadeFirst = leasing?.projecao?.mensalidadesAno?.[0]?.mensalidade
   const mensalidade = toPos(mensalidadeFirst)
 
+  // indicacao: use the nome when provided; fall back to empty string when
+  // temIndicacao=true but the name is not yet filled — this signals that an
+  // indication exists so the field is not omitted entirely, which would
+  // prevent a downstream overwrite of an already-saved empty indicação.
+  // When temIndicacao=false (or absent), return undefined so the field is
+  // omitted from the update payload completely.
   const indicacao = toStr(cliente.indicacaoNome)
     ?? (cliente.temIndicacao ? '' : undefined)
 

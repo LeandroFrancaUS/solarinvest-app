@@ -220,33 +220,47 @@ export function closeProposalAndHydrateClientPortfolio(
   const { proposalId, clientId, snapshot, clienteDados } = input
 
   const tag = `[closing] proposalId=${proposalId ?? 'none'} clientId=${clientId ?? 'none'}`
+  const logStep = (step: number, msg: string) => log.push(`${tag} step=${step} ${msg}`)
 
   // Step 1 — Validate readiness ───────────────────────────────────────────────
-  log.push(`${tag} step=1 validate_readiness`)
+  logStep(1, 'validate_readiness')
   const readiness = validateProposalReadinessForClosing(input)
 
   if (!readiness.ok) {
-    log.push(`${tag} step=1 BLOCKED issues=${readiness.errors.map((e) => e.field).join(',')}`)
+    logStep(1, `BLOCKED issues=${readiness.errors.map((e) => e.field).join(',')}`)
     return { ok: false, readiness, payload: null, log }
   }
 
   if (readiness.warnings.length > 0) {
-    log.push(`${tag} step=1 warnings=${readiness.warnings.map((w) => w.field).join(',')}`)
+    logStep(1, `warnings=${readiness.warnings.map((w) => w.field).join(',')}`)
   }
 
   // Step 2 — Map proposal → portfolio fields ──────────────────────────────────
-  log.push(`${tag} step=2 mapping_proposal_to_portfolio`)
+  logStep(2, 'mapping_proposal_to_portfolio')
 
   const payload = mapProposalDataToPortfolioFields(snapshot, clienteDados)
 
-  log.push(`${tag} step=2 mapping_clients fields=${Object.keys(payload.clients).join(',')}`)
-  log.push(`${tag} step=2 mapping_usina fields=${Object.keys(payload.usinaConfig).join(',')}`)
-  log.push(`${tag} step=2 mapping_contract fields=${Object.keys(payload.contract).join(',')}`)
-  log.push(`${tag} step=2 mapping_energy_profile fields=${Object.keys(payload.energyProfile).join(',')}`)
-  log.push(`${tag} step=2 mapping_billing fields=${Object.keys(payload.billingProfile).join(',')}`)
+  // Table name → payload group map for logging and tablesPopulated derivation
+  const tablePayloadMap: Record<string, Record<string, unknown>> = {
+    clients: payload.clients,
+    client_usina_config: payload.usinaConfig,
+    client_contracts: payload.contract,
+    client_energy_profile: payload.energyProfile,
+    client_billing_profile: payload.billingProfile,
+  }
+  const logNames: Record<string, string> = {
+    clients: 'mapping_clients',
+    client_usina_config: 'mapping_usina',
+    client_contracts: 'mapping_contract',
+    client_energy_profile: 'mapping_energy_profile',
+    client_billing_profile: 'mapping_billing',
+  }
+  for (const [table, group] of Object.entries(tablePayloadMap)) {
+    logStep(2, `${logNames[table]} fields=${Object.keys(group).join(',')}`)
+  }
 
   // Step 3 — Log engine results ───────────────────────────────────────────────
-  log.push(`${tag} step=3 engine_results systemKwp=${payload.clients.system_kwp ?? 'null'} geracaoKwh=${payload.usinaConfig.geracao_estimada_kwh ?? 'null'} valorMercado=${payload.usinaConfig.valordemercado ?? 'null'}`)
+  logStep(3, `engine_results systemKwp=${payload.clients.system_kwp ?? 'null'} geracaoKwh=${payload.usinaConfig.geracao_estimada_kwh ?? 'null'} valorMercado=${payload.usinaConfig.valordemercado ?? 'null'}`)
 
   if (clienteDados.nome) {
     console.info('[closing] mapping proposal -> clients', {
@@ -272,20 +286,15 @@ export function closeProposalAndHydrateClientPortfolio(
     valorMercado: payload.usinaConfig.valordemercado,
   })
 
-  log.push(`${tag} step=4 hydration_complete`)
+  logStep(4, 'hydration_complete')
 
   console.info('[closing] hydration complete', {
     proposalId,
     clientId,
     clientName: clienteDados.nome,
-    tablesPopulated: ['clients', 'client_usina_config', 'client_contracts', 'client_energy_profile', 'client_billing_profile'].filter((t) => {
-      if (t === 'clients') return Object.keys(payload.clients).length > 0
-      if (t === 'client_usina_config') return Object.keys(payload.usinaConfig).length > 0
-      if (t === 'client_contracts') return Object.keys(payload.contract).length > 0
-      if (t === 'client_energy_profile') return Object.keys(payload.energyProfile).length > 0
-      if (t === 'client_billing_profile') return Object.keys(payload.billingProfile).length > 0
-      return false
-    }),
+    tablesPopulated: Object.entries(tablePayloadMap)
+      .filter(([, group]) => Object.keys(group).length > 0)
+      .map(([table]) => table),
   })
 
   return { ok: true, readiness, payload, log }
