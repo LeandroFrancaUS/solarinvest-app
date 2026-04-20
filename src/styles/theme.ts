@@ -11,15 +11,15 @@
 
 export const colors = {
   // Fundos
-  background: '#0B1F3A',
+  background: '#0A1A2F',
   surface: '#122B4A',
   surfaceHover: '#16345C',
   border: '#1F3D66',
 
-  // Texto
+  // Texto (contraste WCAG AA/AAA)
   textPrimary: '#FFFFFF',
-  textSecondary: '#A8C1E0',
-  textMuted: '#6B8BB5',
+  textSecondary: '#D6E4F0',
+  textMuted: '#9FB3C8',
 
   // Ações
   primary: '#2D8CFF',
@@ -34,7 +34,7 @@ export const colors = {
   inputBg: '#0F2747',
   inputBorder: '#1F3D66',
   inputFocus: '#2D8CFF',
-  inputPlaceholder: '#6B8BB5',
+  inputPlaceholder: '#9FB3C8',
 } as const
 
 // ─────────────────────────────────────────────────────────────────────────────

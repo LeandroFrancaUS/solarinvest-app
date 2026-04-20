@@ -9,13 +9,13 @@
   color-scheme: dark;
 
   /* Design System custom properties */
-  --ds-background: #0B1F3A;
+  --ds-background: #0A1A2F;
   --ds-surface: #122B4A;
   --ds-surface-hover: #16345C;
   --ds-border: #1F3D66;
   --ds-text-primary: #FFFFFF;
-  --ds-text-secondary: #A8C1E0;
-  --ds-text-muted: #6B8BB5;
+  --ds-text-secondary: #D6E4F0;
+  --ds-text-muted: #9FB3C8;
   --ds-primary: #2D8CFF;
   --ds-primary-hover: #2070d0;
   --ds-success: #22C55E;
@@ -25,15 +25,26 @@
   --ds-warning: #F59E0B;
   --ds-input-bg: #0F2747;
 
+  /* ── Tokens de contraste semânticos (WCAG AA/AAA) ────────── */
+  --color-bg-primary: #0A1A2F;
+  --color-bg-secondary: #122B4A;
+  --color-bg-hover: #16345C;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #D6E4F0;
+  --color-text-muted: #9FB3C8;
+  --color-accent: #2D8CFF;
+  --color-accent-soft: #4DA3FF;
+  --color-border: #1F3D66;
+
   /* Legado — mapeado para o design system escuro */
-  --bg: #0B1F3A;
+  --bg: #0A1A2F;
   --surface: #122B4A;
   --card: #16345C;
 
   --text-strong: #FFFFFF;
-  --text-base: #A8C1E0;
-  --text-muted: #6B8BB5;
-  --text-inverse: #0B1F3A;
+  --text-base: #D6E4F0;
+  --text-muted: #9FB3C8;
+  --text-inverse: #0A1A2F;
 
   --accent: #2D8CFF;
   --accent-strong: #2070d0;
@@ -44,7 +55,7 @@
   --border-strong: rgba(45, 140, 255, 0.4);
 
   --input-bg: #0F2747;
-  --input-placeholder: #6B8BB5;
+  --input-placeholder: #9FB3C8;
 
   --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -115,13 +126,23 @@ body {
   --ds-primary: #2D8CFF;
   --ds-input-bg: #ffffff;
 
+  --color-bg-primary: #f8fafc;
+  --color-bg-secondary: #ffffff;
+  --color-bg-hover: #f1f5f9;
+  --color-text-primary: #0b0f1a;
+  --color-text-secondary: #1e293b;
+  --color-text-muted: #4A5D73;
+  --color-accent: #2D8CFF;
+  --color-accent-soft: #4DA3FF;
+  --color-border: rgba(148, 163, 184, 0.25);
+
   --bg: #f8fafc;
   --surface: #ffffff;
   --card: #f1f5f9;
 
   --text-strong: #0b0f1a;
   --text-base: #1e293b;
-  --text-muted: #64748b;
+  --text-muted: #4A5D73;
   --text-inverse: #ffffff;
 
   --accent: #2D8CFF;
@@ -176,7 +197,7 @@ body {
   --ds-border: #1d3a5c;
   --ds-text-primary: #FFFBF2;
   --ds-text-secondary: #D4B896;
-  --ds-text-muted: #8A7060;
+  --ds-text-muted: #9A8070;
   --ds-primary: #E8942A;
   --ds-primary-hover: #C97818;
   --ds-success: #22C55E;
@@ -186,13 +207,23 @@ body {
   --ds-warning: #F59E0B;
   --ds-input-bg: #0A1828;
 
+  --color-bg-primary: #0D1B2A;
+  --color-bg-secondary: #112233;
+  --color-bg-hover: #1a3a55;
+  --color-text-primary: #FFFBF2;
+  --color-text-secondary: #D4B896;
+  --color-text-muted: #9A8070;
+  --color-accent: #E8942A;
+  --color-accent-soft: #F0A84A;
+  --color-border: #1d3a5c;
+
   --bg: #0D1B2A;
   --surface: #112233;
   --card: #1a3a55;
 
   --text-strong: #FFFBF2;
   --text-base: #D4B896;
-  --text-muted: #8A7060;
+  --text-muted: #9A8070;
   --text-inverse: #0D1B2A;
 
   --accent: #E8942A;
@@ -204,7 +235,7 @@ body {
   --border-strong: rgba(232, 148, 42, 0.4);
 
   --input-bg: #0A1828;
-  --input-placeholder: #8A7060;
+  --input-placeholder: #9A8070;
 
   --backdrop: rgba(0, 0, 0, 0.65);
 
@@ -1378,7 +1409,7 @@ button.secondary.small {
   gap: var(--space-1);
   font-size: var(--font-s);
   font-weight: 600;
-  color: var(--muted);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.4px;
   margin: 0;
@@ -7231,7 +7262,7 @@ i:hover {
 
 .topbar-brand-subtitle {
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--color-text-secondary);
   line-height: 1.2;
 }
 
@@ -7375,8 +7406,8 @@ i:hover {
   top: var(--header-h);
   height: calc(100vh - var(--header-h));
   width: 256px;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--color-bg-primary);
+  border-right: 1px solid var(--color-border);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
   padding: 0 14px 20px;
@@ -7386,7 +7417,7 @@ i:hover {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-base);
+  color: var(--color-text-secondary);
   transition: width 0.25s ease;
   overscroll-behavior: contain;
   touch-action: pan-y;
@@ -7529,7 +7560,7 @@ i:hover {
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--ghost-bg);
-  color: var(--text-base);
+  color: var(--color-text-primary);
   padding: 10px 16px;
   cursor: pointer;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, color 0.2s ease;
@@ -7558,7 +7589,7 @@ i:hover {
 .sidebar-menu-text {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(248, 250, 252, 0.92);
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
@@ -7629,7 +7660,7 @@ i:hover {
 
 .sidebar .group {
   padding: 10px 12px 4px;
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
@@ -7652,7 +7683,7 @@ i:hover {
   border: 1px solid transparent;
   border-left: 3px solid transparent;
   background: transparent;
-  color: #A8C1E0;
+  color: var(--color-text-secondary);
   cursor: pointer;
   text-align: left;
   min-height: 36px;
@@ -7666,10 +7697,10 @@ i:hover {
 
 .sidebar button.sidebar-link:hover,
 .sidebar button.sidebar-link:focus-visible {
-  background: #122B4A;
+  background: var(--color-bg-hover);
   border-color: transparent;
   border-left-color: rgba(45, 140, 255, 0.4);
-  color: #FFFFFF;
+  color: var(--color-text-primary);
   outline: none;
 }
 
@@ -7679,14 +7710,14 @@ i:hover {
 
 .sidebar button.sidebar-link.has-children[aria-expanded='true'] {
   background: rgba(148, 163, 184, 0.08);
-  color: rgba(226, 232, 240, 0.92);
+  color: var(--color-text-primary);
 }
 
 .sidebar button.sidebar-link.active {
-  background: #16345C;
+  background: var(--color-bg-hover);
   border-color: transparent;
-  border-left-color: #2D8CFF;
-  color: #FFFFFF;
+  border-left-color: var(--color-accent);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
@@ -7711,16 +7742,16 @@ i:hover {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  color: #6B8BB5;
+  color: var(--color-text-muted);
   transition: color 0.2s ease;
 }
 
 .sidebar button.sidebar-link:hover .icon {
-  color: #A8C1E0;
+  color: var(--color-text-secondary);
 }
 
 .sidebar button.sidebar-link.active .icon {
-  color: #2D8CFF;
+  color: var(--color-accent);
 }
 
 .sidebar-label {
@@ -8169,8 +8200,8 @@ i:hover {
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     z-index: 1200;
-    background: #0B1F3A;
-    border-right: 1px solid #1F3D66;
+    background: var(--color-bg-primary);
+    border-right: 1px solid var(--color-border);
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 0 16px 16px 0;
     box-shadow: 24px 0 48px rgba(0, 0, 0, 0.5);
