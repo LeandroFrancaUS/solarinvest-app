@@ -105,6 +105,11 @@ import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFields
 import { buildRequiredFieldsVenda } from './lib/validation/buildRequiredFieldsVenda'
 import { validateRequiredFields } from './lib/validation/validateRequiredFields'
 import {
+  validateClientReadinessForContract,
+  type ValidationIssue,
+} from './lib/validation/clientReadiness'
+import { ClientReadinessErrorModal } from './components/validation/ClientReadinessErrorModal'
+import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
   type EstruturaUtilizadaTipoWarning,
@@ -9196,6 +9201,7 @@ export default function App() {
   const [gerandoContratos, setGerandoContratos] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
   const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
+  const [clientReadinessErrors, setClientReadinessErrors] = useState<ValidationIssue[] | null>(null)
   const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
     getDefaultLeasingAnexos(leasingContrato.tipoContrato, { corresponsavelAtivo }),
   )
@@ -17216,6 +17222,29 @@ export default function App() {
   const handleExportarParaCarteira = useCallback(
     async (registro: ClienteRegistro) => {
       const nomeCliente = registro.dados.nome?.trim() || 'este cliente'
+
+      // ── Data-integrity gate ─────────────────────────────────────────────
+      // Run the central readiness check before allowing the portfolio export.
+      // UC beneficiárias from the snapshot are validated when present.
+      const ucBeneficiariasNums = (
+        registro.propostaSnapshot?.ucBeneficiarias ?? []
+      ).map((uc) => uc?.numero ?? null)
+
+      const readiness = validateClientReadinessForContract({
+        cep: registro.dados.cep,
+        document: registro.dados.documento,
+        phone: registro.dados.telefone,
+        email: registro.dados.email,
+        ucGeradora: registro.dados.uc,
+        ...(ucBeneficiariasNums.length > 0 ? { ucBeneficiarias: ucBeneficiariasNums } : {}),
+      })
+
+      if (!readiness.ok) {
+        setClientReadinessErrors(readiness.issues)
+        return
+      }
+      // ────────────────────────────────────────────────────────────────────
+
       const serverIdCandidate =
         clientServerIdMapRef.current[registro.id] ??
         (CLIENTE_ID_PATTERN.test(registro.id) ? null : registro.id)
@@ -20203,6 +20232,26 @@ export default function App() {
   )
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
+    // ── Data-integrity gate ───────────────────────────────────────────────
+    // Run the central readiness check before allowing contract generation.
+    // UC beneficiárias are validated when entries exist.
+    const ucBeneficiariasNums = ucsBeneficiarias.map((uc) => uc.numero)
+
+    const readiness = validateClientReadinessForContract({
+      cep: cliente.cep,
+      document: cliente.documento,
+      phone: cliente.telefone,
+      email: cliente.email,
+      ucGeradora: cliente.uc,
+      ...(ucBeneficiariasNums.length > 0 ? { ucBeneficiarias: ucBeneficiariasNums } : {}),
+    })
+
+    if (!readiness.ok) {
+      setClientReadinessErrors(readiness.issues)
+      return
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     setActivePage('app')
 
     if (isVendaDiretaTab) {
@@ -20211,10 +20260,16 @@ export default function App() {
       await handleGerarContratoLeasing()
     }
   }, [
+    cliente.cep,
+    cliente.documento,
+    cliente.email,
+    cliente.telefone,
+    cliente.uc,
     handleGerarContratoLeasing,
     handleGerarContratoVendas,
     isVendaDiretaTab,
     setActivePage,
+    ucsBeneficiarias,
   ])
 
   const abrirClientesPainel = useCallback(async () => {
@@ -30342,6 +30397,14 @@ export default function App() {
           cancelLabel={confirmDialog.cancelLabel ?? 'Cancelar'}
           onConfirm={() => resolveConfirmDialog(true)}
           onCancel={() => resolveConfirmDialog(false)}
+        />
+      ) : null}
+      {clientReadinessErrors ? (
+        <ClientReadinessErrorModal
+          title="Dados cadastrais inválidos"
+          intro="Não é possível prosseguir porque há dados inválidos ou incompletos. Corrija os campos abaixo antes de fechar o negócio ou gerar os contratos:"
+          issues={clientReadinessErrors}
+          onClose={() => setClientReadinessErrors(null)}
         />
       ) : null}
     </>
