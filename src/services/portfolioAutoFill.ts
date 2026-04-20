@@ -74,8 +74,14 @@ export async function runAutoFillForClient(client: PortfolioClientRow): Promise<
     return false
   }
 
+  // Build a plain object for the API call — spread the strongly-typed fields
+  // into a Record so no unsafe cast is needed.
+  const { energyProfile, ...rest } = update
+  const apiPayload: Record<string, unknown> = { ...rest }
+  if (energyProfile) apiPayload.energyProfile = energyProfile
+
   try {
-    await patchPortfolioUsina(client.id, update as unknown as Record<string, unknown>)
+    await patchPortfolioUsina(client.id, apiPayload)
     console.info('[auto-fill] persisted', { clientId: client.id, fields: Object.keys(update) })
     return true
   } catch (err) {

@@ -221,7 +221,7 @@ export function hydrateClientComputedFields(
     console.info(`[auto-fill] clientId=${client.id} campo=potencia_kwp origem=payload_json`)
   }
 
-  setIfMissing(client.potencia_modulo_wp, 'potencia_modulo_wp', potModuloRaw ?? (potKwp != null ? DEFAULT_MODULE_WP : null), 'payload_json')
+  setIfMissing(client.potencia_modulo_wp, 'potencia_modulo_wp', potModulo, 'payload_json')
   setIfMissing(client.numero_modulos, 'numero_modulos', nModulosRaw, 'payload_json')
   setIfMissing(client.area_instalacao_m2, 'area_instalacao_m2', areaRaw, 'payload_json')
   setIfMissing(client.geracao_estimada_kwh, 'geracao_estimada_kwh', geracaoRaw, 'payload_json')
