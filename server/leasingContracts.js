@@ -7,6 +7,7 @@ import Mustache from 'mustache'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { convertDocxToPdf, convertHtmlToPdf, isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
+import { getDatabaseClient } from './database/neonClient.js'
 
 const JSON_BODY_LIMIT = 6 * 1024 * 1024
 const DOCX_TEMPLATE_PARTS_REGEX = /^word\/(document|header\d*|footer\d*|footnotes|endnotes)\.xml$/i
@@ -94,6 +95,192 @@ const getProcuracaoFileBaseName = (contratanteUf) => {
     },
   )
 }
+
+// ─── Valor de Mercado helpers ─────────────────────────────────────────────────
+
+/**
+ * Converts an unknown value to a positive finite number, or returns null.
+ * Zero, empty string, null, undefined and non-finite values are rejected.
+ * @param {unknown} value
+ * @returns {number | null}
+ */
+const toPositiveNumber = (value) => {
+  const num = typeof value === 'string' ? Number(value) : value
+  return typeof num === 'number' && Number.isFinite(num) && num > 0 ? num : null
+}
+
+// Lookup tables for Brazilian Portuguese number words
+const EXTENSO_UNIDADES = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove']
+const EXTENSO_DEZENAS = ['', 'dez', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa']
+const EXTENSO_DEZENAS_ESPECIAIS = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove']
+const EXTENSO_CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos']
+
+// Reusable BRL currency formatter
+const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/**
+ * Converts a non-negative integer to its Brazilian Portuguese word representation.
+ * @param {number} n - Non-negative integer
+ * @returns {string}
+ */
+const inteiroParaExtensoBR = (n) => {
+  if (n === 0) return 'zero'
+  const partes = []
+  let remaining = n
+
+  if (remaining >= 1_000_000) {
+    const milhoes = Math.floor(remaining / 1_000_000)
+    partes.push(inteiroParaExtensoBR(milhoes) + (milhoes === 1 ? ' milhão' : ' milhões'))
+    remaining %= 1_000_000
+  }
+
+  if (remaining >= 1_000) {
+    const mil = Math.floor(remaining / 1_000)
+    partes.push(mil === 1 ? 'mil' : inteiroParaExtensoBR(mil) + ' mil')
+    remaining %= 1_000
+  }
+
+  if (remaining >= 100) {
+    const c = Math.floor(remaining / 100)
+    const resto = remaining % 100
+    partes.push(resto === 0 && c === 1 ? 'cem' : EXTENSO_CENTENAS[c])
+    remaining = resto
+  }
+
+  if (remaining >= 20) {
+    const d = Math.floor(remaining / 10)
+    const u = remaining % 10
+    partes.push(u === 0 ? EXTENSO_DEZENAS[d] : `${EXTENSO_DEZENAS[d]} e ${EXTENSO_UNIDADES[u]}`)
+  } else if (remaining >= 10) {
+    partes.push(EXTENSO_DEZENAS_ESPECIAIS[remaining - 10])
+  } else if (remaining > 0) {
+    partes.push(EXTENSO_UNIDADES[remaining])
+  }
+
+  return partes.join(' e ')
+}
+
+/**
+ * Converts a monetary value (BRL) to its Brazilian Portuguese word representation.
+ * Suitable for use in legal contracts.
+ * @param {number} value - Amount in reais (e.g., 13600.81)
+ * @returns {string} e.g. "treze mil e seiscentos reais e oitenta e um centavos"
+ */
+export const valorMonetarioPorExtensoBR = (value) => {
+  const rounded = Math.round(value * 100) / 100
+  const reais = Math.floor(rounded)
+  const centavos = Math.round((rounded - reais) * 100)
+
+  const partes = []
+  if (reais > 0) {
+    partes.push(`${inteiroParaExtensoBR(reais)} ${reais === 1 ? 'real' : 'reais'}`)
+  }
+  if (centavos > 0) {
+    partes.push(`${inteiroParaExtensoBR(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`)
+  }
+  return partes.length > 0 ? partes.join(' e ') : 'zero reais'
+}
+
+/**
+ * Formats a number as a BRL currency string (e.g., "R$ 13.600,81").
+ * @param {number} value
+ * @returns {string}
+ */
+const formatCurrencyBRL = (value) => BRL_FORMATTER.format(value)
+
+/**
+ * Resolves the "valor de mercado atual" (current market value) for a leasing contract.
+ * Priority chain:
+ *  1. Positive numeric value provided directly in the payload (rawDadosLeasing.valordemercado_atual_numero)
+ *  2. client_usina_config.valordemercado from the database (preferred canonical source)
+ *  3. clients.metadata.valordemercado from the database (legacy fallback)
+ *
+ * Returns null if no positive value could be resolved from any source.
+ *
+ * @param {{ rawDadosLeasing: object, clientId?: string | number | null }} params
+ * @returns {Promise<number | null>}
+ */
+const resolveValorDeMercadoAtualForContract = async ({ rawDadosLeasing, clientId }) => {
+  // 1. Try the raw numeric value sent by the frontend in the request payload
+  const fromPayload = toPositiveNumber(rawDadosLeasing?.valordemercado_atual_numero)
+  if (fromPayload) {
+    console.info('[contracts][leasing] resolving valordemercado', {
+      clientId: clientId ?? null,
+      source: 'payload.valordemercado_atual_numero',
+      resolvedValorDeMercado: fromPayload,
+    })
+    return fromPayload
+  }
+
+  // 2 & 3. Try database sources if clientId is available
+  if (clientId) {
+    const db = getDatabaseClient()
+    if (db) {
+      let usinaConfigValorDeMercado = null
+      let metadataValorDeMercado = null
+
+      try {
+        // Preferred: client_usina_config.valordemercado
+        // client_id is unique in this table so ORDER BY is not needed, but included for safety
+        const usinaRows = await db.sql`
+          SELECT valordemercado
+          FROM public.client_usina_config
+          WHERE client_id = ${clientId}
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `
+        usinaConfigValorDeMercado = toPositiveNumber(usinaRows?.[0]?.valordemercado)
+      } catch (err) {
+        console.warn('[contracts][leasing] failed to query client_usina_config for valordemercado', {
+          clientId,
+          errMessage: err?.message,
+        })
+      }
+
+      if (!usinaConfigValorDeMercado) {
+        try {
+          // Legacy fallback: clients.metadata.valordemercado
+          const clientRows = await db.sql`
+            SELECT metadata
+            FROM public.clients
+            WHERE id = ${clientId} AND deleted_at IS NULL
+            ORDER BY updated_at DESC
+            LIMIT 1
+          `
+          metadataValorDeMercado = toPositiveNumber(clientRows?.[0]?.metadata?.valordemercado)
+        } catch (err) {
+          console.warn('[contracts][leasing] failed to query clients.metadata for valordemercado', {
+            clientId,
+            errMessage: err?.message,
+          })
+        }
+      }
+
+      const resolvedFromDb = usinaConfigValorDeMercado ?? metadataValorDeMercado ?? null
+      console.info('[contracts][leasing] resolving valordemercado', {
+        clientId,
+        proposalValorDeMercado: fromPayload,
+        usinaConfigValorDeMercado,
+        metadataValorDeMercado,
+        resolvedValorDeMercado: resolvedFromDb,
+        source: usinaConfigValorDeMercado
+          ? 'db.client_usina_config'
+          : metadataValorDeMercado
+            ? 'db.clients.metadata'
+            : 'none',
+      })
+      if (resolvedFromDb) return resolvedFromDb
+    }
+  }
+
+  console.warn('[contracts][leasing] valordemercado could not be resolved from any source', {
+    clientId: clientId ?? null,
+    payloadValuePresent: rawDadosLeasing?.valordemercado_atual_numero != null,
+  })
+  return null
+}
+
+// ─── End Valor de Mercado helpers ─────────────────────────────────────────────
 
 export const LEASING_CONTRACTS_PATH = '/api/contracts/leasing'
 export const LEASING_CONTRACTS_AVAILABILITY_PATH = '/api/contracts/leasing/availability'
@@ -1548,6 +1735,9 @@ const ALLOWED_TEMPLATE_TAGS = new Set([
   'enderecoCorresponsavel',
   'emailCorresponsavel',
   'telefoneCorresponsavel',
+  // Valor de mercado tags (Anexo II)
+  'valordemercado_atual',
+  'valordemercado_atual_extenso',
 ])
 
 const extractTemplateTags = (xml) => {
@@ -2295,6 +2485,7 @@ export const handleLeasingContractsRequest = async (req, res) => {
     })
 
     const rawDadosLeasing = body?.dadosLeasing ?? {}
+    const clientId = body?.clientId ?? rawDadosLeasing?.clientId ?? null
     const dadosLeasing = sanitizeDadosLeasing(rawDadosLeasing, tipoContrato)
     const propostaHtml = typeof body?.propostaHtml === 'string' ? body.propostaHtml.trim() : ''
     const anexosSelecionadosBase = sanitizeAnexosSelecionados(body?.anexosSelecionados, tipoContrato)
@@ -2314,6 +2505,30 @@ export const handleLeasingContractsRequest = async (req, res) => {
       : anexosSelecionadosBase
     const clienteUf = dadosLeasing.uf
     const procuracaoUf = resolveUfForProcuracao(rawDadosLeasing)
+
+    // Resolve valor de mercado com cadeia de fallback
+    const resolvedValorDeMercado = await resolveValorDeMercadoAtualForContract({
+      rawDadosLeasing,
+      clientId,
+    })
+
+    if (resolvedValorDeMercado) {
+      dadosLeasing.valordemercado_atual = formatCurrencyBRL(resolvedValorDeMercado)
+      dadosLeasing.valordemercado_atual_extenso = valorMonetarioPorExtensoBR(resolvedValorDeMercado)
+      console.info('[contracts][leasing] valordemercado extenso generated', {
+        requestId,
+        value: resolvedValorDeMercado,
+        formatted: dadosLeasing.valordemercado_atual,
+        extenso: dadosLeasing.valordemercado_atual_extenso,
+      })
+    } else {
+      dadosLeasing.valordemercado_atual = ''
+      dadosLeasing.valordemercado_atual_extenso = ''
+      console.warn('[contracts][leasing] valordemercado_atual will be empty — no value resolved', {
+        requestId,
+        clientId,
+      })
+    }
 
     const anexosResolvidos = resolveTemplatesForAnexos(tipoContrato, anexosSelecionados, procuracaoUf || clienteUf)
     const anexosDisponiveis = []
