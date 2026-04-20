@@ -5629,8 +5629,13 @@ export default function App() {
   // Kit  : R$ = round(1500 + 9.5  × kWh/mês)  — fitted on real quotes, always positive margin
   // Frete: R$ = round(300  + 0.52 × kWh/mês)  — same approach; consumo-based (no module count needed)
   // Mat.CA: R$ = max(1000, round(850 + 0.40 × kWh/mês)) — per requirement
+  //
+  // NOTE: this runs unconditionally (not gated on simulacoesSection === 'analise') so that
+  // custoFinalProjetadoCanonico is always populated when a client/proposal is loaded, even
+  // before the user visits the "Análise Financeira" section. Previously the guard caused
+  // afCustoKit to remain 0 on Leasing/Venda pages, making analiseFinanceiraResult return
+  // null and leaving "Valor atual de venda" blank until the AF page was opened manually.
   useEffect(() => {
-    if (simulacoesSection !== 'analise') return
     const consumo = afConsumoOverride > 0 ? afConsumoOverride : kcKwhMes
     if (consumo <= 0) return
     if (!afCustoKitManual) {
@@ -5643,8 +5648,14 @@ export default function App() {
     if (afMaterialCAOverride == null) {
       setAfAutoMaterialCA(Math.max(1000, Math.round(850 + 0.4 * consumo)))
     }
+    console.info('[current-sale-value] af-cost-inputs recomputed', {
+      source: 'consumo-change',
+      consumo,
+      afCustoKitManual,
+      afFreteManual,
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simulacoesSection, kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
+  }, [kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
@@ -11177,7 +11188,17 @@ export default function App() {
     const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
     const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
 
-    if (consumo <= 0 || afCustoKit <= 0) return null
+    if (consumo <= 0 || afCustoKit <= 0) {
+      console.info('[current-sale-value] analiseFinanceiraResult blocked', {
+        consumo,
+        afCustoKit,
+        reasons: [
+          consumo <= 0 ? 'consumo_kwh_mes ausente ou zero' : null,
+          afCustoKit <= 0 ? 'afCustoKit ausente ou zero (será auto-preenchido ao setar consumo)' : null,
+        ].filter(Boolean),
+      })
+      return null
+    }
 
     // Pre-compute base system using the same engine as the leasing proposals page
     const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
@@ -11446,24 +11467,54 @@ export default function App() {
     // NÃO confundir com CAPEX do orçamento PDF nem com mensalidade.
     const precoIdeal = analiseFinanceiraResult?.preco_ideal_rs
     if (Number.isFinite(precoIdeal) && precoIdeal != null && precoIdeal > 0) {
+      console.info('[current-sale-value] recompute', {
+        source: 'preco_ideal_rs',
+        value: precoIdeal,
+        isReady: true,
+      })
       return precoIdeal
     }
 
     const precoMinSaudavel = analiseFinanceiraResult?.preco_minimo_saudavel_rs
     if (Number.isFinite(precoMinSaudavel) && precoMinSaudavel != null && precoMinSaudavel > 0) {
+      console.info('[current-sale-value] recompute', {
+        source: 'preco_minimo_saudavel_rs',
+        value: precoMinSaudavel,
+        isReady: true,
+      })
       return precoMinSaudavel
     }
 
     const auto = Number(autoCustoFinal)
     if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
+      console.info('[current-sale-value] recompute', {
+        source: 'autoCustoFinal',
+        value: auto,
+        isReady: true,
+      })
       return auto
     }
 
     const venda = Number(valorVendaAtual)
     if (Number.isFinite(venda) && venda > 0) {
+      console.info('[current-sale-value] recompute', {
+        source: 'valorVendaAtual',
+        value: venda,
+        isReady: true,
+      })
       return venda
     }
 
+    console.info('[current-sale-value] recompute', {
+      source: 'capex-fallback',
+      value: Math.max(0, capex),
+      isReady: false,
+      reasons: [
+        analiseFinanceiraResult == null ? 'analiseFinanceiraResult ausente (afCustoKit <= 0 ou consumo <= 0?)' : null,
+        !analiseFinanceiraResult?.preco_ideal_rs ? 'preco_ideal_rs ausente' : null,
+        !analiseFinanceiraResult?.preco_minimo_saudavel_rs ? 'preco_minimo_saudavel_rs ausente' : null,
+      ].filter(Boolean),
+    })
     return Math.max(0, capex)
   }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
 
