@@ -2159,10 +2159,6 @@ function AddClientModal({
       setGlobalError('Preencha corretamente todos os campos obrigatórios antes de salvar.')
       return
     }
-    if (!form.name.trim() || !form.document.trim()) {
-      setGlobalError('Preencha corretamente todos os campos obrigatórios antes de salvar.')
-      return
-    }
     setSaving(true)
     setGlobalError(null)
     try {
