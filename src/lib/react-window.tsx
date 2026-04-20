@@ -9,7 +9,7 @@ type BaseListProps<ItemData> = {
   itemSize: number
   itemData: ItemData
   children: (props: ListChildComponentProps<ItemData>) => React.ReactNode
-  outerElementType?: React.ElementType<React.HTMLAttributes<any>>
+  outerElementType?: React.ElementType<React.HTMLAttributes<HTMLElement>>
   itemKey?: (index: number, data: ItemData) => React.Key
 }
 

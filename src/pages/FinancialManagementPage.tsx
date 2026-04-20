@@ -571,7 +571,7 @@ interface EntriesTabProps {
   isDeleting: boolean
 }
 
-function EntriesTab({ entries, error, onRetry, categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
+function EntriesTab({ entries, error, onRetry, categories: _categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')

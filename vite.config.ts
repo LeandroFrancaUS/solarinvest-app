@@ -76,17 +76,15 @@ function resolveBackendOrigin(rawOrigin?: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const env: Record<string, string> = loadEnv(mode, cwd(), "") as Record<string, string>
+  const env: Record<string, string> = loadEnv(mode, cwd(), "")
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, "VITE_ANEEL_PROXY_BASE")
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const proxyBase: string = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
   const plugins: Plugin[] = [
     react(),
     contractRenderPlugin(),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     visualizer({
       filename: "dist/stats.html",
       open: false,
