@@ -2,6 +2,28 @@ import { formatMoneyBR, formatMoneyBRWithDigits } from '../lib/locale/br-number'
 
 export const currency = (value: number) => formatMoneyBR(value)
 
+/**
+ * Formata um valor numérico como moeda brasileira (BRL).
+ * Aceita number, string numérica, null ou undefined.
+ * Retorna "R$ 0,00" para valores inválidos, nulos ou indefinidos.
+ *
+ * @example
+ * formatCurrencyBRL(25740.350877) // "R$ 25.740,35"
+ * formatCurrencyBRL("1000")       // "R$ 1.000,00"
+ * formatCurrencyBRL(null)         // "R$ 0,00"
+ */
+export function formatCurrencyBRL(value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return 'R$ 0,00'
+  const numericValue = typeof value === 'string' ? Number(value) : value
+  if (!Number.isFinite(numericValue)) return 'R$ 0,00'
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numericValue)
+}
+
 export const tarifaCurrency = (value: number) => formatMoneyBRWithDigits(value, 3)
 
 export const formatAxis = (value: number) => {
