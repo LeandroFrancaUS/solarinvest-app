@@ -2,10 +2,25 @@
 // CRUD endpoints for /api/consultants
 // Accessible to admin (write) and privileged users (read).
 // The consultants table is a dedicated entity distinct from app user accounts.
+// consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
 
 import { resolveActor } from '../proposals/permissions.js'
 
-const CODE_REGEX = /^[A-Za-z0-9]{4}$/
+// Regex for auto-generated consultant codes: C/c + 3 alphanumerics
+const CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+/**
+ * Generates a random consultant code: 'C' + 3 random chars from CODE_CHARS.
+ * @returns {string} e.g. "CA3M"
+ */
+function generateConsultantCode() {
+  let code = 'C'
+  for (let i = 0; i < 3; i++) {
+    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
+  }
+  return code
+}
 
 function requireAdmin(actor, sendJson) {
   if (!actor) {
@@ -31,13 +46,8 @@ function requireReadAccess(actor, sendJson) {
   return true
 }
 
-function validateConsultantBody(body, requireCode = true) {
+function validateConsultantBody(body) {
   const errors = []
-  if (requireCode) {
-    if (!body.consultant_code || !CODE_REGEX.test(body.consultant_code)) {
-      errors.push('consultant_code deve ter exatamente 4 caracteres alfanuméricos.')
-    }
-  }
   if (!body.full_name || !String(body.full_name).trim()) {
     errors.push('Nome completo é obrigatório.')
   }
@@ -46,6 +56,9 @@ function validateConsultantBody(body, requireCode = true) {
   }
   if (!body.email || !String(body.email).trim()) {
     errors.push('E-mail é obrigatório.')
+  }
+  if (!body.document || !String(body.document).trim()) {
+    errors.push('CPF/CNPJ é obrigatório.')
   }
   const regions = body.regions
   if (!Array.isArray(regions) || regions.length === 0) {
@@ -80,14 +93,14 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, consultant_code, full_name, phone, email, regions,
+          SELECT id, consultant_code, full_name, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, consultant_code, full_name, phone, email, regions,
+          SELECT id, consultant_code, full_name, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           ORDER BY LOWER(full_name) ASC
@@ -108,6 +121,7 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
 /**
  * POST /api/consultants
  * Creates a new consultant. Admin only.
+ * The consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
  */
 export async function handleConsultantsCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
   const actor = await resolveActor(req)
@@ -129,12 +143,28 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   const sql = await getScopedSql(actor)
 
-  // Check code uniqueness
-  const existing = await sql`
-    SELECT id FROM public.consultants WHERE consultant_code = ${body.consultant_code}
-  `
-  if (existing.length > 0) {
-    sendJson(409, { error: { code: 'DUPLICATE_CODE', message: `Código ${body.consultant_code} já está em uso.` } })
+  // Check document uniqueness
+  const docStr = String(body.document).trim()
+  const docExisting = await sql`
+    SELECT id FROM public.consultants WHERE document = ${docStr}
+  `.catch(() => [])
+  if (docExisting.length > 0) {
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
+    return
+  }
+
+  // Auto-generate a unique consultant_code (max 10 attempts)
+  let consultantCode = null
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = generateConsultantCode()
+    const exists = await sql`SELECT id FROM public.consultants WHERE consultant_code = ${candidate}`.catch(() => [])
+    if (exists.length === 0) {
+      consultantCode = candidate
+      break
+    }
+  }
+  if (!consultantCode) {
+    sendJson(500, { error: { code: 'CODE_GENERATION_FAILED', message: 'Não foi possível gerar um código único. Tente novamente.' } })
     return
   }
 
@@ -142,14 +172,15 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   const rows = await sql`
     INSERT INTO public.consultants (
-      consultant_code, full_name, phone, email, regions,
+      consultant_code, full_name, phone, email, document, regions,
       linked_user_id, is_active, created_by_user_id, updated_by_user_id,
       created_at, updated_at
     ) VALUES (
-      ${body.consultant_code},
+      ${consultantCode},
       ${String(body.full_name).trim()},
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
+      ${docStr},
       ${sql.array(regions)},
       ${body.linked_user_id ?? null},
       true,
@@ -160,13 +191,14 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     RETURNING *
   `
 
-  console.info('[consultants][create]', { id: rows[0]?.id, code: body.consultant_code })
+  console.info('[consultants][create]', { id: rows[0]?.id, code: consultantCode })
   sendJson(201, { consultant: rows[0] })
 }
 
 /**
  * PUT /api/consultants/:id
  * Updates an existing consultant. Admin only.
+ * consultant_code is immutable — ignored if sent.
  */
 export async function handleConsultantsUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId }) {
   const actor = await resolveActor(req)
@@ -180,7 +212,7 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const errors = validateConsultantBody(body, false)
+  const errors = validateConsultantBody(body)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
@@ -188,12 +220,23 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
 
   const sql = await getScopedSql(actor)
   const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
+  const docStr = String(body.document).trim()
+
+  // Check document uniqueness (excluding current record)
+  const docExisting = await sql`
+    SELECT id FROM public.consultants WHERE document = ${docStr} AND id != ${consultantId}
+  `.catch(() => [])
+  if (docExisting.length > 0) {
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
+    return
+  }
 
   const rows = await sql`
     UPDATE public.consultants SET
       full_name          = ${String(body.full_name).trim()},
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
+      document           = ${docStr},
       regions            = ${sql.array(regions)},
       linked_user_id     = ${body.linked_user_id ?? null},
       updated_by_user_id = ${actor.userId ?? null},
@@ -238,3 +281,4 @@ export async function handleConsultantsDeactivateRequest(req, res, { sendJson, g
   console.info('[consultants][deactivate]', { id: consultantId })
   sendJson(200, { consultant: rows[0] })
 }
+

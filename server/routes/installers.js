@@ -1,10 +1,25 @@
 // server/routes/installers.js
 // CRUD endpoints for /api/installers
 // Accessible to admin (write) and privileged users (read).
+// installer_code is auto-generated server-side (prefix 'I' + 3 random chars).
 
 import { resolveActor } from '../proposals/permissions.js'
 
-const CODE_REGEX = /^[A-Za-z0-9]{4}$/
+// Regex for auto-generated installer codes: I/i + 3 alphanumerics
+const CODE_REGEX = /^[Ii][A-Za-z0-9]{3}$/
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+/**
+ * Generates a random installer code: 'I' + 3 random chars from CODE_CHARS.
+ * @returns {string} e.g. "IA3M"
+ */
+function generateInstallerCode() {
+  let code = 'I'
+  for (let i = 0; i < 3; i++) {
+    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
+  }
+  return code
+}
 
 function requireAdmin(actor, sendJson) {
   if (!actor) {
@@ -30,13 +45,8 @@ function requireReadAccess(actor, sendJson) {
   return true
 }
 
-function validateInstallerBody(body, requireCode = true) {
+function validateInstallerBody(body) {
   const errors = []
-  if (requireCode) {
-    if (!body.installer_code || !CODE_REGEX.test(body.installer_code)) {
-      errors.push('installer_code deve ter exatamente 4 caracteres alfanuméricos.')
-    }
-  }
   if (!body.full_name || !String(body.full_name).trim()) {
     errors.push('Nome completo é obrigatório.')
   }
@@ -45,6 +55,9 @@ function validateInstallerBody(body, requireCode = true) {
   }
   if (!body.email || !String(body.email).trim()) {
     errors.push('E-mail é obrigatório.')
+  }
+  if (!body.document || !String(body.document).trim()) {
+    errors.push('CPF/CNPJ é obrigatório.')
   }
   return errors
 }
@@ -72,14 +85,14 @@ export async function handleInstallersListRequest(req, res, { sendJson, getScope
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, installer_code, full_name, phone, email, linked_user_id,
+          SELECT id, installer_code, full_name, phone, email, document, linked_user_id,
                  is_active, created_at, updated_at, created_by_user_id
           FROM public.installers
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, installer_code, full_name, phone, email, linked_user_id,
+          SELECT id, installer_code, full_name, phone, email, document, linked_user_id,
                  is_active, created_at, updated_at, created_by_user_id
           FROM public.installers
           ORDER BY LOWER(full_name) ASC
@@ -99,6 +112,7 @@ export async function handleInstallersListRequest(req, res, { sendJson, getScope
 /**
  * POST /api/installers
  * Creates a new installer. Admin only.
+ * The installer_code is auto-generated server-side (prefix 'I' + 3 random chars).
  */
 export async function handleInstallersCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
   const actor = await resolveActor(req)
@@ -120,25 +134,42 @@ export async function handleInstallersCreateRequest(req, res, { sendJson, getSco
 
   const sql = await getScopedSql(actor)
 
-  // Check code uniqueness
-  const existing = await sql`
-    SELECT id FROM public.installers WHERE installer_code = ${body.installer_code}
-  `
-  if (existing.length > 0) {
-    sendJson(409, { error: { code: 'DUPLICATE_CODE', message: `Código ${body.installer_code} já está em uso.` } })
+  // Check document uniqueness
+  const docStr = String(body.document).trim()
+  const docExisting = await sql`
+    SELECT id FROM public.installers WHERE document = ${docStr}
+  `.catch(() => [])
+  if (docExisting.length > 0) {
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um instalador cadastrado com este CPF/CNPJ.' } })
+    return
+  }
+
+  // Auto-generate a unique installer_code (max 10 attempts)
+  let installerCode = null
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = generateInstallerCode()
+    const exists = await sql`SELECT id FROM public.installers WHERE installer_code = ${candidate}`.catch(() => [])
+    if (exists.length === 0) {
+      installerCode = candidate
+      break
+    }
+  }
+  if (!installerCode) {
+    sendJson(500, { error: { code: 'CODE_GENERATION_FAILED', message: 'Não foi possível gerar um código único. Tente novamente.' } })
     return
   }
 
   const rows = await sql`
     INSERT INTO public.installers (
-      installer_code, full_name, phone, email,
+      installer_code, full_name, phone, email, document,
       linked_user_id, is_active, created_by_user_id, updated_by_user_id,
       created_at, updated_at
     ) VALUES (
-      ${body.installer_code},
+      ${installerCode},
       ${String(body.full_name).trim()},
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
+      ${docStr},
       ${body.linked_user_id ?? null},
       true,
       ${actor.userId ?? null},
@@ -148,13 +179,14 @@ export async function handleInstallersCreateRequest(req, res, { sendJson, getSco
     RETURNING *
   `
 
-  console.info('[installers][create]', { id: rows[0]?.id, code: body.installer_code })
+  console.info('[installers][create]', { id: rows[0]?.id, code: installerCode })
   sendJson(201, { installer: rows[0] })
 }
 
 /**
  * PUT /api/installers/:id
  * Updates an existing installer. Admin only.
+ * installer_code is immutable — ignored if sent.
  */
 export async function handleInstallersUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, installerId }) {
   const actor = await resolveActor(req)
@@ -168,19 +200,30 @@ export async function handleInstallersUpdateRequest(req, res, { sendJson, getSco
     return
   }
 
-  const errors = validateInstallerBody(body, false)
+  const errors = validateInstallerBody(body)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
   }
 
   const sql = await getScopedSql(actor)
+  const docStr = String(body.document).trim()
+
+  // Check document uniqueness (excluding current record)
+  const docExisting = await sql`
+    SELECT id FROM public.installers WHERE document = ${docStr} AND id != ${installerId}
+  `.catch(() => [])
+  if (docExisting.length > 0) {
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um instalador cadastrado com este CPF/CNPJ.' } })
+    return
+  }
 
   const rows = await sql`
     UPDATE public.installers SET
       full_name          = ${String(body.full_name).trim()},
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
+      document           = ${docStr},
       linked_user_id     = ${body.linked_user_id ?? null},
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
@@ -224,3 +267,4 @@ export async function handleInstallersDeactivateRequest(req, res, { sendJson, ge
   console.info('[installers][deactivate]', { id: installerId })
   sendJson(200, { installer: rows[0] })
 }
+

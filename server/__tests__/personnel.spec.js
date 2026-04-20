@@ -1,24 +1,31 @@
 // server/__tests__/personnel.spec.js
 // Unit tests for personnel management (consultants, engineers, installers).
-// Tests validation logic, code format checks, and ART constraints.
+// Tests validation logic, code format checks, code generation, and ART constraints.
 // Run with: vitest run --config vitest.server.config.ts
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers — inline mirrors of server validation logic so tests run in isolation
-// without requiring a live DB connection.
+// Helpers — inline mirrors of server validation/generation logic so tests run
+// in isolation without requiring a live DB connection.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CODE_REGEX = /^[A-Za-z0-9]{4}$/
+const CONSULTANT_CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
+const ENGINEER_CODE_REGEX   = /^[Ee][A-Za-z0-9]{3}$/
+const INSTALLER_CODE_REGEX  = /^[Ii][A-Za-z0-9]{3}$/
 
-function validateConsultantBody(body, requireCode = true) {
-  const errors = []
-  if (requireCode) {
-    if (!body.consultant_code || !CODE_REGEX.test(body.consultant_code)) {
-      errors.push('consultant_code deve ter exatamente 4 caracteres alfanuméricos.')
-    }
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generateCode(prefix) {
+  let code = prefix
+  for (let i = 0; i < 3; i++) {
+    code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
   }
+  return code
+}
+
+function validateConsultantBody(body) {
+  const errors = []
   if (!body.full_name || !String(body.full_name).trim()) {
     errors.push('Nome completo é obrigatório.')
   }
@@ -28,6 +35,9 @@ function validateConsultantBody(body, requireCode = true) {
   if (!body.email || !String(body.email).trim()) {
     errors.push('E-mail é obrigatório.')
   }
+  if (!body.document || !String(body.document).trim()) {
+    errors.push('CPF/CNPJ é obrigatório.')
+  }
   const regions = body.regions
   if (!Array.isArray(regions) || regions.length === 0) {
     errors.push('Ao menos uma região (UF) é obrigatória.')
@@ -35,30 +45,22 @@ function validateConsultantBody(body, requireCode = true) {
   return errors
 }
 
-function validateEngineerBody(body, requireCode = true) {
+function validateEngineerBody(body) {
   const errors = []
-  if (requireCode) {
-    if (!body.engineer_code || !CODE_REGEX.test(body.engineer_code)) {
-      errors.push('engineer_code deve ter exatamente 4 caracteres alfanuméricos.')
-    }
-  }
   if (!body.full_name || !String(body.full_name).trim()) errors.push('Nome completo é obrigatório.')
   if (!body.phone || !String(body.phone).trim()) errors.push('Telefone é obrigatório.')
   if (!body.email || !String(body.email).trim()) errors.push('E-mail é obrigatório.')
   if (!body.crea || !String(body.crea).trim()) errors.push('CREA é obrigatório.')
+  if (!body.document || !String(body.document).trim()) errors.push('CPF/CNPJ é obrigatório.')
   return errors
 }
 
-function validateInstallerBody(body, requireCode = true) {
+function validateInstallerBody(body) {
   const errors = []
-  if (requireCode) {
-    if (!body.installer_code || !CODE_REGEX.test(body.installer_code)) {
-      errors.push('installer_code deve ter exatamente 4 caracteres alfanuméricos.')
-    }
-  }
   if (!body.full_name || !String(body.full_name).trim()) errors.push('Nome completo é obrigatório.')
   if (!body.phone || !String(body.phone).trim()) errors.push('Telefone é obrigatório.')
   if (!body.email || !String(body.email).trim()) errors.push('E-mail é obrigatório.')
+  if (!body.document || !String(body.document).trim()) errors.push('CPF/CNPJ é obrigatório.')
   return errors
 }
 
@@ -77,10 +79,10 @@ function validateArt(fields) {
 
 describe('validateConsultantBody', () => {
   const validBody = {
-    consultant_code: 'AB12',
     full_name: 'João Silva',
     phone: '11999999999',
     email: 'joao@exemplo.com',
+    document: '123.456.789-00',
     regions: ['SP'],
   }
 
@@ -88,27 +90,10 @@ describe('validateConsultantBody', () => {
     expect(validateConsultantBody(validBody)).toHaveLength(0)
   })
 
-  it('rejects consultant_code with less than 4 chars', () => {
-    const errs = validateConsultantBody({ ...validBody, consultant_code: 'AB1' })
-    expect(errs.some((e) => e.includes('consultant_code'))).toBe(true)
-  })
-
-  it('rejects consultant_code with more than 4 chars', () => {
-    const errs = validateConsultantBody({ ...validBody, consultant_code: 'AB123' })
-    expect(errs.some((e) => e.includes('consultant_code'))).toBe(true)
-  })
-
-  it('rejects consultant_code with special characters', () => {
-    const errs = validateConsultantBody({ ...validBody, consultant_code: 'AB!@' })
-    expect(errs.some((e) => e.includes('consultant_code'))).toBe(true)
-  })
-
-  it('accepts consultant_code with uppercase + digits', () => {
-    expect(validateConsultantBody({ ...validBody, consultant_code: 'AB12' })).toHaveLength(0)
-  })
-
-  it('accepts consultant_code with lowercase letters', () => {
-    expect(validateConsultantBody({ ...validBody, consultant_code: 'ab12' })).toHaveLength(0)
+  it('does not accept consultant_code from request body (server-generated)', () => {
+    // consultant_code is not part of the create body anymore — validation ignores it
+    const bodyWithCode = { ...validBody, consultant_code: 'C123' }
+    expect(validateConsultantBody(bodyWithCode)).toHaveLength(0)
   })
 
   it('rejects empty full_name', () => {
@@ -126,6 +111,24 @@ describe('validateConsultantBody', () => {
     expect(errs.some((e) => e.includes('E-mail'))).toBe(true)
   })
 
+  it('rejects missing document', () => {
+    const errs = validateConsultantBody({ ...validBody, document: '' })
+    expect(errs.some((e) => e.includes('CPF/CNPJ'))).toBe(true)
+  })
+
+  it('rejects null document', () => {
+    const errs = validateConsultantBody({ ...validBody, document: null })
+    expect(errs.some((e) => e.includes('CPF/CNPJ'))).toBe(true)
+  })
+
+  it('accepts CPF format', () => {
+    expect(validateConsultantBody({ ...validBody, document: '123.456.789-00' })).toHaveLength(0)
+  })
+
+  it('accepts CNPJ format', () => {
+    expect(validateConsultantBody({ ...validBody, document: '12.345.678/0001-99' })).toHaveLength(0)
+  })
+
   it('rejects empty regions array', () => {
     const errs = validateConsultantBody({ ...validBody, regions: [] })
     expect(errs.some((e) => e.includes('região'))).toBe(true)
@@ -135,19 +138,6 @@ describe('validateConsultantBody', () => {
     const errs = validateConsultantBody({ ...validBody, regions: ['SP', 'RJ', 'MG'] })
     expect(errs).toHaveLength(0)
   })
-
-  it('does not require code on update (requireCode=false)', () => {
-    const { consultant_code: _, ...bodyWithoutCode } = validBody
-    const errs = validateConsultantBody(bodyWithoutCode, false)
-    expect(errs).toHaveLength(0)
-  })
-
-  it('reports duplicate code error from handler (simulated)', () => {
-    // Simulate the handler duplicate-code check
-    const existingCodes = new Set(['AB12'])
-    const code = 'AB12'
-    expect(existingCodes.has(code)).toBe(true)
-  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,25 +146,20 @@ describe('validateConsultantBody', () => {
 
 describe('validateEngineerBody', () => {
   const validBody = {
-    engineer_code: 'EG01',
     full_name: 'Tiago Souza',
     phone: '11988888888',
     email: 'tiago@exemplo.com',
     crea: 'CREA-SP 123456',
+    document: '987.654.321-00',
   }
 
   it('passes with a valid body', () => {
     expect(validateEngineerBody(validBody)).toHaveLength(0)
   })
 
-  it('rejects engineer_code with less than 4 chars', () => {
-    const errs = validateEngineerBody({ ...validBody, engineer_code: 'EG' })
-    expect(errs.some((e) => e.includes('engineer_code'))).toBe(true)
-  })
-
-  it('rejects engineer_code with special characters', () => {
-    const errs = validateEngineerBody({ ...validBody, engineer_code: 'E!01' })
-    expect(errs.some((e) => e.includes('engineer_code'))).toBe(true)
+  it('does not accept engineer_code from request body (server-generated)', () => {
+    const bodyWithCode = { ...validBody, engineer_code: 'E123' }
+    expect(validateEngineerBody(bodyWithCode)).toHaveLength(0)
   })
 
   it('rejects empty CREA', () => {
@@ -187,15 +172,14 @@ describe('validateEngineerBody', () => {
     expect(errs).toHaveLength(0)
   })
 
+  it('rejects missing document', () => {
+    const errs = validateEngineerBody({ ...validBody, document: '' })
+    expect(errs.some((e) => e.includes('CPF/CNPJ'))).toBe(true)
+  })
+
   it('rejects empty full_name', () => {
     const errs = validateEngineerBody({ ...validBody, full_name: '' })
     expect(errs.some((e) => e.includes('Nome'))).toBe(true)
-  })
-
-  it('does not require code on update (requireCode=false)', () => {
-    const { engineer_code: _, ...bodyWithoutCode } = validBody
-    const errs = validateEngineerBody(bodyWithoutCode, false)
-    expect(errs).toHaveLength(0)
   })
 })
 
@@ -205,24 +189,19 @@ describe('validateEngineerBody', () => {
 
 describe('validateInstallerBody', () => {
   const validBody = {
-    installer_code: 'IS01',
     full_name: 'Carlos Pereira',
     phone: '11977777777',
     email: 'carlos@exemplo.com',
+    document: '11.222.333/0001-44',
   }
 
   it('passes with a valid body', () => {
     expect(validateInstallerBody(validBody)).toHaveLength(0)
   })
 
-  it('rejects installer_code with less than 4 chars', () => {
-    const errs = validateInstallerBody({ ...validBody, installer_code: 'IS' })
-    expect(errs.some((e) => e.includes('installer_code'))).toBe(true)
-  })
-
-  it('rejects installer_code with special characters', () => {
-    const errs = validateInstallerBody({ ...validBody, installer_code: 'IS!1' })
-    expect(errs.some((e) => e.includes('installer_code'))).toBe(true)
+  it('does not accept installer_code from request body (server-generated)', () => {
+    const bodyWithCode = { ...validBody, installer_code: 'I123' }
+    expect(validateInstallerBody(bodyWithCode)).toHaveLength(0)
   })
 
   it('rejects empty email', () => {
@@ -230,10 +209,91 @@ describe('validateInstallerBody', () => {
     expect(errs.some((e) => e.includes('E-mail'))).toBe(true)
   })
 
-  it('does not require code on update (requireCode=false)', () => {
-    const { installer_code: _, ...bodyWithoutCode } = validBody
-    const errs = validateInstallerBody(bodyWithoutCode, false)
-    expect(errs).toHaveLength(0)
+  it('rejects missing document', () => {
+    const errs = validateInstallerBody({ ...validBody, document: '' })
+    expect(errs.some((e) => e.includes('CPF/CNPJ'))).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests — Code generation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Code generation', () => {
+  it('consultant code starts with C', () => {
+    for (let i = 0; i < 20; i++) {
+      const code = generateCode('C')
+      expect(code[0]).toBe('C')
+      expect(CONSULTANT_CODE_REGEX.test(code)).toBe(true)
+    }
+  })
+
+  it('engineer code starts with E', () => {
+    for (let i = 0; i < 20; i++) {
+      const code = generateCode('E')
+      expect(code[0]).toBe('E')
+      expect(ENGINEER_CODE_REGEX.test(code)).toBe(true)
+    }
+  })
+
+  it('installer code starts with I', () => {
+    for (let i = 0; i < 20; i++) {
+      const code = generateCode('I')
+      expect(code[0]).toBe('I')
+      expect(INSTALLER_CODE_REGEX.test(code)).toBe(true)
+    }
+  })
+
+  it('generated codes have exactly 4 characters', () => {
+    expect(generateCode('C')).toHaveLength(4)
+    expect(generateCode('E')).toHaveLength(4)
+    expect(generateCode('I')).toHaveLength(4)
+  })
+
+  it('consultant code does not match engineer or installer regex', () => {
+    const code = generateCode('C')
+    expect(ENGINEER_CODE_REGEX.test(code)).toBe(false)
+    expect(INSTALLER_CODE_REGEX.test(code)).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests — Code format regexes
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('CONSULTANT_CODE_REGEX', () => {
+  const valid = ['C123', 'Cabc', 'cABC', 'c234']
+  const invalid = ['A123', 'E123', 'I123', '', 'C12', 'C1234', 'C!23', 'c 23']
+
+  valid.forEach((code) => {
+    it(`accepts "${code}"`, () => expect(CONSULTANT_CODE_REGEX.test(code)).toBe(true))
+  })
+  invalid.forEach((code) => {
+    it(`rejects "${code}"`, () => expect(CONSULTANT_CODE_REGEX.test(code)).toBe(false))
+  })
+})
+
+describe('ENGINEER_CODE_REGEX', () => {
+  const valid = ['E123', 'Eabc', 'eABC', 'e234']
+  const invalid = ['C123', 'I123', 'A123', '', 'E12', 'E1234', 'E!23']
+
+  valid.forEach((code) => {
+    it(`accepts "${code}"`, () => expect(ENGINEER_CODE_REGEX.test(code)).toBe(true))
+  })
+  invalid.forEach((code) => {
+    it(`rejects "${code}"`, () => expect(ENGINEER_CODE_REGEX.test(code)).toBe(false))
+  })
+})
+
+describe('INSTALLER_CODE_REGEX', () => {
+  const valid = ['I123', 'Iabc', 'iABC', 'i234']
+  const invalid = ['C123', 'E123', 'A123', '', 'I12', 'I1234', 'I!23']
+
+  valid.forEach((code) => {
+    it(`accepts "${code}"`, () => expect(INSTALLER_CODE_REGEX.test(code)).toBe(true))
+  })
+  invalid.forEach((code) => {
+    it(`rejects "${code}"`, () => expect(INSTALLER_CODE_REGEX.test(code)).toBe(false))
   })
 })
 
@@ -262,27 +322,6 @@ describe('validateArt', () => {
 
   it('allows both art_number and engineer_id set', () => {
     expect(validateArt({ art_number: 'ART-2024-001', engineer_id: 3 })).toBeNull()
-  })
-})
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests — CODE_REGEX
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('PERSONNEL_CODE_REGEX', () => {
-  const valid = ['AB12', 'ab12', 'ABCD', '1234', 'A1B2', 'aB1c']
-  const invalid = ['', 'AB1', 'AB123', 'AB!@', 'AB 2', 'ABCDE']
-
-  valid.forEach((code) => {
-    it(`accepts "${code}"`, () => {
-      expect(CODE_REGEX.test(code)).toBe(true)
-    })
-  })
-
-  invalid.forEach((code) => {
-    it(`rejects "${code}"`, () => {
-      expect(CODE_REGEX.test(code)).toBe(false)
-    })
   })
 })
 
@@ -319,3 +358,26 @@ describe('handler permission stubs', () => {
     expect(hasReadAccess).toBe(false)
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests — duplicate document detection (simulated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('duplicate document detection', () => {
+  it('detects duplicate CPF/CNPJ for consultants', () => {
+    const existingDocs = new Set(['123.456.789-00'])
+    expect(existingDocs.has('123.456.789-00')).toBe(true)
+    expect(existingDocs.has('999.888.777-66')).toBe(false)
+  })
+
+  it('detects duplicate CPF/CNPJ for engineers', () => {
+    const existingDocs = new Set(['12.345.678/0001-99'])
+    expect(existingDocs.has('12.345.678/0001-99')).toBe(true)
+  })
+
+  it('detects duplicate CPF/CNPJ for installers', () => {
+    const existingDocs = new Set(['11.222.333/0001-44'])
+    expect(existingDocs.has('11.222.333/0001-44')).toBe(true)
+  })
+})
+

@@ -3,7 +3,7 @@
 // Provides list, add, edit, and deactivate operations with field validation.
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { BRAZIL_UFS, PERSONNEL_CODE_REGEX } from '../../types/personnel'
+import { BRAZIL_UFS } from '../../types/personnel'
 import type {
   Consultant,
   Engineer,
@@ -53,18 +53,18 @@ function inputCls(hasError: boolean) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ConsultantFormState {
-  consultant_code: string
   full_name: string
   phone: string
   email: string
+  document: string
   regions: string[]
 }
 
 const emptyConsultantForm = (): ConsultantFormState => ({
-  consultant_code: '',
   full_name: '',
   phone: '',
   email: '',
+  document: '',
   regions: [],
 })
 
@@ -80,10 +80,10 @@ function ConsultantModal({
   const [form, setForm] = useState<ConsultantFormState>(
     editing
       ? {
-          consultant_code: editing.consultant_code,
           full_name: editing.full_name,
           phone: editing.phone,
           email: editing.email,
+          document: editing.document ?? '',
           regions: editing.regions ?? [],
         }
       : emptyConsultantForm(),
@@ -94,12 +94,10 @@ function ConsultantModal({
 
   function validate(): boolean {
     const e: typeof errors = {}
-    if (!editing && !PERSONNEL_CODE_REGEX.test(form.consultant_code)) {
-      e.consultant_code = '4 caracteres alfanuméricos obrigatórios.'
-    }
     if (!form.full_name.trim()) e.full_name = 'Nome é obrigatório.'
     if (!form.phone.trim()) e.phone = 'Telefone é obrigatório.'
     if (!form.email.trim()) e.email = 'E-mail é obrigatório.'
+    if (!form.document.trim()) e.document = 'CPF/CNPJ é obrigatório.'
     if (form.regions.length === 0) e.regions = 'Selecione ao menos uma UF.'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -123,15 +121,16 @@ function ConsultantModal({
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
+          document: form.document,
           regions: form.regions,
         }
         await updateConsultant(editing.id, payload)
       } else {
         const payload: CreateConsultantRequest = {
-          consultant_code: form.consultant_code,
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
+          document: form.document,
           regions: form.regions,
         }
         await createConsultant(payload)
@@ -151,29 +150,18 @@ function ConsultantModal({
         <h2 className="text-base font-semibold text-slate-900 mb-4">
           {editing ? 'Editar Consultor' : 'Adicionar Consultor'}
         </h2>
+        {editing && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">ID gerado:</span>
+            <span className="font-mono font-semibold text-amber-700">{editing.consultant_code}</span>
+          </div>
+        )}
+        {!editing && (
+          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            O ID será gerado automaticamente pelo sistema ao salvar.
+          </p>
+        )}
         <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          {!editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                ID (Código) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                maxLength={4}
-                value={form.consultant_code}
-                onChange={(e) => setForm((f) => ({ ...f, consultant_code: e.target.value.toUpperCase() }))}
-                placeholder="ex: AB12"
-                className={inputCls(Boolean(errors.consultant_code))}
-              />
-              {errors.consultant_code && <p className="mt-1 text-xs text-red-600">{errors.consultant_code}</p>}
-            </div>
-          )}
-          {editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
-              <input type="text" value={editing.consultant_code} disabled className={inputCls(false) + ' bg-slate-50 text-slate-500'} />
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Nome completo <span className="text-red-500">*</span>
@@ -185,6 +173,19 @@ function ConsultantModal({
               className={inputCls(Boolean(errors.full_name))}
             />
             {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              CPF/CNPJ <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.document}
+              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+              className={inputCls(Boolean(errors.document))}
+            />
+            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -254,19 +255,19 @@ function ConsultantModal({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface EngineerFormState {
-  engineer_code: string
   full_name: string
   phone: string
   email: string
   crea: string
+  document: string
 }
 
 const emptyEngineerForm = (): EngineerFormState => ({
-  engineer_code: '',
   full_name: '',
   phone: '',
   email: '',
   crea: '',
+  document: '',
 })
 
 function EngineerModal({
@@ -281,11 +282,11 @@ function EngineerModal({
   const [form, setForm] = useState<EngineerFormState>(
     editing
       ? {
-          engineer_code: editing.engineer_code,
           full_name: editing.full_name,
           phone: editing.phone,
           email: editing.email,
           crea: editing.crea,
+          document: editing.document ?? '',
         }
       : emptyEngineerForm(),
   )
@@ -295,13 +296,11 @@ function EngineerModal({
 
   function validate(): boolean {
     const e: typeof errors = {}
-    if (!editing && !PERSONNEL_CODE_REGEX.test(form.engineer_code)) {
-      e.engineer_code = '4 caracteres alfanuméricos obrigatórios.'
-    }
     if (!form.full_name.trim()) e.full_name = 'Nome é obrigatório.'
     if (!form.phone.trim()) e.phone = 'Telefone é obrigatório.'
     if (!form.email.trim()) e.email = 'E-mail é obrigatório.'
     if (!form.crea.trim()) e.crea = 'CREA é obrigatório.'
+    if (!form.document.trim()) e.document = 'CPF/CNPJ é obrigatório.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -318,15 +317,16 @@ function EngineerModal({
           phone: form.phone,
           email: form.email,
           crea: form.crea,
+          document: form.document,
         }
         await updateEngineer(editing.id, payload)
       } else {
         const payload: CreateEngineerRequest = {
-          engineer_code: form.engineer_code,
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
           crea: form.crea,
+          document: form.document,
         }
         await createEngineer(payload)
       }
@@ -345,35 +345,37 @@ function EngineerModal({
         <h2 className="text-base font-semibold text-slate-900 mb-4">
           {editing ? 'Editar Engenheiro' : 'Adicionar Engenheiro'}
         </h2>
+        {editing && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">ID gerado:</span>
+            <span className="font-mono font-semibold text-amber-700">{editing.engineer_code}</span>
+          </div>
+        )}
+        {!editing && (
+          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            O ID será gerado automaticamente pelo sistema ao salvar.
+          </p>
+        )}
         <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          {!editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                ID (Código) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                maxLength={4}
-                value={form.engineer_code}
-                onChange={(e) => setForm((f) => ({ ...f, engineer_code: e.target.value.toUpperCase() }))}
-                placeholder="ex: EG01"
-                className={inputCls(Boolean(errors.engineer_code))}
-              />
-              {errors.engineer_code && <p className="mt-1 text-xs text-red-600">{errors.engineer_code}</p>}
-            </div>
-          )}
-          {editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
-              <input type="text" value={editing.engineer_code} disabled className={inputCls(false) + ' bg-slate-50 text-slate-500'} />
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Nome completo <span className="text-red-500">*</span>
             </label>
             <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
             {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              CPF/CNPJ <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.document}
+              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+              className={inputCls(Boolean(errors.document))}
+            />
+            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -416,17 +418,17 @@ function EngineerModal({
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface InstallerFormState {
-  installer_code: string
   full_name: string
   phone: string
   email: string
+  document: string
 }
 
 const emptyInstallerForm = (): InstallerFormState => ({
-  installer_code: '',
   full_name: '',
   phone: '',
   email: '',
+  document: '',
 })
 
 function InstallerModal({
@@ -441,10 +443,10 @@ function InstallerModal({
   const [form, setForm] = useState<InstallerFormState>(
     editing
       ? {
-          installer_code: editing.installer_code,
           full_name: editing.full_name,
           phone: editing.phone,
           email: editing.email,
+          document: editing.document ?? '',
         }
       : emptyInstallerForm(),
   )
@@ -454,12 +456,10 @@ function InstallerModal({
 
   function validate(): boolean {
     const e: typeof errors = {}
-    if (!editing && !PERSONNEL_CODE_REGEX.test(form.installer_code)) {
-      e.installer_code = '4 caracteres alfanuméricos obrigatórios.'
-    }
     if (!form.full_name.trim()) e.full_name = 'Nome é obrigatório.'
     if (!form.phone.trim()) e.phone = 'Telefone é obrigatório.'
     if (!form.email.trim()) e.email = 'E-mail é obrigatório.'
+    if (!form.document.trim()) e.document = 'CPF/CNPJ é obrigatório.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -475,14 +475,15 @@ function InstallerModal({
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
+          document: form.document,
         }
         await updateInstaller(editing.id, payload)
       } else {
         const payload: CreateInstallerRequest = {
-          installer_code: form.installer_code,
           full_name: form.full_name,
           phone: form.phone,
           email: form.email,
+          document: form.document,
         }
         await createInstaller(payload)
       }
@@ -501,35 +502,37 @@ function InstallerModal({
         <h2 className="text-base font-semibold text-slate-900 mb-4">
           {editing ? 'Editar Instalador' : 'Adicionar Instalador'}
         </h2>
+        {editing && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-500">ID gerado:</span>
+            <span className="font-mono font-semibold text-amber-700">{editing.installer_code}</span>
+          </div>
+        )}
+        {!editing && (
+          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            O ID será gerado automaticamente pelo sistema ao salvar.
+          </p>
+        )}
         <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          {!editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                ID (Código) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                maxLength={4}
-                value={form.installer_code}
-                onChange={(e) => setForm((f) => ({ ...f, installer_code: e.target.value.toUpperCase() }))}
-                placeholder="ex: IS01"
-                className={inputCls(Boolean(errors.installer_code))}
-              />
-              {errors.installer_code && <p className="mt-1 text-xs text-red-600">{errors.installer_code}</p>}
-            </div>
-          )}
-          {editing && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">ID</label>
-              <input type="text" value={editing.installer_code} disabled className={inputCls(false) + ' bg-slate-50 text-slate-500'} />
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Nome completo <span className="text-red-500">*</span>
             </label>
             <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
             {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              CPF/CNPJ <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.document}
+              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+              className={inputCls(Boolean(errors.document))}
+            />
+            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -631,6 +634,7 @@ export function ConsultantsTab() {
       c.full_name.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
       c.consultant_code.toLowerCase().includes(q) ||
+      (c.document ?? '').toLowerCase().includes(q) ||
       (c.regions ?? []).some((r) => r.toLowerCase().includes(q))
     )
   })
@@ -700,6 +704,7 @@ export function ConsultantsTab() {
             <tr>
               <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
+              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
               <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Regiões</th>
@@ -709,14 +714,15 @@ export function ConsultantsTab() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Nenhum consultor encontrado.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Nenhum consultor encontrado.</td></tr>
             ) : (
               filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.consultant_code}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{c.full_name}</td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">{c.document ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{c.phone}</td>
                   <td className="px-4 py-3 text-slate-600">{c.email}</td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{(c.regions ?? []).join(', ') || '—'}</td>
@@ -787,7 +793,8 @@ export function EngineersTab() {
       e.full_name.toLowerCase().includes(q) ||
       e.email.toLowerCase().includes(q) ||
       e.engineer_code.toLowerCase().includes(q) ||
-      e.crea.toLowerCase().includes(q)
+      e.crea.toLowerCase().includes(q) ||
+      (e.document ?? '').toLowerCase().includes(q)
     )
   })
 
@@ -856,6 +863,7 @@ export function EngineersTab() {
             <tr>
               <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
+              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
               <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
               <th className="px-4 py-3 font-semibold text-slate-600">CREA</th>
@@ -865,14 +873,15 @@ export function EngineersTab() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Nenhum engenheiro encontrado.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Nenhum engenheiro encontrado.</td></tr>
             ) : (
               filtered.map((eng) => (
                 <tr key={eng.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{eng.engineer_code}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{eng.full_name}</td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">{eng.document ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{eng.phone}</td>
                   <td className="px-4 py-3 text-slate-600">{eng.email}</td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{eng.crea}</td>
@@ -942,7 +951,8 @@ export function InstallersTab() {
       !q ||
       i.full_name.toLowerCase().includes(q) ||
       i.email.toLowerCase().includes(q) ||
-      i.installer_code.toLowerCase().includes(q)
+      i.installer_code.toLowerCase().includes(q) ||
+      (i.document ?? '').toLowerCase().includes(q)
     )
   })
 
@@ -1011,6 +1021,7 @@ export function InstallersTab() {
             <tr>
               <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
+              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
               <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
               <th className="px-4 py-3 font-semibold text-slate-600">Status</th>
@@ -1019,14 +1030,15 @@ export function InstallersTab() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">Nenhum instalador encontrado.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Nenhum instalador encontrado.</td></tr>
             ) : (
               filtered.map((ins) => (
                 <tr key={ins.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{ins.installer_code}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">{ins.full_name}</td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">{ins.document ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{ins.phone}</td>
                   <td className="px-4 py-3 text-slate-600">{ins.email}</td>
                   <td className="px-4 py-3"><ActiveBadge active={ins.is_active} /></td>
