@@ -221,7 +221,7 @@ function collectChildElements(
   parent: Element | Document | DocumentFragment,
 ): Element[] {
   if ('children' in parent) {
-    return Array.from(parent.children) as Element[]
+    return Array.from(parent.children)
   }
 
   return []

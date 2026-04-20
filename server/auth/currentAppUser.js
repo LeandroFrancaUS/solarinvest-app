@@ -3,7 +3,19 @@ import { query } from '../db.js'
 import { getStackUser, isStackAuthBypassed, getBootstrapAdminEmail, getProjectId } from './stackAuth.js'
 import { ensureAdminPermissionForUser, ensureComercialPermissionForUsers, ensureOfficePermissionForUsers, getUserPermissions } from './stackPermissions.js'
 import { syncUserProfile } from './userProfileSync.js'
-import { derivePrimaryRole } from './authorizationSnapshot.js'
+
+/**
+ * Derives the single primary role from the list of Stack permissions.
+ * Inlined here to avoid a circular dependency with authorizationSnapshot.js.
+ */
+function derivePrimaryRole(permissions) {
+  if (!Array.isArray(permissions)) return 'unknown'
+  if (permissions.includes('role_admin')) return 'role_admin'
+  if (permissions.includes('role_office')) return 'role_office'
+  if (permissions.includes('role_financeiro')) return 'role_financeiro'
+  if (permissions.includes('role_comercial')) return 'role_comercial'
+  return 'unknown'
+}
 
 const ADMIN_BOOTSTRAP_EMAIL = getBootstrapAdminEmail()
 

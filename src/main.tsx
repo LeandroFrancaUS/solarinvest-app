@@ -5,7 +5,7 @@ import process from "process"
 // already available via the import above, so only code that reads `globalThis.process`
 // (rather than the direct import) would be affected.
 try {
-  ;(globalThis as any).process = process
+  ;(globalThis as { process?: unknown }).process = process
 } catch (_sesErr) {
   // Ignored: SES lockdown prevented assignment; process shim is still available
   // via the module import and via Vite's built-in process shim.

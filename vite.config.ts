@@ -19,8 +19,10 @@ const sanitizeProxyBase = (base?: string) => {
 const aneelProxyPlugin = (proxyBase: string): Plugin => ({
   name: "aneel-proxy-middleware",
   configureServer(server: ViteDevServer) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const middleware = createAneelProxyMiddleware(proxyBase)
     server.middlewares.use((req, res, next) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       void middleware(req, res, next)
     })
   },
@@ -29,8 +31,10 @@ const aneelProxyPlugin = (proxyBase: string): Plugin => ({
 const contractRenderPlugin = (): Plugin => ({
   name: "contract-render-middleware",
   configureServer(server: ViteDevServer) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const middleware = createContractRenderMiddleware()
     server.middlewares.use((req, res, next) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       void middleware(req, res, next)
     })
   },
@@ -80,6 +84,7 @@ export default defineConfig(({ mode }) => {
   const plugins: Plugin[] = [
     react(),
     contractRenderPlugin(),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     visualizer({
       filename: "dist/stats.html",
       open: false,
@@ -89,6 +94,7 @@ export default defineConfig(({ mode }) => {
   ]
   if (enableProxy) plugins.push(aneelProxyPlugin(proxyBase))
 
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
 
   const proxy = ["/auth", "/admin"].reduce<Record<string, { target: string; changeOrigin: true }>>(

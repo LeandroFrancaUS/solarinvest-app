@@ -312,7 +312,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
     image.onload = () => resolve(image)
-    image.onerror = (event) => reject(event)
+    image.onerror = (event) => reject(new Error(String(event)))
     image.src = src
   })
 }

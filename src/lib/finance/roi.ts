@@ -168,9 +168,9 @@ export function computeROI(form: VendaForm): RetornoProjetado {
     return economia
   })()
 
-  const pagamentoMensal: number[] = Array(HORIZON_MONTHS).fill(0)
-  const fluxo: number[] = Array(HORIZON_MONTHS).fill(0)
-  const saldo: number[] = Array(HORIZON_MONTHS).fill(0)
+  const pagamentoMensal: number[] = Array<number>(HORIZON_MONTHS).fill(0)
+  const fluxo: number[] = Array<number>(HORIZON_MONTHS).fill(0)
+  const saldo: number[] = Array<number>(HORIZON_MONTHS).fill(0)
 
   const capex = clampNonNegative(sanitizeNumber(form.capex_total, 0))
   const condicao = form.condicao

@@ -27,7 +27,7 @@ export const lookupCep = async (
     throw new Error('Falha ao consultar CEP.')
   }
 
-  const data: ViaCepResponse = await response.json()
+  const data = (await response.json() as unknown) as ViaCepResponse
   if (data?.erro) {
     return null
   }

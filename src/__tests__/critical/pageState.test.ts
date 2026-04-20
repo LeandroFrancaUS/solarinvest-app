@@ -8,7 +8,7 @@
  *   - Navigation state convenience helpers
  *   - clearAllPageStates on logout
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
   savePageState,
   loadPageState,
@@ -42,7 +42,7 @@ describe('pageState persistence', () => {
     // Manually manipulate the timestamp to simulate an old entry
     const key = 'solarinvest:pageState:old-route'
     const raw = window.localStorage.getItem(key)!
-    const envelope = JSON.parse(raw)
+    const envelope = JSON.parse(raw) as { ts: string; [key: string]: unknown }
     envelope.ts = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() // 48 hours ago
     window.localStorage.setItem(key, JSON.stringify(envelope))
 
@@ -67,7 +67,7 @@ describe('pageState persistence', () => {
     // Manually set timestamp to 2 hours ago
     const key = 'solarinvest:pageState:short-ttl'
     const raw = window.localStorage.getItem(key)!
-    const envelope = JSON.parse(raw)
+    const envelope = JSON.parse(raw) as { ts: string; [key: string]: unknown }
     envelope.ts = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
     window.localStorage.setItem(key, JSON.stringify(envelope))
 
@@ -141,6 +141,7 @@ describe('pageState persistence', () => {
   })
 
   it('handles localStorage.setItem failure gracefully', () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     const originalSetItem = Storage.prototype.setItem
     Storage.prototype.setItem = () => {
       throw new Error('QuotaExceededError')

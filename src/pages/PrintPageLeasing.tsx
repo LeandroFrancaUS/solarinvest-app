@@ -14,13 +14,13 @@ interface PrintPageLeasingProps {
  * This component is meant to be rendered in isolation for PDF generation
  */
 export const PrintPageLeasing: React.FC<PrintPageLeasingProps> = ({ data }) => {
-  const [isScriptLoaded, setIsScriptLoaded] = useState(false)
+  const [_isScriptLoaded, setIsScriptLoaded] = useState(false)
 
   // Load Paged.js polyfill
   useEffect(() => {
     // Set PagedConfig before loading the polyfill
     if (typeof window !== 'undefined') {
-      (window as any).PagedConfig = { auto: false }
+      (window as { PagedConfig?: { auto: boolean } }).PagedConfig = { auto: false }
 
       // Check if script is already loaded
       const existingScript = document.querySelector('script[src*="paged.polyfill.js"]')

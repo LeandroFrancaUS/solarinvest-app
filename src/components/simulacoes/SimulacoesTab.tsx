@@ -49,7 +49,7 @@ const formatUpdatedAt = (timestamp: number | undefined): string => {
   }
   try {
     return dateTimeFormatter.format(new Date(timestamp))
-  } catch (error) {
+  } catch (_error) {
     return '—'
   }
 }
@@ -560,7 +560,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
     }
   }
 
-  const prazoMeses = Math.max(0, Math.round(current.anos_contrato * 12))
+  const _prazoMeses = Math.max(0, Math.round(current.anos_contrato * 12))
   const tarifaCheiaMes1 = projectTarifaCheia(current.tarifa_cheia_r_kwh_m1, current.inflacao_energetica_pct, 1)
   const tipoSistemaAtual = current.tipo_sistema ?? tipoSistema
 
@@ -830,6 +830,7 @@ export const SimulacoesTab = React.memo(function SimulacoesTab({
                               <tr className="simulation-details-row">
                                 <td className="simulations-expand-cell" />
                                 <td colSpan={16} id={detailRowId}>
+                                  {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
                                   <SimulationDetailsTable detalhes={detalhesMensais} prazo={prazo} />
                                 </td>
                               </tr>

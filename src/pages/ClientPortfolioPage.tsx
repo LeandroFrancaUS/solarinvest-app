@@ -1384,7 +1384,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   // by the parent (e.g. after onSaved merges the server response).
   useEffect(() => {
     setConfirmedPayments(buildConfirmedMap(client.installments_json))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [client.installments_json])
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',

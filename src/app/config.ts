@@ -1,4 +1,3 @@
-import type { EntradaModo } from '../shared/entradaModo'
 import type { EssentialInfoSummary } from '../utils/moduleDetection'
 import type {
   TipoInstalacao,

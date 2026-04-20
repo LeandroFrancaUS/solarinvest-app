@@ -38,7 +38,7 @@ export const createStore = <T>(initializer: (set: SetState<T>, get: GetState<T>)
 
     const nextState = replace
       ? (partialState as T)
-      : Object.assign({}, state, partialState as Partial<T>)
+      : Object.assign({}, state, partialState)
 
     if (Object.is(nextState, state)) {
       return

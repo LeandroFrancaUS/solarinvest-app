@@ -36,6 +36,12 @@ const getChartAltText = (element: Element): string => {
   return CHART_ALT_FALLBACK
 }
 
+const ensureNoBreakInside = (element: HTMLElement) => {
+  if (!element.classList.contains('no-break-inside')) {
+    element.classList.add('no-break-inside')
+  }
+}
+
 const createFallbackImage = (source: Element, dataUrl: string): HTMLImageElement => {
   const fallbackImage = document.createElement('img')
   fallbackImage.src = dataUrl
@@ -84,14 +90,8 @@ const convertSvgToDataUrl = (svg: SVGSVGElement): string | null => {
     const serializer = new XMLSerializer()
     const serialized = serializer.serializeToString(clone)
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`
-  } catch (error) {
+  } catch (_error) {
     return null
-  }
-}
-
-const ensureNoBreakInside = (element: HTMLElement) => {
-  if (!element.classList.contains('no-break-inside')) {
-    element.classList.add('no-break-inside')
   }
 }
 
@@ -123,7 +123,7 @@ export const usePrintCanvasFallback = (sectionSelector: string) => {
         let dataUrl: string | null = null
         try {
           dataUrl = canvas.toDataURL('image/png')
-        } catch (error) {
+        } catch (_error) {
           dataUrl = null
         }
 

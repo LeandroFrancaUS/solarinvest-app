@@ -172,6 +172,7 @@ const extractEstruturaUtilizadaTipo = (text: string): EstruturaTipoExtractionRes
   const lines = text.split(/\r?\n/)
   const anchorIndex = lines.findIndex((line) => normalizeForSearch(line).includes('ESTRUTURA UTILIZADA'))
   if (anchorIndex === -1) {
+    // eslint-disable-next-line @typescript-eslint/no-use-before-define
     return { tipo: null, warning: 'missing-section', context: extractContextLines(text, RE_ESTRUTURA_UTILIZADA_SECTION) }
   }
 

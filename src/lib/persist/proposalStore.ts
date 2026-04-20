@@ -18,9 +18,21 @@
  */
 
 import localforage from 'localforage'
-import type { OrcamentoSnapshotData } from '../../types'
 
 const __DEV__ = import.meta.env.DEV
+
+// Minimal type definition for the snapshot data stored by this cache.
+// The authoritative definition lives in src/App.tsx as OrcamentoSnapshotData.
+type OrcamentoSnapshotData = {
+  cliente?: {
+    nome?: string | null
+    endereco?: string | null
+    documento?: string | null
+    [key: string]: unknown
+  } | null
+  kcKwhMes?: number | string | null
+  [key: string]: unknown
+}
 
 const proposalStore = localforage.createInstance({
   name: 'solarinvest-app',
@@ -111,7 +123,7 @@ export async function listProposalIds(): Promise<string[]> {
   const keys = await proposalStore.keys()
   return keys
     .filter((k) => typeof k === 'string' && k.startsWith('proposal:'))
-    .map((k) => (k as string).replace('proposal:', ''))
+    .map((k) => (k).replace('proposal:', ''))
 }
 
 /**

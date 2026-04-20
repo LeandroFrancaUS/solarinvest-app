@@ -1,10 +1,9 @@
 import { describe, expect, test, vi } from 'vitest'
 
 const loadModules = async (paths: string[]) => {
-  const modules = [] as unknown[]
+  const modules: unknown[] = []
   for (const path of paths) {
-    // eslint-disable-next-line no-await-in-loop
-    const mod = await import(path)
+    const mod: unknown = await import(/* @vite-ignore */ path)
     modules.push(mod)
   }
   return modules
