@@ -1,31 +1,12 @@
 /* ============================================================
    CARTEIRA DE CLIENTES — DESIGN SYSTEM
-   Scoped tokens and component classes for the portfolio area.
+   Scoped component classes for the portfolio area.
+   All colour tokens are inherited from :root (global theme).
    Scope: .portfolio-page wrapper class.
    ============================================================ */
 
-/* ── 1. SCOPED DESIGN TOKENS ─────────────────────────────────── */
+/* ── 1. PAGE WRAPPER — inherits global theme tokens ──────────── */
 .portfolio-page {
-  /* Surface layers (dark institutional blue palette) */
-  --bg:           #0B1F3A;
-  --surface:      #122B4A;
-  --surface-2:    #0e2040;
-  --surface-3:    #16345C;
-
-  /* Text hierarchy */
-  --text-strong:  #FFFFFF;
-  --text-base:    #dde7f5;
-  --text-muted:   #A8C1E0;
-  --text-dim:     #6B8BB5;
-
-  /* Borders */
-  --border:        #1F3D66;
-  --border-strong: rgba(45, 140, 255, 0.5);
-
-  /* Accent (SolarInvest orange) */
-  --accent:       #f59e0b;
-  --accent-soft:  rgba(245, 158, 11, 0.12);
-
   color: var(--text-base);
   background: var(--bg);
 }
@@ -34,9 +15,6 @@
 .portfolio-page input,
 .portfolio-page select,
 .portfolio-page textarea {
-  color: var(--text-strong) !important;
-  background: var(--surface-3, #1a2e50) !important;
-  border-color: var(--border) !important;
   border-radius: 7px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -45,8 +23,8 @@
 .portfolio-page select:focus,
 .portfolio-page textarea:focus {
   outline: none;
-  border-color: #2D8CFF !important;
-  box-shadow: 0 0 0 2px rgba(45, 140, 255, 0.18) !important;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .portfolio-page input:disabled,
@@ -56,18 +34,12 @@
   cursor: default;
 }
 
-.portfolio-page input::placeholder,
-.portfolio-page textarea::placeholder {
-  color: var(--text-dim, #4d6a88);
-  opacity: 1;
-}
-
 /* Increase input height slightly for comfortable click targets */
 .portfolio-page input:not([type="checkbox"]),
 .portfolio-page select,
 .portfolio-page textarea {
   min-height: 36px;
-  padding: 8px 12px !important;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
 }
@@ -92,7 +64,7 @@
   border: none;
   border-bottom: 2.5px solid transparent;
   margin-bottom: -2px;
-  color: var(--text-muted, #8caac8);
+  color: var(--text-muted);
   font-weight: 500;
   font-size: 12.5px;
   cursor: pointer;
@@ -104,22 +76,22 @@
 
 .pf-tab-btn:hover {
   color: var(--text-base);
-  background: rgba(96, 160, 220, 0.05);
+  background: var(--ghost-bg);
   border-radius: 6px 6px 0 0;
 }
 
 .pf-tab-btn.active {
-  color: #fff;
-  border-bottom-color: var(--accent, #f59e0b);
+  color: var(--text-strong);
+  border-bottom-color: var(--accent);
   font-weight: 700;
 }
 
 /* ── 4. SECTION CARDS ─────────────────────────────────────────── */
 .pf-section-card {
-  background: var(--surface-2, #0e1c36) !important;
-  border-radius: 10px !important;
-  border: 1px solid var(--border) !important;
-  padding: 18px !important;
+  background: var(--surface);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 18px;
   margin-bottom: 12px;
 }
 
@@ -137,7 +109,7 @@
 }
 
 .pf-section-title .pf-icon {
-  color: var(--accent, #f59e0b);
+  color: var(--accent);
   font-size: 14px;
   line-height: 1;
 }
@@ -149,7 +121,7 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--text-muted, #8caac8) !important;
+  color: var(--text-muted);
   margin-bottom: 5px;
 }
 
@@ -203,15 +175,15 @@
 /* Secondary action (Edit) */
 .pf-btn-edit {
   flex: 1;
-  border: 1.5px solid rgba(96, 160, 220, 0.4);
-  background: rgba(96, 160, 220, 0.08);
-  color: #90c2e8;
+  border: 1.5px solid var(--border-strong);
+  background: var(--ghost-bg);
+  color: var(--text-base);
 }
 
 .pf-btn-edit:hover:not(:disabled) {
-  background: rgba(96, 160, 220, 0.14);
-  border-color: rgba(96, 160, 220, 0.65);
-  color: #b8d8f5;
+  background: var(--ghost-bg-hover);
+  border-color: var(--accent);
+  color: var(--text-strong);
 }
 
 /* Neutral action (Cancel) */
@@ -262,16 +234,16 @@
 }
 
 .pf-table tbody tr:nth-child(even) {
-  background: rgba(96, 160, 220, 0.03);
+  background: var(--ghost-bg);
 }
 
 .pf-table tbody tr:hover {
-  background: rgba(245, 158, 11, 0.05);
+  background: var(--table-hover-bg);
 }
 
 .pf-table td {
   padding: 9px 10px;
-  color: var(--text-base, #dde7f5);
+  color: var(--text-base);
   vertical-align: middle;
 }
 
@@ -315,15 +287,15 @@
   padding: 16px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface, #122B4A);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .pf-client-card:hover {
-  border-color: #2D8CFF;
-  background: var(--surface-3, #16345C);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
 /* Card body: info left, actions right */
@@ -344,7 +316,7 @@
 .pf-card-name {
   font-weight: 600;
   font-size: 16px;
-  color: var(--text-strong, #FFFFFF);
+  color: var(--text-strong);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -353,7 +325,7 @@
 
 .pf-card-doc {
   font-size: 13px;
-  color: var(--text-muted, #A8C1E0);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -364,12 +336,12 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--text-dim, #6B8BB5);
+  color: var(--text-muted);
   flex-wrap: wrap;
 }
 
 .pf-card-meta-sep {
-  color: var(--text-dim, #6B8BB5);
+  color: var(--text-muted);
   line-height: 1;
 }
 
@@ -425,23 +397,23 @@
   width: 100%;
   padding: 9px 38px 9px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border, #1F3D66);
-  background: var(--surface, #122B4A);
-  color: var(--text-strong, #FFFFFF);
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text-strong);
   font-size: 13px;
   box-sizing: border-box;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .pf-search-input::placeholder {
-  color: var(--text-dim, #6B8BB5);
+  color: var(--input-placeholder);
   opacity: 1;
 }
 
 .pf-search-input:focus {
   outline: none;
-  border-color: #2D8CFF;
-  box-shadow: 0 0 0 2px rgba(45, 140, 255, 0.18);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 /* ── 10d. TOOLBAR BUTTONS ─────────────────────────────────────── */
@@ -449,7 +421,7 @@
   padding: 9px 16px;
   border-radius: 8px;
   border: none;
-  background: #22C55E;
+  background: var(--ds-success, #22C55E);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
@@ -458,24 +430,24 @@
 }
 
 .pf-btn-add-client:hover {
-  background: #16A34A;
+  background: var(--ds-success-hover, #16A34A);
   box-shadow: 0 3px 10px rgba(34, 197, 94, 0.3);
 }
 
 .pf-btn-toolbar {
   padding: 7px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border, #1F3D66);
+  border: 1px solid var(--border);
   background: none;
-  color: var(--text-muted, #A8C1E0);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 13px;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .pf-btn-toolbar:hover {
-  border-color: #2D8CFF;
-  background: rgba(45, 140, 255, 0.07);
+  border-color: var(--accent);
+  background: var(--ghost-bg);
 }
 
 /* ── 11. BILLING CALCULATION RESULT ROWS ─────────────────────── */
@@ -501,19 +473,19 @@
   padding: 18px 20px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  background: linear-gradient(135deg, rgba(18, 32, 64, 0.97) 0%, rgba(11, 21, 38, 0.97) 100%);
+  background: var(--surface);
 }
 
 .pf-detail-name {
   font-weight: 700;
   font-size: 17px;
   margin-bottom: 3px;
-  color: var(--text-strong, #f0f4ff);
+  color: var(--text-strong);
 }
 
 .pf-detail-meta {
   font-size: 12px;
-  color: var(--text-muted, #8caac8);
+  color: var(--text-muted);
 }
 
 /* ── 13. ACTION BAR (remove/delete buttons) ───────────────────── */
@@ -527,9 +499,9 @@
 .pf-action-fullscreen {
   padding: 7px 14px;
   border-radius: 6px;
-  border: 1px solid rgba(96, 160, 220, 0.4);
-  background: rgba(96, 160, 220, 0.1);
-  color: #7ec8f0;
+  border: 1px solid var(--border-strong);
+  background: var(--ghost-bg);
+  color: var(--text-base);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -537,7 +509,7 @@
 }
 
 .pf-action-fullscreen:hover {
-  background: rgba(96, 160, 220, 0.18);
+  background: var(--ghost-bg-hover);
 }
 
 .pf-action-remove {
@@ -605,6 +577,6 @@
   height: 16px !important;
   min-height: unset !important;
   padding: 0 !important;
-  accent-color: var(--accent, #f59e0b);
+  accent-color: var(--accent);
   cursor: pointer;
 }

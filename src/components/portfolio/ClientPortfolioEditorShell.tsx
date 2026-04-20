@@ -54,8 +54,8 @@ export function ClientPortfolioEditorShell({
         zIndex: 1050,
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--bg, #0f172a)',
-        color: 'var(--text-base, #e2e8f0)',
+        background: 'var(--bg)',
+        color: 'var(--text-base)',
       }}
     >
       {/* Fixed header — below the app topbar */}
@@ -65,8 +65,8 @@ export function ClientPortfolioEditorShell({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '14px 24px',
-          borderBottom: '1px solid var(--border, #334155)',
-          background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--surface)',
           flexShrink: 0,
           gap: 12,
         }}
@@ -81,7 +81,7 @@ export function ClientPortfolioEditorShell({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              color: '#f1f5f9',
+              color: 'var(--text-strong)',
             }}
           >
             {clientName || 'Cliente'}
@@ -95,9 +95,9 @@ export function ClientPortfolioEditorShell({
             style={{
               padding: '7px 16px',
               borderRadius: 6,
-              border: '1px solid rgba(148,163,184,0.3)',
-              background: 'rgba(148,163,184,0.12)',
-              color: '#cbd5e1',
+              border: '1px solid var(--border)',
+              background: 'var(--ghost-bg)',
+              color: 'var(--text-base)',
               cursor: 'pointer',
               fontSize: 13,
               fontWeight: 500,
