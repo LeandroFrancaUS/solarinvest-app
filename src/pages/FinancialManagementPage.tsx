@@ -15,6 +15,11 @@ import {
   fetchFinancialCategories,
   fetchFinancialItemTemplates,
   bootstrapProjectFinancialStructure,
+  fetchFinancialProjectSummaries,
+  fetchFinancialProjectDetail,
+  createProjectFinancialItem,
+  updateProjectFinancialItem,
+  deleteProjectFinancialItem,
   type FinancialSummary,
   type FinancialProject,
   type CashflowPeriod,
@@ -22,6 +27,10 @@ import {
   type FinancialCategory,
   type FinancialEntryInput,
   type FinancialItemTemplate,
+  type FinancialProjectSummary,
+  type FinancialProjectDetail,
+  type ProjectFinancialItem,
+  type ProjectFinancialItemInput,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
 
@@ -596,31 +605,140 @@ function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projects Tab
+// Calculation helpers — pure functions, no side-effects
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+function computeItemExpectedTotal(item: ProjectFinancialItem): number {
+  if (item.expected_total != null) return item.expected_total
+  if (item.expected_amount != null && item.expected_quantity != null) {
+    return item.expected_amount * item.expected_quantity
+  }
+  return item.expected_amount ?? 0
+}
+
+interface ProjectTotals {
+  expectedCost: number
+  expectedRevenue: number
+  saldoPrevisto: number
+  margem: number | null
+  roi: number | null
+  payback: number | null
+}
+
+function computeProjectTotals(items: ProjectFinancialItem[], proposalType?: string): ProjectTotals {
+  let expectedCost = 0
+  let expectedRevenue = 0
+  let monthlyRevenue: number | null = null
+
+  for (const item of items) {
+    const total = computeItemExpectedTotal(item)
+    if (item.nature === 'expense') {
+      expectedCost += total
+    } else {
+      expectedRevenue += total
+      // Heuristic: mensalidade item for leasing payback calculation
+      if (
+        proposalType === 'leasing' &&
+        monthlyRevenue == null &&
+        (item.item_name?.toLowerCase().includes('mensalidade') || item.category?.toLowerCase().includes('mensalidade'))
+      ) {
+        monthlyRevenue = item.expected_amount ?? null
+      }
+    }
+  }
+
+  const saldoPrevisto = expectedRevenue - expectedCost
+  const margem = expectedRevenue > 0 ? (saldoPrevisto / expectedRevenue) * 100 : null
+  const roi = expectedCost > 0 ? (saldoPrevisto / expectedCost) * 100 : null
+  const payback =
+    proposalType === 'leasing' && monthlyRevenue != null && monthlyRevenue > 0
+      ? expectedCost / monthlyRevenue
+      : expectedCost > 0 && expectedRevenue > 0
+        ? expectedCost / (expectedRevenue / Math.max(items.length, 1))
+        : null
+
+  return { expectedCost, expectedRevenue, saldoPrevisto, margem, roi, payback }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FinancialProjectsSummaryCards — aggregate cards from all project summaries
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FinancialProjectsSummaryCards({ summaries }: { summaries: FinancialProjectSummary[] }) {
+  const totals = useMemo(() => {
+    let cost = 0
+    let revenue = 0
+    let saldo = 0
+    for (const s of summaries) {
+      cost += s.total_expected_cost
+      revenue += s.total_expected_revenue
+      saldo += s.saldo_previsto
+    }
+    return { cost, revenue, saldo, count: summaries.length }
+  }, [summaries])
+
+  if (summaries.length === 0) return null
+
+  return (
+    <div className="fm-summary-cards">
+      <div className="fm-summary-card">
+        <span className="fm-summary-card__icon">🏗️</span>
+        <span className="fm-summary-card__value">{totals.count}</span>
+        <span className="fm-summary-card__label">Projetos com estrutura financeira</span>
+      </div>
+      <div className="fm-summary-card fm-summary-card--red">
+        <span className="fm-summary-card__icon">💸</span>
+        <span className="fm-summary-card__value">{formatCurrencyBRL(totals.cost)}</span>
+        <span className="fm-summary-card__label">Custo total previsto</span>
+      </div>
+      <div className="fm-summary-card fm-summary-card--green">
+        <span className="fm-summary-card__icon">💰</span>
+        <span className="fm-summary-card__value">{formatCurrencyBRL(totals.revenue)}</span>
+        <span className="fm-summary-card__label">Receita total prevista</span>
+      </div>
+      <div className={`fm-summary-card ${totals.saldo >= 0 ? 'fm-summary-card--green' : 'fm-summary-card--red'}`}>
+        <span className="fm-summary-card__icon">{totals.saldo >= 0 ? '📈' : '📉'}</span>
+        <span className="fm-summary-card__value">{formatCurrencyBRL(totals.saldo)}</span>
+        <span className="fm-summary-card__label">Saldo global previsto</span>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OperationalProjectsTab — project list driven by project_financial_items aggregate
+// ─────────────────────────────────────────────────────────────────────────────
+
+function OperationalProjectsTab({
+  summaries,
+  error,
+  onRetry,
+  onOpenProject,
+}: {
+  summaries: FinancialProjectSummary[]
+  error: string | null
+  onRetry: () => void
+  onOpenProject: (proposalId: string) => void
+}) {
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
 
-  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const filtered = useMemo(() => {
     if (error) return []
-    return projects.filter((p) => {
-      if (kindFilter && p.project_kind !== kindFilter) return false
-      if (statusFilter && p.status !== statusFilter) return false
+    return summaries.filter((s) => {
+      if (kindFilter && s.project_kind !== kindFilter) return false
+      if (statusFilter && s.proposal_status !== statusFilter) return false
       if (search) {
         const q = search.toLowerCase()
         return (
-          p.client_name?.toLowerCase().includes(q) ||
-          p.consultant_name?.toLowerCase().includes(q) ||
-          p.uf?.toLowerCase().includes(q)
+          s.client_name.toLowerCase().includes(q) ||
+          (s.proposal_code ?? '').toLowerCase().includes(q)
         )
       }
       return true
     })
-  }, [projects, search, kindFilter, statusFilter, error])
+  }, [summaries, search, kindFilter, statusFilter, error])
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
 
@@ -630,7 +748,7 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
         <input
           type="search"
           className="fm-filter-input"
-          placeholder="Buscar cliente, consultor, UF…"
+          placeholder="Buscar cliente, código…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -642,54 +760,848 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
         </select>
         <select className="fm-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Todos os status</option>
+          <option value="draft">Rascunho</option>
+          <option value="sent">Enviado</option>
+          <option value="approved">Aprovado</option>
           <option value="active">Ativo</option>
-          <option value="implanting">Em implantação</option>
-          <option value="commissioned">Comissionado</option>
-          <option value="closed">Encerrado</option>
         </select>
       </div>
+
       {filtered.length === 0 ? (
-        <div className="fm-empty">Nenhum projeto encontrado com os filtros aplicados.</div>
+        <div className="fm-empty">
+          <p>Nenhum projeto com estrutura financeira encontrado.</p>
+          <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+            Use <strong>⚙ Gerar estrutura do projeto</strong> para criar a composição financeira de um projeto a partir de uma proposta existente.
+          </p>
+        </div>
       ) : (
         <div className="fm-table-wrapper">
-          <table className="fm-table">
+          <table className="fm-table fm-project-list-table">
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>Cód. Proposta</th>
                 <th>Tipo</th>
                 <th>Status</th>
-                <th>CAPEX</th>
-                <th>Receita Proj.</th>
-                <th>Receita Real.</th>
-                <th>Lucro Est.</th>
-                <th>ROI</th>
-                <th>Payback</th>
-                <th>Consultor</th>
-                <th>UF</th>
+                <th>Itens</th>
+                <th>Custo Previsto</th>
+                <th>Receita Prevista</th>
+                <th>Saldo Previsto</th>
+                <th>Última atualização</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
+              {filtered.map((s) => (
+                <tr
+                  key={s.proposal_id}
+                  className="fm-project-row"
+                  onClick={() => onOpenProject(s.proposal_id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && onOpenProject(s.proposal_id)}
+                >
+                  <td>{s.client_name || '—'}</td>
+                  <td>{s.proposal_code || <em style={{ color: '#9ca3af' }}>{s.proposal_id.substring(0, 8)}…</em>}</td>
                   <td>
-                    <span className={`fm-badge fm-badge--${p.project_kind}`}>
-                      {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
+                    <span className={`fm-badge fm-badge--${s.project_kind}`}>
+                      {PROJECT_KIND_LABELS[s.project_kind] ?? s.project_kind}
                     </span>
                   </td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatCurrencyBRL(p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.realized_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.projected_profit)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatMonths(p.payback_months)}</td>
-                  <td>{p.consultant_name ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
+                  <td>{s.proposal_status}</td>
+                  <td>{s.item_count}</td>
+                  <td className="fm-value--negative">{formatCurrencyBRL(s.total_expected_cost)}</td>
+                  <td className="fm-value--positive">{formatCurrencyBRL(s.total_expected_revenue)}</td>
+                  <td className={s.saldo_previsto >= 0 ? 'fm-value--positive' : 'fm-value--negative'}>
+                    {formatCurrencyBRL(s.saldo_previsto)}
+                  </td>
+                  <td>{formatDate(s.last_updated)}</td>
+                  <td className="fm-actions-cell" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="ghost fm-action-btn"
+                      onClick={() => onOpenProject(s.proposal_id)}
+                      title="Abrir projeto"
+                    >
+                      📂
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ProjectDetailView — per-project operational item table
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMPTY_ITEM_FORM: Partial<ProjectFinancialItemInput> = {
+  nature: 'expense',
+  category: '',
+  item_name: '',
+  value_mode: 'manual',
+  expected_amount: null,
+  expected_quantity: null,
+  expected_total: null,
+  notes: '',
+}
+
+interface ItemRowProps {
+  item: ProjectFinancialItem
+  isEditing: boolean
+  editForm: Partial<ProjectFinancialItemInput>
+  onChangeEditForm: (patch: Partial<ProjectFinancialItemInput>) => void
+  onStartEdit: (item: ProjectFinancialItem) => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onDelete: (id: string) => void
+  isSaving: boolean
+}
+
+function ItemRow({
+  item,
+  isEditing,
+  editForm,
+  onChangeEditForm,
+  onStartEdit,
+  onSaveEdit,
+  onCancelEdit,
+  onDelete,
+  isSaving,
+}: ItemRowProps) {
+  if (isEditing) {
+    const computedTotal =
+      editForm.expected_quantity != null && editForm.expected_amount != null
+        ? editForm.expected_quantity * editForm.expected_amount
+        : null
+
+    return (
+      <tr className="fm-op-row-editing">
+        <td>
+          <select
+            className="fm-form-select"
+            value={editForm.nature ?? 'expense'}
+            onChange={(e) => onChangeEditForm({ nature: e.target.value as 'income' | 'expense' })}
+          >
+            <option value="expense">Custo</option>
+            <option value="income">Receita</option>
+          </select>
+        </td>
+        <td>
+          <input
+            className="fm-form-input"
+            value={editForm.category ?? ''}
+            onChange={(e) => onChangeEditForm({ category: e.target.value })}
+            placeholder="Categoria"
+          />
+        </td>
+        <td>
+          <input
+            className="fm-form-input"
+            value={editForm.item_name ?? ''}
+            onChange={(e) => onChangeEditForm({ item_name: e.target.value })}
+            placeholder="Nome do item"
+          />
+        </td>
+        <td>
+          <input
+            type="number"
+            className="fm-form-input fm-op-input-narrow"
+            value={editForm.expected_quantity ?? ''}
+            onChange={(e) =>
+              onChangeEditForm({ expected_quantity: e.target.value === '' ? null : Number(e.target.value) })
+            }
+            placeholder="Qtd"
+            min="0"
+          />
+        </td>
+        <td>
+          <input
+            type="number"
+            className="fm-form-input fm-op-input-narrow"
+            value={editForm.expected_amount ?? ''}
+            onChange={(e) =>
+              onChangeEditForm({ expected_amount: e.target.value === '' ? null : Number(e.target.value) })
+            }
+            placeholder="Vlr unit."
+            min="0"
+            step="0.01"
+          />
+        </td>
+        <td>
+          {computedTotal != null ? (
+            <span className="fm-op-computed-total">{formatCurrencyBRL(computedTotal)}</span>
+          ) : (
+            <input
+              type="number"
+              className="fm-form-input fm-op-input-narrow"
+              value={editForm.expected_total ?? ''}
+              onChange={(e) =>
+                onChangeEditForm({ expected_total: e.target.value === '' ? null : Number(e.target.value) })
+              }
+              placeholder="Total"
+              min="0"
+              step="0.01"
+            />
+          )}
+        </td>
+        <td>
+          <input
+            className="fm-form-input"
+            value={editForm.notes ?? ''}
+            onChange={(e) => onChangeEditForm({ notes: e.target.value })}
+            placeholder="Observações"
+          />
+        </td>
+        <td className="fm-actions-cell">
+          <button type="button" className="primary" onClick={onSaveEdit} disabled={isSaving}>
+            {isSaving ? '…' : '✓'}
+          </button>
+          <button type="button" className="ghost" onClick={onCancelEdit}>
+            ✗
+          </button>
+        </td>
+      </tr>
+    )
+  }
+
+  const total = computeItemExpectedTotal(item)
+  return (
+    <tr>
+      <td>
+        <span className={`fm-badge fm-badge--${item.nature === 'expense' ? 'expense' : 'income'}`}>
+          {item.nature === 'expense' ? 'Custo' : 'Receita'}
+        </span>
+      </td>
+      <td>{item.category || '—'}</td>
+      <td>{item.item_name}</td>
+      <td>{item.expected_quantity != null ? item.expected_quantity : '—'}</td>
+      <td>{item.expected_amount != null ? formatCurrencyBRL(item.expected_amount) : '—'}</td>
+      <td className={item.nature === 'expense' ? 'fm-value--negative' : 'fm-value--positive'}>
+        {formatCurrencyBRL(total)}
+      </td>
+      <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.notes || '—'}
+      </td>
+      <td className="fm-actions-cell">
+        <button type="button" className="ghost fm-action-btn" onClick={() => onStartEdit(item)} title="Editar">
+          ✏️
+        </button>
+        <button
+          type="button"
+          className="ghost fm-action-btn fm-action-btn--danger"
+          onClick={() => onDelete(item.id)}
+          title="Remover"
+        >
+          🗑️
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+function ProjectDetailView({
+  proposalId,
+  onBack,
+  categories,
+  templates,
+}: {
+  proposalId: string
+  onBack: () => void
+  categories: FinancialCategory[]
+  templates: FinancialItemTemplate[]
+}) {
+  const [detail, setDetail] = useState<FinancialProjectDetail | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Partial<ProjectFinancialItemInput>>(EMPTY_ITEM_FORM)
+
+  const [isAddingItem, setIsAddingItem] = useState(false)
+  const [newItemNature, setNewItemNature] = useState<'expense' | 'income'>('expense')
+  const [newItemForm, setNewItemForm] = useState<Partial<ProjectFinancialItemInput>>(EMPTY_ITEM_FORM)
+
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const [bootstrapLoading, setBootstrapLoading] = useState(false)
+  const [bootstrapMsg, setBootstrapMsg] = useState<string | null>(null)
+
+  const loadDetail = useCallback(async () => {
+    setIsLoading(true)
+    setLoadError(null)
+    try {
+      const d = await fetchFinancialProjectDetail(proposalId)
+      setDetail(d)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Erro ao carregar projeto')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [proposalId])
+
+  useEffect(() => {
+    void loadDetail()
+  }, [loadDetail])
+
+  const items = detail?.items ?? []
+  const costItems = items.filter((i) => i.nature === 'expense')
+  const revenueItems = items.filter((i) => i.nature === 'income')
+  const totals = computeProjectTotals(items, detail?.proposal_type)
+  const costTotal = costItems.reduce((s, i) => s + computeItemExpectedTotal(i), 0)
+  const revenueTotal = revenueItems.reduce((s, i) => s + computeItemExpectedTotal(i), 0)
+
+  const handleStartEdit = useCallback((item: ProjectFinancialItem) => {
+    setEditingId(item.id)
+    setEditForm({
+      nature: item.nature,
+      category: item.category,
+      item_name: item.item_name,
+      value_mode: item.value_mode,
+      expected_amount: item.expected_amount ?? null,
+      expected_quantity: item.expected_quantity ?? null,
+      expected_total: item.expected_total ?? null,
+      notes: item.notes ?? '',
+    })
+  }, [])
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingId) return
+    setIsSaving(true)
+    setSaveError(null)
+    try {
+      await updateProjectFinancialItem(editingId, editForm)
+      setEditingId(null)
+      setEditForm(EMPTY_ITEM_FORM)
+      await loadDetail()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar')
+    } finally {
+      setIsSaving(false)
+    }
+  }, [editingId, editForm, loadDetail])
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null)
+    setEditForm(EMPTY_ITEM_FORM)
+  }, [])
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      if (!window.confirm('Remover este item do projeto?')) return
+      setSaveError(null)
+      try {
+        await deleteProjectFinancialItem(id)
+        await loadDetail()
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'Erro ao remover')
+      }
+    },
+    [loadDetail],
+  )
+
+  const handleAddItem = useCallback(async () => {
+    if (!newItemForm.item_name?.trim()) {
+      setSaveError('Informe o nome do item.')
+      return
+    }
+    setIsSaving(true)
+    setSaveError(null)
+    const kind: 'leasing' | 'sale' | 'buyout' =
+      detail?.proposal_type === 'leasing' ? 'leasing' : 'sale'
+    try {
+      await createProjectFinancialItem({
+        ...(newItemForm as ProjectFinancialItemInput),
+        proposal_id: proposalId,
+        project_kind: kind,
+        nature: newItemNature,
+        category: newItemForm.category || kind,
+        item_name: newItemForm.item_name ?? '',
+      })
+      setIsAddingItem(false)
+      setNewItemForm(EMPTY_ITEM_FORM)
+      await loadDetail()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erro ao adicionar item')
+    } finally {
+      setIsSaving(false)
+    }
+  }, [newItemForm, newItemNature, proposalId, detail, loadDetail])
+
+  const handleBootstrap = useCallback(async () => {
+    if (
+      items.length > 0 &&
+      !window.confirm(
+        'Este projeto já possui itens. Deseja gerar a estrutura padrão mesmo assim? Os itens existentes serão preservados.',
+      )
+    )
+      return
+    setBootstrapLoading(true)
+    setBootstrapMsg(null)
+    setSaveError(null)
+    try {
+      const result = await bootstrapProjectFinancialStructure(proposalId)
+      setBootstrapMsg(
+        `Estrutura gerada (${result.project_kind}): ${result.created_count} item(ns) adicionado(s).`,
+      )
+      await loadDetail()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Erro ao gerar estrutura')
+    } finally {
+      setBootstrapLoading(false)
+    }
+  }, [items.length, proposalId, loadDetail])
+
+  // Template picker auto-fill for new item
+  const handleApplyTemplateToNew = useCallback(
+    (templateId: string) => {
+      if (!templateId) return
+      const tpl = templates.find((t) => t.id === templateId)
+      if (!tpl) return
+      setNewItemForm((prev) => ({
+        ...prev,
+        category: tpl.category ?? tpl.name,
+        item_name: prev.item_name || tpl.name,
+        expected_amount: tpl.default_amount != null ? tpl.default_amount : (prev.expected_amount ?? null),
+        expected_total: tpl.default_amount != null ? tpl.default_amount : (prev.expected_total ?? null),
+      } as Partial<ProjectFinancialItemInput>))
+      if (tpl.nature === 'income' || tpl.nature === 'expense') {
+        setNewItemNature(tpl.nature)
+      }
+    },
+    [templates],
+  )
+
+  const filteredTemplates = useMemo(
+    () =>
+      templates.filter(
+        (t) =>
+          t.nature === newItemNature &&
+          (t.project_kind === (detail?.proposal_type ?? 'sale') || t.project_kind === 'both'),
+      ),
+    [templates, newItemNature, detail],
+  )
+
+  return (
+    <div className="fm-project-detail">
+      {/* Breadcrumb / back */}
+      <div className="fm-project-detail-breadcrumb">
+        <button type="button" className="ghost fm-back-btn" onClick={onBack}>
+          ← Voltar à Gestão Financeira
+        </button>
+      </div>
+
+      {/* Project header */}
+      {detail ? (
+        <div className="fm-project-detail-header">
+          <div className="fm-project-detail-title">
+            <span className={`fm-badge fm-badge--${detail.proposal_type}`}>
+              {PROJECT_KIND_LABELS[detail.proposal_type] ?? detail.proposal_type}
+            </span>
+            <h2 className="fm-project-detail-name">{detail.client_name ?? '—'}</h2>
+            {detail.proposal_code ? (
+              <span className="fm-project-code">#{detail.proposal_code}</span>
+            ) : null}
+            {detail.status ? <span className="fm-project-status-badge">{detail.status}</span> : null}
+          </div>
+
+          <div className="fm-project-detail-kpis">
+            <div className="fm-kpi-mini">
+              <span className="fm-kpi-mini-label">Custo previsto</span>
+              <span className="fm-kpi-mini-value fm-value--negative">{formatCurrencyBRL(totals.expectedCost)}</span>
+            </div>
+            <div className="fm-kpi-mini">
+              <span className="fm-kpi-mini-label">Receita prevista</span>
+              <span className="fm-kpi-mini-value fm-value--positive">{formatCurrencyBRL(totals.expectedRevenue)}</span>
+            </div>
+            <div className="fm-kpi-mini">
+              <span className="fm-kpi-mini-label">Saldo previsto</span>
+              <span
+                className={`fm-kpi-mini-value ${totals.saldoPrevisto >= 0 ? 'fm-value--positive' : 'fm-value--negative'}`}
+              >
+                {formatCurrencyBRL(totals.saldoPrevisto)}
+              </span>
+            </div>
+            {totals.margem !== null ? (
+              <div className="fm-kpi-mini">
+                <span className="fm-kpi-mini-label">Margem est.</span>
+                <span className="fm-kpi-mini-value">{formatPct(totals.margem)}</span>
+              </div>
+            ) : null}
+            {totals.roi !== null ? (
+              <div className="fm-kpi-mini">
+                <span className="fm-kpi-mini-label">ROI est.</span>
+                <span className="fm-kpi-mini-value">{formatPct(totals.roi)}</span>
+              </div>
+            ) : null}
+            {totals.payback !== null ? (
+              <div className="fm-kpi-mini">
+                <span className="fm-kpi-mini-label">Payback est.</span>
+                <span className="fm-kpi-mini-value">{formatMonths(totals.payback)}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="fm-project-detail-actions">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setIsAddingItem(true)}
+              disabled={isSaving || isAddingItem}
+            >
+              + Adicionar item
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void handleBootstrap()}
+              disabled={bootstrapLoading}
+            >
+              {bootstrapLoading ? 'Gerando…' : '⚙ Gerar estrutura padrão'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Feedback banners */}
+      {bootstrapMsg ? (
+        <div className="fm-error" role="status" style={{ background: '#ecfdf5', borderColor: '#34d399', color: '#065f46' }}>
+          ✅ {bootstrapMsg}
+          <button type="button" className="ghost" onClick={() => setBootstrapMsg(null)} style={{ marginLeft: 8 }}>
+            ×
+          </button>
+        </div>
+      ) : null}
+      {saveError ? (
+        <div className="fm-error" role="alert">
+          {saveError}
+          <button type="button" className="ghost" onClick={() => setSaveError(null)} style={{ marginLeft: 8 }}>
+            ×
+          </button>
+        </div>
+      ) : null}
+
+      {/* Main content */}
+      {isLoading ? (
+        <div className="fm-loading">
+          <span className="fm-loading-spinner" aria-hidden="true" />
+          Carregando estrutura financeira do projeto…
+        </div>
+      ) : loadError ? (
+        <div className="fm-error">
+          {loadError}{' '}
+          <button type="button" className="ghost" onClick={() => void loadDetail()}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : (
+        <div className="fm-op-table-wrapper">
+          {/* Add item form (appears above table when active) */}
+          {isAddingItem ? (
+            <div className="fm-op-add-panel">
+              <h4 className="fm-op-add-panel-title">Novo item</h4>
+              <div className="fm-op-add-form">
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Natureza</label>
+                  <select
+                    className="fm-form-select"
+                    value={newItemNature}
+                    onChange={(e) => setNewItemNature(e.target.value as 'expense' | 'income')}
+                  >
+                    <option value="expense">Custo</option>
+                    <option value="income">Receita</option>
+                  </select>
+                </div>
+                {filteredTemplates.length > 0 ? (
+                  <div className="fm-form-row">
+                    <label className="fm-form-label">Item padrão</label>
+                    <select
+                      className="fm-form-select"
+                      onChange={(e) => handleApplyTemplateToNew(e.target.value)}
+                      defaultValue=""
+                    >
+                      <option value="">— Selecionar template —</option>
+                      {filteredTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {t.default_amount ? ` (${formatCurrencyBRL(t.default_amount)})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Categoria</label>
+                  {categories.length > 0 ? (
+                    <select
+                      className="fm-form-select"
+                      value={newItemForm.category ?? ''}
+                      onChange={(e) => setNewItemForm((p) => ({ ...p, category: e.target.value }))}
+                    >
+                      <option value="">— Selecionar —</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="fm-form-input"
+                      value={newItemForm.category ?? ''}
+                      onChange={(e) => setNewItemForm((p) => ({ ...p, category: e.target.value }))}
+                      placeholder="Categoria"
+                    />
+                  )}
+                </div>
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Nome do item *</label>
+                  <input
+                    className="fm-form-input"
+                    value={newItemForm.item_name ?? ''}
+                    onChange={(e) => setNewItemForm((p) => ({ ...p, item_name: e.target.value }))}
+                    placeholder="Ex: Kit Fotovoltaico"
+                    autoFocus
+                  />
+                </div>
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Quantidade</label>
+                  <input
+                    type="number"
+                    className="fm-form-input"
+                    value={newItemForm.expected_quantity ?? ''}
+                    onChange={(e) =>
+                      setNewItemForm((p) => ({
+                        ...p,
+                        expected_quantity: e.target.value === '' ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="1"
+                    min="0"
+                  />
+                </div>
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Valor unitário (R$)</label>
+                  <input
+                    type="number"
+                    className="fm-form-input"
+                    value={newItemForm.expected_amount ?? ''}
+                    onChange={(e) =>
+                      setNewItemForm((p) => ({
+                        ...p,
+                        expected_amount: e.target.value === '' ? null : Number(e.target.value),
+                      }))
+                    }
+                    placeholder="0,00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                {(newItemForm.expected_quantity == null || newItemForm.expected_amount == null) ? (
+                  <div className="fm-form-row">
+                    <label className="fm-form-label">Total previsto (R$)</label>
+                    <input
+                      type="number"
+                      className="fm-form-input"
+                      value={newItemForm.expected_total ?? ''}
+                      onChange={(e) =>
+                        setNewItemForm((p) => ({
+                          ...p,
+                          expected_total: e.target.value === '' ? null : Number(e.target.value),
+                        }))
+                      }
+                      placeholder="0,00"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                ) : (
+                  <div className="fm-form-row">
+                    <label className="fm-form-label">Total calculado</label>
+                    <span className="fm-op-computed-total">
+                      {formatCurrencyBRL((newItemForm.expected_quantity ?? 0) * (newItemForm.expected_amount ?? 0))}
+                    </span>
+                  </div>
+                )}
+                <div className="fm-form-row">
+                  <label className="fm-form-label">Observações</label>
+                  <input
+                    className="fm-form-input"
+                    value={newItemForm.notes ?? ''}
+                    onChange={(e) => setNewItemForm((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Opcional"
+                  />
+                </div>
+                <div className="fm-op-add-form-actions">
+                  <button type="button" className="primary" onClick={() => void handleAddItem()} disabled={isSaving}>
+                    {isSaving ? 'Salvando…' : 'Salvar item'}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setIsAddingItem(false)
+                      setNewItemForm(EMPTY_ITEM_FORM)
+                      setSaveError(null)
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Operational item table */}
+          {items.length === 0 && !isAddingItem ? (
+            <div className="fm-empty">
+              <p>Este projeto ainda não tem itens financeiros cadastrados.</p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button type="button" className="primary" onClick={() => setIsAddingItem(true)}>
+                  + Adicionar item
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleBootstrap()}
+                  disabled={bootstrapLoading}
+                >
+                  {bootstrapLoading ? 'Gerando…' : '⚙ Gerar estrutura padrão'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <table className="fm-table fm-op-table">
+              <thead>
+                <tr>
+                  <th>Natureza</th>
+                  <th>Categoria</th>
+                  <th>Item</th>
+                  <th>Qtd.</th>
+                  <th>Vlr Unit.</th>
+                  <th>Total Prev.</th>
+                  <th>Obs.</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* ── Costs group ── */}
+                {costItems.length > 0 || revenueItems.length > 0 ? (
+                  <tr className="fm-op-group-header">
+                    <td colSpan={8}>
+                      💸 Custos ({costItems.length} {costItems.length === 1 ? 'item' : 'itens'}) —{' '}
+                      <strong>{formatCurrencyBRL(costTotal)}</strong>
+                    </td>
+                  </tr>
+                ) : null}
+                {costItems.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    isEditing={editingId === item.id}
+                    editForm={editForm}
+                    onChangeEditForm={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+                    onStartEdit={handleStartEdit}
+                    onSaveEdit={() => void handleSaveEdit()}
+                    onCancelEdit={handleCancelEdit}
+                    onDelete={() => void handleDelete(item.id)}
+                    isSaving={isSaving}
+                  />
+                ))}
+                {costItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="fm-op-group-empty">
+                      Nenhum custo cadastrado.{' '}
+                      <button
+                        type="button"
+                        className="ghost"
+                        style={{ fontSize: '0.8rem' }}
+                        onClick={() => {
+                          setNewItemNature('expense')
+                          setIsAddingItem(true)
+                        }}
+                      >
+                        + Adicionar custo
+                      </button>
+                    </td>
+                  </tr>
+                ) : null}
+
+                {/* ── Revenue group ── */}
+                <tr className="fm-op-group-header">
+                  <td colSpan={8}>
+                    💰 Receitas ({revenueItems.length} {revenueItems.length === 1 ? 'item' : 'itens'}) —{' '}
+                    <strong>{formatCurrencyBRL(revenueTotal)}</strong>
+                  </td>
+                </tr>
+                {revenueItems.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    isEditing={editingId === item.id}
+                    editForm={editForm}
+                    onChangeEditForm={(patch) => setEditForm((prev) => ({ ...prev, ...patch }))}
+                    onStartEdit={handleStartEdit}
+                    onSaveEdit={() => void handleSaveEdit()}
+                    onCancelEdit={handleCancelEdit}
+                    onDelete={() => void handleDelete(item.id)}
+                    isSaving={isSaving}
+                  />
+                ))}
+                {revenueItems.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="fm-op-group-empty">
+                      Nenhuma receita cadastrada.{' '}
+                      <button
+                        type="button"
+                        className="ghost"
+                        style={{ fontSize: '0.8rem' }}
+                        onClick={() => {
+                          setNewItemNature('income')
+                          setIsAddingItem(true)
+                        }}
+                      >
+                        + Adicionar receita
+                      </button>
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+              <tfoot>
+                <tr className="fm-op-totals-row">
+                  <td colSpan={5}>
+                    <strong>Totais do Projeto</strong>
+                  </td>
+                  <td colSpan={2}>
+                    <div>
+                      Custos: <span className="fm-value--negative">{formatCurrencyBRL(costTotal)}</span>
+                    </div>
+                    <div>
+                      Receitas: <span className="fm-value--positive">{formatCurrencyBRL(revenueTotal)}</span>
+                    </div>
+                    <div>
+                      Saldo:{' '}
+                      <span className={totals.saldoPrevisto >= 0 ? 'fm-value--positive' : 'fm-value--negative'}>
+                        {formatCurrencyBRL(totals.saldoPrevisto)}
+                      </span>
+                    </div>
+                    {totals.margem !== null ? (
+                      <div>
+                        Margem: <span>{formatPct(totals.margem)}</span>
+                      </div>
+                    ) : null}
+                  </td>
+                  <td colSpan={1} />
+                </tr>
+              </tfoot>
+            </table>
+          )}
         </div>
       )}
     </div>
@@ -1034,11 +1946,18 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
+  // ── project detail navigation ──
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(null)
+
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
 
   const [projects, setProjects] = useState<FinancialProject[]>([])
   const [projectsError, setProjectsError] = useState<string | null>(null)
+
+  // ── per-project operational summaries (new endpoint) ──
+  const [projectSummaries, setProjectSummaries] = useState<FinancialProjectSummary[]>([])
+  const [projectSummariesError, setProjectSummariesError] = useState<string | null>(null)
 
   const [cashflow, setCashflow] = useState<CashflowPeriod[]>([])
   const [cashflowError, setCashflowError] = useState<string | null>(null)
@@ -1084,20 +2003,23 @@ export function FinancialManagementPage({ onBack }: Props) {
     // Clear per-section errors before reload
     setSummaryError(null)
     setProjectsError(null)
+    setProjectSummariesError(null)
     setCashflowError(null)
     setEntriesError(null)
 
     const params = getPeriodParams()
 
     // Load each section independently so one failure doesn't break the whole page
-    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes, templatesRes] = await Promise.allSettled([
-      fetchFinancialSummary(params),
-      fetchFinancialProjects(params),
-      fetchFinancialCashflow(params),
-      fetchFinancialEntries(params),
-      fetchFinancialCategories(),
-      fetchFinancialItemTemplates(),
-    ])
+    const [summaryRes, projectsRes, projectSummariesRes, cashflowRes, entriesRes, categoriesRes, templatesRes] =
+      await Promise.allSettled([
+        fetchFinancialSummary(params),
+        fetchFinancialProjects(params),
+        fetchFinancialProjectSummaries(),
+        fetchFinancialCashflow(params),
+        fetchFinancialEntries(params),
+        fetchFinancialCategories(),
+        fetchFinancialItemTemplates(),
+      ])
 
     if (summaryRes.status === 'fulfilled') {
       setSummary(summaryRes.value)
@@ -1111,6 +2033,15 @@ export function FinancialManagementPage({ onBack }: Props) {
     } else {
       console.error('[financial-management] projects error', projectsRes.reason)
       setProjectsError(projectsRes.reason instanceof Error ? projectsRes.reason.message : 'Erro ao carregar projetos.')
+    }
+
+    if (projectSummariesRes.status === 'fulfilled') {
+      setProjectSummaries(projectSummariesRes.value)
+    } else {
+      console.error('[financial-management] project-summaries error', projectSummariesRes.reason)
+      setProjectSummariesError(
+        projectSummariesRes.reason instanceof Error ? projectSummariesRes.reason.message : 'Erro ao carregar resumos.',
+      )
     }
 
     if (cashflowRes.status === 'fulfilled') {
@@ -1200,6 +2131,16 @@ export function FinancialManagementPage({ onBack }: Props) {
     setShowEntryForm(false)
     setEditingEntry(null)
   }, [])
+
+  // ── per-project navigation ──
+  const handleOpenProject = useCallback((proposalId: string) => {
+    setSelectedProposalId(proposalId)
+  }, [])
+
+  const handleCloseProject = useCallback(() => {
+    setSelectedProposalId(null)
+    void loadData()
+  }, [loadData])
 
   /**
    * Generates the planned financial structure (project_financial_items)
@@ -1305,51 +2246,75 @@ export function FinancialManagementPage({ onBack }: Props) {
         </div>
       ) : null}
 
-      {/* Tab Bar */}
-      <div className="fm-tab-bar" role="tablist">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            className={`fm-tab${activeTab === tab ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {TAB_LABELS[tab]}
-          </button>
-        ))}
-      </div>
+      {/* ── When a project is selected, show its detail view instead of tabs ── */}
+      {selectedProposalId ? (
+        <div className="fm-tab-content">
+          <ProjectDetailView
+            proposalId={selectedProposalId}
+            onBack={handleCloseProject}
+            categories={categories}
+            templates={templates}
+          />
+        </div>
+      ) : (
+        <>
+          {/* Aggregate summary cards (visible above tabs when summaries are available) */}
+          <FinancialProjectsSummaryCards summaries={projectSummaries} />
 
-      {/* Content */}
-      <div className="fm-tab-content" role="tabpanel">
-        {isLoading ? (
-          <div className="fm-loading">
-            <span className="fm-loading-spinner" aria-hidden="true" />
-            Carregando dados financeiros…
+          {/* Tab Bar */}
+          <div className="fm-tab-bar" role="tablist">
+            {TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                className={`fm-tab${activeTab === tab ? ' active' : ''}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                {TAB_LABELS[tab]}
+              </button>
+            ))}
           </div>
-        ) : (
-          <>
-            {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
-            {activeTab === 'projects' && <ProjectsTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
-            {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
-            {activeTab === 'entries' && (
-              <EntriesTab
-                entries={entries}
-                error={entriesError}
-                onRetry={() => void loadData()}
-                categories={categories}
-                onNew={handleNewEntry}
-                onEdit={handleEditEntry}
-                onDelete={(id) => { void handleDeleteEntry(id) }}
-                isDeleting={isDeletingEntry}
-              />
+
+          {/* Content */}
+          <div className="fm-tab-content" role="tabpanel">
+            {isLoading ? (
+              <div className="fm-loading">
+                <span className="fm-loading-spinner" aria-hidden="true" />
+                Carregando dados financeiros…
+              </div>
+            ) : (
+              <>
+                {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
+                {activeTab === 'projects' && (
+                  <OperationalProjectsTab
+                    summaries={projectSummaries}
+                    error={projectSummariesError}
+                    onRetry={() => void loadData()}
+                    onOpenProject={handleOpenProject}
+                  />
+                )}
+                {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
+                {activeTab === 'entries' && (
+                  <EntriesTab
+                    entries={entries}
+                    error={entriesError}
+                    onRetry={() => void loadData()}
+                    categories={categories}
+                    onNew={handleNewEntry}
+                    onEdit={handleEditEntry}
+                    onDelete={(id) => { void handleDeleteEntry(id) }}
+                    isDeleting={isDeletingEntry}
+                  />
+                )}
+                {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+                {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+              </>
             )}
-            {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
-            {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Entry Form Drawer */}
       {showEntryForm ? (

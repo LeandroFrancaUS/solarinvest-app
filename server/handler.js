@@ -114,6 +114,8 @@ import {
   handleFinancialProjectItems,
   handleBootstrapProjectStructure,
   handleFinancialReceivablePlans,
+  handleFinancialProjectSummaries,
+  handleFinancialProjectDetail,
 } from './financial-management/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
@@ -1305,6 +1307,22 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleBootstrapProjectStructure(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/financial-management/project-summaries
+    if (pathname === '/api/financial-management/project-summaries') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialProjectSummaries(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/financial-management/projects/:proposalId  (detail — no trailing segment)
+    if (/^\/api\/financial-management\/projects\/[0-9a-f-]{36}$/.test(pathname)) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialProjectDetail(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
       return
     }
 

@@ -586,3 +586,120 @@ export async function createReceivablePlan(sql, data, userId) {
 }
 
 export { normalizeName as _normalizeName }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project summaries — aggregate view per proposal_id
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns one row per proposal that has project_financial_items, with
+ * aggregated expected cost/revenue totals and proposal metadata.
+ * Uses sql(text, params) to support optional filters without nested templates.
+ */
+export async function listFinancialProjectSummaries(sql, { projectKind, status } = {}) {
+  const conditions = ['pfi.deleted_at IS NULL']
+  const params = []
+  if (projectKind) {
+    params.push(projectKind)
+    conditions.push(`pfi.project_kind = $${params.length}`)
+  }
+  const whereClause = conditions.join(' AND ')
+
+  const queryText = `
+    WITH item_agg AS (
+      SELECT
+        pfi.proposal_id,
+        MAX(pfi.project_kind) FILTER (WHERE pfi.project_kind IS NOT NULL)          AS project_kind,
+        SUM(CASE WHEN pfi.nature = 'expense'
+              THEN COALESCE(pfi.expected_total, pfi.expected_amount, 0) ELSE 0 END) AS total_expected_cost,
+        SUM(CASE WHEN pfi.nature = 'income'
+              THEN COALESCE(pfi.expected_total, pfi.expected_amount, 0) ELSE 0 END) AS total_expected_revenue,
+        COUNT(*)                                                                    AS item_count,
+        MAX(pfi.updated_at)                                                         AS last_updated,
+        MIN(pfi.created_at)                                                         AS first_created
+      FROM project_financial_items pfi
+      WHERE ${whereClause}
+      GROUP BY pfi.proposal_id
+    )
+    SELECT
+      ia.proposal_id::text                                                 AS proposal_id,
+      COALESCE(ia.project_kind, p.proposal_type, 'leasing')                AS project_kind,
+      ia.item_count::int,
+      ia.last_updated,
+      ia.first_created                                                      AS created_at,
+      ia.total_expected_cost::float,
+      ia.total_expected_revenue::float,
+      (ia.total_expected_revenue - ia.total_expected_cost)::float          AS saldo_previsto,
+      COALESCE(c.client_name, p.client_name, '')                           AS client_name,
+      COALESCE(p.status, 'active')                                         AS proposal_status,
+      COALESCE(p.proposal_code, '')                                        AS proposal_code
+    FROM item_agg ia
+    LEFT JOIN proposals p ON p.id = ia.proposal_id AND p.deleted_at IS NULL
+    LEFT JOIN clients  c ON c.id = p.client_id
+    ORDER BY ia.last_updated DESC NULLS LAST, ia.first_created DESC NULLS LAST
+  `
+
+  console.info('[financial][project-summaries] query', { whereClause, paramCount: params.length })
+  try {
+    const rows = await sql(queryText, params)
+    console.info('[financial][project-summaries] rows', { count: rows.length })
+    return rows
+  } catch (err) {
+    console.error('[financial][project-summaries] error', {
+      code: err?.code,
+      message: err instanceof Error ? err.message : String(err),
+    })
+    throw err
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project detail — proposal metadata + all financial items
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the proposal record and all its project_financial_items.
+ * Returns null when the proposal does not exist or is deleted.
+ */
+export async function getFinancialProjectDetail(sql, proposalId) {
+  const proposalRows = await sql`
+    SELECT
+      p.id::text,
+      p.proposal_type,
+      p.proposal_code,
+      p.status,
+      p.client_id,
+      p.client_name                             AS proposal_client_name,
+      p.capex_total::float,
+      p.contract_value::float,
+      p.term_months,
+      p.system_kwp::float,
+      p.created_at,
+      p.updated_at,
+      COALESCE(c.client_name, p.client_name)    AS client_name
+    FROM proposals p
+    LEFT JOIN clients c ON c.id = p.client_id
+    WHERE p.id = ${proposalId}::uuid AND p.deleted_at IS NULL
+    LIMIT 1
+  `
+  const proposal = proposalRows[0]
+  if (!proposal) return null
+
+  const items = await listProjectFinancialItems(sql, { proposalId })
+
+  return {
+    proposal_id: proposal.id,
+    proposal_type: proposal.proposal_type,
+    proposal_code: proposal.proposal_code ?? null,
+    status: proposal.status ?? null,
+    client_id: proposal.client_id ?? null,
+    client_name: proposal.client_name ?? null,
+    capex_total: proposal.capex_total ?? null,
+    contract_value: proposal.contract_value ?? null,
+    term_months: proposal.term_months ?? null,
+    system_kwp: proposal.system_kwp ?? null,
+    created_at: proposal.created_at,
+    updated_at: proposal.updated_at,
+    items,
+  }
+}

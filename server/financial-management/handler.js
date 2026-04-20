@@ -27,6 +27,8 @@ import {
   bootstrapProjectFinancialStructure,
   listReceivablePlans,
   createReceivablePlan,
+  listFinancialProjectSummaries,
+  getFinancialProjectDetail,
 } from './operationalRepository.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,4 +474,68 @@ export async function handleFinancialReceivablePlans(req, res, { method, sendJso
   }
 
   sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Summaries — aggregate view per proposal_id
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleFinancialProjectSummaries(req, res, { method, sendJson, requestUrl }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+  const sql = await getScopedSql(actor)
+
+  if (method !== 'GET') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  const url = new URL(requestUrl, 'http://localhost')
+  const projectKind = url.searchParams.get('project_kind') ?? undefined
+  const status = url.searchParams.get('status') ?? undefined
+
+  try {
+    const data = await listFinancialProjectSummaries(sql, { projectKind, status })
+    sendJson(200, { data })
+  } catch (err) {
+    console.error('[financial][project-summaries] handler error', err)
+    sendJson(500, { error: { code: 'QUERY_FAILED', message: err?.message ?? 'Erro ao listar projetos.' } })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Detail — proposal metadata + all financial items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleFinancialProjectDetail(req, res, { method, sendJson, requestUrl }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+  const sql = await getScopedSql(actor)
+
+  if (method !== 'GET') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  const url = new URL(requestUrl, 'http://localhost')
+  // Match /api/financial-management/projects/:proposalId (no trailing path segment)
+  const match = url.pathname.match(/\/api\/financial-management\/projects\/([0-9a-f-]{36})$/)
+  const proposalId = match?.[1] ?? null
+
+  if (!proposalId) {
+    sendJson(400, { error: { code: 'INVALID_PROPOSAL_ID', message: 'ID de proposta ausente ou inválido.' } })
+    return
+  }
+
+  try {
+    const data = await getFinancialProjectDetail(sql, proposalId)
+    if (!data) {
+      sendJson(404, { error: { code: 'NOT_FOUND', message: 'Projeto não encontrado.' } })
+      return
+    }
+    sendJson(200, { data })
+  } catch (err) {
+    console.error('[financial][project-detail] handler error', err)
+    sendJson(500, { error: { code: 'QUERY_FAILED', message: err?.message ?? 'Erro ao carregar projeto.' } })
+  }
 }

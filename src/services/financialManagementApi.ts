@@ -437,3 +437,59 @@ export async function bootstrapProjectFinancialStructure(proposalId: string): Pr
   const res = await apiFetch<{ data: BootstrapResult }>(url, { method: 'POST' })
   return res.data
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Summaries — aggregate per-proposal view
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FinancialProjectSummary {
+  proposal_id: string
+  project_kind: string
+  item_count: number
+  last_updated: string | null
+  created_at: string | null
+  total_expected_cost: number
+  total_expected_revenue: number
+  saldo_previsto: number
+  client_name: string
+  proposal_status: string
+  proposal_code: string | null
+}
+
+export async function fetchFinancialProjectSummaries(filters?: {
+  project_kind?: 'leasing' | 'sale' | 'buyout'
+  status?: string
+}): Promise<FinancialProjectSummary[]> {
+  const params: Record<string, string | undefined> = {}
+  if (filters?.project_kind) params.project_kind = filters.project_kind
+  if (filters?.status) params.status = filters.status
+  const url = buildUrl('/api/financial-management/project-summaries', params)
+  const res = await apiFetch<{ data: FinancialProjectSummary[] }>(url)
+  return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Detail — proposal metadata + all financial items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FinancialProjectDetail {
+  proposal_id: string
+  proposal_type: string
+  proposal_code: string | null
+  status: string | null
+  client_id: number | null
+  client_name: string | null
+  capex_total: number | null
+  contract_value: number | null
+  term_months: number | null
+  system_kwp: number | null
+  created_at: string
+  updated_at: string
+  items: ProjectFinancialItem[]
+}
+
+export async function fetchFinancialProjectDetail(proposalId: string): Promise<FinancialProjectDetail> {
+  const url = buildUrl(`/api/financial-management/projects/${proposalId}`)
+  const res = await apiFetch<{ data: FinancialProjectDetail }>(url)
+  return res.data
+}
