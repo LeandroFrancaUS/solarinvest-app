@@ -326,6 +326,7 @@ import {
 } from './lib/migrateLocalStorageToServer'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
+import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
@@ -5404,6 +5405,9 @@ export default function App() {
     setPortfolioTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
+    // Register global token provider for httpClient.ts (used by personnelApi
+    // and other services that go through the shared apiFetch helper).
+    setFetchAuthTokenProvider(getAccessToken)
     // Silently migrate any locally-stored clients/proposals to Neon.
     // Fire-and-forget: errors are caught internally; does not block auth flow.
     void migrateLocalStorageToServer()

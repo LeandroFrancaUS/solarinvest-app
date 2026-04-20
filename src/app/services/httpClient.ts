@@ -1,4 +1,5 @@
 import { resolveApiUrl } from '../../utils/apiUrl'
+import { getAccessTokenForFetch } from '../../lib/auth/fetchWithStackAuth'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -57,6 +58,18 @@ export async function apiFetch<TResponse = unknown>(path: string, options: ApiFe
   }
 
   const targetUrl = resolveApiUrl(path)
+
+  // Inject Stack Auth Bearer token when available.
+  // This is the primary auth mechanism in production (Vercel) where
+  // AUTH_COOKIE_SECRET is not configured and session cookies are absent.
+  const accessToken = await getAccessTokenForFetch()
+  if (accessToken) {
+    headers.set('x-stack-access-token', accessToken)
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${accessToken}`)
+    }
+  }
+
   const response = await fetch(targetUrl, init)
   const contentType = response.headers.get('content-type')
   const isJson = contentType && contentType.includes('application/json')
