@@ -285,8 +285,18 @@ function EntryForm({ entry, categories, templates, onSave, onClose, isSaving }: 
   }, [templates])
 
   return (
-    <div className="fm-drawer-overlay" role="dialog" aria-modal="true" aria-label="Lançamento financeiro">
-      <div className="fm-drawer">
+    <div
+      className="fm-drawer-overlay"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        className="fm-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Lançamento financeiro"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="fm-drawer-header">
           <h3>{entry ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
           <button type="button" className="fm-drawer-close ghost" onClick={onClose} aria-label="Fechar">
@@ -2169,15 +2179,6 @@ export function FinancialManagementPage({ onBack }: Props) {
               </button>
             </div>
           ) : null}
-          {/* Always-visible global CTAs (work from any tab) */}
-          <button
-            type="button"
-            className="primary"
-            onClick={handleOpenFinancialEntryDrawer}
-            data-testid="fm-new-entry-cta"
-          >
-            + Novo Lançamento
-          </button>
           <button
             type="button"
             className="ghost"
