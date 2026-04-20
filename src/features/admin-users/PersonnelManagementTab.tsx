@@ -28,6 +28,7 @@ import {
   createInstaller,
   updateInstaller,
   deactivateInstaller,
+  getFirstName,
 } from '../../services/personnelApi'
 import { ImportFromExistingModal, type ImportSource, type ImportRecord } from './ImportFromExistingModal'
 import type { ImportableUser, ImportableClient } from '../../services/personnelImport'
@@ -1066,7 +1067,7 @@ export function ConsultantsTab() {
                   <td className="px-4 py-3 font-medium text-ds-text-primary">{c.full_name}</td>
                   <td className="px-4 py-3 text-ds-text-secondary">
                     {c.apelido?.trim() ? c.apelido.trim() : (
-                      <span className="text-ds-text-muted italic text-xs">{c.full_name.split(' ')[0] ?? c.full_name}</span>
+                      <span className="text-ds-text-muted italic text-xs">{getFirstName(c.full_name) || c.full_name}</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-ds-text-secondary text-xs">{c.document ?? '—'}</td>

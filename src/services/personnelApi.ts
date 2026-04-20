@@ -131,6 +131,11 @@ export interface ConsultantPickerEntry {
   linked_user_id: string | null
 }
 
+/** Returns the first word of a full name, or an empty string if the name is empty. */
+export function getFirstName(fullName: string): string {
+  return fullName.split(' ')[0] || ''
+}
+
 /**
  * Returns the display name for a consultant in closed/read-view fields.
  * Priority: apelido → first name → full_name → fallback.
@@ -140,7 +145,7 @@ export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' 
   const nickname = c.apelido?.trim() ?? ''
   if (nickname) return nickname
   const fullName = c.full_name?.trim() ?? ''
-  const firstName = fullName.split(' ')[0] ?? ''
+  const firstName = getFirstName(fullName)
   return firstName || fullName || 'Consultor não informado'
 }
 
