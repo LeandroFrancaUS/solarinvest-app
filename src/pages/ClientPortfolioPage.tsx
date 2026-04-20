@@ -372,28 +372,33 @@ function ClientCard({
   const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
 
   return (
-    <div className="pf-client-card pf-client-row">
-      <div className="pf-row-info">
-        <span className="pf-row-name">{client.name ?? '—'}</span>
-        <span className="pf-row-doc">{client.document ?? '—'}</span>
-        <span className="pf-row-contract">{contractLabel}</span>
-        <span className="pf-row-remaining">{remainingLabel}</span>
-      </div>
-      <div className="pf-row-actions">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onEdit() }}
-          className="pf-row-btn pf-row-btn-edit"
-        >
-          ✏️ Editar
-        </button>
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="pf-row-btn pf-row-btn-delete"
-        >
-          🗑️ Excluir
-        </button>
+    <div className="pf-client-card">
+      <div className="pf-card-body">
+        <div className="pf-card-info">
+          <div className="pf-card-name">{client.name ?? '—'}</div>
+          <div className="pf-card-doc">{client.document ?? '—'}</div>
+          <div className="pf-card-meta">
+            <span className="pf-card-contract">{contractLabel}</span>
+            <span className="pf-card-meta-sep">·</span>
+            <span className="pf-card-remaining">{remainingLabel}</span>
+          </div>
+        </div>
+        <div className="pf-card-actions">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit() }}
+            className="pf-row-btn pf-row-btn-edit"
+          >
+            ✏️ Editar
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="pf-row-btn pf-row-btn-delete"
+          >
+            🗑️ Excluir
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -2705,11 +2710,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
             <button
               type="button"
               onClick={() => setShowAddClient(true)}
-              style={{
-                padding: '7px 16px', borderRadius: 6, border: 'none',
-                background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
-                fontWeight: 700, cursor: 'pointer', fontSize: 13,
-              }}
+              className="pf-btn-add-client"
             >
               ➕ Adicionar Cliente
             </button>
@@ -2717,46 +2718,28 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               type="button"
               onClick={reload}
               title="Atualizar lista"
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              className="pf-btn-toolbar"
             >
               🔄
             </button>
             <button
               type="button"
               onClick={onBack}
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              className="pf-btn-toolbar"
             >
               ← Voltar
             </button>
           </div>
         </div>
 
-        {/* List header row */}
-        <div className="pf-list-header">
-          <span className="pf-list-col pf-list-col-name">Nome</span>
-          <span className="pf-list-col pf-list-col-doc">CPF / CNPJ</span>
-          <span className="pf-list-col pf-list-col-contract">Contrato</span>
-          <span className="pf-list-col pf-list-col-remaining">Prazo Restante</span>
-          <span className="pf-list-col pf-list-col-actions">Ações</span>
-        </div>
-
         {/* Search */}
-        <div style={{ position: 'relative', maxWidth: 480, marginTop: 10 }}>
+        <div style={{ position: 'relative', maxWidth: 480, marginTop: 4 }}>
           <input
             type="search"
             placeholder="Buscar por nome, e-mail, documento, cidade, UC…"
             value={searchInput}
             onChange={handleSearch}
-            style={{
-              width: '100%',
-              padding: '8px 38px 8px 14px',
-              borderRadius: 8,
-              border: '1px solid var(--border, #334155)',
-              background: 'var(--surface, #1e293b)',
-              color: 'inherit',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
+            className="pf-search-input"
           />
           {searchInput && (
             <button
@@ -2765,7 +2748,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               aria-label="Limpar busca"
               style={{
                 position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)',
+                background: 'none', border: 'none', color: 'var(--text-muted, #6B8BB5)',
                 cursor: 'pointer', fontSize: 16, padding: 0,
               }}
             >
