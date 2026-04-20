@@ -109,6 +109,7 @@ import {
   type ValidationIssue,
 } from './lib/validation/clientReadiness'
 import { ClientReadinessErrorModal } from './components/validation/ClientReadinessErrorModal'
+import { validateProposalReadinessForClosing } from './lib/services/closeProposalPipeline'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -17224,19 +17225,32 @@ export default function App() {
       const nomeCliente = registro.dados.nome?.trim() || 'este cliente'
 
       // ── Data-integrity gate ─────────────────────────────────────────────
-      // Run the central readiness check before allowing the portfolio export.
-      // UC beneficiárias from the snapshot are validated when present.
+      // Run the full proposal readiness pipeline before allowing portfolio export.
+      // This validates: CEP, CPF/CNPJ, phone, email, UC geradora (errors),
+      // plus distribuidora, system_kwp, geração estimada, prazo (warnings).
       const ucBeneficiariasNums = (
         registro.propostaSnapshot?.ucBeneficiarias ?? []
       ).map((uc) => uc?.numero ?? null)
 
-      const readiness = validateClientReadinessForContract({
-        cep: registro.dados.cep,
-        document: registro.dados.documento,
-        phone: registro.dados.telefone,
-        email: registro.dados.email,
-        ucGeradora: registro.dados.uc,
-        ...(ucBeneficiariasNums.length > 0 ? { ucBeneficiarias: ucBeneficiariasNums } : {}),
+      const readiness = validateProposalReadinessForClosing({
+        proposalId: registro.propostaSnapshot?.currentBudgetId ?? null,
+        clienteDados: {
+          nome: registro.dados.nome,
+          documento: registro.dados.documento,
+          email: registro.dados.email,
+          telefone: registro.dados.telefone,
+          cep: registro.dados.cep,
+          cidade: registro.dados.cidade,
+          uf: registro.dados.uf,
+          endereco: registro.dados.endereco,
+          distribuidora: registro.dados.distribuidora,
+          uc: registro.dados.uc,
+          indicacaoNome: registro.dados.indicacaoNome,
+          temIndicacao: registro.dados.temIndicacao,
+          diaVencimento: registro.dados.diaVencimento,
+        },
+        snapshot: registro.propostaSnapshot ?? {},
+        ucBeneficiarias: ucBeneficiariasNums.length > 0 ? ucBeneficiariasNums : [],
       })
 
       if (!readiness.ok) {

@@ -46,6 +46,26 @@ export type ClientReadinessInput = {
    * Pass an empty array or omit to skip UC-beneficiária validation.
    */
   ucBeneficiarias?: (string | null | undefined)[]
+  /**
+   * Distribuidora de energia — required for contract generation.
+   * A warning is issued when missing so the user can correct the proposal before closing.
+   */
+  distribuidora?: string | null | undefined
+  /**
+   * Potência do sistema (kWp) — computed by the technical engine.
+   * A warning is issued when zero or absent so the user knows the usina is not configured.
+   */
+  systemKwp?: number | null | undefined
+  /**
+   * Geração estimada (kWh/mês) — computed by the technical engine.
+   * A warning is issued when absent so the user knows the usina engine has not run.
+   */
+  geracaoEstimadaKwh?: number | null | undefined
+  /**
+   * Prazo contratual (meses) — required for leasing/contract generation.
+   * A warning is issued when zero or absent.
+   */
+  prazoMeses?: number | null | undefined
 }
 
 // ─── CEP helpers ─────────────────────────────────────────────────────────────
@@ -249,5 +269,63 @@ export function validateClientReadinessForContract(
     }
   })
 
-  return { ok: issues.length === 0, issues }
+  // Distribuidora -------------------------------------------------------------
+  // Warning (non-blocking) — needed for contract and billing but not strict format.
+  if ('distribuidora' in input) {
+    const dist = (input.distribuidora ?? '').trim()
+    if (!dist) {
+      issues.push({
+        field: 'distribuidora',
+        label: 'Distribuidora',
+        message: 'Distribuidora não informada. Preencha no formulário da proposta.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // Potência do sistema (kWp) -------------------------------------------------
+  // Warning (non-blocking) — required for usina / carteira.
+  if ('systemKwp' in input) {
+    const kwp = Number(input.systemKwp ?? 0)
+    if (!Number.isFinite(kwp) || kwp <= 0) {
+      issues.push({
+        field: 'systemKwp',
+        label: 'Potência do Sistema (kWp)',
+        message: 'Potência do sistema não calculada. Configure a usina na proposta antes de fechar.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // Geração estimada (kWh/mês) ------------------------------------------------
+  // Warning (non-blocking) — required for usina / carteira.
+  if ('geracaoEstimadaKwh' in input) {
+    const kwh = Number(input.geracaoEstimadaKwh ?? 0)
+    if (!Number.isFinite(kwh) || kwh <= 0) {
+      issues.push({
+        field: 'geracaoEstimadaKwh',
+        label: 'Geração Estimada (kWh/mês)',
+        message: 'Geração estimada não calculada. Configure a usina na proposta antes de fechar.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // Prazo contratual ----------------------------------------------------------
+  // Warning (non-blocking) — required for leasing contracts.
+  if ('prazoMeses' in input) {
+    const prazo = Number(input.prazoMeses ?? 0)
+    if (!Number.isFinite(prazo) || prazo <= 0) {
+      issues.push({
+        field: 'prazoMeses',
+        label: 'Prazo Contratual (meses)',
+        message: 'Prazo contratual não informado. Preencha no formulário da proposta.',
+        severity: 'warning',
+      })
+    }
+  }
+
+  // ok = true only when there are no ERROR-severity issues (warnings are allowed through)
+  const hasErrors = issues.some((i) => i.severity === 'error')
+  return { ok: !hasErrors, issues }
 }
