@@ -3,6 +3,8 @@
 // Accessible to admin (write) and privileged users (read).
 // The consultants table is a dedicated entity distinct from app user accounts.
 // consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
+// GET /api/consultants/picker is accessible to any authenticated user (used by
+// the proposal form to populate the consultant dropdown).
 
 import { resolveActor } from '../proposals/permissions.js'
 
@@ -93,14 +95,14 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
+          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
+          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           ORDER BY LOWER(full_name) ASC
@@ -111,10 +113,78 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
       sendJson(200, { consultants: [] })
       return
     }
-    throw err
+    // apelido column does not exist yet (migration 0042 pending) → retry without it
+    if (err?.code === '42703') {
+      rows = activeOnly
+        ? await sql`
+            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
+                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
+            FROM public.consultants
+            WHERE is_active = true
+            ORDER BY LOWER(full_name) ASC
+          `
+        : await sql`
+            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
+                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
+            FROM public.consultants
+            ORDER BY LOWER(full_name) ASC
+          `
+    } else {
+      throw err
+    }
   }
 
   console.info('[consultants][list]', { count: rows.length, activeOnly })
+  sendJson(200, { consultants: rows })
+}
+
+/**
+ * GET /api/consultants/picker
+ * Returns a lightweight list of active consultants for use in proposal form dropdowns.
+ * Accessible to any authenticated user (no privileged role required).
+ * Only exposes: id, full_name, apelido, email, linked_user_id — no CPF/document.
+ */
+export async function handleConsultantsPickerRequest(req, res, { sendJson, getScopedSql }) {
+  const actor = await resolveActor(req)
+  if (!actor) {
+    sendJson(401, { error: { code: 'UNAUTHENTICATED', message: 'Autenticação necessária.' } })
+    return
+  }
+
+  let sql
+  try {
+    sql = await getScopedSql(actor)
+  } catch {
+    sendJson(200, { consultants: [] })
+    return
+  }
+
+  let rows
+  try {
+    rows = await sql`
+      SELECT id, full_name, apelido, email, linked_user_id
+      FROM public.consultants
+      WHERE is_active = true
+      ORDER BY LOWER(full_name) ASC
+    `
+  } catch (err) {
+    if (err?.code === '42P01') {
+      sendJson(200, { consultants: [] })
+      return
+    }
+    // apelido column does not exist yet (migration 0042 pending) → retry without it
+    if (err?.code === '42703') {
+      rows = await sql`
+        SELECT id, full_name, NULL AS apelido, email, linked_user_id
+        FROM public.consultants
+        WHERE is_active = true
+        ORDER BY LOWER(full_name) ASC
+      `
+    } else {
+      throw err
+    }
+  }
+
   sendJson(200, { consultants: rows })
 }
 
@@ -176,26 +246,61 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   console.info('[consultants][create] regions normalized', { count: regions.length, regions })
 
-  const rows = await sql`
-    INSERT INTO public.consultants (
-      consultant_code, full_name, phone, email, document, regions,
-      linked_user_id, is_active, created_by_user_id, updated_by_user_id,
-      created_at, updated_at
-    ) VALUES (
-      ${consultantCode},
-      ${String(body.full_name).trim()},
-      ${String(body.phone).trim()},
-      ${String(body.email).trim().toLowerCase()},
-      ${docStr},
-      ${regions},
-      ${body.linked_user_id ?? null},
-      true,
-      ${actor.userId ?? null},
-      ${actor.userId ?? null},
-      now(), now()
-    )
-    RETURNING *
-  `
+  // Derive apelido: use provided value, or default to the first word of full_name.
+  const fullNameTrimmed = String(body.full_name).trim()
+  const apelidoRaw = body.apelido != null ? String(body.apelido).trim() : null
+  const apelidoValue = apelidoRaw !== null && apelidoRaw !== '' ? apelidoRaw : (fullNameTrimmed.split(' ')[0] ?? fullNameTrimmed)
+
+  let rows
+  try {
+    rows = await sql`
+      INSERT INTO public.consultants (
+        consultant_code, full_name, apelido, phone, email, document, regions,
+        linked_user_id, is_active, created_by_user_id, updated_by_user_id,
+        created_at, updated_at
+      ) VALUES (
+        ${consultantCode},
+        ${fullNameTrimmed},
+        ${apelidoValue},
+        ${String(body.phone).trim()},
+        ${String(body.email).trim().toLowerCase()},
+        ${docStr},
+        ${regions},
+        ${body.linked_user_id ?? null},
+        true,
+        ${actor.userId ?? null},
+        ${actor.userId ?? null},
+        now(), now()
+      )
+      RETURNING *
+    `
+  } catch (err) {
+    // apelido column does not exist yet (migration 0042 pending) → insert without it
+    if (err?.code === '42703') {
+      rows = await sql`
+        INSERT INTO public.consultants (
+          consultant_code, full_name, phone, email, document, regions,
+          linked_user_id, is_active, created_by_user_id, updated_by_user_id,
+          created_at, updated_at
+        ) VALUES (
+          ${consultantCode},
+          ${fullNameTrimmed},
+          ${String(body.phone).trim()},
+          ${String(body.email).trim().toLowerCase()},
+          ${docStr},
+          ${regions},
+          ${body.linked_user_id ?? null},
+          true,
+          ${actor.userId ?? null},
+          ${actor.userId ?? null},
+          now(), now()
+        )
+        RETURNING *
+      `
+    } else {
+      throw err
+    }
+  }
 
   console.info('[consultants][create]', { id: rows[0]?.id, code: consultantCode })
   sendJson(201, { consultant: rows[0] })
@@ -241,19 +346,42 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const rows = await sql`
-    UPDATE public.consultants SET
-      full_name          = ${String(body.full_name).trim()},
-      phone              = ${String(body.phone).trim()},
-      email              = ${String(body.email).trim().toLowerCase()},
-      document           = ${docStr},
-      regions            = ${regions},
-      linked_user_id     = ${body.linked_user_id ?? null},
-      updated_by_user_id = ${actor.userId ?? null},
-      updated_at         = now()
-    WHERE id = ${consultantId}
-    RETURNING *
-  `
+  let rows
+  try {
+    rows = await sql`
+      UPDATE public.consultants SET
+        full_name          = ${String(body.full_name).trim()},
+        apelido            = ${body.apelido != null ? String(body.apelido).trim() || null : null},
+        phone              = ${String(body.phone).trim()},
+        email              = ${String(body.email).trim().toLowerCase()},
+        document           = ${docStr},
+        regions            = ${regions},
+        linked_user_id     = ${body.linked_user_id ?? null},
+        updated_by_user_id = ${actor.userId ?? null},
+        updated_at         = now()
+      WHERE id = ${consultantId}
+      RETURNING *
+    `
+  } catch (err) {
+    // apelido column does not exist yet (migration 0042 pending) → update without it
+    if (err?.code === '42703') {
+      rows = await sql`
+        UPDATE public.consultants SET
+          full_name          = ${String(body.full_name).trim()},
+          phone              = ${String(body.phone).trim()},
+          email              = ${String(body.email).trim().toLowerCase()},
+          document           = ${docStr},
+          regions            = ${regions},
+          linked_user_id     = ${body.linked_user_id ?? null},
+          updated_by_user_id = ${actor.userId ?? null},
+          updated_at         = now()
+        WHERE id = ${consultantId}
+        RETURNING *
+      `
+    } else {
+      throw err
+    }
+  }
 
   if (rows.length === 0) {
     sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })

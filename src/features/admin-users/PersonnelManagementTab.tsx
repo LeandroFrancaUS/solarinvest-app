@@ -122,6 +122,7 @@ function OverwriteConfirmDialog({
 
 interface ConsultantFormState {
   full_name: string
+  apelido: string
   phone: string
   email: string
   document: string
@@ -130,6 +131,7 @@ interface ConsultantFormState {
 
 const emptyConsultantForm = (): ConsultantFormState => ({
   full_name: '',
+  apelido: '',
   phone: '',
   email: '',
   document: '',
@@ -149,6 +151,7 @@ function ConsultantModal({
     editing
       ? {
           full_name: editing.full_name,
+          apelido: editing.apelido ?? '',
           phone: editing.phone,
           email: editing.email,
           document: editing.document ?? '',
@@ -171,6 +174,7 @@ function ConsultantModal({
   function applyDraft(draft: Partial<ConsultantFormState>) {
     setForm((f) => ({
       full_name: draft.full_name !== undefined ? draft.full_name : f.full_name,
+      apelido:   draft.apelido   !== undefined ? draft.apelido   : f.apelido,
       phone:     draft.phone     !== undefined ? draft.phone     : f.phone,
       email:     draft.email     !== undefined ? draft.email     : f.email,
       document:  draft.document  !== undefined ? draft.document  : f.document,
@@ -224,6 +228,7 @@ function ConsultantModal({
       if (editing) {
         const payload: UpdateConsultantRequest = {
           full_name: form.full_name,
+          apelido: form.apelido.trim() || null,
           phone: form.phone,
           email: form.email,
           document: form.document,
@@ -233,6 +238,7 @@ function ConsultantModal({
       } else {
         const payload: CreateConsultantRequest = {
           full_name: form.full_name,
+          apelido: form.apelido.trim() || null,
           phone: form.phone,
           email: form.email,
           document: form.document,
@@ -265,6 +271,7 @@ function ConsultantModal({
               // Only fill in fields that are currently blank
               setForm((f) => ({
                 full_name: f.full_name.trim() ? f.full_name : (pendingDraft.full_name ?? f.full_name),
+                apelido:   f.apelido.trim()   ? f.apelido   : (pendingDraft.apelido   ?? f.apelido),
                 phone:     f.phone.trim()     ? f.phone     : (pendingDraft.phone     ?? f.phone),
                 email:     f.email.trim()     ? f.email     : (pendingDraft.email     ?? f.email),
                 document:  f.document.trim()  ? f.document  : (pendingDraft.document  ?? f.document),
@@ -320,10 +327,35 @@ function ConsultantModal({
               <input
                 type="text"
                 value={form.full_name}
-                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                onChange={(e) => {
+                  const newName = e.target.value
+                  setForm((f) => ({
+                    ...f,
+                    full_name: newName,
+                    // Auto-derive apelido from first name only if user hasn't customised it yet
+                    apelido: f.apelido === (f.full_name.split(' ')[0] ?? f.full_name) || f.apelido === ''
+                      ? (newName.split(' ')[0] ?? newName)
+                      : f.apelido,
+                  }))
+                }}
                 className={inputCls(Boolean(errors.full_name))}
               />
               {errors.full_name && <p className="mt-1 text-xs text-ds-danger">{errors.full_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Apelido
+              </label>
+              <input
+                type="text"
+                value={form.apelido}
+                onChange={(e) => setForm((f) => ({ ...f, apelido: e.target.value }))}
+                placeholder={form.full_name ? (form.full_name.split(' ')[0] ?? form.full_name) : 'Primeiro nome (padrão)'}
+                className={inputCls(false)}
+              />
+              <p className="mt-1 text-xs text-ds-text-muted">
+                Nome exibido nas propostas e carteira. Deixe em branco para usar o nome completo.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-ds-text-secondary mb-1">
@@ -940,6 +972,7 @@ export function ConsultantsTab() {
     return (
       !q ||
       c.full_name.toLowerCase().includes(q) ||
+      (c.apelido ?? '').toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
       c.consultant_code.toLowerCase().includes(q) ||
       (c.document ?? '').toLowerCase().includes(q) ||
@@ -1029,7 +1062,14 @@ export function ConsultantsTab() {
               filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-ds-table-hover">
                   <td className="px-4 py-3 font-mono text-xs text-ds-text-muted">{c.consultant_code}</td>
-                  <td className="px-4 py-3 font-medium text-ds-text-primary">{c.full_name}</td>
+                  <td className="px-4 py-3 font-medium text-ds-text-primary">
+                    {c.apelido?.trim() ? (
+                      <span title={c.full_name}>
+                        {c.apelido.trim()}
+                        <span className="ml-1 text-xs text-ds-text-muted font-normal">({c.full_name})</span>
+                      </span>
+                    ) : c.full_name}
+                  </td>
                   <td className="px-4 py-3 text-ds-text-secondary text-xs">{c.document ?? '—'}</td>
                   <td className="px-4 py-3 text-ds-text-secondary">{c.phone}</td>
                   <td className="px-4 py-3 text-ds-text-secondary">{c.email}</td>

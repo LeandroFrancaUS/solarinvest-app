@@ -116,3 +116,45 @@ export async function deactivateInstaller(id: number): Promise<Installer> {
   )
   return res.installer
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Consultant Picker (any authenticated user)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lightweight consultant entry returned by /api/consultants/picker. */
+export interface ConsultantPickerEntry {
+  id: number
+  full_name: string
+  /** Optional display nickname. Falls back to full_name when null or empty. */
+  apelido: string | null
+  email: string
+  linked_user_id: string | null
+}
+
+/** Returns the display name for a consultant: apelido when set, full_name otherwise. Used in read view. */
+export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+  const nickname = c.apelido?.trim() ?? ''
+  const fullName = c.full_name?.trim() ?? ''
+  return nickname || fullName || 'Consultor não informado'
+}
+
+/**
+ * Returns the label for a consultant dropdown option.
+ * Format: `(apelido) full_name` when apelido is set, otherwise `full_name`.
+ * Example: `(Kim) Joaquim Amarildo de Oliveira`
+ */
+export function formatConsultantOptionLabel(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+  const nickname = c.apelido?.trim() ?? ''
+  const fullName = c.full_name?.trim() ?? ''
+  if (nickname) return `(${nickname}) ${fullName}`
+  return fullName
+}
+
+/**
+ * Fetches active consultants for use in the proposal form dropdown.
+ * Accessible to any authenticated user. Does not expose sensitive fields (CPF, etc.).
+ */
+export async function fetchConsultantsForPicker(): Promise<ConsultantPickerEntry[]> {
+  const res = await apiFetch<{ consultants: ConsultantPickerEntry[] }>('/api/consultants/picker')
+  return res.consultants ?? []
+}

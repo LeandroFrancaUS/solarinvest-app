@@ -8,6 +8,7 @@ export type ModoVenda = 'direta' | 'leasing'
 
 export type VendaClienteInfo = {
   nome: string
+  apelido: string
   documento: string
   email: string
   telefone: string
@@ -18,6 +19,8 @@ export type VendaClienteInfo = {
   distribuidora: string
   temIndicacao: boolean
   indicacaoNome: string
+  consultorId: string
+  consultorNome: string
   herdeiros: string[]
   nomeSindico: string
   cpfSindico: string
@@ -127,6 +130,7 @@ const canUseSessionStorage = (): boolean =>
 const createInitialState = (): VendaState => ({
   cliente: {
     nome: '',
+    apelido: '',
     documento: '',
     email: '',
     telefone: '',
@@ -137,6 +141,8 @@ const createInitialState = (): VendaState => ({
     distribuidora: '',
     temIndicacao: false,
     indicacaoNome: '',
+    consultorId: '',
+    consultorNome: '',
     herdeiros: [''],
     nomeSindico: '',
     cpfSindico: '',

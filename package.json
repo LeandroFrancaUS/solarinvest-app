@@ -11,6 +11,7 @@
     "pdf:serve": "npm run preview",
     "pdf:open": "xdg-open http://localhost:4173 || open http://localhost:4173 || echo 'Open http://localhost:4173 in your browser'",
     "start": "node server/index.js",
+    "db:migrate": "node scripts/run-migrations.js",
     "test": "vitest run",
     "test:server": "vitest run --config vitest.server.config.ts",
     "lint": "eslint --max-warnings=0 .",
