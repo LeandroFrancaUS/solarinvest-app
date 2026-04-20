@@ -241,6 +241,11 @@ export async function getPortfolioClient(sql, clientId) {
       cp.expected_go_live_date,
       cp.integrator_name,
       cp.engineer_name,
+      cp.engineer_id,
+      cp.installer_id,
+      cp.art_number,
+      cp.art_issued_at,
+      cp.art_status,
       cp.timeline_velocity_score,
       cp.notes                               AS project_notes,
 
@@ -366,6 +371,11 @@ export async function getPortfolioClient(sql, clientId) {
       cp.expected_go_live_date,
       cp.integrator_name,
       cp.engineer_name,
+      cp.engineer_id,
+      cp.installer_id,
+      cp.art_number,
+      cp.art_issued_at,
+      cp.art_status,
       cp.timeline_velocity_score,
       cp.notes                               AS project_notes,
 
@@ -779,52 +789,134 @@ export async function upsertClientContract(sql, clientId, fields) {
 
 /**
  * Upsert client_project_status (one row per client).
+ * Includes engineer_id, installer_id, and ART fields (migration 0040).
+ * ART validation: art_number requires engineer_id to be set.
+ * Falls back gracefully if the new columns are not yet available (42703).
  */
 export async function upsertClientProjectStatus(sql, clientId, fields) {
   const now = new Date().toISOString()
-  const rows = await sql`
-    INSERT INTO public.client_project_status (
-      client_id, project_status, installation_status, engineering_status,
-      homologation_status, commissioning_status, commissioning_date,
-      first_injection_date, first_generation_date, expected_go_live_date,
-      integrator_name, engineer_name, timeline_velocity_score, notes,
-      created_at, updated_at
-    ) VALUES (
-      ${clientId},
-      ${fields.project_status ?? 'pending'},
-      ${fields.installation_status ?? null},
-      ${fields.engineering_status ?? null},
-      ${fields.homologation_status ?? null},
-      ${fields.commissioning_status ?? null},
-      ${fields.commissioning_date ?? null},
-      ${fields.first_injection_date ?? null},
-      ${fields.first_generation_date ?? null},
-      ${fields.expected_go_live_date ?? null},
-      ${fields.integrator_name ?? null},
-      ${fields.engineer_name ?? null},
-      ${fields.timeline_velocity_score ?? null},
-      ${fields.notes ?? null},
-      ${now},
-      ${now}
-    )
-    ON CONFLICT (client_id) DO UPDATE SET
-      project_status             = COALESCE(${fields.project_status ?? null}, client_project_status.project_status),
-      installation_status        = COALESCE(${fields.installation_status ?? null}, client_project_status.installation_status),
-      engineering_status         = COALESCE(${fields.engineering_status ?? null}, client_project_status.engineering_status),
-      homologation_status        = COALESCE(${fields.homologation_status ?? null}, client_project_status.homologation_status),
-      commissioning_status       = COALESCE(${fields.commissioning_status ?? null}, client_project_status.commissioning_status),
-      commissioning_date         = COALESCE(${fields.commissioning_date ?? null}, client_project_status.commissioning_date),
-      first_injection_date       = COALESCE(${fields.first_injection_date ?? null}, client_project_status.first_injection_date),
-      first_generation_date      = COALESCE(${fields.first_generation_date ?? null}, client_project_status.first_generation_date),
-      expected_go_live_date      = COALESCE(${fields.expected_go_live_date ?? null}, client_project_status.expected_go_live_date),
-      integrator_name            = COALESCE(${fields.integrator_name ?? null}, client_project_status.integrator_name),
-      engineer_name              = COALESCE(${fields.engineer_name ?? null}, client_project_status.engineer_name),
-      timeline_velocity_score    = COALESCE(${fields.timeline_velocity_score ?? null}, client_project_status.timeline_velocity_score),
-      notes                      = COALESCE(${fields.notes ?? null}, client_project_status.notes),
-      updated_at                 = ${now}
-    RETURNING *
-  `
-  return rows[0] ?? null
+
+  // ART validation: cannot save art_number without engineer_id
+  const hasArt = fields.art_number != null && String(fields.art_number ?? '').trim() !== ''
+  const hasEngineer = fields.engineer_id != null
+  if (hasArt && !hasEngineer) {
+    const err = new Error('Não é possível salvar ART sem selecionar um engenheiro.')
+    err.code = 'ART_REQUIRES_ENGINEER'
+    throw err
+  }
+
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_project_status (
+        client_id, project_status, installation_status, engineering_status,
+        homologation_status, commissioning_status, commissioning_date,
+        first_injection_date, first_generation_date, expected_go_live_date,
+        integrator_name, engineer_name, engineer_id, installer_id,
+        art_number, art_issued_at, art_status,
+        timeline_velocity_score, notes,
+        created_at, updated_at
+      ) VALUES (
+        ${clientId},
+        ${fields.project_status ?? 'pending'},
+        ${fields.installation_status ?? null},
+        ${fields.engineering_status ?? null},
+        ${fields.homologation_status ?? null},
+        ${fields.commissioning_status ?? null},
+        ${fields.commissioning_date ?? null},
+        ${fields.first_injection_date ?? null},
+        ${fields.first_generation_date ?? null},
+        ${fields.expected_go_live_date ?? null},
+        ${fields.integrator_name ?? null},
+        ${fields.engineer_name ?? null},
+        ${fields.engineer_id ?? null},
+        ${fields.installer_id ?? null},
+        ${fields.art_number ?? null},
+        ${fields.art_issued_at ?? null},
+        ${fields.art_status ?? null},
+        ${fields.timeline_velocity_score ?? null},
+        ${fields.notes ?? null},
+        ${now},
+        ${now}
+      )
+      ON CONFLICT (client_id) DO UPDATE SET
+        project_status             = COALESCE(${fields.project_status ?? null}, client_project_status.project_status),
+        installation_status        = COALESCE(${fields.installation_status ?? null}, client_project_status.installation_status),
+        engineering_status         = COALESCE(${fields.engineering_status ?? null}, client_project_status.engineering_status),
+        homologation_status        = COALESCE(${fields.homologation_status ?? null}, client_project_status.homologation_status),
+        commissioning_status       = COALESCE(${fields.commissioning_status ?? null}, client_project_status.commissioning_status),
+        commissioning_date         = COALESCE(${fields.commissioning_date ?? null}, client_project_status.commissioning_date),
+        first_injection_date       = COALESCE(${fields.first_injection_date ?? null}, client_project_status.first_injection_date),
+        first_generation_date      = COALESCE(${fields.first_generation_date ?? null}, client_project_status.first_generation_date),
+        expected_go_live_date      = COALESCE(${fields.expected_go_live_date ?? null}, client_project_status.expected_go_live_date),
+        integrator_name            = COALESCE(${fields.integrator_name ?? null}, client_project_status.integrator_name),
+        engineer_name              = COALESCE(${fields.engineer_name ?? null}, client_project_status.engineer_name),
+        engineer_id                = COALESCE(${fields.engineer_id ?? null}, client_project_status.engineer_id),
+        installer_id               = COALESCE(${fields.installer_id ?? null}, client_project_status.installer_id),
+        art_number                 = ${fields.art_number !== undefined ? (fields.art_number ?? null) : sql`client_project_status.art_number`},
+        art_issued_at              = COALESCE(${fields.art_issued_at ?? null}, client_project_status.art_issued_at),
+        art_status                 = COALESCE(${fields.art_status ?? null}, client_project_status.art_status),
+        timeline_velocity_score    = COALESCE(${fields.timeline_velocity_score ?? null}, client_project_status.timeline_velocity_score),
+        notes                      = COALESCE(${fields.notes ?? null}, client_project_status.notes),
+        updated_at                 = ${now}
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    // Gracefully degrade: if the new columns (engineer_id, installer_id, art_*) are
+    // missing (migration 0040 not applied), fall back to the original query.
+    if (err?.code === '42703' && (
+      String(err?.message ?? '').includes('engineer_id') ||
+      String(err?.message ?? '').includes('installer_id') ||
+      String(err?.message ?? '').includes('art_number') ||
+      String(err?.message ?? '').includes('art_issued_at') ||
+      String(err?.message ?? '').includes('art_status')
+    )) {
+      const rows = await sql`
+        INSERT INTO public.client_project_status (
+          client_id, project_status, installation_status, engineering_status,
+          homologation_status, commissioning_status, commissioning_date,
+          first_injection_date, first_generation_date, expected_go_live_date,
+          integrator_name, engineer_name, timeline_velocity_score, notes,
+          created_at, updated_at
+        ) VALUES (
+          ${clientId},
+          ${fields.project_status ?? 'pending'},
+          ${fields.installation_status ?? null},
+          ${fields.engineering_status ?? null},
+          ${fields.homologation_status ?? null},
+          ${fields.commissioning_status ?? null},
+          ${fields.commissioning_date ?? null},
+          ${fields.first_injection_date ?? null},
+          ${fields.first_generation_date ?? null},
+          ${fields.expected_go_live_date ?? null},
+          ${fields.integrator_name ?? null},
+          ${fields.engineer_name ?? null},
+          ${fields.timeline_velocity_score ?? null},
+          ${fields.notes ?? null},
+          ${now},
+          ${now}
+        )
+        ON CONFLICT (client_id) DO UPDATE SET
+          project_status             = COALESCE(${fields.project_status ?? null}, client_project_status.project_status),
+          installation_status        = COALESCE(${fields.installation_status ?? null}, client_project_status.installation_status),
+          engineering_status         = COALESCE(${fields.engineering_status ?? null}, client_project_status.engineering_status),
+          homologation_status        = COALESCE(${fields.homologation_status ?? null}, client_project_status.homologation_status),
+          commissioning_status       = COALESCE(${fields.commissioning_status ?? null}, client_project_status.commissioning_status),
+          commissioning_date         = COALESCE(${fields.commissioning_date ?? null}, client_project_status.commissioning_date),
+          first_injection_date       = COALESCE(${fields.first_injection_date ?? null}, client_project_status.first_injection_date),
+          first_generation_date      = COALESCE(${fields.first_generation_date ?? null}, client_project_status.first_generation_date),
+          expected_go_live_date      = COALESCE(${fields.expected_go_live_date ?? null}, client_project_status.expected_go_live_date),
+          integrator_name            = COALESCE(${fields.integrator_name ?? null}, client_project_status.integrator_name),
+          engineer_name              = COALESCE(${fields.engineer_name ?? null}, client_project_status.engineer_name),
+          timeline_velocity_score    = COALESCE(${fields.timeline_velocity_score ?? null}, client_project_status.timeline_velocity_score),
+          notes                      = COALESCE(${fields.notes ?? null}, client_project_status.notes),
+          updated_at                 = ${now}
+        RETURNING *
+      `
+      return rows[0] ?? null
+    }
+    throw err
+  }
 }
 
 /**

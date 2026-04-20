@@ -1,21 +1,20 @@
-// server/routes/consultants.js
-// CRUD endpoints for /api/consultants
+// server/routes/installers.js
+// CRUD endpoints for /api/installers
 // Accessible to admin (write) and privileged users (read).
-// The consultants table is a dedicated entity distinct from app user accounts.
-// consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
+// installer_code is auto-generated server-side (prefix 'I' + 3 random chars).
 
 import { resolveActor } from '../proposals/permissions.js'
 
-// Regex for auto-generated consultant codes: C/c + 3 alphanumerics
-const CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
+// Regex for auto-generated installer codes: I/i + 3 alphanumerics
+const CODE_REGEX = /^[Ii][A-Za-z0-9]{3}$/
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**
- * Generates a random consultant code: 'C' + 3 random chars from CODE_CHARS.
- * @returns {string} e.g. "CA3M"
+ * Generates a random installer code: 'I' + 3 random chars from CODE_CHARS.
+ * @returns {string} e.g. "IA3M"
  */
-function generateConsultantCode() {
-  let code = 'C'
+function generateInstallerCode() {
+  let code = 'I'
   for (let i = 0; i < 3; i++) {
     code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]
   }
@@ -28,7 +27,7 @@ function requireAdmin(actor, sendJson) {
     return false
   }
   if (!actor.isAdmin) {
-    sendJson(403, { error: { code: 'FORBIDDEN', message: 'Apenas administradores podem gerenciar consultores.' } })
+    sendJson(403, { error: { code: 'FORBIDDEN', message: 'Apenas administradores podem gerenciar instaladores.' } })
     return false
   }
   return true
@@ -46,7 +45,7 @@ function requireReadAccess(actor, sendJson) {
   return true
 }
 
-function validateConsultantBody(body) {
+function validateInstallerBody(body) {
   const errors = []
   if (!body.full_name || !String(body.full_name).trim()) {
     errors.push('Nome completo é obrigatório.')
@@ -60,29 +59,22 @@ function validateConsultantBody(body) {
   if (!body.document || !String(body.document).trim()) {
     errors.push('CPF/CNPJ é obrigatório.')
   }
-  const regions = body.regions
-  if (!Array.isArray(regions) || regions.length === 0) {
-    errors.push('Ao menos uma região (UF) é obrigatória.')
-  }
   return errors
 }
 
 /**
- * GET /api/consultants
- * Lists all consultants. Optional ?active=true to return only active.
- * Privileged access (admin, office, financeiro).
+ * GET /api/installers
+ * Lists all installers. Optional ?active=true to return only active.
  */
-export async function handleConsultantsListRequest(req, res, { sendJson, getScopedSql, url }) {
+export async function handleInstallersListRequest(req, res, { sendJson, getScopedSql, url }) {
   const actor = await resolveActor(req)
   if (!requireReadAccess(actor, sendJson)) return
 
-  // Fallback for environments where consultants table may not yet exist
-  // (migration 0040 not applied). Returns empty array gracefully.
   let sql
   try {
     sql = await getScopedSql(actor)
   } catch {
-    sendJson(200, { consultants: [] })
+    sendJson(200, { installers: [] })
     return
   }
 
@@ -93,37 +85,36 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
+          SELECT id, installer_code, full_name, phone, email, document, linked_user_id,
+                 is_active, created_at, updated_at, created_by_user_id
+          FROM public.installers
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
+          SELECT id, installer_code, full_name, phone, email, document, linked_user_id,
+                 is_active, created_at, updated_at, created_by_user_id
+          FROM public.installers
           ORDER BY LOWER(full_name) ASC
         `
   } catch (err) {
-    // consultants table does not exist yet → return empty list
     if (err?.code === '42P01') {
-      sendJson(200, { consultants: [] })
+      sendJson(200, { installers: [] })
       return
     }
     throw err
   }
 
-  console.info('[consultants][list]', { count: rows.length, activeOnly })
-  sendJson(200, { consultants: rows })
+  console.info('[installers][list]', { count: rows.length, activeOnly })
+  sendJson(200, { installers: rows })
 }
 
 /**
- * POST /api/consultants
- * Creates a new consultant. Admin only.
- * The consultant_code is auto-generated server-side (prefix 'C' + 3 random chars).
+ * POST /api/installers
+ * Creates a new installer. Admin only.
+ * The installer_code is auto-generated server-side (prefix 'I' + 3 random chars).
  */
-export async function handleConsultantsCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
+export async function handleInstallersCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
@@ -135,7 +126,7 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const errors = validateConsultantBody(body)
+  const errors = validateInstallerBody(body)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
@@ -146,42 +137,39 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
   // Check document uniqueness
   const docStr = String(body.document).trim()
   const docExisting = await sql`
-    SELECT id FROM public.consultants WHERE document = ${docStr}
+    SELECT id FROM public.installers WHERE document = ${docStr}
   `.catch(() => [])
   if (docExisting.length > 0) {
-    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um instalador cadastrado com este CPF/CNPJ.' } })
     return
   }
 
-  // Auto-generate a unique consultant_code (max 10 attempts)
-  let consultantCode = null
+  // Auto-generate a unique installer_code (max 10 attempts)
+  let installerCode = null
   for (let attempt = 0; attempt < 10; attempt++) {
-    const candidate = generateConsultantCode()
-    const exists = await sql`SELECT id FROM public.consultants WHERE consultant_code = ${candidate}`.catch(() => [])
+    const candidate = generateInstallerCode()
+    const exists = await sql`SELECT id FROM public.installers WHERE installer_code = ${candidate}`.catch(() => [])
     if (exists.length === 0) {
-      consultantCode = candidate
+      installerCode = candidate
       break
     }
   }
-  if (!consultantCode) {
+  if (!installerCode) {
     sendJson(500, { error: { code: 'CODE_GENERATION_FAILED', message: 'Não foi possível gerar um código único. Tente novamente.' } })
     return
   }
 
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
-
   const rows = await sql`
-    INSERT INTO public.consultants (
-      consultant_code, full_name, phone, email, document, regions,
+    INSERT INTO public.installers (
+      installer_code, full_name, phone, email, document,
       linked_user_id, is_active, created_by_user_id, updated_by_user_id,
       created_at, updated_at
     ) VALUES (
-      ${consultantCode},
+      ${installerCode},
       ${String(body.full_name).trim()},
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
       ${docStr},
-      ${sql.array(regions)},
       ${body.linked_user_id ?? null},
       true,
       ${actor.userId ?? null},
@@ -191,16 +179,16 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     RETURNING *
   `
 
-  console.info('[consultants][create]', { id: rows[0]?.id, code: consultantCode })
-  sendJson(201, { consultant: rows[0] })
+  console.info('[installers][create]', { id: rows[0]?.id, code: installerCode })
+  sendJson(201, { installer: rows[0] })
 }
 
 /**
- * PUT /api/consultants/:id
- * Updates an existing consultant. Admin only.
- * consultant_code is immutable — ignored if sent.
+ * PUT /api/installers/:id
+ * Updates an existing installer. Admin only.
+ * installer_code is immutable — ignored if sent.
  */
-export async function handleConsultantsUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId }) {
+export async function handleInstallersUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, installerId }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
@@ -212,73 +200,71 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const errors = validateConsultantBody(body)
+  const errors = validateInstallerBody(body)
   if (errors.length > 0) {
     sendJson(422, { error: { code: 'VALIDATION_ERROR', message: errors.join(' ') } })
     return
   }
 
   const sql = await getScopedSql(actor)
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
   const docStr = String(body.document).trim()
 
   // Check document uniqueness (excluding current record)
   const docExisting = await sql`
-    SELECT id FROM public.consultants WHERE document = ${docStr} AND id != ${consultantId}
+    SELECT id FROM public.installers WHERE document = ${docStr} AND id != ${installerId}
   `.catch(() => [])
   if (docExisting.length > 0) {
-    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
+    sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um instalador cadastrado com este CPF/CNPJ.' } })
     return
   }
 
   const rows = await sql`
-    UPDATE public.consultants SET
+    UPDATE public.installers SET
       full_name          = ${String(body.full_name).trim()},
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
       document           = ${docStr},
-      regions            = ${sql.array(regions)},
       linked_user_id     = ${body.linked_user_id ?? null},
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
-    WHERE id = ${consultantId}
+    WHERE id = ${installerId}
     RETURNING *
   `
 
   if (rows.length === 0) {
-    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Instalador não encontrado.' } })
     return
   }
 
-  console.info('[consultants][update]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  console.info('[installers][update]', { id: installerId })
+  sendJson(200, { installer: rows[0] })
 }
 
 /**
- * PATCH /api/consultants/:id/deactivate
- * Soft-deletes (deactivates) a consultant. Admin only.
+ * PATCH /api/installers/:id/deactivate
+ * Soft-deletes (deactivates) an installer. Admin only.
  */
-export async function handleConsultantsDeactivateRequest(req, res, { sendJson, getScopedSql, consultantId }) {
+export async function handleInstallersDeactivateRequest(req, res, { sendJson, getScopedSql, installerId }) {
   const actor = await resolveActor(req)
   if (!requireAdmin(actor, sendJson)) return
 
   const sql = await getScopedSql(actor)
 
   const rows = await sql`
-    UPDATE public.consultants SET
+    UPDATE public.installers SET
       is_active          = false,
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
-    WHERE id = ${consultantId}
+    WHERE id = ${installerId}
     RETURNING *
   `
 
   if (rows.length === 0) {
-    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Instalador não encontrado.' } })
     return
   }
 
-  console.info('[consultants][deactivate]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  console.info('[installers][deactivate]', { id: installerId })
+  sendJson(200, { installer: rows[0] })
 }
 

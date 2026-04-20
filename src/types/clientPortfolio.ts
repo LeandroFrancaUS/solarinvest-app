@@ -61,6 +61,16 @@ export interface PortfolioClientRow {
   expected_go_live_date?: string | null
   integrator_name?: string | null
   engineer_name?: string | null
+  /** FK to engineers.id (migration 0040) */
+  engineer_id?: number | null
+  /** FK to installers.id (migration 0040) */
+  installer_id?: number | null
+  /** ART number for this project (migration 0040) */
+  art_number?: string | null
+  /** Date the ART was issued (migration 0040) */
+  art_issued_at?: string | null
+  /** ART status (migration 0040) */
+  art_status?: string | null
   timeline_velocity_score?: number | null
   project_notes?: string | null
 

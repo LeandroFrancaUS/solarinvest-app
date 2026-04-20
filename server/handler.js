@@ -65,7 +65,28 @@ import {
   handleAuthReconcileUser,
 } from './routes/authReconcile.js'
 import { handleRbacInspectRequest } from './routes/rbacInspect.js'
-import { handleConsultantsListRequest } from './routes/consultants.js'
+import {
+  handleConsultantsListRequest,
+  handleConsultantsCreateRequest,
+  handleConsultantsUpdateRequest,
+  handleConsultantsDeactivateRequest,
+} from './routes/consultants.js'
+import {
+  handleEngineersListRequest,
+  handleEngineersCreateRequest,
+  handleEngineersUpdateRequest,
+  handleEngineersDeactivateRequest,
+} from './routes/engineers.js'
+import {
+  handleInstallersListRequest,
+  handleInstallersCreateRequest,
+  handleInstallersUpdateRequest,
+  handleInstallersDeactivateRequest,
+} from './routes/installers.js'
+import {
+  handlePersonnelImportableUsers,
+  handlePersonnelImportableClients,
+} from './routes/personnelImport.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
 import {
@@ -81,6 +102,7 @@ import {
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
 } from './client-portfolio/handler.js'
+import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -270,6 +292,23 @@ const serveStatic = async (pathname, res) => {
 const databaseConfig = getNeonDatabaseConfig()
 const databaseClient = getDatabaseClient()
 let storageService = null
+
+/**
+ * Creates a user-scoped RLS SQL client for use in route handlers.
+ * @param {object} actor - Resolved actor from resolveActor(req). Must have userId and permissions.
+ * @returns {Promise<import('postgres').Sql>} A scoped SQL instance with RLS context set.
+ * @throws {Error} With statusCode 503 when the database is not configured.
+ */
+async function createHandlerScopedSql(actor) {
+  const db = getDatabaseClient()
+  if (!db?.sql) {
+    const err = new Error('Database not configured')
+    err.statusCode = 503
+    throw err
+  }
+  const role = actorRole(actor)
+  return createUserScopedSql(db.sql, { userId: actor.userId, role })
+}
 
 if (databaseConfig.connectionString && databaseClient) {
   storageService = new StorageService(databaseClient.sql)
@@ -798,10 +837,178 @@ export default async function handler(req, res) {
       return
     }
 
-    // ── Clients API ───────────────────────────────────────────────────────────
-    // GET /api/consultants — list all consultant profiles (privileged users only)
-    if (pathname === '/api/consultants' && method === 'GET') {
-      await handleConsultantsListRequest(req, res, { sendJson })
+    // ── Personnel import helpers (read-only pre-fill sources) ─────────────────
+    // GET /api/personnel/importable-users    — list app users for import (admin)
+    // GET /api/personnel/importable-clients  — list clients for import (admin)
+    if (pathname === '/api/personnel/importable-users') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePersonnelImportableUsers(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        url: requestUrl,
+      })
+      return
+    }
+
+    if (pathname === '/api/personnel/importable-clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePersonnelImportableClients(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        url: requestUrl,
+      })
+      return
+    }
+
+    // ── Consultants API ───────────────────────────────────────────────────────
+    // GET  /api/consultants         — list consultants (privileged read)
+    // POST /api/consultants         — create consultant (admin only)
+    if (pathname === '/api/consultants') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleConsultantsListRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          url: requestUrl,
+        })
+      } else if (method === 'POST') {
+        await handleConsultantsCreateRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          readJsonBody,
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
+      return
+    }
+
+    // PUT    /api/consultants/:id              — update consultant (admin only)
+    // PATCH  /api/consultants/:id/deactivate   — deactivate consultant (admin only)
+    const consultantIdMatch = pathname.match(/^\/api\/consultants\/(\d+)$/)
+    if (consultantIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleConsultantsUpdateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        readJsonBody,
+        consultantId: Number(consultantIdMatch[1]),
+      })
+      return
+    }
+
+    const consultantDeactivateMatch = pathname.match(/^\/api\/consultants\/(\d+)\/deactivate$/)
+    if (consultantDeactivateMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleConsultantsDeactivateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        consultantId: Number(consultantDeactivateMatch[1]),
+      })
+      return
+    }
+
+    // ── Engineers API ─────────────────────────────────────────────────────────
+    // GET  /api/engineers         — list engineers (privileged read)
+    // POST /api/engineers         — create engineer (admin only)
+    if (pathname === '/api/engineers') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleEngineersListRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          url: requestUrl,
+        })
+      } else if (method === 'POST') {
+        await handleEngineersCreateRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          readJsonBody,
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
+      return
+    }
+
+    // PUT   /api/engineers/:id              — update engineer (admin only)
+    const engineerIdMatch = pathname.match(/^\/api\/engineers\/(\d+)$/)
+    if (engineerIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleEngineersUpdateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        readJsonBody,
+        engineerId: Number(engineerIdMatch[1]),
+      })
+      return
+    }
+
+    // PATCH /api/engineers/:id/deactivate   — deactivate engineer (admin only)
+    const engineerDeactivateMatch = pathname.match(/^\/api\/engineers\/(\d+)\/deactivate$/)
+    if (engineerDeactivateMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleEngineersDeactivateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        engineerId: Number(engineerDeactivateMatch[1]),
+      })
+      return
+    }
+
+    // ── Installers API ────────────────────────────────────────────────────────
+    // GET  /api/installers         — list installers (privileged read)
+    // POST /api/installers         — create installer (admin only)
+    if (pathname === '/api/installers') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleInstallersListRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          url: requestUrl,
+        })
+      } else if (method === 'POST') {
+        await handleInstallersCreateRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          readJsonBody,
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
+      return
+    }
+
+    // PUT   /api/installers/:id              — update installer (admin only)
+    const installerIdMatch = pathname.match(/^\/api\/installers\/(\d+)$/)
+    if (installerIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleInstallersUpdateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        readJsonBody,
+        installerId: Number(installerIdMatch[1]),
+      })
+      return
+    }
+
+    // PATCH /api/installers/:id/deactivate   — deactivate installer (admin only)
+    const installerDeactivateMatch = pathname.match(/^\/api\/installers\/(\d+)\/deactivate$/)
+    if (installerDeactivateMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handleInstallersDeactivateRequest(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        installerId: Number(installerDeactivateMatch[1]),
+      })
       return
     }
 

@@ -37,6 +37,8 @@ import { UfConfigurationFields, type UfConfigData } from '../components/portfoli
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
+import type { Consultant, Engineer, Installer } from '../types/personnel'
+import { fetchConsultants, fetchEngineers, fetchInstallers } from '../services/personnelApi'
 
 interface Props {
   onBack: () => void
@@ -652,6 +654,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  const [consultants, setConsultants] = useState<Consultant[]>([])
   // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
   const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
     // If DB has an explicit attachments array (even empty), use it — avoids clobbering a
@@ -670,6 +673,11 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     }
     return []
   })
+
+  useEffect(() => {
+    void fetchConsultants(true).then(setConsultants).catch(() => { /* graceful — remain empty, show text field */ })
+  }, [])
+
   const [form, setForm] = useState({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
@@ -855,14 +863,44 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       <div className="pf-section-card">
         <div className="pf-section-title"><span className="pf-icon">🧑‍💼</span> Consultor</div>
         <div style={gridSty}>
-          <label className="pf-label" style={labelSty}>
-            ID do Consultor
-            <input type="text" value={form.consultant_id} onChange={(e) => setForm((f) => ({ ...f, consultant_id: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
-          <label className="pf-label" style={labelSty}>
-            Nome do Consultor
-            <input type="text" value={form.consultant_name} onChange={(e) => setForm((f) => ({ ...f, consultant_name: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
+          {consultants.length > 0 ? (
+            <label className="pf-label" style={{ ...labelSty, gridColumn: '1 / -1' }}>
+              Consultor
+              <select
+                value={form.consultant_id}
+                onChange={(e) => {
+                  const selected = consultants.find((c) => String(c.id) === e.target.value)
+                  setForm((f) => ({
+                    ...f,
+                    consultant_id: e.target.value,
+                    consultant_name: selected ? selected.full_name : f.consultant_name,
+                  }))
+                }}
+                disabled={!editMode}
+                style={inputStyle}
+              >
+                <option value="">Selecione um consultor…</option>
+                {consultants.map((c) => (
+                  <option key={c.id} value={String(c.id)}>{c.full_name} ({c.consultant_code})</option>
+                ))}
+                {/* Show legacy value if not in active list */}
+                {form.consultant_id && !consultants.find((c) => String(c.id) === form.consultant_id) && (
+                  <option value={form.consultant_id}>{form.consultant_name || form.consultant_id}</option>
+                )}
+              </select>
+            </label>
+          ) : (
+            <>
+              <label className="pf-label" style={labelSty}>
+                ID do Consultor
+                <input type="text" value={form.consultant_id} onChange={(e) => setForm((f) => ({ ...f, consultant_id: e.target.value }))} disabled={!editMode} style={inputStyle} />
+              </label>
+              <label className="pf-label" style={labelSty}>
+                Nome do Consultor
+                <input type="text" value={form.consultant_name} onChange={(e) => setForm((f) => ({ ...f, consultant_name: e.target.value }))} disabled={!editMode} style={inputStyle} />
+              </label>
+            </>
+          )}
         </div>
       </div>
 
@@ -991,6 +1029,16 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+
+  // Personnel lists loaded from the API
+  const [engineers, setEngineers] = useState<Engineer[]>([])
+  const [installers, setInstallers] = useState<Installer[]>([])
+
+  useEffect(() => {
+    void fetchEngineers(true).then(setEngineers).catch(() => { /* graceful — use text field */ })
+    void fetchInstallers(true).then(setInstallers).catch(() => { /* graceful */ })
+  }, [])
+
   const [form, setForm] = useState({
     project_status: client.project_status ?? 'pending',
     installation_status: client.installation_status ?? '',
@@ -1000,6 +1048,11 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
     commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
     integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
     engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
+    engineer_id: client.engineer_id ?? null,
+    installer_id: client.installer_id ?? null,
+    art_number: client.art_number ?? '',
+    art_issued_at: client.art_issued_at?.slice(0, 10) ?? '',
+    art_status: client.art_status ?? '',
     project_notes: client.project_notes ?? '',
   })
 
@@ -1012,10 +1065,20 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
     commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
     integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
     engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
+    engineer_id: client.engineer_id ?? null,
+    installer_id: client.installer_id ?? null,
+    art_number: client.art_number ?? '',
+    art_issued_at: client.art_issued_at?.slice(0, 10) ?? '',
+    art_status: client.art_status ?? '',
     project_notes: client.project_notes ?? '',
   })
 
   async function handleSave() {
+    // ART requires engineer
+    if (form.art_number.trim() && !form.engineer_id) {
+      setSaveError('Não é possível salvar ART sem selecionar um engenheiro.')
+      return
+    }
     const needsObservation = 
       form.homologation_status === 'Reprovado' || form.homologation_status === 'Pendências' ||
       form.commissioning_status === 'Reprovado' || form.commissioning_status === 'Pendências'
@@ -1044,6 +1107,11 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
         commissioning_status: form.commissioning_status || null,
         integrator_name: form.integrator_name || null,
         engineer_name: form.engineer_name || null,
+        engineer_id: form.engineer_id ?? null,
+        installer_id: form.installer_id ?? null,
+        art_number: form.art_number.trim() || null,
+        art_issued_at: form.art_issued_at || null,
+        art_status: form.art_status || null,
         notes: finalNotes || null,
       })
       onSaved({
@@ -1055,6 +1123,11 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
         commissioning_date: form.commissioning_date || null,
         integrator_name: form.integrator_name || null,
         engineer_name: form.engineer_name || null,
+        engineer_id: form.engineer_id ?? null,
+        installer_id: form.installer_id ?? null,
+        art_number: form.art_number.trim() || null,
+        art_issued_at: form.art_issued_at || null,
+        art_status: form.art_status || null,
         project_notes: finalNotes || null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
@@ -1120,7 +1193,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             </select>
           </label>
         </div>
-        {/* 3. Integrator + Engineer */}
+        {/* 3. Integrator + Engineer (entity dropdown) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <label className="pf-label">
             Integrador
@@ -1131,25 +1204,99 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
           </label>
           <label className="pf-label">
             Engenheiro
-            <select value={form.engineer_name} onChange={(e) => setForm((f) => ({ ...f, engineer_name: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            <select
+              value={form.engineer_id != null ? String(form.engineer_id) : ''}
+              onChange={(e) => {
+                const val = e.target.value ? Number(e.target.value) : null
+                const eng = engineers.find((en) => en.id === val)
+                setForm((f) => ({ ...f, engineer_id: val, engineer_name: eng ? eng.full_name : f.engineer_name }))
+              }}
+              disabled={!editMode}
+              style={inputStyle}
+            >
               <option value="">Selecione…</option>
-              <option value="Tiago Souza">Tiago Souza</option>
+              {engineers.map((eng) => (
+                <option key={eng.id} value={String(eng.id)}>{eng.full_name}</option>
+              ))}
+              {/* Show currently linked engineer even if not in active list */}
+              {form.engineer_id != null && !engineers.find((e) => e.id === form.engineer_id) && (
+                <option value={String(form.engineer_id)}>{form.engineer_name ?? `Engenheiro #${form.engineer_id}`}</option>
+              )}
+              {/* Fallback text input indicator */}
+              {engineers.length === 0 && form.engineer_name && (
+                <option value="">{form.engineer_name}</option>
+              )}
             </select>
           </label>
         </div>
-        {/* 4. Commissioning date */}
+        {/* 4. Installer */}
+        <label className="pf-label">
+          Instalador
+          <select
+            value={form.installer_id != null ? String(form.installer_id) : ''}
+            onChange={(e) => {
+              const val = e.target.value ? Number(e.target.value) : null
+              setForm((f) => ({ ...f, installer_id: val }))
+            }}
+            disabled={!editMode}
+            style={inputStyle}
+          >
+            <option value="">Selecione…</option>
+            {installers.map((ins) => (
+              <option key={ins.id} value={String(ins.id)}>{ins.full_name}</option>
+            ))}
+            {/* Show currently linked installer even if not in active list */}
+            {form.installer_id != null && !installers.find((i) => i.id === form.installer_id) && (
+              <option value={String(form.installer_id)}>Instalador #{form.installer_id}</option>
+            )}
+          </select>
+        </label>
+        {/* 5. ART fields */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <label className="pf-label">
+            Número da ART
+            <input
+              type="text"
+              value={form.art_number}
+              onChange={(e) => setForm((f) => ({ ...f, art_number: e.target.value }))}
+              disabled={!editMode}
+              placeholder="ex: 0123456"
+              style={inputStyle}
+            />
+          </label>
+          <label className="pf-label">
+            Data de Emissão da ART
+            <input
+              type="date"
+              value={form.art_issued_at}
+              onChange={(e) => setForm((f) => ({ ...f, art_issued_at: e.target.value }))}
+              disabled={!editMode}
+              style={inputStyle}
+            />
+          </label>
+          <label className="pf-label">
+            Status da ART
+            <select value={form.art_status} onChange={(e) => setForm((f) => ({ ...f, art_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
+              <option value="">Selecione…</option>
+              <option value="pendente">Pendente</option>
+              <option value="emitida">Emitida</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </label>
+        </div>
+        {/* 6. Commissioning date */}
         <label className="pf-label">
           Data de Comissionamento
           <input type="date" value={form.commissioning_date} onChange={(e) => setForm((f) => ({ ...f, commissioning_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
         </label>
-        {/* 5. General status */}
+        {/* 7. General status */}
         <label className="pf-label">
           Status Geral
           <select value={form.project_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, project_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
             {Object.entries(PROJECT_STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
-        {/* 6. Notes */}
+        {/* 8. Notes */}
         <label className="pf-label">
           Observações
           <textarea value={form.project_notes} onChange={(e) => setForm((f) => ({ ...f, project_notes: e.target.value }))} rows={3} disabled={!editMode} style={{ ...inputStyle, resize: 'vertical' }} />

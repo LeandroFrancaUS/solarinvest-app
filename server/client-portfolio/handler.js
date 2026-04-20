@@ -304,6 +304,10 @@ export async function handlePortfolioProjectPatch(req, res, { method, clientId, 
     const result = await upsertClientProjectStatus(sql, clientId, body)
     sendJson(200, { data: result })
   } catch (err) {
+    if (err?.code === 'ART_REQUIRES_ENGINEER') {
+      sendJson(422, { error: { code: 'ART_REQUIRES_ENGINEER', message: err.message } })
+      return
+    }
     console.error('[portfolio] project patch error', err)
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao atualizar projeto.' } })
   }
