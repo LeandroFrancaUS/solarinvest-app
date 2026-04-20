@@ -1,17 +1,7 @@
-/* === TOKENS DE COR (dark navy) === */
-:root {
-  --cfg-bg: #0B1F3A;
-  --cfg-surface: #122B4A;
-  --cfg-border: #1F3D66;
-  --cfg-text: #FFFFFF;
-  --cfg-muted: #D6E4F0;
-  --cfg-subtle: #9FB3C8;
-  --cfg-accent: #2D8CFF;
-  --cfg-accent-contrast: #ffffff;
-  --cfg-accent-soft: rgba(45, 140, 255, 0.15);
-  --cfg-focus: #2D8CFF;
-  --cfg-danger: #FF4D4F;
-}
+/* === TOKENS DE COR — mapeados para o design system global === */
+/* Definidos no escopo .config-page para herdar o tema ativo.    */
+/* NÃO há mais valores fixos aqui: os --cfg-* são aliases dos    */
+/* tokens globais definidos em :root (dark/light/old).           */
 
 /* === RESET LOCAL PARA EVITAR FOG/FROSTED NESTA PÁGINA === */
 .config-page,
@@ -23,6 +13,19 @@
 
 /* === LAYOUT GERAL === */
 .config-page {
+  /* Mapeamento interno: --cfg-* → tokens globais do design system */
+  --cfg-bg: var(--bg);
+  --cfg-surface: var(--surface);
+  --cfg-border: var(--border);
+  --cfg-text: var(--text-strong);
+  --cfg-muted: var(--text-base);
+  --cfg-subtle: var(--text-muted);
+  --cfg-accent: var(--accent);
+  --cfg-accent-contrast: #ffffff;
+  --cfg-accent-soft: var(--accent-soft);
+  --cfg-focus: var(--accent);
+  --cfg-danger: var(--ds-danger, #FF4D4F);
+
   background: var(--cfg-bg);
   color: var(--cfg-text);
   padding: clamp(12px, 4vw, 20px);
@@ -31,24 +34,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-
-  --bg: var(--cfg-bg);
-  --surface: var(--cfg-surface);
-  --card: var(--cfg-surface);
-  --border: var(--cfg-border);
-  --border-strong: var(--cfg-border);
-  --shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
-  --text-strong: var(--cfg-text);
-  --text-base: var(--cfg-text);
-  --text-muted: var(--cfg-muted);
-  --title: var(--cfg-text);
-  --muted: var(--cfg-muted);
-  --accent: var(--cfg-accent);
-  --accent-strong: var(--cfg-accent);
-  --accent-dark: var(--cfg-accent);
-  --accent-soft: var(--cfg-accent-soft);
-  --input-bg: #0F2747;
-  --input-placeholder: #9FB3C8;
 }
 
 .config-card {
@@ -175,7 +160,7 @@
   gap: 6px;
   padding: 2px 12px;
   border-radius: 999px;
-  background: rgba(13, 71, 161, 0.12);
+  background: var(--cfg-accent-soft);
   color: var(--cfg-accent);
   font-weight: 600;
   font-size: 0.75rem;
@@ -266,7 +251,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--cfg-text);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
     box-shadow 0.2s ease;
@@ -311,7 +296,7 @@
 .cfg-input:not([type='checkbox']):not([type='radio']) {
   appearance: none;
   width: 100%;
-  background: #ffffff;
+  background: var(--input-bg);
   border: 1px solid var(--cfg-border);
   border-radius: 10px;
   padding: 10px 12px;
@@ -322,7 +307,7 @@
 }
 
 .cfg-input::placeholder {
-  color: #9ca3af;
+  color: var(--input-placeholder);
 }
 
 .cfg-input:focus-visible {
