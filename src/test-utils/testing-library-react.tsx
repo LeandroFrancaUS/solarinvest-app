@@ -1,4 +1,4 @@
-import React from 'react'
+import type React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
 type ActiveRoot = {

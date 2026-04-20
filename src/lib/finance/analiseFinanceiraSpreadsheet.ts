@@ -445,7 +445,7 @@ function calcularKpis(
     taxa_desconto_aa_pct != null &&
     Number.isFinite(taxa_desconto_aa_pct) &&
     taxa_desconto_aa_pct > 0
-  const taxaMensal = hasDiscount ? toMonthlyRate(taxa_desconto_aa_pct as number) : 0
+  const taxaMensal = hasDiscount ? toMonthlyRate(taxa_desconto_aa_pct) : 0
 
   const vpl = hasDiscount
     ? computeNPV(fluxosComInvestimento, taxaMensal)

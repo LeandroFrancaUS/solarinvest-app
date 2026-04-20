@@ -140,7 +140,7 @@ describe('computeIRR', () => {
   it('handles leasing-style long monthly flow', () => {
     const capex = 30000
     const monthly = 600 // 60 months
-    const cfs = [-capex, ...Array(60).fill(monthly)]
+    const cfs = [-capex, ...Array<number>(60).fill(monthly)]
     const irr = computeIRR(cfs)
     expect(irr).not.toBeNull()
     // Verify NPV ≈ 0 at the computed IRR
@@ -179,7 +179,7 @@ describe('computePayback', () => {
   })
 
   it('returns correct payback for longer series', () => {
-    const cfs = [-1000, ...Array(12).fill(100)] // payback at month 11
+    const cfs = [-1000, ...Array<number>(12).fill(100)] // payback at month 11
     expect(computePayback(cfs)).toBe(11)
   })
 })
@@ -229,7 +229,7 @@ describe('computeInvestmentMetrics', () => {
     const capex = 30000
     const monthly = 650
     const months = 60
-    const cfs = [-capex, ...Array(months).fill(monthly)]
+    const cfs = [-capex, ...Array<number>(months).fill(monthly)]
 
     const result = computeInvestmentMetrics({
       cashflows: cfs,
@@ -358,7 +358,7 @@ describe('computeInvestmentMetrics', () => {
   it('long horizon — 360 months', () => {
     // capex=24000, monthly=100: 24000/100=240 months to recover → within 360 months
     const monthly = 100
-    const cfs = [-24000, ...Array(360).fill(monthly)]
+    const cfs = [-24000, ...Array<number>(360).fill(monthly)]
     const result = computeInvestmentMetrics({
       cashflows: cfs,
       discountRateAnnualPct: 8,

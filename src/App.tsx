@@ -505,7 +505,7 @@ const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefi
 
 const normalizeTusdTipoClienteValue = (value: unknown): TipoClienteTUSD => {
   const normalized = normalizeTipoBasico(typeof value === 'string' ? value : null)
-  return (normalized || 'residencial') as TipoClienteTUSD
+  return (normalized || 'residencial')
 }
 
 function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
@@ -553,9 +553,9 @@ const formatLeasingPrazoAnos = (valor: number) => {
 // } as Record<TipoClienteTUSD, string>
 // --- FIM BLOCO DESATIVADO ---
 
-const TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value as TipoClienteTUSD)
+const TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value)
 const TUSD_TIPO_LABELS = NOVOS_TIPOS_TUSD.reduce(
-  (acc, { value, label }) => ({ ...acc, [value as TipoClienteTUSD]: label }),
+  (acc, { value, label }) => ({ ...acc, [value]: label }),
   {} as Record<TipoClienteTUSD, string>,
 )
 
@@ -827,7 +827,7 @@ const cloneImpostosOverrides = (
   const cloned: Partial<ImpostosRegimeConfig> = {}
   for (const regime of ['simples', 'lucro_presumido', 'lucro_real'] as const) {
     if (Array.isArray(overrides[regime])) {
-      cloned[regime] = overrides[regime]!.map((item) => ({ ...item }))
+      cloned[regime] = overrides[regime].map((item) => ({ ...item }))
     }
   }
   return cloned
@@ -2087,11 +2087,11 @@ const stableStringify = (value: unknown): string => {
       return input
     }
 
-    if (seen.has(input as object)) {
+    if (seen.has(input)) {
       return null
     }
 
-    seen.add(input as object)
+    seen.add(input)
 
     if (Array.isArray(input)) {
       return input.map((item) => normalize(item))
@@ -2923,7 +2923,7 @@ const parseClientesCsv = (content: string): unknown[] => {
           break
         }
         default:
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           ;(registro.dados as Record<string, unknown>)[key] = value
       }
       })
@@ -5457,7 +5457,7 @@ export default function App() {
       return
     }
 
-    const htmlElement = document.documentElement as HTMLElement
+    const htmlElement = document.documentElement
     const bodyElement = document.body as HTMLElement | null
     const elements: HTMLElement[] = bodyElement ? [htmlElement, bodyElement] : [htmlElement]
 
@@ -5646,7 +5646,7 @@ export default function App() {
       setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
       setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [simulacoesSection])
   // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
   // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
@@ -5683,7 +5683,7 @@ export default function App() {
       afCustoKitManual,
       afFreteManual,
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
@@ -6152,7 +6152,7 @@ export default function App() {
   const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
   const arredondarPasso = useMemo(() => {
     const raw = Number(vendasConfig.arredondar_venda_para)
-    return raw === 1 || raw === 10 || raw === 50 || raw === 100 ? (raw as 1 | 10 | 50 | 100) : 100
+    return raw === 1 || raw === 10 || raw === 50 || raw === 100 ? (raw) : 100
   }, [vendasConfig.arredondar_venda_para])
   const aprovadoresResumo = useMemo(() => {
     if (!Array.isArray(vendasConfig.aprovadores) || vendasConfig.aprovadores.length === 0) {
@@ -7523,7 +7523,7 @@ export default function App() {
       const isValidQuantity = typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0
       updateKitBudgetItem(itemId, (item) => ({
         ...item,
-        quantity: isValidQuantity ? Math.round(parsed as number) : null,
+        quantity: isValidQuantity ? Math.round(parsed) : null,
         quantityInput: value,
         wasQuantityInferred: !isValidQuantity,
       }))
@@ -13188,7 +13188,7 @@ export default function App() {
     }
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [carregarClientesPrioritarios, authSyncKey, meAuthState, reconciliationReady])
 
   // Fetch all registered consultants for privileged users so the client
@@ -13211,7 +13211,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
 
   // Fetch active consultants for the proposal form picker (any authenticated user).
@@ -17705,7 +17705,7 @@ export default function App() {
     }
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [carregarOrcamentosPrioritarios, authSyncKey, meAuthState])
 
   // Carregar draft do formulário do IndexedDB na inicialização
@@ -17759,7 +17759,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   // Auto-save debounced: prioriza persistência oficial no backend (/api/proposals).
@@ -22368,9 +22368,7 @@ export default function App() {
                         cepCidadeAvisoRef.current = null
                         setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                         clearFieldHighlight(
-                          document.querySelector('[data-field="cliente-cidade"]') as
-                            | HTMLElement
-                            | null,
+                          document.querySelector('[data-field="cliente-cidade"]'),
                         )
                       }}
                     >
@@ -22397,15 +22395,11 @@ export default function App() {
                             cepCidadeAvisoRef.current = null
                             setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                             clearFieldHighlight(
-                              document.querySelector('[data-field="cliente-cidade"]') as
-                                | HTMLElement
-                                | null,
+                              document.querySelector('[data-field="cliente-cidade"]'),
                             )
                             if (cliente.uf.trim()) {
                               clearFieldHighlight(
-                                document.querySelector('[data-field="cliente-uf"]') as
-                                  | HTMLElement
-                                  | null,
+                                document.querySelector('[data-field="cliente-uf"]'),
                               )
                             }
                           }}
@@ -22432,15 +22426,11 @@ export default function App() {
                         cepCidadeAvisoRef.current = null
                         setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                         clearFieldHighlight(
-                          document.querySelector('[data-field="cliente-cidade"]') as
-                            | HTMLElement
-                            | null,
+                          document.querySelector('[data-field="cliente-cidade"]'),
                         )
                         if (cliente.uf.trim()) {
                           clearFieldHighlight(
-                            document.querySelector('[data-field="cliente-uf"]') as
-                              | HTMLElement
-                              | null,
+                            document.querySelector('[data-field="cliente-uf"]'),
                           )
                         }
                       }}
@@ -25349,7 +25339,7 @@ export default function App() {
     ) => {
       setImpostosOverridesDraft((prev) => {
         const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]!] : []
+        const lista = next[regime] ? [...next[regime]] : []
         const atual = lista[index] ?? { nome: '', aliquota_percent: 0 }
         if (field === 'nome') {
           lista[index] = { ...atual, nome: value }
@@ -25369,7 +25359,7 @@ export default function App() {
     const handleOverrideAdd = (regime: RegimeTributario) => {
       setImpostosOverridesDraft((prev) => {
         const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]!] : []
+        const lista = next[regime] ? [...next[regime]] : []
         lista.push({ nome: '', aliquota_percent: 0 })
         next[regime] = lista
         return next
@@ -25379,7 +25369,7 @@ export default function App() {
     const handleOverrideRemove = (regime: RegimeTributario, index: number) => {
       setImpostosOverridesDraft((prev) => {
         const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]!] : []
+        const lista = next[regime] ? [...next[regime]] : []
         lista.splice(index, 1)
         if (lista.length > 0) {
           next[regime] = lista

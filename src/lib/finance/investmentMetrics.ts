@@ -246,7 +246,7 @@ export function computeInvestmentMetrics(
     discountRateAnnualPct > 0
 
   const periodicRate = hasDiscountRate
-    ? toPeriodRate((discountRateAnnualPct as number) / 100, periodsPerYear)
+    ? toPeriodRate((discountRateAnnualPct) / 100, periodsPerYear)
     : 0
 
   const vpl = hasDiscountRate ? computeNPV(cashflows, periodicRate) : null

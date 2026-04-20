@@ -10,7 +10,7 @@ import {
 const recognizeImageDataMock = vi.fn()
 
 vi.mock('../../ocr/workerPool', () => ({
-  recognizeImageData: (...args: unknown[]) => recognizeImageDataMock(...args),
+  recognizeImageData: (...args: unknown[]) => recognizeImageDataMock(...args) as unknown,
 }))
 
 class TestFile extends Blob {
@@ -50,7 +50,7 @@ beforeAll(() => {
 beforeEach(() => {
   recognizeImageDataMock.mockReset()
   __setPdfJsModuleLoader(null)
-  vi.stubGlobal('createImageBitmap', vi.fn(async () => ({
+  vi.stubGlobal('createImageBitmap', vi.fn(() => Promise.resolve({
     width: 10,
     height: 10,
     close: vi.fn(),
@@ -104,12 +104,12 @@ describe('budgetUploadPipeline.handleUpload', () => {
   })
 
   it('uses the quick PDF path when text density is high', async () => {
-    __setPdfJsModuleLoader(async () => ({
+    __setPdfJsModuleLoader(() => Promise.resolve({
       getDocument: () => ({
         promise: Promise.resolve({
           numPages: 1,
-          getPage: async () => ({
-            getTextContent: async () => ({
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({
               items: [
                 { str: 'Painel Solar 550W' },
                 { str: 'Quantidade: 3' },
@@ -138,12 +138,12 @@ describe('budgetUploadPipeline.handleUpload', () => {
   })
 
   it('falls back to OCR when PDF text density is low', async () => {
-    __setPdfJsModuleLoader(async () => ({
+    __setPdfJsModuleLoader(() => Promise.resolve({
       getDocument: () => ({
         promise: Promise.resolve({
           numPages: 1,
-          getPage: async () => ({
-            getTextContent: async () => ({ items: [] }),
+          getPage: () => Promise.resolve({
+            getTextContent: () => Promise.resolve({ items: [] }),
             getViewport: () => ({ width: 400, height: 400 }),
             render: () => ({ promise: Promise.resolve() }),
             cleanup: vi.fn(),

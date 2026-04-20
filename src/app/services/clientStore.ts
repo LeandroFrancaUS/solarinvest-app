@@ -5,8 +5,8 @@ export type ClienteRegistro = {
   id: string;
   criadoEm: string;
   atualizadoEm: string;
-  dados: any; // ClienteDados
-  propostaSnapshot?: any; // OrcamentoSnapshotData
+  dados: { nome?: string; endereco?: string; [key: string]: unknown }; // ClienteDados
+  propostaSnapshot?: Record<string, unknown>; // OrcamentoSnapshotData
 };
 
 type Payload = {
@@ -58,8 +58,9 @@ export async function getClienteRegistroById(id: string) {
 export async function getAllClienteRegistros(): Promise<ClienteRegistro[]> {
   const registros: ClienteRegistro[] = [];
   await store.iterate<Payload, void>((value, key) => {
-    if (key.startsWith("client:") && value?.registro) {
-      registros.push(value.registro);
+    const typed = value as Payload | null
+    if (key.startsWith("client:") && typed?.registro) {
+      registros.push(typed.registro);
     }
   });
 

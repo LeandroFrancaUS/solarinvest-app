@@ -98,7 +98,7 @@ const persist = (state: PersistedShape) => {
   }
 }
 
-export const useVendasSimulacoesStore = createStore<VendasSimulacoesState>((set, get) => ({
+export const useVendasSimulacoesStore = createStore<VendasSimulacoesState>((set, _get) => ({
   simulations: {},
   initialize(id, defaults) {
     if (!id) {

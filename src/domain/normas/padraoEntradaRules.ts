@@ -39,7 +39,9 @@ const RULES_BY_UF: Record<string, Record<TipoLigacaoNorma, NormRule>> = {
 const PROVISIONAL_UFS = new Set<string>([])
 
 const normalizeUf = (uf?: string | null): string => (uf ?? '').trim().toUpperCase()
-const DEBUG_NORMA = Boolean((globalThis as any)?.localStorage?.getItem?.('DEBUG_NORMA'))
+const DEBUG_NORMA = Boolean(
+  (globalThis as { localStorage?: { getItem?: (key: string) => string | null } }).localStorage?.getItem?.('DEBUG_NORMA'),
+)
 
 const resolveUpgradeRule = (
   uf: string,

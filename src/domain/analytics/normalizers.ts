@@ -9,7 +9,7 @@ import type { AnalyticsRecord } from './types.js'
 
 function str(v: unknown): string | null {
   if (v == null) return null
-  const s = String(v).trim()
+  const s = String(v as string | number | boolean | bigint).trim()
   return s === '' ? null : s
 }
 
@@ -57,7 +57,7 @@ export function normalizeClient(c: Record<string, unknown>): AnalyticsRecord {
   }
 
   return {
-    id: String(c.id ?? ''),
+    id: String(c.id as string | number ?? ''),
     createdAt: str(c.created_at ?? c.criadoEm),
     closedAt,
     activatedAt,
@@ -86,7 +86,7 @@ export function normalizeProposal(p: Record<string, unknown>): AnalyticsRecord {
   const closedAt = isClosed ? str(p.updated_at) : null
 
   return {
-    id: String(p.id ?? ''),
+    id: String((p.id ?? '') as string | number),
     createdAt: str(p.created_at),
     closedAt,
     activatedAt: null,
@@ -124,7 +124,7 @@ export function normalizePortfolio(row: Record<string, unknown>): AnalyticsRecor
     lifecycleStatus === 'billing'
 
   return {
-    id: String(row.id ?? ''),
+    id: String((row.id ?? '') as string | number),
     createdAt: str(row.client_created_at),
     closedAt: str(row.contract_signed_at ?? row.exported_to_portfolio_at),
     activatedAt,

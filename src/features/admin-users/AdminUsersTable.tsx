@@ -9,7 +9,6 @@ import {
   approveUser,
   blockUser,
   revokeUser,
-  setUserRole,
   grantPermission,
   revokePermission,
   deleteUser,
@@ -156,7 +155,7 @@ function RowActions({ user, onRefresh }: RowActionsProps) {
         <ConfirmDialog
           message={pendingAction.message}
           destructive={pendingAction.destructive}
-          onConfirm={executeConfirmed}
+          onConfirm={() => { void executeConfirmed() }}
           onCancel={() => setPendingAction(null)}
         />
       )}
