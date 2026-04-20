@@ -13,12 +13,15 @@ import {
   updateFinancialEntry,
   deleteFinancialEntry,
   fetchFinancialCategories,
+  fetchFinancialItemTemplates,
+  bootstrapProjectFinancialStructure,
   type FinancialSummary,
   type FinancialProject,
   type CashflowPeriod,
   type FinancialEntry,
   type FinancialCategory,
   type FinancialEntryInput,
+  type FinancialItemTemplate,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
 
@@ -68,6 +71,7 @@ const STATUS_LABELS: Record<string, string> = {
   due: 'A Vencer',
   paid: 'Pago',
   received: 'Recebido',
+  partial: 'Parcial',
   cancelled: 'Cancelado',
 }
 
@@ -129,6 +133,7 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 interface EntryFormProps {
   entry?: FinancialEntry | null
   categories: FinancialCategory[]
+  templates: FinancialItemTemplate[]
   onSave: (data: FinancialEntryInput) => Promise<void>
   onClose: () => void
   isSaving: boolean
@@ -141,8 +146,12 @@ const EMPTY_ENTRY: FinancialEntryInput = {
   subcategory: '',
   description: '',
   amount: 0,
+  expected_amount: null,
+  realized_amount: null,
   competence_date: new Date().toISOString().substring(0, 10),
   payment_date: null,
+  due_date: null,
+  receipt_date: null,
   status: 'planned',
   is_recurring: false,
   recurrence_frequency: null,
@@ -151,10 +160,14 @@ const EMPTY_ENTRY: FinancialEntryInput = {
   proposal_id: null,
   client_id: null,
   consultant_id: null,
+  project_financial_item_id: null,
+  installment_number: null,
+  installment_total: null,
+  origin_source: null,
   notes: '',
 }
 
-function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormProps) {
+function EntryForm({ entry, categories, templates, onSave, onClose, isSaving }: EntryFormProps) {
   const [form, setForm] = useState<FinancialEntryInput>(() =>
     entry
       ? {
@@ -164,8 +177,12 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
           subcategory: entry.subcategory ?? '',
           description: entry.description ?? '',
           amount: entry.amount,
+          expected_amount: entry.expected_amount,
+          realized_amount: entry.realized_amount,
           competence_date: entry.competence_date ?? new Date().toISOString().substring(0, 10),
           payment_date: entry.payment_date ?? null,
+          due_date: entry.due_date ?? null,
+          receipt_date: entry.receipt_date ?? null,
           status: entry.status,
           is_recurring: entry.is_recurring ?? false,
           recurrence_frequency: entry.recurrence_frequency ?? null,
@@ -174,6 +191,10 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
           proposal_id: entry.proposal_id ?? null,
           client_id: entry.client_id ?? null,
           consultant_id: entry.consultant_id ?? null,
+          project_financial_item_id: entry.project_financial_item_id ?? null,
+          installment_number: entry.installment_number ?? null,
+          installment_total: entry.installment_total ?? null,
+          origin_source: entry.origin_source ?? null,
           notes: entry.notes ?? '',
         }
       : EMPTY_ENTRY,
@@ -203,11 +224,55 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
-      console.info('[financial-ui] entry form submit', { entry_type: form.entry_type, amount: form.amount })
-      await onSave(form)
+      console.info('[financial-ui] submit financial entry', {
+        entry_type: form.entry_type,
+        scope_type: form.scope_type,
+        amount: form.amount,
+        expected_amount: form.expected_amount,
+        realized_amount: form.realized_amount,
+        proposal_id: form.proposal_id,
+        client_id: form.client_id,
+        project_financial_item_id: form.project_financial_item_id,
+      })
+      try {
+        await onSave(form)
+        console.info('[financial-ui] submit financial entry success')
+      } catch (err) {
+        console.error('[financial-ui] submit financial entry error', err)
+        throw err
+      }
     },
     [form, onSave],
   )
+
+  // Filter templates relevant to this entry type & project kind
+  const visibleTemplates = useMemo(() => {
+    return templates.filter((t) => {
+      if (t.nature !== form.entry_type) return false
+      if (form.project_kind && t.project_kind !== 'both' && t.project_kind !== form.project_kind) {
+        return false
+      }
+      return true
+    })
+  }, [templates, form.entry_type, form.project_kind])
+
+  const applyTemplate = useCallback((templateId: string) => {
+    if (!templateId) {
+      setForm((prev) => ({ ...prev, project_financial_item_id: null }))
+      return
+    }
+    const tpl = templates.find((t) => t.id === templateId)
+    if (!tpl) return
+    setForm((prev) => ({
+      ...prev,
+      // We don't link to a project_financial_item here; just prefill from the template catalog.
+      category: tpl.category ?? tpl.name,
+      description: prev.description || tpl.name,
+      amount: tpl.default_amount ?? prev.amount,
+      expected_amount: tpl.default_amount ?? prev.expected_amount,
+      origin_source: `template:${tpl.normalized_name}`,
+    }))
+  }, [templates])
 
   return (
     <div className="fm-drawer-overlay" role="dialog" aria-modal="true" aria-label="Lançamento financeiro">
@@ -241,6 +306,62 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
               <option value="project">Projeto</option>
             </select>
           </div>
+          {form.scope_type === 'project' ? (
+            <>
+              <div className="fm-form-row">
+                <label className="fm-form-label">Tipo do Projeto</label>
+                <select
+                  className="fm-form-select"
+                  value={form.project_kind ?? ''}
+                  onChange={(e) => set('project_kind', e.target.value || null)}
+                >
+                  <option value="">Selecione…</option>
+                  <option value="leasing">Leasing</option>
+                  <option value="sale">Venda</option>
+                  <option value="buyout">Buyout</option>
+                </select>
+              </div>
+              <div className="fm-form-row">
+                <label className="fm-form-label">Proposta (UUID)</label>
+                <input
+                  className="fm-form-input"
+                  type="text"
+                  value={form.proposal_id ?? ''}
+                  onChange={(e) => set('proposal_id', e.target.value || null)}
+                  placeholder="Cole o ID da proposta"
+                />
+              </div>
+              <div className="fm-form-row">
+                <label className="fm-form-label">Cliente (ID)</label>
+                <input
+                  className="fm-form-input"
+                  type="number"
+                  step="1"
+                  value={form.client_id == null ? '' : String(form.client_id)}
+                  onChange={(e) => set('client_id', e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="Opcional"
+                />
+              </div>
+            </>
+          ) : null}
+          {visibleTemplates.length > 0 ? (
+            <div className="fm-form-row">
+              <label className="fm-form-label">Item padrão (template)</label>
+              <select
+                className="fm-form-select"
+                defaultValue=""
+                onChange={(e) => applyTemplate(e.target.value)}
+              >
+                <option value="">Selecione um item para preencher…</option>
+                {visibleTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.is_system ? '★ ' : ''}{t.name}
+                    {t.default_amount != null ? ` — ${formatCurrencyBRL(t.default_amount)}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
           <div className="fm-form-row">
             <label className="fm-form-label">Categoria</label>
             {visibleCategories.length > 0 ? (
@@ -330,8 +451,74 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
               <option value="due">A Vencer</option>
               <option value="paid">Pago</option>
               <option value="received">Recebido</option>
+              <option value="partial">Parcial</option>
               <option value="cancelled">Cancelado</option>
             </select>
+          </div>
+          <div className="fm-form-row">
+            <label className="fm-form-label">Valor previsto (R$)</label>
+            <input
+              className="fm-form-input"
+              type="number"
+              step="0.01"
+              value={form.expected_amount ?? ''}
+              onChange={(e) => set('expected_amount', e.target.value === '' ? null : parseFloat(e.target.value))}
+              placeholder="Opcional"
+            />
+          </div>
+          <div className="fm-form-row">
+            <label className="fm-form-label">Valor realizado (R$)</label>
+            <input
+              className="fm-form-input"
+              type="number"
+              step="0.01"
+              value={form.realized_amount ?? ''}
+              onChange={(e) => set('realized_amount', e.target.value === '' ? null : parseFloat(e.target.value))}
+              placeholder="Opcional"
+            />
+          </div>
+          <div className="fm-form-row">
+            <label className="fm-form-label">Vencimento</label>
+            <input
+              className="fm-form-input"
+              type="date"
+              value={form.due_date ?? ''}
+              onChange={(e) => set('due_date', e.target.value || null)}
+            />
+          </div>
+          {form.entry_type === 'income' ? (
+            <div className="fm-form-row">
+              <label className="fm-form-label">Recebimento</label>
+              <input
+                className="fm-form-input"
+                type="date"
+                value={form.receipt_date ?? ''}
+                onChange={(e) => set('receipt_date', e.target.value || null)}
+              />
+            </div>
+          ) : null}
+          <div className="fm-form-row">
+            <label className="fm-form-label">Parcela nº / total</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="fm-form-input"
+                type="number"
+                step="1"
+                min="0"
+                value={form.installment_number ?? ''}
+                onChange={(e) => set('installment_number', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                placeholder="Nº"
+              />
+              <input
+                className="fm-form-input"
+                type="number"
+                step="1"
+                min="0"
+                value={form.installment_total ?? ''}
+                onChange={(e) => set('installment_total', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                placeholder="Total"
+              />
+            </div>
           </div>
           <div className="fm-form-row fm-form-row--checkbox">
             <label className="fm-form-label">
@@ -623,7 +810,15 @@ function EntriesTab({ entries, error, onRetry, categories: _categories, onNew, o
         <SectionError message={error} onRetry={onRetry} />
       ) : filtered.length === 0 ? (
         <div className="fm-empty">
-          Nenhum lançamento encontrado. Use o botão <strong>+ Novo Lançamento</strong> acima para adicionar.
+          <p>Nenhum lançamento encontrado.</p>
+          <button
+            type="button"
+            className="primary"
+            onClick={onNew}
+            data-testid="fm-empty-new-entry-cta"
+          >
+            + Novo Lançamento
+          </button>
         </div>
       ) : (
         <div className="fm-table-wrapper">
@@ -855,6 +1050,8 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [entriesError, setEntriesError] = useState<string | null>(null)
 
   const [categories, setCategories] = useState<FinancialCategory[]>([])
+  const [templates, setTemplates] = useState<FinancialItemTemplate[]>([])
+  const [bootstrapStatus, setBootstrapStatus] = useState<string | null>(null)
 
   const [isLoading, setIsLoading] = useState(true)
 
@@ -896,12 +1093,13 @@ export function FinancialManagementPage({ onBack }: Props) {
     const params = getPeriodParams()
 
     // Load each section independently so one failure doesn't break the whole page
-    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes] = await Promise.allSettled([
+    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes, templatesRes] = await Promise.allSettled([
       fetchFinancialSummary(params),
       fetchFinancialProjects(params),
       fetchFinancialCashflow(params),
       fetchFinancialEntries(params),
       fetchFinancialCategories(),
+      fetchFinancialItemTemplates(),
     ])
 
     if (summaryRes.status === 'fulfilled') {
@@ -939,6 +1137,13 @@ export function FinancialManagementPage({ onBack }: Props) {
       // categories are non-critical; leave existing list intact
     }
 
+    if (templatesRes.status === 'fulfilled') {
+      setTemplates(templatesRes.value)
+    } else {
+      console.error('[financial-management] templates error', templatesRes.reason)
+      // templates are non-critical
+    }
+
     setIsLoading(false)
   }, [getPeriodParams])
 
@@ -946,11 +1151,17 @@ export function FinancialManagementPage({ onBack }: Props) {
     void loadData()
   }, [loadData])
 
-  const handleNewEntry = useCallback(() => {
-    console.info('[financial-ui] new entry click')
+  // Single source of truth for opening the entry drawer.
+  // Both the page-header CTA and any empty-state CTAs call this.
+  const handleOpenFinancialEntryDrawer = useCallback(() => {
+    console.info('[financial-ui] new-entry button click')
+    console.info('[financial-ui] open new-entry drawer')
     setEditingEntry(null)
     setShowEntryForm(true)
   }, [])
+
+  // Backwards-compatible alias used by existing call sites.
+  const handleNewEntry = handleOpenFinancialEntryDrawer
 
   const handleEditEntry = useCallback((entry: FinancialEntry) => {
     setEditingEntry(entry)
@@ -992,6 +1203,31 @@ export function FinancialManagementPage({ onBack }: Props) {
     setShowEntryForm(false)
     setEditingEntry(null)
   }, [])
+
+  /**
+   * Generates the planned financial structure (project_financial_items)
+   * from a proposal's payload_json. Prompts the user for the proposal id.
+   * Wired into the page-header "Gerar estrutura" CTA.
+   */
+  const handleBootstrapStructure = useCallback(async () => {
+    const proposalId = window.prompt(
+      'ID da proposta (UUID) para gerar a estrutura financeira prevista:',
+      '',
+    )?.trim()
+    if (!proposalId) return
+    setBootstrapStatus('Gerando estrutura financeira do projeto…')
+    try {
+      const result = await bootstrapProjectFinancialStructure(proposalId)
+      setBootstrapStatus(
+        `Estrutura criada (${result.project_kind}): ${result.created_count} item(ns) previsto(s) gerado(s).`,
+      )
+      await loadData()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+      console.error('[financial-management] bootstrap error', err)
+      setBootstrapStatus(`Falha ao gerar estrutura: ${msg}`)
+    }
+  }, [loadData])
 
   const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'entries', 'leasing', 'sales']
 
@@ -1043,8 +1279,34 @@ export function FinancialManagementPage({ onBack }: Props) {
               </button>
             </div>
           ) : null}
+          {/* Always-visible global CTAs (work from any tab) */}
+          <button
+            type="button"
+            className="primary"
+            onClick={handleOpenFinancialEntryDrawer}
+            data-testid="fm-new-entry-cta"
+          >
+            + Novo Lançamento
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => { void handleBootstrapStructure() }}
+            title="Gera a composição prevista (custos e receitas) a partir da proposta"
+          >
+            ⚙ Gerar estrutura do projeto
+          </button>
         </div>
       </div>
+
+      {bootstrapStatus ? (
+        <div className="fm-error" role="status" style={{ marginBottom: 12 }}>
+          {bootstrapStatus}
+          <button type="button" className="ghost" onClick={() => setBootstrapStatus(null)}>
+            Fechar
+          </button>
+        </div>
+      ) : null}
 
       {/* Tab Bar */}
       <div className="fm-tab-bar" role="tablist">
@@ -1097,6 +1359,7 @@ export function FinancialManagementPage({ onBack }: Props) {
         <EntryForm
           entry={editingEntry}
           categories={categories}
+          templates={templates}
           onSave={handleSaveEntry}
           onClose={handleCloseForm}
           isSaving={isSavingEntry}

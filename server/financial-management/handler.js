@@ -16,6 +16,18 @@ import {
   listFinancialProjects,
   getFinancialCashflow,
 } from './repository.js'
+import {
+  listFinancialItemTemplates,
+  createFinancialItemTemplate,
+  updateFinancialItemTemplate,
+  listProjectFinancialItems,
+  createProjectFinancialItem,
+  updateProjectFinancialItem,
+  deleteProjectFinancialItem,
+  bootstrapProjectFinancialStructure,
+  listReceivablePlans,
+  createReceivablePlan,
+} from './operationalRepository.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Access helpers
@@ -149,7 +161,18 @@ export async function handleFinancialEntries(req, res, { method, sendJson, reque
   if (method === 'GET' && !entryId) {
     const from = url.searchParams.get('from') ?? undefined
     const to = url.searchParams.get('to') ?? undefined
-    const data = await listFinancialEntries(sql, { from, to })
+    const proposalId = url.searchParams.get('proposal_id') ?? undefined
+    const clientId = url.searchParams.get('client_id') ?? undefined
+    const entryType = url.searchParams.get('entry_type') ?? undefined
+    const projectKind = url.searchParams.get('project_kind') ?? undefined
+    const data = await listFinancialEntries(sql, {
+      from,
+      to,
+      proposalId,
+      clientId,
+      entryType,
+      projectKind,
+    })
     sendJson(200, { data })
     return
   }
@@ -251,4 +274,202 @@ export async function handleFinancialDashboardFeed(req, res, { method, sendJson,
 
   const data = await getFinancialSummary(sql, { from, to })
   sendJson(200, { data })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET/POST/PUT /api/financial-management/templates
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleFinancialItemTemplates(req, res, { method, sendJson, requestUrl, body }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+
+  const sql = await getScopedSql(actor)
+  const url = new URL(requestUrl, 'http://localhost')
+  const pathParts = url.pathname.replace('/api/financial-management/templates', '').split('/').filter(Boolean)
+  const templateId = pathParts[0] ?? null
+
+  if (method === 'GET' && !templateId) {
+    const nature = url.searchParams.get('nature') ?? undefined
+    const projectKind = url.searchParams.get('project_kind') ?? undefined
+    const scope = url.searchParams.get('scope') ?? undefined
+    const data = await listFinancialItemTemplates(sql, { nature, projectKind, scope })
+    sendJson(200, { data })
+    return
+  }
+
+  if (method === 'POST' && !templateId) {
+    if (!body || typeof body !== 'object') {
+      sendJson(400, { error: { code: 'INVALID_BODY', message: 'Corpo da requisição inválido.' } })
+      return
+    }
+    try {
+      const data = await createFinancialItemTemplate(sql, body, getUserId(actor))
+      sendJson(201, { data })
+    } catch (err) {
+      const status = err?.statusCode ?? 500
+      sendJson(status, { error: { code: 'CREATE_FAILED', message: err?.message ?? 'Erro ao criar template.' } })
+    }
+    return
+  }
+
+  if (method === 'PUT' && templateId) {
+    if (!body || typeof body !== 'object') {
+      sendJson(400, { error: { code: 'INVALID_BODY', message: 'Corpo da requisição inválido.' } })
+      return
+    }
+    try {
+      const data = await updateFinancialItemTemplate(sql, templateId, body, getUserId(actor))
+      if (!data) {
+        sendJson(404, { error: { code: 'NOT_FOUND', message: 'Template não encontrado.' } })
+        return
+      }
+      sendJson(200, { data })
+    } catch (err) {
+      const status = err?.statusCode ?? 500
+      sendJson(status, { error: { code: 'UPDATE_FAILED', message: err?.message ?? 'Erro ao atualizar template.' } })
+    }
+    return
+  }
+
+  sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET/POST/PUT/DELETE /api/financial-management/project-items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleFinancialProjectItems(req, res, { method, sendJson, requestUrl, body }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+
+  const sql = await getScopedSql(actor)
+  const url = new URL(requestUrl, 'http://localhost')
+  const pathParts = url.pathname.replace('/api/financial-management/project-items', '').split('/').filter(Boolean)
+  const itemId = pathParts[0] ?? null
+
+  if (method === 'GET' && !itemId) {
+    const proposalId = url.searchParams.get('proposal_id') ?? undefined
+    const clientId = url.searchParams.get('client_id') ?? undefined
+    const projectKind = url.searchParams.get('project_kind') ?? undefined
+    const data = await listProjectFinancialItems(sql, { proposalId, clientId, projectKind })
+    sendJson(200, { data })
+    return
+  }
+
+  if (method === 'POST' && !itemId) {
+    if (!body || typeof body !== 'object') {
+      sendJson(400, { error: { code: 'INVALID_BODY', message: 'Corpo da requisição inválido.' } })
+      return
+    }
+    try {
+      const data = await createProjectFinancialItem(sql, body, getUserId(actor))
+      sendJson(201, { data })
+    } catch (err) {
+      const status = err?.statusCode ?? 500
+      sendJson(status, { error: { code: 'CREATE_FAILED', message: err?.message ?? 'Erro ao criar item.' } })
+    }
+    return
+  }
+
+  if (method === 'PUT' && itemId) {
+    if (!body || typeof body !== 'object') {
+      sendJson(400, { error: { code: 'INVALID_BODY', message: 'Corpo da requisição inválido.' } })
+      return
+    }
+    try {
+      const data = await updateProjectFinancialItem(sql, itemId, body, getUserId(actor))
+      if (!data) {
+        sendJson(404, { error: { code: 'NOT_FOUND', message: 'Item não encontrado.' } })
+        return
+      }
+      sendJson(200, { data })
+    } catch (err) {
+      const status = err?.statusCode ?? 500
+      sendJson(status, { error: { code: 'UPDATE_FAILED', message: err?.message ?? 'Erro ao atualizar item.' } })
+    }
+    return
+  }
+
+  if (method === 'DELETE' && itemId) {
+    const deleted = await deleteProjectFinancialItem(sql, itemId, getUserId(actor))
+    if (!deleted) {
+      sendJson(404, { error: { code: 'NOT_FOUND', message: 'Item não encontrado.' } })
+      return
+    }
+    sendJson(204, null)
+    return
+  }
+
+  sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/financial-management/projects/:proposalId/bootstrap-structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleBootstrapProjectStructure(req, res, { method, sendJson, requestUrl }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+
+  if (method !== 'POST') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  const sql = await getScopedSql(actor)
+  const url = new URL(requestUrl, 'http://localhost')
+  // path = /api/financial-management/projects/:id/bootstrap-structure
+  const match = url.pathname.match(/\/api\/financial-management\/projects\/([^/]+)\/bootstrap-structure$/)
+  const proposalId = match?.[1] ?? null
+  if (!proposalId) {
+    sendJson(400, { error: { code: 'INVALID_PATH', message: 'proposalId ausente na URL.' } })
+    return
+  }
+
+  try {
+    const data = await bootstrapProjectFinancialStructure(sql, proposalId, getUserId(actor))
+    sendJson(200, { data })
+  } catch (err) {
+    const status = err?.statusCode ?? 500
+    console.error('[financial][bootstrap] error', err)
+    sendJson(status, { error: { code: 'BOOTSTRAP_FAILED', message: err?.message ?? 'Erro ao gerar estrutura.' } })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET/POST /api/financial-management/receivable-plans
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function handleFinancialReceivablePlans(req, res, { method, sendJson, requestUrl, body }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+
+  const sql = await getScopedSql(actor)
+  const url = new URL(requestUrl, 'http://localhost')
+
+  if (method === 'GET') {
+    const proposalId = url.searchParams.get('proposal_id') ?? undefined
+    const clientId = url.searchParams.get('client_id') ?? undefined
+    const data = await listReceivablePlans(sql, { proposalId, clientId })
+    sendJson(200, { data })
+    return
+  }
+
+  if (method === 'POST') {
+    if (!body || typeof body !== 'object') {
+      sendJson(400, { error: { code: 'INVALID_BODY', message: 'Corpo da requisição inválido.' } })
+      return
+    }
+    try {
+      const data = await createReceivablePlan(sql, body, getUserId(actor))
+      sendJson(201, { data })
+    } catch (err) {
+      const status = err?.statusCode ?? 500
+      sendJson(status, { error: { code: 'CREATE_FAILED', message: err?.message ?? 'Erro ao criar plano.' } })
+    }
+    return
+  }
+
+  sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
 }

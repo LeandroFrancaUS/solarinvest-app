@@ -123,17 +123,25 @@ export interface FinancialEntry {
   subcategory: string | null
   description: string | null
   amount: number
+  expected_amount: number | null
+  realized_amount: number | null
   currency: string
   competence_date: string | null
   payment_date: string | null
-  status: 'planned' | 'due' | 'paid' | 'received' | 'cancelled'
+  due_date: string | null
+  receipt_date: string | null
+  status: 'planned' | 'due' | 'paid' | 'received' | 'partial' | 'cancelled'
   is_recurring: boolean | null
   recurrence_frequency: 'monthly' | 'quarterly' | 'yearly' | 'custom' | null
   project_kind: 'leasing' | 'sale' | 'buyout' | null
   project_id: string | null
   proposal_id: string | null
-  client_id: string | null
-  consultant_id: string | null
+  client_id: number | null
+  consultant_id: number | null
+  project_financial_item_id: string | null
+  installment_number: number | null
+  installment_total: number | null
+  origin_source: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -146,16 +154,24 @@ export interface FinancialEntryInput {
   subcategory: string | null
   description: string | null
   amount: number
+  expected_amount: number | null
+  realized_amount: number | null
   competence_date: string | null
   payment_date: string | null
-  status: 'planned' | 'due' | 'paid' | 'received' | 'cancelled'
+  due_date: string | null
+  receipt_date: string | null
+  status: 'planned' | 'due' | 'paid' | 'received' | 'partial' | 'cancelled'
   is_recurring: boolean | null
   recurrence_frequency: 'monthly' | 'quarterly' | 'yearly' | 'custom' | null
   project_kind: 'leasing' | 'sale' | 'buyout' | null
   project_id: string | null
   proposal_id: string | null
-  client_id: string | null
-  consultant_id: string | null
+  client_id: number | string | null
+  consultant_id: number | string | null
+  project_financial_item_id: string | null
+  installment_number: number | null
+  installment_total: number | null
+  origin_source: string | null
   notes: string | null
 }
 
@@ -257,5 +273,167 @@ export async function fetchFinancialCategories(): Promise<FinancialCategory[]> {
 export async function fetchFinancialDashboardFeed(params?: PeriodParams): Promise<FinancialSummary> {
   const url = buildUrl('/api/financial-management/dashboard-feed', params)
   const res = await apiFetch<{ data: FinancialSummary }>(url)
+  return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Item Templates (catálogo reutilizável)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FinancialItemTemplate {
+  id: string
+  name: string
+  normalized_name: string
+  nature: 'income' | 'expense'
+  scope: 'project' | 'company' | 'both'
+  project_kind: 'leasing' | 'sale' | 'buyout' | 'both'
+  value_mode: 'fixed' | 'variable' | 'formula' | 'manual'
+  default_amount: number | null
+  default_unit: string | null
+  formula_code: string | null
+  formula_config_json: unknown
+  category: string | null
+  is_system: boolean
+  is_active: boolean
+  can_user_edit: boolean
+  sort_order: number
+}
+
+export interface FinancialItemTemplateInput {
+  name: string
+  nature: 'income' | 'expense'
+  scope?: 'project' | 'company' | 'both'
+  project_kind?: 'leasing' | 'sale' | 'buyout' | 'both'
+  value_mode?: 'fixed' | 'variable' | 'formula' | 'manual'
+  default_amount?: number | null
+  default_unit?: string | null
+  category?: string | null
+  sort_order?: number
+}
+
+export async function fetchFinancialItemTemplates(filters?: {
+  nature?: 'income' | 'expense'
+  project_kind?: 'leasing' | 'sale' | 'buyout' | 'both'
+  scope?: 'project' | 'company' | 'both'
+}): Promise<FinancialItemTemplate[]> {
+  const url = buildUrl('/api/financial-management/templates', filters as Record<string, string | undefined>)
+  const res = await apiFetch<{ data: FinancialItemTemplate[] }>(url)
+  return res.data
+}
+
+export async function createFinancialItemTemplate(
+  data: FinancialItemTemplateInput,
+): Promise<FinancialItemTemplate> {
+  const url = buildUrl('/api/financial-management/templates')
+  const res = await apiFetch<{ data: FinancialItemTemplate }>(url, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project Financial Items (composição prevista)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ProjectFinancialItem {
+  id: string
+  proposal_id: string | null
+  client_id: number | null
+  project_kind: 'leasing' | 'sale' | 'buyout'
+  template_id: string | null
+  item_name: string
+  item_code: string | null
+  nature: 'income' | 'expense'
+  category: string
+  subcategory: string | null
+  value_mode: 'fixed' | 'variable' | 'formula' | 'manual'
+  expected_amount: number | null
+  expected_quantity: number | null
+  expected_total: number | null
+  pricing_source: string | null
+  is_required: boolean
+  is_system_generated: boolean
+  sort_order: number
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectFinancialItemInput {
+  proposal_id?: string | null
+  client_id?: number | string | null
+  project_kind: 'leasing' | 'sale' | 'buyout'
+  template_id?: string | null
+  item_name: string
+  item_code?: string | null
+  nature: 'income' | 'expense'
+  category: string
+  subcategory?: string | null
+  value_mode?: 'fixed' | 'variable' | 'formula' | 'manual'
+  expected_amount?: number | null
+  expected_quantity?: number | null
+  expected_total?: number | null
+  pricing_source?: string | null
+  is_required?: boolean
+  sort_order?: number
+  notes?: string | null
+}
+
+export async function fetchProjectFinancialItems(filters?: {
+  proposal_id?: string
+  client_id?: string | number
+  project_kind?: 'leasing' | 'sale' | 'buyout'
+}): Promise<ProjectFinancialItem[]> {
+  const params: Record<string, string | undefined> = {}
+  if (filters?.proposal_id) params.proposal_id = filters.proposal_id
+  if (filters?.client_id != null) params.client_id = String(filters.client_id)
+  if (filters?.project_kind) params.project_kind = filters.project_kind
+  const url = buildUrl('/api/financial-management/project-items', params)
+  const res = await apiFetch<{ data: ProjectFinancialItem[] }>(url)
+  return res.data
+}
+
+export async function createProjectFinancialItem(
+  data: ProjectFinancialItemInput,
+): Promise<ProjectFinancialItem> {
+  const url = buildUrl('/api/financial-management/project-items')
+  const res = await apiFetch<{ data: ProjectFinancialItem }>(url, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return res.data
+}
+
+export async function updateProjectFinancialItem(
+  id: string,
+  data: Partial<ProjectFinancialItemInput>,
+): Promise<ProjectFinancialItem> {
+  const url = buildUrl(`/api/financial-management/project-items/${id}`)
+  const res = await apiFetch<{ data: ProjectFinancialItem }>(url, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+  return res.data
+}
+
+export async function deleteProjectFinancialItem(id: string): Promise<void> {
+  const url = buildUrl(`/api/financial-management/project-items/${id}`)
+  await apiFetch<void>(url, { method: 'DELETE' })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bootstrap project structure from a proposal
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BootstrapResult {
+  project_kind: 'leasing' | 'sale' | 'buyout'
+  created_count: number
+  items: ProjectFinancialItem[]
+}
+
+export async function bootstrapProjectFinancialStructure(proposalId: string): Promise<BootstrapResult> {
+  const url = buildUrl(`/api/financial-management/projects/${proposalId}/bootstrap-structure`)
+  const res = await apiFetch<{ data: BootstrapResult }>(url, { method: 'POST' })
   return res.data
 }

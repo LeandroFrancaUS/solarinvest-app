@@ -110,6 +110,10 @@ import {
   handleFinancialEntries,
   handleFinancialCategories,
   handleFinancialDashboardFeed,
+  handleFinancialItemTemplates,
+  handleFinancialProjectItems,
+  handleBootstrapProjectStructure,
+  handleFinancialReceivablePlans,
 } from './financial-management/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
@@ -1272,6 +1276,44 @@ export default async function handler(req, res) {
       }
       const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
       await handleFinancialEntries(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
+      return
+    }
+
+    // GET|POST|PUT /api/financial-management/templates[/:id]
+    if (pathname === '/api/financial-management/templates' || pathname.startsWith('/api/financial-management/templates/')) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,PUT,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
+      await handleFinancialItemTemplates(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
+      return
+    }
+
+    // GET|POST|PUT|DELETE /api/financial-management/project-items[/:id]
+    if (pathname === '/api/financial-management/project-items' || pathname.startsWith('/api/financial-management/project-items/')) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => {
+        if (b === null) { sendNoContent(res); return }
+        sendJson(res, s, b)
+      }
+      const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
+      await handleFinancialProjectItems(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
+      return
+    }
+
+    // POST /api/financial-management/projects/:proposalId/bootstrap-structure
+    if (/^\/api\/financial-management\/projects\/[^/]+\/bootstrap-structure$/.test(pathname)) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleBootstrapProjectStructure(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET|POST /api/financial-management/receivable-plans
+    if (pathname === '/api/financial-management/receivable-plans') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      const body = method === 'POST' ? await readJsonBody(req) : undefined
+      await handleFinancialReceivablePlans(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
       return
     }
 

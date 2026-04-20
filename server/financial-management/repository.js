@@ -68,7 +68,8 @@ export async function listFinancialCategories(sql) {
  * Lists financial entries with optional date range filter (by competence_date).
  * Uses sql(text, params) to avoid broken nested-sql-in-ternary pattern on Neon.
  */
-export async function listFinancialEntries(sql, { from, to } = {}) {
+export async function listFinancialEntries(sql, options = {}) {
+  const { from, to } = options
   const fromDate = parseDate(from)
   const toDate = parseDate(to)
 
@@ -86,6 +87,27 @@ export async function listFinancialEntries(sql, { from, to } = {}) {
     conditions.push(`competence_date <= $${params.length}`)
   }
 
+  // Optional extra filters
+  if (options.proposalId) {
+    params.push(options.proposalId)
+    conditions.push(`proposal_id = $${params.length}::uuid`)
+  }
+  if (options.clientId != null && options.clientId !== '') {
+    const cidNum = Number(options.clientId)
+    if (Number.isFinite(cidNum)) {
+      params.push(Math.trunc(cidNum))
+      conditions.push(`client_id = $${params.length}`)
+    }
+  }
+  if (options.entryType) {
+    params.push(options.entryType)
+    conditions.push(`entry_type = $${params.length}`)
+  }
+  if (options.projectKind) {
+    params.push(options.projectKind)
+    conditions.push(`project_kind = $${params.length}`)
+  }
+
   const whereClause = conditions.join(' AND ')
   const queryText = `
     SELECT
@@ -96,17 +118,25 @@ export async function listFinancialEntries(sql, { from, to } = {}) {
       subcategory,
       description,
       amount::float,
+      expected_amount::float,
+      realized_amount::float,
       currency,
       competence_date::text,
       payment_date::text,
+      due_date::text,
+      receipt_date::text,
       status,
       is_recurring,
       recurrence_frequency,
       project_kind,
       project_id::text,
       proposal_id::text,
-      client_id::text,
-      consultant_id::text,
+      client_id,
+      consultant_id,
+      project_financial_item_id::text,
+      installment_number,
+      installment_total,
+      origin_source,
       notes,
       created_by_user_id,
       created_at,
@@ -149,17 +179,25 @@ export async function getFinancialEntryById(sql, id) {
       subcategory,
       description,
       amount::float,
+      expected_amount::float,
+      realized_amount::float,
       currency,
       competence_date::text,
       payment_date::text,
+      due_date::text,
+      receipt_date::text,
       status,
       is_recurring,
       recurrence_frequency,
       project_kind,
       project_id::text,
       proposal_id::text,
-      client_id::text,
-      consultant_id::text,
+      client_id,
+      consultant_id,
+      project_financial_item_id::text,
+      installment_number,
+      installment_total,
+      origin_source,
       notes,
       created_by_user_id,
       created_at,
@@ -184,9 +222,13 @@ export async function createFinancialEntry(sql, data, userId) {
     subcategory = null,
     description = null,
     amount = 0,
+    expected_amount = null,
+    realized_amount = null,
     currency = 'BRL',
     competence_date = null,
     payment_date = null,
+    due_date = null,
+    receipt_date = null,
     status = 'planned',
     is_recurring = false,
     recurrence_frequency = null,
@@ -195,35 +237,70 @@ export async function createFinancialEntry(sql, data, userId) {
     proposal_id = null,
     client_id = null,
     consultant_id = null,
+    project_financial_item_id = null,
+    installment_number = null,
+    installment_total = null,
+    origin_source = null,
     notes = null,
   } = data
+
+  const toBigInt = (v) => {
+    if (v == null || v === '') return null
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.trunc(n) : null
+  }
+  const toFloatOrNull = (v) => {
+    if (v == null || v === '') return null
+    const n = parseFloat(String(v))
+    return Number.isFinite(n) ? n : null
+  }
+  const toIntOrNull = (v) => {
+    if (v == null || v === '') return null
+    const n = parseInt(String(v), 10)
+    return Number.isFinite(n) ? n : null
+  }
 
   const rows = await sql`
     INSERT INTO financial_entries (
       entry_type, scope_type, category, subcategory, description,
-      amount, currency, competence_date, payment_date, status,
-      is_recurring, recurrence_frequency, project_kind,
+      amount, expected_amount, realized_amount, currency,
+      competence_date, payment_date, due_date, receipt_date,
+      status, is_recurring, recurrence_frequency, project_kind,
       project_id, proposal_id, client_id, consultant_id,
-      notes, created_by_user_id, updated_by_user_id
+      project_financial_item_id, installment_number, installment_total,
+      origin_source, notes,
+      created_by_user_id, updated_by_user_id
     ) VALUES (
       ${entry_type}, ${scope_type}, ${category}, ${subcategory}, ${description},
-      ${amount}, ${currency},
+      ${amount},
+      ${toFloatOrNull(expected_amount)},
+      ${toFloatOrNull(realized_amount)},
+      ${currency},
       ${competence_date ? new Date(competence_date) : null},
       ${payment_date ? new Date(payment_date) : null},
+      ${due_date ? new Date(due_date) : null},
+      ${receipt_date ? new Date(receipt_date) : null},
       ${status},
       ${is_recurring}, ${recurrence_frequency}, ${project_kind},
       ${project_id ?? null},
       ${proposal_id ?? null},
-      ${client_id ?? null},
-      ${consultant_id ?? null},
+      ${toBigInt(client_id)},
+      ${toBigInt(consultant_id)},
+      ${project_financial_item_id ?? null},
+      ${toIntOrNull(installment_number)},
+      ${toIntOrNull(installment_total)},
+      ${origin_source},
       ${notes}, ${userId ?? null}, ${userId ?? null}
     )
     RETURNING
       id::text, entry_type, scope_type, category, subcategory, description,
-      amount::float, currency, competence_date::text, payment_date::text,
+      amount::float, expected_amount::float, realized_amount::float,
+      currency, competence_date::text, payment_date::text,
+      due_date::text, receipt_date::text,
       status, is_recurring, recurrence_frequency, project_kind,
-      project_id::text, proposal_id::text, client_id::text, consultant_id::text,
-      notes, created_at, updated_at
+      project_id::text, proposal_id::text, client_id, consultant_id,
+      project_financial_item_id::text, installment_number, installment_total,
+      origin_source, notes, created_at, updated_at
   `
   return rows[0]
 }
@@ -240,14 +317,42 @@ export async function updateFinancialEntry(sql, id, data, userId) {
     subcategory = null,
     description = null,
     amount,
+    expected_amount = null,
+    realized_amount = null,
     competence_date = null,
     payment_date = null,
+    due_date = null,
+    receipt_date = null,
     status,
     is_recurring = false,
     recurrence_frequency = null,
     project_kind = null,
+    project_id = null,
+    proposal_id = null,
+    client_id = null,
+    consultant_id = null,
+    project_financial_item_id = null,
+    installment_number = null,
+    installment_total = null,
+    origin_source = null,
     notes = null,
   } = data
+
+  const toBigInt = (v) => {
+    if (v == null || v === '') return null
+    const n = Number(v)
+    return Number.isFinite(n) ? Math.trunc(n) : null
+  }
+  const toFloatOrNull = (v) => {
+    if (v == null || v === '') return null
+    const n = parseFloat(String(v))
+    return Number.isFinite(n) ? n : null
+  }
+  const toIntOrNull = (v) => {
+    if (v == null || v === '') return null
+    const n = parseInt(String(v), 10)
+    return Number.isFinite(n) ? n : null
+  }
 
   const rows = await sql`
     UPDATE financial_entries SET
@@ -257,22 +362,37 @@ export async function updateFinancialEntry(sql, id, data, userId) {
       subcategory = ${subcategory},
       description = ${description},
       amount = ${amount},
+      expected_amount = ${toFloatOrNull(expected_amount)},
+      realized_amount = ${toFloatOrNull(realized_amount)},
       competence_date = ${competence_date ? new Date(competence_date) : null},
       payment_date = ${payment_date ? new Date(payment_date) : null},
+      due_date = ${due_date ? new Date(due_date) : null},
+      receipt_date = ${receipt_date ? new Date(receipt_date) : null},
       status = ${status},
       is_recurring = ${is_recurring},
       recurrence_frequency = ${recurrence_frequency},
       project_kind = ${project_kind},
+      project_id = ${project_id ?? null},
+      proposal_id = ${proposal_id ?? null},
+      client_id = ${toBigInt(client_id)},
+      consultant_id = ${toBigInt(consultant_id)},
+      project_financial_item_id = ${project_financial_item_id ?? null},
+      installment_number = ${toIntOrNull(installment_number)},
+      installment_total = ${toIntOrNull(installment_total)},
+      origin_source = ${origin_source},
       notes = ${notes},
       updated_by_user_id = ${userId ?? null},
       updated_at = NOW()
     WHERE id = ${id}::uuid AND deleted_at IS NULL
     RETURNING
       id::text, entry_type, scope_type, category, subcategory, description,
-      amount::float, currency, competence_date::text, payment_date::text,
+      amount::float, expected_amount::float, realized_amount::float,
+      currency, competence_date::text, payment_date::text,
+      due_date::text, receipt_date::text,
       status, is_recurring, recurrence_frequency, project_kind,
-      project_id::text, proposal_id::text, client_id::text, consultant_id::text,
-      notes, created_at, updated_at
+      project_id::text, proposal_id::text, client_id, consultant_id,
+      project_financial_item_id::text, installment_number, installment_total,
+      origin_source, notes, created_at, updated_at
   `
   return rows[0] ?? null
 }
