@@ -95,14 +95,14 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   try {
     rows = activeOnly
       ? await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
+          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           WHERE is_active = true
           ORDER BY LOWER(full_name) ASC
         `
       : await sql`
-          SELECT id, consultant_code, full_name, phone, email, document, regions,
+          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
                  linked_user_id, is_active, created_at, updated_at, created_by_user_id
           FROM public.consultants
           ORDER BY LOWER(full_name) ASC
@@ -124,7 +124,7 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
  * GET /api/consultants/picker
  * Returns a lightweight list of active consultants for use in proposal form dropdowns.
  * Accessible to any authenticated user (no privileged role required).
- * Only exposes: id, full_name, email, linked_user_id — no CPF/document.
+ * Only exposes: id, full_name, apelido, email, linked_user_id — no CPF/document.
  */
 export async function handleConsultantsPickerRequest(req, res, { sendJson, getScopedSql }) {
   const actor = await resolveActor(req)
@@ -144,7 +144,7 @@ export async function handleConsultantsPickerRequest(req, res, { sendJson, getSc
   let rows
   try {
     rows = await sql`
-      SELECT id, full_name, email, linked_user_id
+      SELECT id, full_name, apelido, email, linked_user_id
       FROM public.consultants
       WHERE is_active = true
       ORDER BY LOWER(full_name) ASC
@@ -159,7 +159,6 @@ export async function handleConsultantsPickerRequest(req, res, { sendJson, getSc
 
   sendJson(200, { consultants: rows })
 }
-
 
 /**
  * POST /api/consultants
@@ -219,14 +218,20 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   console.info('[consultants][create] regions normalized', { count: regions.length, regions })
 
+  // Derive apelido: use provided value, or default to the first word of full_name.
+  const fullNameTrimmed = String(body.full_name).trim()
+  const apelidoRaw = body.apelido != null ? String(body.apelido).trim() : null
+  const apelidoValue = apelidoRaw !== null && apelidoRaw !== '' ? apelidoRaw : (fullNameTrimmed.split(' ')[0] ?? fullNameTrimmed)
+
   const rows = await sql`
     INSERT INTO public.consultants (
-      consultant_code, full_name, phone, email, document, regions,
+      consultant_code, full_name, apelido, phone, email, document, regions,
       linked_user_id, is_active, created_by_user_id, updated_by_user_id,
       created_at, updated_at
     ) VALUES (
       ${consultantCode},
-      ${String(body.full_name).trim()},
+      ${fullNameTrimmed},
+      ${apelidoValue},
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
       ${docStr},
@@ -287,6 +292,7 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
   const rows = await sql`
     UPDATE public.consultants SET
       full_name          = ${String(body.full_name).trim()},
+      apelido            = ${body.apelido != null ? String(body.apelido).trim() || null : null},
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
       document           = ${docStr},

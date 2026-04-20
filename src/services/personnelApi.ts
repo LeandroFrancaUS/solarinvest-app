@@ -125,8 +125,15 @@ export async function deactivateInstaller(id: number): Promise<Installer> {
 export interface ConsultantPickerEntry {
   id: number
   full_name: string
+  /** Optional display nickname. Falls back to full_name when null or empty. */
+  apelido: string | null
   email: string
   linked_user_id: string | null
+}
+
+/** Returns the display name for a consultant: apelido when set, full_name otherwise. */
+export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+  return c.apelido?.trim() || c.full_name
 }
 
 /**

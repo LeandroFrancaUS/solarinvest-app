@@ -331,7 +331,7 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry } from './services/personnelApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -13236,7 +13236,7 @@ export default function App() {
           if (myConsultor) {
             const current = clienteRef.current ?? cliente
             if (!current.consultorId) {
-              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: myConsultor.full_name })
+              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: consultorDisplayName(myConsultor) })
             }
           }
         }
@@ -23018,14 +23018,14 @@ export default function App() {
               const selectedId = event.target.value
               const consultor = formConsultores.find((c) => String(c.id) === selectedId)
               handleClienteChange('consultorId', selectedId)
-              handleClienteChange('consultorNome', consultor?.full_name ?? '')
+              handleClienteChange('consultorNome', consultor ? consultorDisplayName(consultor) : '')
             }}
             aria-label="Consultor responsável"
           >
             <option value="">— Selecione um consultor —</option>
             {formConsultores.map((c) => (
               <option key={c.id} value={String(c.id)}>
-                {c.full_name}
+                {consultorDisplayName(c)}
               </option>
             ))}
           </select>
