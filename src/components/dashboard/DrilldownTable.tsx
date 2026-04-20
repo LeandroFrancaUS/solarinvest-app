@@ -96,11 +96,11 @@ export function DrilldownTable({ records }: Props) {
                 </td>
                 <td className="px-4 py-2">
                   {r.isClosed ? (
-                    <span className="inline-block rounded-full bg-ds-success/15 border border-ds-success/30 px-2 py-0.5 text-xs font-medium text-ds-success">
+                    <span className="inline-block rounded-full bg-[var(--color-success-bg)] border border-[var(--color-success-border)] px-2 py-0.5 text-xs font-medium text-ds-success">
                       Fechado
                     </span>
                   ) : (
-                    <span className="inline-block rounded-full bg-white/5 border border-ds-border px-2 py-0.5 text-xs font-medium text-ds-text-muted">
+                    <span className="inline-block rounded-full bg-ds-ghost border border-ds-border px-2 py-0.5 text-xs font-medium text-ds-text-muted">
                       Aberto
                     </span>
                   )}

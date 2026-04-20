@@ -18,12 +18,12 @@ export interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'bg-ds-border/60 text-ds-text-secondary border border-ds-border',
-  primary: 'bg-ds-primary/15 text-ds-primary border border-ds-primary/30',
-  success: 'bg-ds-success/15 text-ds-success border border-ds-success/30',
-  danger: 'bg-ds-danger/15 text-ds-danger border border-ds-danger/30',
-  warning: 'bg-ds-warning/15 text-ds-warning border border-ds-warning/30',
-  muted: 'bg-white/5 text-ds-text-muted border border-ds-border',
+  default: 'bg-ds-table-header text-ds-text-secondary border border-ds-border',
+  primary: 'bg-ds-primary-soft text-ds-primary border border-[var(--border-strong)]',
+  success: 'bg-[var(--color-success-bg)] text-ds-success border border-[var(--color-success-border)]',
+  danger: 'bg-[var(--color-error-bg)] text-ds-danger border border-[var(--color-error-border)]',
+  warning: 'bg-[var(--color-warning-bg)] text-ds-warning border border-[var(--color-warning-border)]',
+  muted: 'bg-ds-ghost text-ds-text-muted border border-ds-border',
 }
 
 const dotColors: Record<BadgeVariant, string> = {

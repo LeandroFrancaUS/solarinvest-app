@@ -42,7 +42,7 @@ export function Card({
       className={[
         'bg-ds-surface border border-ds-border rounded-xl',
         'shadow-sm',
-        hoverable ? 'transition-all duration-200 hover:bg-ds-surface-hover hover:border-ds-primary/30 hover:shadow-md cursor-pointer' : '',
+        hoverable ? 'transition-all duration-200 hover:bg-ds-surface-hover hover:border-ds-primary hover:shadow-md cursor-pointer' : '',
         paddingStyles[padding],
         className,
       ]

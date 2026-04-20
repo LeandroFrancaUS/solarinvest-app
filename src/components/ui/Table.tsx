@@ -47,9 +47,9 @@ export function Table<T>({
 
   return (
     <div className={`w-full overflow-x-auto rounded-xl border border-ds-border ${className}`}>
-      <table className="w-full text-left text-sm text-ds-text-secondary">
+      <table className="w-full text-left text-sm text-ds-text-primary">
         <thead
-          className={`border-b border-ds-border bg-ds-surface/95 text-xs font-semibold uppercase tracking-wide text-ds-text-muted backdrop-blur-sm ${
+          className={`border-b border-ds-border bg-ds-table-header text-xs font-semibold uppercase tracking-wide text-ds-text-secondary ${
             stickyHeader ? 'sticky top-0 z-10' : ''
           }`}
         >
@@ -94,13 +94,13 @@ export function Table<T>({
             data.map((row) => (
               <tr
                 key={keyExtractor(row)}
-                className="border-b border-ds-border/50 transition-colors hover:bg-ds-surface-hover/60"
+                className="border-b border-ds-border transition-colors hover:bg-ds-table-hover"
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
                     className={[
-                      'px-4 py-2.5 text-ds-text-secondary',
+                      'px-4 py-2.5 text-ds-text-primary',
                       col.align === 'right'
                         ? 'text-right'
                         : col.align === 'center'

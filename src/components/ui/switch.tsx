@@ -28,7 +28,7 @@ export const Switch: React.FC<SwitchProps> = ({
   }
 
   const baseClasses =
-    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500'
+    'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-primary)]'
   const thumbClasses =
     'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform'
 
@@ -42,7 +42,7 @@ export const Switch: React.FC<SwitchProps> = ({
       disabled={disabled}
       onClick={toggle}
       onKeyDown={handleKeyDown}
-      className={`${baseClasses} ${checked ? 'bg-emerald-500' : 'bg-gray-300'} ${className}`.trim()}
+      className={`${baseClasses} ${checked ? 'bg-ds-success' : 'bg-ds-border'} ${className}`.trim()}
     >
       <span className={`${thumbClasses} ${checked ? 'translate-x-4' : 'translate-x-1'}`} />
     </button>

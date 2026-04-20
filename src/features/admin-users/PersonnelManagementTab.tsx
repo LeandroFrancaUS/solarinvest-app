@@ -58,14 +58,14 @@ function personnelErrorMessage(err: unknown, defaultMsg: string): string {
 
 function ActiveBadge({ active }: { active: boolean }) {
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-500'}`}>
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-[var(--color-success-bg)] text-ds-success' : 'bg-ds-ghost text-ds-text-muted'}`}>
       {active ? 'Ativo' : 'Inativo'}
     </span>
   )
 }
 
 function inputCls(hasError: boolean) {
-  return `w-full rounded-lg border ${hasError ? 'border-red-400' : 'border-slate-200'} bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200`
+  return `w-full rounded-lg border ${hasError ? 'border-ds-danger' : 'border-ds-border'} bg-ds-input-bg text-ds-text-primary px-3 py-2 text-sm placeholder:text-ds-text-muted focus:border-ds-primary focus:outline-none focus:ring-2 focus:ring-[var(--input-focus-ring)]`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,30 +83,30 @@ function OverwriteConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <h3 className="text-sm font-semibold text-slate-900 mb-2">Campos já preenchidos</h3>
-        <p className="text-sm text-slate-600 mb-5">
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-ds-border bg-ds-surface p-6 shadow-2xl">
+        <h3 className="text-sm font-semibold text-ds-text-primary mb-2">Campos já preenchidos</h3>
+        <p className="text-sm text-ds-text-secondary mb-5">
           Deseja importar apenas os campos vazios ou substituir os dados já preenchidos?
         </p>
         <div className="flex flex-col gap-2">
           <button
             type="button"
             onClick={onFillEmpty}
-            className="w-full rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+            className="w-full rounded-lg bg-ds-primary px-4 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover"
           >
             Preencher apenas campos vazios
           </button>
           <button
             type="button"
             onClick={onOverwrite}
-            className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="w-full rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover"
           >
             Substituir dados existentes
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="w-full rounded-lg px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+            className="w-full rounded-lg px-4 py-2 text-sm text-ds-text-muted hover:text-ds-text-primary"
           >
             Cancelar importação
           </button>
@@ -282,16 +282,16 @@ function ConsultantModal({
       )}
 
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl max-h-screen overflow-y-auto">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-ds-border bg-ds-surface p-6 shadow-xl max-h-screen overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-ds-text-primary">
               {editing ? 'Editar Consultor' : 'Adicionar Consultor'}
             </h2>
             <div className="flex gap-1.5">
               <button
                 type="button"
                 onClick={() => setShowImportModal(true)}
-                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+                className="rounded-lg border border-ds-border px-2.5 py-1.5 text-xs font-medium text-ds-text-secondary hover:bg-ds-ghost-hover hover:border-ds-primary flex items-center gap-1"
                 title="Importar dados de usuário ou cliente existente"
               >
                 <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -302,20 +302,20 @@ function ConsultantModal({
             </div>
           </div>
           {editing && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-              <span className="text-slate-500">ID gerado:</span>
-              <span className="font-mono font-semibold text-amber-700">{editing.consultant_code}</span>
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-ds-ghost px-3 py-2 text-sm">
+              <span className="text-ds-text-muted">ID gerado:</span>
+              <span className="font-mono font-semibold text-ds-primary">{editing.consultant_code}</span>
             </div>
           )}
           {!editing && (
-            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            <p className="mb-4 text-xs text-ds-text-muted rounded-lg bg-ds-primary-soft px-3 py-2">
               O ID será gerado automaticamente pelo sistema ao salvar.
             </p>
           )}
           <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nome completo <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Nome completo <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="text"
@@ -323,11 +323,11 @@ function ConsultantModal({
                 onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
                 className={inputCls(Boolean(errors.full_name))}
               />
-              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+              {errors.full_name && <p className="mt-1 text-xs text-ds-danger">{errors.full_name}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                CPF/CNPJ <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                CPF/CNPJ <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="text"
@@ -336,11 +336,11 @@ function ConsultantModal({
                 placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
                 className={inputCls(Boolean(errors.document))}
               />
-              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+              {errors.document && <p className="mt-1 text-xs text-ds-danger">{errors.document}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Telefone <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Telefone <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="tel"
@@ -348,11 +348,11 @@ function ConsultantModal({
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 className={inputCls(Boolean(errors.phone))}
               />
-              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+              {errors.phone && <p className="mt-1 text-xs text-ds-danger">{errors.phone}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                E-mail <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                E-mail <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="email"
@@ -360,11 +360,11 @@ function ConsultantModal({
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 className={inputCls(Boolean(errors.email))}
               />
-              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+              {errors.email && <p className="mt-1 text-xs text-ds-danger">{errors.email}</p>}
             </div>
             <div>
-              <p className="block text-sm font-medium text-slate-700 mb-2">
-                Regiões (UF) <span className="text-red-500">*</span>
+              <p className="block text-sm font-medium text-ds-text-secondary mb-2">
+                Regiões (UF) <span className="text-ds-danger">*</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {BRAZIL_UFS.map((uf) => (
@@ -374,24 +374,24 @@ function ConsultantModal({
                     onClick={() => toggleRegion(uf)}
                     className={`rounded px-2 py-0.5 text-xs font-medium border ${
                       form.regions.includes(uf)
-                        ? 'bg-amber-500 text-white border-amber-500'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                        ? 'bg-ds-primary text-white border-ds-primary'
+                        : 'bg-ds-surface text-ds-text-secondary border-ds-border hover:border-ds-primary'
                     }`}
                   >
                     {uf}
                   </button>
                 ))}
               </div>
-              {errors.regions && <p className="mt-1 text-xs text-red-600">{errors.regions}</p>}
+              {errors.regions && <p className="mt-1 text-xs text-ds-danger">{errors.regions}</p>}
             </div>
             {saveError && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+              <p className="rounded-lg bg-[var(--color-error-bg)] px-3 py-2 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{saveError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover disabled:opacity-50">
                 Cancelar
               </button>
-              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="rounded-lg bg-ds-primary px-4 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover disabled:opacity-50">
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
@@ -558,15 +558,15 @@ function EngineerModal({
       )}
 
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-ds-border bg-ds-surface p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-ds-text-primary">
               {editing ? 'Editar Engenheiro' : 'Adicionar Engenheiro'}
             </h2>
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+              className="rounded-lg border border-ds-border px-2.5 py-1.5 text-xs font-medium text-ds-text-secondary hover:bg-ds-ghost-hover hover:border-ds-primary flex items-center gap-1"
               title="Importar dados de usuário ou cliente existente"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -576,27 +576,27 @@ function EngineerModal({
             </button>
           </div>
           {editing && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-              <span className="text-slate-500">ID gerado:</span>
-              <span className="font-mono font-semibold text-amber-700">{editing.engineer_code}</span>
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-ds-ghost px-3 py-2 text-sm">
+              <span className="text-ds-text-muted">ID gerado:</span>
+              <span className="font-mono font-semibold text-ds-primary">{editing.engineer_code}</span>
             </div>
           )}
           {!editing && (
-            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            <p className="mb-4 text-xs text-ds-text-muted rounded-lg bg-ds-primary-soft px-3 py-2">
               O ID será gerado automaticamente pelo sistema ao salvar.
             </p>
           )}
           <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nome completo <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Nome completo <span className="text-ds-danger">*</span>
               </label>
               <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
-              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+              {errors.full_name && <p className="mt-1 text-xs text-ds-danger">{errors.full_name}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                CPF/CNPJ <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                CPF/CNPJ <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="text"
@@ -605,35 +605,35 @@ function EngineerModal({
                 placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
                 className={inputCls(Boolean(errors.document))}
               />
-              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+              {errors.document && <p className="mt-1 text-xs text-ds-danger">{errors.document}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Telefone <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Telefone <span className="text-ds-danger">*</span>
               </label>
               <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
-              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+              {errors.phone && <p className="mt-1 text-xs text-ds-danger">{errors.phone}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                E-mail <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                E-mail <span className="text-ds-danger">*</span>
               </label>
               <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
-              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+              {errors.email && <p className="mt-1 text-xs text-ds-danger">{errors.email}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                CREA <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                CREA <span className="text-ds-danger">*</span>
               </label>
               <input type="text" value={form.crea} onChange={(e) => setForm((f) => ({ ...f, crea: e.target.value }))} placeholder="ex: CREA-SP 123456" className={inputCls(Boolean(errors.crea))} />
-              {errors.crea && <p className="mt-1 text-xs text-red-600">{errors.crea}</p>}
+              {errors.crea && <p className="mt-1 text-xs text-ds-danger">{errors.crea}</p>}
             </div>
             {saveError && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+              <p className="rounded-lg bg-[var(--color-error-bg)] px-3 py-2 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{saveError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-ds-primary px-4 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover disabled:opacity-50">
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
@@ -792,15 +792,15 @@ function InstallerModal({
       )}
 
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-ds-border bg-ds-surface p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-ds-text-primary">
               {editing ? 'Editar Instalador' : 'Adicionar Instalador'}
             </h2>
             <button
               type="button"
               onClick={() => setShowImportModal(true)}
-              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+              className="rounded-lg border border-ds-border px-2.5 py-1.5 text-xs font-medium text-ds-text-secondary hover:bg-ds-ghost-hover hover:border-ds-primary flex items-center gap-1"
               title="Importar dados de usuário ou cliente existente"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -810,27 +810,27 @@ function InstallerModal({
             </button>
           </div>
           {editing && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-              <span className="text-slate-500">ID gerado:</span>
-              <span className="font-mono font-semibold text-amber-700">{editing.installer_code}</span>
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-ds-ghost px-3 py-2 text-sm">
+              <span className="text-ds-text-muted">ID gerado:</span>
+              <span className="font-mono font-semibold text-ds-primary">{editing.installer_code}</span>
             </div>
           )}
           {!editing && (
-            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+            <p className="mb-4 text-xs text-ds-text-muted rounded-lg bg-ds-primary-soft px-3 py-2">
               O ID será gerado automaticamente pelo sistema ao salvar.
             </p>
           )}
           <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Nome completo <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Nome completo <span className="text-ds-danger">*</span>
               </label>
               <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
-              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+              {errors.full_name && <p className="mt-1 text-xs text-ds-danger">{errors.full_name}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                CPF/CNPJ <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                CPF/CNPJ <span className="text-ds-danger">*</span>
               </label>
               <input
                 type="text"
@@ -839,28 +839,28 @@ function InstallerModal({
                 placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
                 className={inputCls(Boolean(errors.document))}
               />
-              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+              {errors.document && <p className="mt-1 text-xs text-ds-danger">{errors.document}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Telefone <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                Telefone <span className="text-ds-danger">*</span>
               </label>
               <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
-              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+              {errors.phone && <p className="mt-1 text-xs text-ds-danger">{errors.phone}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                E-mail <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                E-mail <span className="text-ds-danger">*</span>
               </label>
               <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
-              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+              {errors.email && <p className="mt-1 text-xs text-ds-danger">{errors.email}</p>}
             </div>
             {saveError && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+              <p className="rounded-lg bg-[var(--color-error-bg)] px-3 py-2 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{saveError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
-              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-ds-primary px-4 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover disabled:opacity-50">
                 {saving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
@@ -888,16 +888,16 @@ function ConfirmDeactivateModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-base font-semibold text-slate-900 mb-2">Desativar</h2>
-        <p className="text-sm text-slate-600 mb-4">
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-ds-border bg-ds-surface p-6 shadow-xl">
+        <h2 className="text-base font-semibold text-ds-text-primary mb-2">Desativar</h2>
+        <p className="text-sm text-ds-text-secondary mb-4">
           Desativar <strong>{name}</strong>? O registro será preservado para histórico, mas não aparecerá em novos cadastros.
         </p>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancel} disabled={loading} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+          <button type="button" onClick={onCancel} disabled={loading} className="rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover disabled:opacity-50">
             Cancelar
           </button>
-          <button type="button" onClick={onConfirm} disabled={loading} className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50">
+          <button type="button" onClick={onConfirm} disabled={loading} className="rounded-lg bg-ds-danger px-4 py-2 text-sm font-medium text-white hover:bg-ds-danger-hover disabled:opacity-50">
             {loading ? 'Desativando...' : 'Desativar'}
           </button>
         </div>
@@ -989,58 +989,58 @@ export function ConsultantsTab() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
           />
-          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-ds-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
         </div>
         <button
           type="button"
           onClick={() => { setEditing(null); setShowModal(true) }}
-          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          className="rounded-lg bg-ds-primary px-3 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover"
         >
           ＋ Adicionar Consultor
         </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
+        <div className="mb-3 rounded-lg bg-[var(--color-error-bg)] px-4 py-3 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{error}</div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <div className="overflow-x-auto rounded-xl border border-ds-border">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left">
+          <thead className="bg-ds-table-header text-left">
             <tr>
-              <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Regiões</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Status</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Ações</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">ID</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Nome</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">CPF/CNPJ</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Telefone</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">E-mail</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Regiões</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Status</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ds-border">
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Nenhum consultor encontrado.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Nenhum consultor encontrado.</td></tr>
             ) : (
               filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.consultant_code}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{c.full_name}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{c.document ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.phone}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.email}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{(c.regions ?? []).join(', ') || '—'}</td>
+                <tr key={c.id} className="hover:bg-ds-table-hover">
+                  <td className="px-4 py-3 font-mono text-xs text-ds-text-muted">{c.consultant_code}</td>
+                  <td className="px-4 py-3 font-medium text-ds-text-primary">{c.full_name}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary text-xs">{c.document ?? '—'}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{c.phone}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{c.email}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary text-xs">{(c.regions ?? []).join(', ') || '—'}</td>
                   <td className="px-4 py-3"><ActiveBadge active={c.is_active} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => { setEditing(c); setShowModal(true) }}
-                        className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                        className="rounded px-2 py-1 text-xs font-medium text-ds-primary hover:bg-ds-primary-soft"
                       >
                         Editar
                       </button>
@@ -1048,7 +1048,7 @@ export function ConsultantsTab() {
                         <button
                           type="button"
                           onClick={() => setDeactivating(c)}
-                          className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded px-2 py-1 text-xs font-medium text-ds-danger hover:bg-ds-ghost"
                         >
                           Desativar
                         </button>
@@ -1061,7 +1061,7 @@ export function ConsultantsTab() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-400">{filtered.length} consultor(es)</p>
+      <p className="mt-2 text-xs text-ds-text-muted">{filtered.length} consultor(es)</p>
     </div>
   )
 }
@@ -1148,58 +1148,58 @@ export function EngineersTab() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
           />
-          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-ds-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
         </div>
         <button
           type="button"
           onClick={() => { setEditing(null); setShowModal(true) }}
-          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          className="rounded-lg bg-ds-primary px-3 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover"
         >
           ＋ Adicionar Engenheiro
         </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
+        <div className="mb-3 rounded-lg bg-[var(--color-error-bg)] px-4 py-3 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{error}</div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <div className="overflow-x-auto rounded-xl border border-ds-border">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left">
+          <thead className="bg-ds-table-header text-left">
             <tr>
-              <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">CREA</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Status</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Ações</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">ID</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Nome</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">CPF/CNPJ</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Telefone</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">E-mail</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">CREA</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Status</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ds-border">
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-slate-400">Nenhum engenheiro encontrado.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-ds-text-muted">Nenhum engenheiro encontrado.</td></tr>
             ) : (
               filtered.map((eng) => (
-                <tr key={eng.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{eng.engineer_code}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{eng.full_name}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{eng.document ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{eng.phone}</td>
-                  <td className="px-4 py-3 text-slate-600">{eng.email}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{eng.crea}</td>
+                <tr key={eng.id} className="hover:bg-ds-table-hover">
+                  <td className="px-4 py-3 font-mono text-xs text-ds-text-muted">{eng.engineer_code}</td>
+                  <td className="px-4 py-3 font-medium text-ds-text-primary">{eng.full_name}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary text-xs">{eng.document ?? '—'}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{eng.phone}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{eng.email}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary text-xs">{eng.crea}</td>
                   <td className="px-4 py-3"><ActiveBadge active={eng.is_active} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => { setEditing(eng); setShowModal(true) }}
-                        className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                        className="rounded px-2 py-1 text-xs font-medium text-ds-primary hover:bg-ds-primary-soft"
                       >
                         Editar
                       </button>
@@ -1207,7 +1207,7 @@ export function EngineersTab() {
                         <button
                           type="button"
                           onClick={() => setDeactivating(eng)}
-                          className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded px-2 py-1 text-xs font-medium text-ds-danger hover:bg-ds-ghost"
                         >
                           Desativar
                         </button>
@@ -1220,7 +1220,7 @@ export function EngineersTab() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-400">{filtered.length} engenheiro(s)</p>
+      <p className="mt-2 text-xs text-ds-text-muted">{filtered.length} engenheiro(s)</p>
     </div>
   )
 }
@@ -1306,56 +1306,56 @@ export function InstallersTab() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 pl-9 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
           />
-          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-ds-text-muted" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
         </div>
         <button
           type="button"
           onClick={() => { setEditing(null); setShowModal(true) }}
-          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          className="rounded-lg bg-ds-primary px-3 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover"
         >
           ＋ Adicionar Instalador
         </button>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</div>
+        <div className="mb-3 rounded-lg bg-[var(--color-error-bg)] px-4 py-3 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{error}</div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <div className="overflow-x-auto rounded-xl border border-ds-border">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left">
+          <thead className="bg-ds-table-header text-left">
             <tr>
-              <th className="px-4 py-3 font-semibold text-slate-600">ID</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Nome</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">CPF/CNPJ</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Telefone</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">E-mail</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Status</th>
-              <th className="px-4 py-3 font-semibold text-slate-600">Ações</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">ID</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Nome</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">CPF/CNPJ</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Telefone</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">E-mail</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Status</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-ds-border">
             {loading ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Carregando...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-400">Nenhum instalador encontrado.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-ds-text-muted">Nenhum instalador encontrado.</td></tr>
             ) : (
               filtered.map((ins) => (
-                <tr key={ins.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{ins.installer_code}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{ins.full_name}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{ins.document ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">{ins.phone}</td>
-                  <td className="px-4 py-3 text-slate-600">{ins.email}</td>
+                <tr key={ins.id} className="hover:bg-ds-table-hover">
+                  <td className="px-4 py-3 font-mono text-xs text-ds-text-muted">{ins.installer_code}</td>
+                  <td className="px-4 py-3 font-medium text-ds-text-primary">{ins.full_name}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary text-xs">{ins.document ?? '—'}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{ins.phone}</td>
+                  <td className="px-4 py-3 text-ds-text-secondary">{ins.email}</td>
                   <td className="px-4 py-3"><ActiveBadge active={ins.is_active} /></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => { setEditing(ins); setShowModal(true) }}
-                        className="rounded px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50"
+                        className="rounded px-2 py-1 text-xs font-medium text-ds-primary hover:bg-ds-primary-soft"
                       >
                         Editar
                       </button>
@@ -1363,7 +1363,7 @@ export function InstallersTab() {
                         <button
                           type="button"
                           onClick={() => setDeactivating(ins)}
-                          className="rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          className="rounded px-2 py-1 text-xs font-medium text-ds-danger hover:bg-ds-ghost"
                         >
                           Desativar
                         </button>
@@ -1376,7 +1376,7 @@ export function InstallersTab() {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-400">{filtered.length} instalador(es)</p>
+      <p className="mt-2 text-xs text-ds-text-muted">{filtered.length} instalador(es)</p>
     </div>
   )
 }

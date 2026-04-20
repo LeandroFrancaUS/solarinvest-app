@@ -13,17 +13,17 @@
 
 /* === LAYOUT GERAL === */
 .config-page {
-  /* Mapeamento interno: --cfg-* → tokens globais do design system */
-  --cfg-bg: var(--bg);
-  --cfg-surface: var(--surface);
-  --cfg-border: var(--border);
-  --cfg-text: var(--text-strong);
-  --cfg-muted: var(--text-base);
+  /* Mapeamento interno: --cfg-* → tokens semânticos do design system */
+  --cfg-bg: var(--bg-app);
+  --cfg-surface: var(--bg-surface);
+  --cfg-border: var(--border-default);
+  --cfg-text: var(--text-primary);
+  --cfg-muted: var(--text-secondary);
   --cfg-subtle: var(--text-muted);
-  --cfg-accent: var(--accent);
-  --cfg-accent-contrast: #ffffff;
+  --cfg-accent: var(--color-primary);
+  --cfg-accent-contrast: var(--text-inverse);
   --cfg-accent-soft: var(--accent-soft);
-  --cfg-focus: var(--accent);
+  --cfg-focus: var(--color-primary);
   --cfg-danger: var(--ds-danger, #FF4D4F);
 
   background: var(--cfg-bg);
@@ -40,7 +40,7 @@
   background: var(--cfg-surface);
   border: 1px solid var(--cfg-border);
   border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .config-page .config-card {
@@ -58,7 +58,7 @@
   background: var(--cfg-surface);
   border: 1px solid var(--cfg-border);
   border-radius: 14px;
-  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+  box-shadow: var(--shadow-sm);
   padding: clamp(16px, 4vw, 24px);
 }
 
@@ -73,8 +73,8 @@
   padding: 8px;
   background: var(--cfg-surface);
   border: 1px solid var(--cfg-border);
-  border-radius: 999px;
-  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
   overflow-x: auto;
   flex-wrap: wrap;
 }
@@ -89,7 +89,7 @@
   user-select: none;
   cursor: pointer;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 10px 16px;
   background: transparent;
   color: var(--cfg-muted);
@@ -107,7 +107,7 @@
 
 .cfg-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.35);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
 
 .cfg-tab[aria-selected='true'],
@@ -115,7 +115,7 @@
   background: var(--cfg-accent);
   color: var(--cfg-accent-contrast);
   border-color: var(--cfg-accent);
-  box-shadow: 0 6px 14px rgba(45, 140, 255, 0.3);
+  box-shadow: 0 6px 14px var(--accent-soft);
 }
 
 .cfg-tab[aria-disabled='true'] {
@@ -137,7 +137,7 @@
 }
 
 .cfg-tab[aria-selected='true']::after {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--cfg-accent-contrast);
 }
 
 .cfg-tab:hover::after {
@@ -151,7 +151,7 @@
   border-radius: 12px;
   background: var(--cfg-accent-soft);
   color: var(--cfg-text);
-  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .payment-highlight-card__badge {
@@ -246,12 +246,12 @@
 .configuracao-usina-card__toggle {
   appearance: none;
   border: 1px solid var(--cfg-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--cfg-text);
-  background: var(--surface);
+  background: var(--bg-surface);
   cursor: pointer;
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
     box-shadow 0.2s ease;
@@ -261,7 +261,7 @@
 .configuracao-usina-card__toggle:focus-visible {
   border-color: var(--cfg-accent);
   color: var(--cfg-accent);
-  box-shadow: 0 0 0 2px rgba(13, 71, 161, 0.15);
+  box-shadow: 0 0 0 2px var(--input-focus-ring);
   outline: none;
 }
 
@@ -297,12 +297,12 @@
   appearance: none;
   width: 100%;
   background: var(--input-bg);
-  border: 1px solid var(--cfg-border);
+  border: 1px solid var(--input-border);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
-  color: var(--cfg-text);
-  box-shadow: 0 1px 0 rgba(2, 6, 23, 0.02) inset;
+  color: var(--input-text);
+  box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -313,7 +313,7 @@
 .cfg-input:focus-visible {
   outline: none;
   border-color: var(--cfg-focus);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
 }
 
 /* === CARTÕES INTERNOS === */
@@ -326,7 +326,7 @@
 .config-page .simulations-scenario-card {
   background: var(--cfg-surface);
   border: 1px solid var(--cfg-border);
-  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
+  box-shadow: var(--shadow-sm);
 }
 
 .config-page .settings-vendas-card {
