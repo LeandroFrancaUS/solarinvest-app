@@ -1274,6 +1274,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
 
   const dados: ClienteDados = {
     nome: row.name,
+    apelido: (meta.apelido as string | undefined) ?? '',
     // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
     // when the formatted field was not set (older records).
     documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
@@ -1556,6 +1557,7 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
+  apelido: '',
   documento: '',
   rg: '',
   estadoCivil: '',
@@ -2625,6 +2627,7 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'criadoEm', label: 'criado_em' },
   { key: 'atualizadoEm', label: 'atualizado_em' },
   { key: 'nome', label: 'nome' },
+  { key: 'apelido', label: 'apelido' },
   { key: 'documento', label: 'documento' },
   { key: 'rg', label: 'rg' },
   { key: 'estadoCivil', label: 'estado_civil' },
@@ -2641,6 +2644,8 @@ const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
   { key: 'uf', label: 'uf' },
   { key: 'temIndicacao', label: 'tem_indicacao' },
   { key: 'indicacaoNome', label: 'indicacao_nome' },
+  { key: 'consultorId', label: 'consultor_id' },
+  { key: 'consultorNome', label: 'consultor_nome' },
   { key: 'nomeSindico', label: 'nome_sindico' },
   { key: 'cpfSindico', label: 'cpf_sindico' },
   { key: 'contatoSindico', label: 'contato_sindico' },
@@ -2671,6 +2676,8 @@ const CSV_HEADER_KEY_MAP: Record<string, string> = {
   nome: 'nome',
   cliente: 'nome',
   razaosocial: 'nome',
+  apelido: 'apelido',
+  nickname: 'apelido',
   document: 'documento',
   documento: 'documento',
   cpfcnpj: 'documento',
@@ -2693,6 +2700,11 @@ const CSV_HEADER_KEY_MAP: Record<string, string> = {
   uf: 'uf',
   temindicacao: 'temIndicacao',
   indicacaonome: 'indicacaoNome',
+  consultorid: 'consultorId',
+  consultor_id: 'consultorId',
+  consultornome: 'consultorNome',
+  consultor_nome: 'consultorNome',
+  consultor: 'consultorNome',
   nomesindico: 'nomeSindico',
   cpfsindico: 'cpfSindico',
   contatosindico: 'contatoSindico',
@@ -7303,6 +7315,7 @@ export default function App() {
   useEffect(() => {
     vendaActions.updateCliente({
       nome: cliente.nome ?? '',
+      apelido: cliente.apelido ?? '',
       documento: cliente.documento ?? '',
       email: cliente.email ?? '',
       telefone: cliente.telefone ?? '',
@@ -22154,6 +22167,18 @@ export default function App() {
               handleClienteChange('nome', e.target.value)
               clearFieldHighlight(e.currentTarget)
             }}
+          />
+        </Field>
+        <Field
+          label={labelWithTooltip(
+            'Apelido',
+            'Nome pelo qual o cliente é conhecido. Usado como identificação informal em comunicações e listas.',
+          )}
+        >
+          <input
+            value={cliente.apelido}
+            onChange={(e) => handleClienteChange('apelido', e.target.value)}
+            placeholder="Nome informal ou apelido"
           />
         </Field>
         <Field

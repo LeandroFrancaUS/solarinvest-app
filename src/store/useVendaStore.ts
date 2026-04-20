@@ -8,6 +8,7 @@ export type ModoVenda = 'direta' | 'leasing'
 
 export type VendaClienteInfo = {
   nome: string
+  apelido: string
   documento: string
   email: string
   telefone: string
@@ -129,6 +130,7 @@ const canUseSessionStorage = (): boolean =>
 const createInitialState = (): VendaState => ({
   cliente: {
     nome: '',
+    apelido: '',
     documento: '',
     email: '',
     telefone: '',
