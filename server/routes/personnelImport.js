@@ -86,7 +86,7 @@ export async function handlePersonnelImportableUsers(req, res, { sendJson, getSc
       profiles = await sql`
         SELECT user_access_id, phone
         FROM public.app_user_profiles
-        WHERE user_access_id = ANY(${sql.array(ids)})
+        WHERE user_access_id = ANY(${ids})
       `
     }
   } catch {
