@@ -28,7 +28,7 @@ const createBaseAnaliseInput = (overrides: Partial<AnaliseFinanceiraInput> = {})
   inadimplencia_percent: 2,
   custo_operacional_percent: 3,
   meses_projecao: 60,
-  mensalidades_previstas_rs: Array(60).fill(1000),
+  mensalidades_previstas_rs: Array<number>(60).fill(1000),
   investimento_inicial_rs: 20000,
   ...overrides,
 })

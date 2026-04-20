@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import tsPlugin from '@typescript-eslint/eslint-plugin'
 import tsParser from '@typescript-eslint/parser'
 import importPlugin from 'eslint-plugin-import'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,7 +18,24 @@ const tsRecommended = tsPlugin.configs['recommended-type-checked']
 
 export default [
   {
-    ignores: ['dist', 'node_modules', 'coverage'],
+    ignores: [
+      'dist',
+      'node_modules',
+      'coverage',
+      // Separate sub-projects with their own tsconfig/eslint setups
+      'backend/**',
+      'frontend/**',
+      'my-neon-app/**',
+      // Vendor files
+      'public/vendor/**',
+      // Standalone utility scripts and CLI tools not part of main app
+      'cli/**',
+      'scripts/grant-admin.ts',
+      'scripts/grant-role.ts',
+      // Root-level mjs utility scripts
+      'test-neon-connection.mjs',
+      'server/pdf-generate-leasing.mjs',
+    ],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
@@ -34,6 +52,7 @@ export default [
     plugins: {
       '@typescript-eslint': tsPlugin,
       import: importPlugin,
+      'react-hooks': reactHooksPlugin,
     },
     rules: {
       ...tsRecommended.rules,
@@ -44,7 +63,7 @@ export default [
   {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     languageOptions: {
-      ecmaVersion: 2021,
+      ecmaVersion: 2022,
       sourceType: 'module',
     },
     plugins: {

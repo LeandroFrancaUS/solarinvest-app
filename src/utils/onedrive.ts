@@ -229,7 +229,7 @@ const extractOneDrivePayload = (result: OneDriveLoadBridgeResult): unknown => {
   return result ?? null
 }
 
-export const loadClientesFromOneDrive = async (): Promise<unknown | null> => {
+export const loadClientesFromOneDrive = async (): Promise<unknown> => {
   const bridge = resolveOneDriveLoadBridge()
   if (bridge) {
     try {
@@ -266,7 +266,7 @@ export const loadClientesFromOneDrive = async (): Promise<unknown | null> => {
   throw new OneDriveIntegrationMissingError()
 }
 
-export const loadPropostasFromOneDrive = async (): Promise<unknown | null> => {
+export const loadPropostasFromOneDrive = async (): Promise<unknown> => {
   const bridge = resolveProposalsLoadBridge()
   if (bridge) {
     try {

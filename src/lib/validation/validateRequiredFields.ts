@@ -6,7 +6,7 @@ export type RequiredClientField = {
 }
 
 export function normalizeText(value: unknown): string {
-  return String(value ?? '').trim()
+  return String(value as string | number | boolean | bigint ?? '').trim()
 }
 
 export function isMissing(value: unknown): boolean {

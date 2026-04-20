@@ -275,6 +275,22 @@ const loadStoredState = (): LeasingState => {
   }
 }
 
+const cloneState = (input: LeasingState): LeasingState => ({
+  ...input,
+  dadosTecnicos: { ...input.dadosTecnicos },
+  projecao: {
+    mensalidadesAno: input.projecao.mensalidadesAno.map((item) => ({ ...item })),
+    economiaProjetada: input.projecao.economiaProjetada.map((item) => ({ ...item })),
+  },
+  contrato: {
+    ...input.contrato,
+    proprietarios: input.contrato.proprietarios.map((item) => ({ ...item })),
+    ucGeradoraTitular: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitular),
+    ucGeradoraTitularDraft: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitularDraft),
+    corresponsavel: cloneCorresponsavel(input.contrato.corresponsavel),
+  },
+})
+
 const persistState = (next: LeasingState) => {
   if (!canUseSessionStorage()) {
     return
@@ -293,22 +309,6 @@ const persistState = (next: LeasingState) => {
 
 let state: LeasingState = isCrashRecovery() ? loadStoredState() : createInitialState()
 const INITIAL_STATE_SIGNATURE = JSON.stringify(createInitialState())
-
-const cloneState = (input: LeasingState): LeasingState => ({
-  ...input,
-  dadosTecnicos: { ...input.dadosTecnicos },
-  projecao: {
-    mensalidadesAno: input.projecao.mensalidadesAno.map((item) => ({ ...item })),
-    economiaProjetada: input.projecao.economiaProjetada.map((item) => ({ ...item })),
-  },
-  contrato: {
-    ...input.contrato,
-    proprietarios: input.contrato.proprietarios.map((item) => ({ ...item })),
-    ucGeradoraTitular: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitular),
-    ucGeradoraTitularDraft: cloneUcGeradoraTitular(input.contrato.ucGeradoraTitularDraft),
-    corresponsavel: cloneCorresponsavel(input.contrato.corresponsavel),
-  },
-})
 
 const notify = () => {
   listeners.forEach((listener) => {
@@ -344,7 +344,7 @@ export const hasLeasingStateChanges = (): boolean => !isStatePristine(leasingSto
 
 export const useLeasingStore = <T,>(selector: (state: LeasingState) => T): T => {
   const getSnapshot = useCallback(() => selector(leasingStore.getState()), [selector])
-  return useSyncExternalStore(leasingStore.subscribe, getSnapshot)
+  return useSyncExternalStore((listener) => leasingStore.subscribe(listener), getSnapshot)
 }
 
 export const getLeasingSnapshot = (): LeasingState => {

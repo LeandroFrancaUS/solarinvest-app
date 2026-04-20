@@ -84,7 +84,7 @@ export function calcularValorContaRede({
     tusd?.tarifaFioBOficial,
     tusd?.fatorIncidenciaLei14300,
   )
-  const valorCIP = Number.isFinite(cipValor) && (cipValor as number) >= 0 ? (cipValor as number) : 0
+  const valorCIP = Number.isFinite(cipValor) && (cipValor) >= 0 ? (cipValor) : 0
   const valorContaRede = taxaMinima + valorCIP + tusdFioB
 
   // valorContaRede representa o valor estimado pago à distribuidora (taxa mínima + CIP + Fio B).

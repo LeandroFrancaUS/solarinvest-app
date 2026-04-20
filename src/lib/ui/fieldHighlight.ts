@@ -39,11 +39,11 @@ export function highlightMissingFields(
     return
   }
 
-  const firstEl = document.querySelector(firstSel) as HTMLElement | null
+  const firstEl = document.querySelector(firstSel)
   if (!firstEl) {
     return
   }
 
   firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  firstEl.focus?.()
+  ;(firstEl as HTMLElement).focus?.()
 }

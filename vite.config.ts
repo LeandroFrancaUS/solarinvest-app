@@ -19,8 +19,10 @@ const sanitizeProxyBase = (base?: string) => {
 const aneelProxyPlugin = (proxyBase: string): Plugin => ({
   name: "aneel-proxy-middleware",
   configureServer(server: ViteDevServer) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const middleware = createAneelProxyMiddleware(proxyBase)
     server.middlewares.use((req, res, next) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       void middleware(req, res, next)
     })
   },
@@ -29,8 +31,10 @@ const aneelProxyPlugin = (proxyBase: string): Plugin => ({
 const contractRenderPlugin = (): Plugin => ({
   name: "contract-render-middleware",
   configureServer(server: ViteDevServer) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     const middleware = createContractRenderMiddleware()
     server.middlewares.use((req, res, next) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
       void middleware(req, res, next)
     })
   },
@@ -72,14 +76,17 @@ function resolveBackendOrigin(rawOrigin?: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, cwd(), "")
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const env: Record<string, string> = loadEnv(mode, cwd(), "") as Record<string, string>
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, "VITE_ANEEL_PROXY_BASE")
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
   const plugins: Plugin[] = [
     react(),
     contractRenderPlugin(),
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
     visualizer({
       filename: "dist/stats.html",
       open: false,

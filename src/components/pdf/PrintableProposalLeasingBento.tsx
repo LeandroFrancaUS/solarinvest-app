@@ -9,9 +9,7 @@ import {
   CheckCircle2,
   ClipboardList,
   FileText,
-  Leaf,
   LineChart,
-  MapPin,
   Phone,
   ShieldCheck,
   Sun,
@@ -22,7 +20,7 @@ import {
 import { Bar, BarChart, Legend, Line, LineChart as RechartsLineChart, Tooltip, XAxis, YAxis } from 'recharts'
 
 interface PrintableProposalLeasingBentoProps extends PrintableProposalProps {
-  // Additional props if needed
+  _placeholder?: never
 }
 
 const sanitize = (text?: string | null): string => {
@@ -125,7 +123,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
     areaInstalacao,
     leasingModeloModulo,
     leasingModeloInversor,
-    descontoContratualPct,
+    descontoContratualPct: _descontoContratualPct,
     leasingPrazoContratualMeses = 60,
     parcelasLeasing,
     anos,

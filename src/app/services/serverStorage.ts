@@ -1,7 +1,7 @@
 import { resolveApiUrl } from '../../utils/apiUrl'
 
 const STORAGE_ENDPOINT = resolveApiUrl('/api/storage')
-const AUTH_COOKIE_NAME = import.meta.env.VITE_AUTH_COOKIE_NAME ?? 'solarinvest_session'
+const AUTH_COOKIE_NAME = (import.meta.env.VITE_AUTH_COOKIE_NAME as string | undefined) ?? 'solarinvest_session'
 
 const DEFAULT_INITIALIZATION_TIMEOUT_MS = 2000
 
@@ -27,6 +27,15 @@ class ServerStorageUnauthorizedError extends Error {
 }
 
 let initializationPromise: Promise<void> | null = null
+
+/**
+ * Timestamp (ms) of the last 503/service-unavailable response from /api/storage.
+ * Used to prevent re-initialization during a cooldown window so the same unavailable
+ * backend is not hammered on every auth change.
+ */
+let lastStorageUnavailableAt = 0
+/** Cooldown window after a 503 — do not retry during this period. */
+const STORAGE_UNAVAILABLE_COOLDOWN_MS = 60_000
 
 const cache = new Map<string, string>()
 const pendingUploads = new Map<string, AbortController>()
@@ -117,14 +126,6 @@ const SYNC_BACKOFF_BASE_MS = 2_000
 let syncPaused = false
 /** Timeout ID for the backoff timer so it can be cleaned up. */
 let syncBackoffTimer: ReturnType<typeof setTimeout> | null = null
-/**
- * Timestamp (ms) of the last 503/service-unavailable response from /api/storage.
- * Used to prevent re-initialization during a cooldown window so the same unavailable
- * backend is not hammered on every auth change.
- */
-let lastStorageUnavailableAt = 0
-/** Cooldown window after a 503 — do not retry during this period. */
-const STORAGE_UNAVAILABLE_COOLDOWN_MS = 60_000
 
 function handleSyncFailure(): void {
   consecutiveSyncFailures += 1
@@ -215,7 +216,7 @@ const persistPut = (key: string, value: string) => {
       handleSyncSuccess()
     })
     .catch((error) => {
-      if (error?.name === 'AbortError') {
+      if ((error as { name?: string } | null)?.name === 'AbortError') {
         return
       }
       console.warn('[serverStorage] Falha ao sincronizar chave com o backend Neon.', error)
@@ -266,7 +267,7 @@ const persistDelete = (key: string | null) => {
       handleSyncSuccess()
     })
     .catch((error) => {
-      if (error?.name === 'AbortError') {
+      if ((error as { name?: string } | null)?.name === 'AbortError') {
         return
       }
       console.warn('[serverStorage] Falha ao excluir chave no backend Neon.', error)

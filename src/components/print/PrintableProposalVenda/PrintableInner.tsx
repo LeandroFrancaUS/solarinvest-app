@@ -45,7 +45,7 @@ function PrintableProposalInner(
     budgetId,
     anos,
     leasingROI,
-    financiamentoFluxo,
+    financiamentoFluxo: _financiamentoFluxo,
     financiamentoROI,
     mostrarFinanciamento,
     buyoutResumo,
@@ -559,7 +559,7 @@ function PrintableProposalInner(
     { label: 'Tarifa atual (distribuidora)', value: formatTarifaDetalhe(tarifaProjeto ?? null) },
     { label: 'Autonomia (%)', value: autonomiaLabel },
   ].filter((campo) => isMeaningfulText(campo.value))
-  const duracaoContratualValida =
+  const _duracaoContratualValida =
     typeof buyoutResumo.duracao === 'number' && Number.isFinite(buyoutResumo.duracao)
   const mostrarDetalhamento = detalhamentoCampos.length > 0
   const distribuidoraTarifaLabel =
@@ -702,7 +702,7 @@ function PrintableProposalInner(
     if (composicaoUfv) {
       const tipoAtual = composicaoUfv.tipoAtual ?? tipoInstalacao
       const bucket = isSoloTipoInstalacao(tipoAtual) ? composicaoUfv.solo : composicaoUfv.telhado
-      Object.values(bucket).forEach((valor) => adicionarValor(valor as number))
+      Object.values(bucket).forEach((valor) => adicionarValor(valor))
     } else if (snapshotComposicao) {
       Object.values(snapshotComposicao).forEach((valor) => adicionarValor(valor as number))
     }

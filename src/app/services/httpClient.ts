@@ -12,7 +12,7 @@ function readCookie(name: string): string | null {
   const [, value] = match.split('=')
   try {
     return decodeURIComponent(value)
-  } catch (error) {
+  } catch (_error) {
     return value
   }
 }
@@ -73,7 +73,7 @@ export async function apiFetch<TResponse = unknown>(path: string, options: ApiFe
   const response = await fetch(targetUrl, init)
   const contentType = response.headers.get('content-type')
   const isJson = contentType && contentType.includes('application/json')
-  const payload = isJson ? await response.json().catch(() => null) : null
+  const payload: unknown = isJson ? await (response.json() as Promise<unknown>).catch(() => null) : null
 
   if (!response.ok) {
     const errPayload = payload as { error?: string | { message?: string } } | null

@@ -103,7 +103,7 @@ export const projectTarifaCheia = (
 
 const resolveTusdTipoCliente = (sim: Simulacao): TipoClienteTUSD => {
   if (sim.tusd_tipo_cliente) {
-    return (normalizeTipoBasico(sim.tusd_tipo_cliente) || 'residencial') as TipoClienteTUSD
+    return (normalizeTipoBasico(sim.tusd_tipo_cliente) || 'residencial')
   }
 
   if (sim.tipo_sistema === 'HIBRIDO') {
@@ -112,7 +112,7 @@ const resolveTusdTipoCliente = (sim: Simulacao): TipoClienteTUSD => {
 
   return sim.perfil_consumo === 'comercial'
     ? 'comercial'
-    : ((normalizeTipoBasico(sim.perfil_consumo) || 'residencial') as TipoClienteTUSD)
+    : ((normalizeTipoBasico(sim.perfil_consumo) || 'residencial'))
 }
 
 const resolveTusdSubtipo = (sim: Simulacao): string | null => {

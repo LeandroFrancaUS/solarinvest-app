@@ -1,10 +1,11 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { describe, expect, test, vi } from 'vitest'
 
 const loadModules = async (paths: string[]) => {
-  const modules = [] as unknown[]
+  const modules: unknown[] = []
   for (const path of paths) {
-    // eslint-disable-next-line no-await-in-loop
-    const mod = await import(path)
+    const mod: unknown = await import(/* @vite-ignore */ path)
     modules.push(mod)
   }
   return modules
@@ -38,10 +39,8 @@ describe('cycles and TDZ guard rails', () => {
     // appears in the source BEFORE the useEffect that lists it in its dependency array.
     // This prevents a regression of the production TDZ crash where Terser would evaluate
     // the deps array before the `const [kcKwhMes, ...]` initializer had run.
-    const fs = require('fs') as typeof import('fs')
-    const path = require('path') as typeof import('path')
-    const appSrc = fs.readFileSync(
-      path.resolve(__dirname, '../../../src/App.tsx'),
+    const appSrc = readFileSync(
+      resolve(__dirname, '../../../src/App.tsx'),
       'utf8',
     )
     const declIndex = appSrc.indexOf('const [kcKwhMes, setKcKwhMesState]')

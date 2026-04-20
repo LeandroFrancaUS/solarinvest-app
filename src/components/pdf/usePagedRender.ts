@@ -48,7 +48,7 @@ export const usePagedRender = (options: UsePagedRenderOptions = {}) => {
         hasRendered.current = true
 
         // Wait for fonts to be ready
-        if (document.fonts && document.fonts.ready) {
+        if (document.fonts) {
           await document.fonts.ready
         }
 
@@ -88,7 +88,7 @@ export const usePagedRender = (options: UsePagedRenderOptions = {}) => {
     }
 
     // Start rendering after a short delay to ensure DOM is ready
-    const timer = setTimeout(renderPages, 300)
+    const timer = setTimeout(() => { void renderPages() }, 300)
 
     return () => clearTimeout(timer)
   }, [onComplete, onError])

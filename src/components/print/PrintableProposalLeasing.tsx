@@ -18,11 +18,6 @@ import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
-import {
-  calcMensalidadesPorAno,
-  obterBeneficioPorAno,
-  calcEconomiaTotalAteAno,
-} from '../../lib/finance/leasingProposal'
 
 const BUDGET_ITEM_EXCLUSION_PATTERNS: RegExp[] = [
   /@/i,
@@ -280,7 +275,7 @@ function PrintableProposalLeasingInner(
     ucGeradora,
     ucGeradoraTitular,
     ucsBeneficiarias,
-    tusdTipoClienteCompleto,
+    tusdTipoClienteCompleto: _tusdTipoClienteCompleto,
   } = props
 
   const documentoCliente = cliente.documento ? formatCpfCnpj(cliente.documento) : null
@@ -292,7 +287,7 @@ function PrintableProposalLeasingInner(
   const ucCliente = cliente.uc?.trim() || null
   const distribuidoraLabel = distribuidoraTarifa?.trim() || cliente.distribuidora?.trim() || null
 
-  const distribuidoraNomeCurto = useMemo(() => {
+  const _distribuidoraNomeCurto = useMemo(() => {
     if (!distribuidoraLabel) {
       return null
     }
@@ -300,7 +295,7 @@ function PrintableProposalLeasingInner(
     return primeiroNome || null
   }, [distribuidoraLabel])
 
-  const nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
+  const _nomeDistribuidora = distribuidoraLabel || 'distribuidora local'
 
   const avisoMensalidadeCondicoes = useMemo(() => null, [])
   const avisoMensalidadeEvolucao = useMemo(() => null, [])
@@ -808,8 +803,10 @@ function PrintableProposalLeasingInner(
     for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
       const ano = anosTusdOrdenados[index]
       if (ano <= prazoContratualTotalAnos) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const valorTusd = tusdMedioPorAno[ano]
         if (Number.isFinite(valorTusd)) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           tusdPosContrato = Math.max(0, valorTusd ?? 0)
           break
         }
@@ -900,7 +897,7 @@ function PrintableProposalLeasingInner(
     [obterBeneficioPorAno, prazoContratualAnos, valorMercadoUsina],
   )
 
-  const economiaProjetada = useMemo(() => {
+  const _economiaProjetada = useMemo(() => {
     const serie = calcularEconomiaAcumuladaPorAnos(economiaMarcos, calcularEconomiaTotalAteAno)
 
     return serie.map((row, index) => {
@@ -966,7 +963,7 @@ function PrintableProposalLeasingInner(
     [economiaProjetadaGrafico],
   )
 
-  const economiaPatrimonioResumo = useMemo(
+  const _economiaPatrimonioResumo = useMemo(
     () =>
       [5, 6, 10, 15, 20, 30].map((ano) => ({
         ano,

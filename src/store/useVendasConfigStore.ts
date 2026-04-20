@@ -29,9 +29,9 @@ const loadPersistedConfig = (): VendasConfig | undefined => {
     }
     const parsed = JSON.parse(raw) as PersistedShape | Partial<VendasConfig>
     if (parsed && typeof parsed === 'object' && 'config' in parsed) {
-      return normalizeVendasConfig((parsed as PersistedShape).config)
+      return normalizeVendasConfig((parsed).config)
     }
-    return normalizeVendasConfig(parsed as Partial<VendasConfig>)
+    return normalizeVendasConfig(parsed)
   } catch (error) {
     console.warn('[useVendasConfigStore] Falha ao carregar configuração', error)
     return undefined
