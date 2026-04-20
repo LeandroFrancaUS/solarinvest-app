@@ -18225,8 +18225,11 @@ export default function App() {
       vendaStore.reset()
     } else {
       leasingActions.reset()
+      // Re-sync prazoContratualMeses immediately after reset so the store
+      // never stays at 0 while leasingPrazo hasn't changed (effect wouldn't re-fire)
+      leasingActions.update({ prazoContratualMeses: leasingPrazo * 12 })
     }
-  }, [])
+  }, [leasingPrazo])
 
   // Saves proposal data to local storage (localStorage + IndexedDB) as a local draft cache.
   // ⚠️  This is NOT the backend persistence. It is a local draft cache only.
@@ -19210,7 +19213,7 @@ export default function App() {
       dataHomologacao: formatDateForContract(leasingContrato.dataHomologacao),
       dataAtualExtenso,
       diaVencimento: cliente.diaVencimento || '10',
-      prazoContratual: `${leasingPrazoContratualMeses}`, // Prazo in months only
+      prazoContratual: `${leasingPrazo * 12}`, // Prazo in months only (derived from authoritative leasingPrazo state)
       modulosFV: leasingContrato.modulosFV.trim(),
       inversoresFV: leasingContrato.inversoresFV.trim(),
       // Contact information
@@ -19278,7 +19281,7 @@ export default function App() {
     custoFinalProjetadoCanonico,
     kcKwhMes,
     leasingContrato,
-    leasingPrazoContratualMeses,
+    leasingPrazo,
     leasingAnexosSelecionados,
     potenciaInstaladaKwp,
     prepararDadosContratoCliente,
