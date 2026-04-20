@@ -425,19 +425,7 @@ ORDER BY 1, 2;
 
 
 -- ============================================================================================================================
--- C–G) BLOCOS DE CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
--- ============================================================================================================================
--- ATENÇÃO: Este bloco está envolto em BEGIN / COMMIT.
--- Para simular sem commitar, substituir COMMIT por ROLLBACK ao final.
--- Execute SEMPRE o BLOCO B antes deste bloco.
--- Os BLOCOs C–G usam tabelas persistentes no schema data_hygiene (_duplicate_map, _client_strength_scores)
--- e podem ser executados em sessões/conexões separadas (compatível com Neon SQL Editor).
--- ============================================================================================================================
-
-BEGIN;
-
--- ============================================================================================================================
--- C) MAPEAMENTO DE DUPLICADOS
+-- C) MAPEAMENTO DE DUPLICADOS  (executar ANTES do BEGIN — auto-commit, persiste entre conexões)
 -- ============================================================================================================================
 -- Cria tabelas de mapeamento no schema data_hygiene com a relação:
 --   normalized_name  — nome normalizado do grupo
@@ -447,14 +435,18 @@ BEGIN;
 -- O canônico é eleito por score de força:
 --   in_portfolio (50pts) + contrato ativo (40) + billing ativo (30) + proposta ativa (20)
 --   + documento válido (5) + email válido (3) + telefone válido (2)
+--
+-- IMPORTANTE: Este bloco NÃO usa BEGIN/COMMIT.
+-- O DDL (CREATE TABLE) auto-commita imediatamente — as tabelas ficam visíveis em qualquer conexão posterior.
+-- Os BLOCOs D–G lêem essas tabelas e devem ser executados após este bloco.
 -- ============================================================================================================================
 
 -- Limpeza defensiva: remover tabelas de mapeamento de execuções anteriores, se existirem.
 DROP TABLE IF EXISTS data_hygiene._duplicate_map;
 DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
 
--- C1) Tabela de scores por cliente duplicado (persistida no schema data_hygiene para sobreviver entre conexões)
-CREATE TABLE IF NOT EXISTS data_hygiene._client_strength_scores AS
+-- C1) Tabela de scores por cliente duplicado
+CREATE TABLE data_hygiene._client_strength_scores AS
 WITH valid_dup_names AS (
   -- Apenas nomes normalizados que aparecem em mais de 1 cliente ativo e válido
   SELECT lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS normalized_name
@@ -499,8 +491,8 @@ WHERE c.deleted_at IS NULL
 CREATE INDEX ON data_hygiene._client_strength_scores (normalized_name, strength_score DESC, updated_at DESC, created_at DESC, client_id DESC);
 
 
--- C2) Tabela do mapa canônico ↔ duplicado (persistida no schema data_hygiene)
-CREATE TABLE IF NOT EXISTS data_hygiene._duplicate_map AS
+-- C2) Tabela do mapa canônico ↔ duplicado
+CREATE TABLE data_hygiene._duplicate_map AS
 WITH ranked AS (
   SELECT
     client_id,
@@ -541,6 +533,19 @@ FROM data_hygiene._duplicate_map
 GROUP BY normalized_name, canonical_id
 ORDER BY duplicates_count DESC, normalized_name
 LIMIT 50;
+
+
+-- ============================================================================================================================
+-- D–G) BLOCOS DE CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
+-- ============================================================================================================================
+-- ATENÇÃO: Este bloco está envolto em BEGIN / COMMIT.
+-- Para simular sem commitar, substituir COMMIT por ROLLBACK ao final.
+-- Execute SEMPRE os BLOCOs B e C antes deste bloco.
+-- Os BLOCOs D–G lêem data_hygiene._duplicate_map e data_hygiene._client_strength_scores
+-- que foram criadas e auto-commitadas pelo Bloco C acima.
+-- ============================================================================================================================
+
+BEGIN;
 
 
 -- ============================================================================================================================
