@@ -2,6 +2,7 @@ import { type ReactNode, useEffect } from 'react'
 import { Content, type ContentProps } from './Content'
 import { Sidebar, type SidebarProps } from './Sidebar'
 import { Topbar, type TopbarProps } from './Topbar'
+import type { AppTheme } from '../hooks/useTheme'
 
 export interface AppShellProps {
   topbar: TopbarProps
@@ -14,9 +15,11 @@ export interface AppShellProps {
     expanded?: boolean
     userInfo?: { name: string; role: string }
   }
+  theme?: AppTheme
+  onCycleTheme?: () => void
 }
 
-export function AppShell({ topbar, sidebar, content, children, mobileMenuButton }: AppShellProps) {
+export function AppShell({ topbar, sidebar, content, children, mobileMenuButton, theme, onCycleTheme }: AppShellProps) {
   const showBackdrop = sidebar.mobileOpen
   const bodyClasses = ['app-body']
   if (sidebar.collapsed) {
@@ -56,7 +59,11 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton 
 
   return (
     <div className="app-shell">
-      <Topbar {...topbar} />
+      <Topbar
+        {...topbar}
+        {...(theme !== undefined ? { theme } : {})}
+        {...(onCycleTheme !== undefined ? { onCycleTheme } : {})}
+      />
       <div className={bodyClasses.join(' ')}>
         {/* Always rendered (not just when sidebar is closed) so the hamburger→X CSS animation plays.
             Visibility when sidebar is open is guaranteed by z-index: 1300, above sidebar and backdrop. */}

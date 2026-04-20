@@ -107,7 +107,7 @@
   border-radius: 999px;
   padding: 10px 16px;
   background: transparent;
-  color: #1f2937;
+  color: var(--cfg-muted);
   font-weight: 600;
   font-size: 14px;
   line-height: 1;
@@ -122,7 +122,7 @@
 
 .cfg-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 0 0 3px rgba(45, 140, 255, 0.35);
 }
 
 .cfg-tab[aria-selected='true'],
@@ -130,11 +130,11 @@
   background: var(--cfg-accent);
   color: var(--cfg-accent-contrast);
   border-color: var(--cfg-accent);
-  box-shadow: 0 6px 14px rgba(13, 71, 161, 0.35);
+  box-shadow: 0 6px 14px rgba(45, 140, 255, 0.3);
 }
 
 .cfg-tab[aria-disabled='true'] {
-  color: #94a3b8;
+  color: var(--cfg-subtle);
   cursor: not-allowed;
   opacity: 0.8;
 }
@@ -156,7 +156,7 @@
 }
 
 .cfg-tab:hover::after {
-  background: rgba(13, 71, 161, 0.55);
+  background: var(--cfg-accent-soft);
 }
 
 .payment-highlight-card {
