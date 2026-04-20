@@ -972,6 +972,7 @@ export function ConsultantsTab() {
     return (
       !q ||
       c.full_name.toLowerCase().includes(q) ||
+      (c.apelido ?? '').toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
       c.consultant_code.toLowerCase().includes(q) ||
       (c.document ?? '').toLowerCase().includes(q) ||

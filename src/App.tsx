@@ -331,7 +331,7 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -23025,7 +23025,7 @@ export default function App() {
             <option value="">— Selecione um consultor —</option>
             {formConsultores.map((c) => (
               <option key={c.id} value={String(c.id)}>
-                {consultorDisplayName(c)}
+                {formatConsultantOptionLabel(c)}
               </option>
             ))}
           </select>

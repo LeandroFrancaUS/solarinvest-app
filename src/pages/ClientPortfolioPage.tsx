@@ -38,7 +38,7 @@ import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_A
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
-import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName } from '../services/personnelApi'
+import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 
 interface Props {
   onBack: () => void
@@ -881,7 +881,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               >
                 <option value="">Selecione um consultor…</option>
                 {consultants.map((c) => (
-                  <option key={c.id} value={String(c.id)}>{consultorDisplayName(c)} ({c.consultant_code})</option>
+                  <option key={c.id} value={String(c.id)}>{formatConsultantOptionLabel(c)} ({c.consultant_code})</option>
                 ))}
                 {/* Show legacy value if not in active list */}
                 {form.consultant_id && !consultants.find((c) => String(c.id) === form.consultant_id) && (

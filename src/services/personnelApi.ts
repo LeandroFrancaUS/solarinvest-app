@@ -131,9 +131,23 @@ export interface ConsultantPickerEntry {
   linked_user_id: string | null
 }
 
-/** Returns the display name for a consultant: apelido when set, full_name otherwise. */
+/** Returns the display name for a consultant: apelido when set, full_name otherwise. Used in read view. */
 export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
-  return c.apelido?.trim() || c.full_name
+  const nickname = c.apelido?.trim() ?? ''
+  const fullName = c.full_name?.trim() ?? ''
+  return nickname || fullName || 'Consultor não informado'
+}
+
+/**
+ * Returns the label for a consultant dropdown option.
+ * Format: `(apelido) full_name` when apelido is set, otherwise `full_name`.
+ * Example: `(Kim) Joaquim Amarildo de Oliveira`
+ */
+export function formatConsultantOptionLabel(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+  const nickname = c.apelido?.trim() ?? ''
+  const fullName = c.full_name?.trim() ?? ''
+  if (nickname) return `(${nickname}) ${fullName}`
+  return fullName
 }
 
 /**
