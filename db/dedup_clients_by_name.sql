@@ -40,7 +40,8 @@
 --   1. Fazer pg_dump do banco ANTES de rodar este script em produção.
 --   2. Rodar o BLOCO A e revisar os resultados com cuidado.
 --   3. Rodar o BLOCO B para criar os backups.
---   4. Rodar os BLOCOS C–G (BEGIN/COMMIT) na mesma sessão de banco.
+--   4. Rodar os BLOCOS C–G como um único bloco (BEGIN/COMMIT).
+--      - O Bloco C cria as tabelas de mapeamento dentro da mesma transação.
 --      - Para simular sem commitar: substituir COMMIT por ROLLBACK ao final.
 --   5. Rodar o BLOCO H para validar o resultado.
 --
@@ -425,31 +426,30 @@ ORDER BY 1, 2;
 
 
 -- ============================================================================================================================
--- C–G) BLOCOS DE CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
+-- C–G) BLOCOS DE MAPEAMENTO, CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
 -- ============================================================================================================================
--- ATENÇÃO: Este bloco está envolto em BEGIN / COMMIT.
+-- Bloco C: cria as tabelas de mapeamento de duplicados (DDL transacional no PostgreSQL).
+-- Blocos D–G: consolidação, migração de FKs, soft-delete e remoção de inválidos.
+--
+-- ATENÇÃO: Envolto em BEGIN / COMMIT como uma única transação atômica.
 -- Para simular sem commitar, substituir COMMIT por ROLLBACK ao final.
--- Execute SEMPRE o BLOCO B antes deste bloco.
--- Os BLOCOs C–G usam TEMPORARY TABLE — devem ser executados na mesma sessão.
+-- Execute o BLOCO B antes deste bloco (backups).
 -- ============================================================================================================================
 
 BEGIN;
 
--- ============================================================================================================================
+-- Limpeza defensiva: remover tabelas de mapeamento de execuções anteriores, se existirem.
+DROP TABLE IF EXISTS data_hygiene._duplicate_map;
+DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
+
 -- C) MAPEAMENTO DE DUPLICADOS
--- ============================================================================================================================
--- Cria tabela temporária duplicate_map com a relação:
---   normalized_name  — nome normalizado do grupo
---   canonical_id     — id do registro canônico (sobrevivente) do grupo
---   duplicate_id     — id de cada registro excedente (a ser consolidado e soft-deletado)
---
+-- Cria as tabelas de mapeamento dentro desta transação.
 -- O canônico é eleito por score de força:
 --   in_portfolio (50pts) + contrato ativo (40) + billing ativo (30) + proposta ativa (20)
 --   + documento válido (5) + email válido (3) + telefone válido (2)
--- ============================================================================================================================
 
--- C1) Tabela temporária de scores por cliente duplicado
-CREATE TEMP TABLE IF NOT EXISTS _client_strength_scores ON COMMIT DROP AS
+-- C1) Tabela de scores por cliente duplicado
+CREATE TABLE data_hygiene._client_strength_scores AS
 WITH valid_dup_names AS (
   -- Apenas nomes normalizados que aparecem em mais de 1 cliente ativo e válido
   SELECT lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS normalized_name
@@ -491,11 +491,11 @@ WHERE c.deleted_at IS NULL
   AND c.merged_into_client_id IS NULL;
 
 -- Índices para performance:
-CREATE INDEX ON _client_strength_scores (normalized_name, strength_score DESC, updated_at DESC, created_at DESC, client_id DESC);
+CREATE INDEX ON data_hygiene._client_strength_scores (normalized_name, strength_score DESC, updated_at DESC, created_at DESC, client_id DESC);
 
 
--- C2) Tabela temporária do mapa canônico ↔ duplicado
-CREATE TEMP TABLE IF NOT EXISTS _duplicate_map ON COMMIT DROP AS
+-- C2) Tabela do mapa canônico ↔ duplicado
+CREATE TABLE data_hygiene._duplicate_map AS
 WITH ranked AS (
   SELECT
     client_id,
@@ -511,7 +511,7 @@ WITH ranked AS (
         created_at     DESC NULLS LAST,
         client_id      DESC
     ) AS rn
-  FROM _client_strength_scores
+  FROM data_hygiene._client_strength_scores
 )
 SELECT
   ranked.normalized_name,
@@ -523,8 +523,8 @@ JOIN (SELECT normalized_name, client_id FROM ranked WHERE rn = 1) AS canon
 WHERE ranked.rn > 1;  -- exclui o próprio canônico
 
 -- Índices:
-CREATE INDEX ON _duplicate_map (canonical_id);
-CREATE INDEX ON _duplicate_map (duplicate_id);
+CREATE INDEX ON data_hygiene._duplicate_map (canonical_id);
+CREATE INDEX ON data_hygiene._duplicate_map (duplicate_id);
 
 -- Prévia do mapeamento (verificar antes de avançar):
 SELECT
@@ -532,7 +532,7 @@ SELECT
   canonical_id,
   array_agg(duplicate_id ORDER BY duplicate_id) AS duplicate_ids,
   COUNT(*) AS duplicates_count
-FROM _duplicate_map
+FROM data_hygiene._duplicate_map
 GROUP BY normalized_name, canonical_id
 ORDER BY duplicates_count DESC, normalized_name
 LIMIT 50;
@@ -611,9 +611,9 @@ WITH best_from_dups AS (
       FILTER (WHERE d.origem            IS NOT NULL AND btrim(d.origem) <> ''))[1]            AS best_origem,
     (array_agg(d.observacoes       ORDER BY sc.strength_score DESC, d.updated_at DESC NULLS LAST, d.id DESC)
       FILTER (WHERE d.observacoes       IS NOT NULL AND btrim(d.observacoes) <> ''))[1]       AS best_observacoes
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   JOIN public.clients d ON d.id = dm.duplicate_id
-  JOIN _client_strength_scores sc ON sc.client_id = dm.duplicate_id
+  JOIN data_hygiene._client_strength_scores sc ON sc.client_id = dm.duplicate_id
   GROUP BY dm.canonical_id
 )
 UPDATE public.clients c
@@ -686,7 +686,7 @@ WITH merged_meta AS (
     -- Agregar todos os metadata dos duplicados em um único objeto mesclado,
     -- depois o canônico sobrescreve as chaves com seus próprios valores (direito de precedência).
     jsonb_object_agg_strict_fn.merged_dup_meta
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   CROSS JOIN LATERAL (
     SELECT
       -- Mescla todos os metadata dos duplicados em ordem de strength (mais forte por último = sobrescreve o mais fraco)
@@ -706,7 +706,7 @@ WITH merged_meta AS (
                  AND d.metadata IS NOT NULL
                  AND d.metadata <> 'null'::jsonb
                  AND d.metadata <> '{}'::jsonb
-               ORDER BY (SELECT strength_score FROM _client_strength_scores WHERE client_id = d.id) DESC
+               ORDER BY (SELECT strength_score FROM data_hygiene._client_strength_scores WHERE client_id = d.id) DESC
                LIMIT 1
               ),
               '{}'::jsonb
@@ -735,16 +735,16 @@ FROM (
         SELECT DISTINCT ON (kv2.key)
           kv2.key,
           kv2.value
-        FROM _duplicate_map dm2
+        FROM data_hygiene._duplicate_map dm2
         JOIN public.clients d ON d.id = dm2.duplicate_id
         JOIN jsonb_each(COALESCE(d.metadata, '{}'::jsonb)) AS kv2(key, value) ON true
         WHERE dm2.canonical_id = dm.canonical_id
           AND d.metadata IS NOT NULL
           AND d.metadata <> 'null'::jsonb
-        ORDER BY kv2.key, (SELECT strength_score FROM _client_strength_scores WHERE client_id = d.id) DESC NULLS LAST
+        ORDER BY kv2.key, (SELECT strength_score FROM data_hygiene._client_strength_scores WHERE client_id = d.id) DESC NULLS LAST
       ) kv
     ) AS best_dup_meta
-  FROM (SELECT DISTINCT canonical_id FROM _duplicate_map) dm
+  FROM (SELECT DISTINCT canonical_id FROM data_hygiene._duplicate_map) dm
 ) sub
 WHERE c.id = sub.canonical_id
   AND sub.best_dup_meta IS NOT NULL
@@ -767,7 +767,7 @@ UPDATE public.proposals p
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE p.client_id = dm.duplicate_id
   AND p.deleted_at IS NULL;
 
@@ -776,14 +776,14 @@ UPDATE public.client_contracts cc
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE cc.client_id = dm.duplicate_id;
 
 -- E1c) client_notes
 UPDATE public.client_notes cn
 SET
   client_id = dm.canonical_id
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE cn.client_id = dm.duplicate_id;
 
 -- E1d) contacts (CRM)
@@ -791,7 +791,7 @@ UPDATE public.contacts ct
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE ct.client_id = dm.duplicate_id;
 
 -- E1e) deals (CRM)
@@ -799,7 +799,7 @@ UPDATE public.deals dl
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE dl.client_id = dm.duplicate_id;
 
 -- E1f) activities (CRM)
@@ -807,7 +807,7 @@ UPDATE public.activities ac
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE ac.client_id = dm.duplicate_id;
 
 -- E1g) notes / CRM notes (client_id nullable → SET NULL se não migrável, mas aqui migrar)
@@ -815,7 +815,7 @@ UPDATE public.notes n
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE n.client_id = dm.duplicate_id;
 
 -- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -857,7 +857,7 @@ SET
                                ELSE bp_canon.installments_json || bp_dup.installments_json
                              END,
   updated_at               = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.client_billing_profile bp_dup ON bp_dup.client_id = dm.duplicate_id
 WHERE bp_canon.client_id = dm.canonical_id;  -- só where canonical já tem registro
 
@@ -866,7 +866,7 @@ UPDATE public.client_billing_profile bp
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE bp.client_id = dm.duplicate_id
   AND NOT EXISTS (
     SELECT 1 FROM public.client_billing_profile WHERE client_id = dm.canonical_id
@@ -876,7 +876,7 @@ WHERE bp.client_id = dm.duplicate_id
 DELETE FROM public.client_billing_profile
 WHERE client_id IN (
   SELECT dm.duplicate_id
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   WHERE EXISTS (
     SELECT 1 FROM public.client_billing_profile WHERE client_id = dm.canonical_id
   )
@@ -896,7 +896,7 @@ SET
   area_instalacao_m2    = COALESCE(uc_canon.area_instalacao_m2,    uc_dup.area_instalacao_m2),
   geracao_estimada_kwh  = COALESCE(uc_canon.geracao_estimada_kwh,  uc_dup.geracao_estimada_kwh),
   updated_at            = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.client_usina_config uc_dup ON uc_dup.client_id = dm.duplicate_id
 WHERE uc_canon.client_id = dm.canonical_id;
 
@@ -905,7 +905,7 @@ UPDATE public.client_usina_config uc
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE uc.client_id = dm.duplicate_id
   AND NOT EXISTS (
     SELECT 1 FROM public.client_usina_config WHERE client_id = dm.canonical_id
@@ -915,7 +915,7 @@ WHERE uc.client_id = dm.duplicate_id
 DELETE FROM public.client_usina_config
 WHERE client_id IN (
   SELECT dm.duplicate_id
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   WHERE EXISTS (
     SELECT 1 FROM public.client_usina_config WHERE client_id = dm.canonical_id
   )
@@ -944,7 +944,7 @@ SET
   is_active_portfolio_client  = (lc_canon.is_active_portfolio_client OR lc_dup.is_active_portfolio_client),
   exported_by_user_id         = COALESCE(lc_canon.exported_by_user_id,       lc_dup.exported_by_user_id),
   updated_at                  = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.client_lifecycle lc_dup ON lc_dup.client_id = dm.duplicate_id
 WHERE lc_canon.client_id = dm.canonical_id;
 
@@ -953,7 +953,7 @@ UPDATE public.client_lifecycle lc
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE lc.client_id = dm.duplicate_id
   AND NOT EXISTS (
     SELECT 1 FROM public.client_lifecycle WHERE client_id = dm.canonical_id
@@ -963,7 +963,7 @@ WHERE lc.client_id = dm.duplicate_id
 DELETE FROM public.client_lifecycle
 WHERE client_id IN (
   SELECT dm.duplicate_id
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   WHERE EXISTS (
     SELECT 1 FROM public.client_lifecycle WHERE client_id = dm.canonical_id
   )
@@ -993,7 +993,7 @@ SET
                              ELSE ps_canon.notes || E'\n---\n' || ps_dup.notes
                            END,
   updated_at             = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.client_project_status ps_dup ON ps_dup.client_id = dm.duplicate_id
 WHERE ps_canon.client_id = dm.canonical_id;
 
@@ -1002,7 +1002,7 @@ UPDATE public.client_project_status ps
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE ps.client_id = dm.duplicate_id
   AND NOT EXISTS (
     SELECT 1 FROM public.client_project_status WHERE client_id = dm.canonical_id
@@ -1012,7 +1012,7 @@ WHERE ps.client_id = dm.duplicate_id
 DELETE FROM public.client_project_status
 WHERE client_id IN (
   SELECT dm.duplicate_id
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   WHERE EXISTS (
     SELECT 1 FROM public.client_project_status WHERE client_id = dm.canonical_id
   )
@@ -1035,7 +1035,7 @@ SET
   prazo_meses         = COALESCE(ep_canon.prazo_meses,         ep_dup.prazo_meses),
   marca_inversor      = COALESCE(ep_canon.marca_inversor,      ep_dup.marca_inversor),
   updated_at          = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.client_energy_profile ep_dup ON ep_dup.client_id = dm.duplicate_id
 WHERE ep_canon.client_id = dm.canonical_id;
 
@@ -1044,7 +1044,7 @@ UPDATE public.client_energy_profile ep
 SET
   client_id  = dm.canonical_id,
   updated_at = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE ep.client_id = dm.duplicate_id
   AND NOT EXISTS (
     SELECT 1 FROM public.client_energy_profile WHERE client_id = dm.canonical_id
@@ -1054,7 +1054,7 @@ WHERE ep.client_id = dm.duplicate_id
 DELETE FROM public.client_energy_profile
 WHERE client_id IN (
   SELECT dm.duplicate_id
-  FROM _duplicate_map dm
+  FROM data_hygiene._duplicate_map dm
   WHERE EXISTS (
     SELECT 1 FROM public.client_energy_profile WHERE client_id = dm.canonical_id
   )
@@ -1076,7 +1076,7 @@ SET
   deleted_at            = now(),
   identity_status       = 'merged',
   updated_at            = now()
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 WHERE c.id = dm.duplicate_id
   -- Nunca soft-deletar se ainda em portfólio:
   AND c.in_portfolio = false
@@ -1104,7 +1104,7 @@ SELECT
     WHEN EXISTS(SELECT 1 FROM public.client_billing_profile bp WHERE bp.client_id = c.id AND bp.payment_status NOT IN ('cancelled','written_off')) THEN 'billing_ativo'
     ELSE 'outro'
   END AS motivo_retencao
-FROM _duplicate_map dm
+FROM data_hygiene._duplicate_map dm
 JOIN public.clients c ON c.id = dm.duplicate_id
 WHERE c.deleted_at IS NULL  -- ainda ativo = não foi soft-deletado no passo F1
 ORDER BY dm.normalized_name, c.id;
@@ -1227,6 +1227,14 @@ ORDER BY c.in_portfolio DESC, c.id;
 -- ============================================================================================================================
 
 COMMIT;
+
+-- NOTA: As tabelas data_hygiene._duplicate_map e data_hygiene._client_strength_scores
+-- são criadas e removidas dentro da mesma transação. Após o COMMIT elas persistem no schema
+-- data_hygiene para fins de auditoria. Para descartá-las manualmente (opcional):
+--   DROP TABLE IF EXISTS data_hygiene._duplicate_map;
+--   DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
+-- Em uma nova execução do script, o DROP TABLE IF EXISTS no início do bloco C–G as remove
+-- automaticamente antes de recriá-las com os dados atualizados.
 
 
 -- ============================================================================================================================
