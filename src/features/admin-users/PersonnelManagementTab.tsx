@@ -29,6 +29,16 @@ import {
   updateInstaller,
   deactivateInstaller,
 } from '../../services/personnelApi'
+import { ImportFromExistingModal, type ImportSource, type ImportRecord } from './ImportFromExistingModal'
+import type { ImportableUser, ImportableClient } from '../../services/personnelImport'
+import {
+  mapUserToConsultantDraft,
+  mapClientToConsultantDraft,
+  mapUserToEngineerDraft,
+  mapClientToEngineerDraft,
+  mapUserToInstallerDraft,
+  mapClientToInstallerDraft,
+} from './personnelImportMappers'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -46,6 +56,54 @@ function ActiveBadge({ active }: { active: boolean }) {
 
 function inputCls(hasError: boolean) {
   return `w-full rounded-lg border ${hasError ? 'border-red-400' : 'border-slate-200'} bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200`
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Overwrite confirmation dialog (shared by all three modals)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function OverwriteConfirmDialog({
+  onFillEmpty,
+  onOverwrite,
+  onCancel,
+}: {
+  onFillEmpty: () => void
+  onOverwrite: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <h3 className="text-sm font-semibold text-slate-900 mb-2">Campos já preenchidos</h3>
+        <p className="text-sm text-slate-600 mb-5">
+          Deseja importar apenas os campos vazios ou substituir os dados já preenchidos?
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={onFillEmpty}
+            className="w-full rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+          >
+            Preencher apenas campos vazios
+          </button>
+          <button
+            type="button"
+            onClick={onOverwrite}
+            className="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Substituir dados existentes
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full rounded-lg px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
+          >
+            Cancelar importação
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,6 +149,43 @@ function ConsultantModal({
   const [errors, setErrors] = useState<Partial<Record<keyof ConsultantFormState, string>>>({})
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // ── Import state ──────────────────────────────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState<Partial<ConsultantFormState> | null>(null)
+
+  function isFormEmpty(): boolean {
+    return !form.full_name && !form.phone && !form.email
+  }
+
+  function applyDraft(draft: Partial<ConsultantFormState>) {
+    setForm((f) => ({
+      full_name: draft.full_name !== undefined ? draft.full_name : f.full_name,
+      phone:     draft.phone     !== undefined ? draft.phone     : f.phone,
+      email:     draft.email     !== undefined ? draft.email     : f.email,
+      document:  draft.document  !== undefined ? draft.document  : f.document,
+      regions:   draft.regions   !== undefined && draft.regions.length > 0 ? draft.regions : f.regions,
+    }))
+  }
+
+  function handleImport(source: ImportSource, record: ImportRecord) {
+    const draft =
+      source === 'users'
+        ? mapUserToConsultantDraft(record as ImportableUser)
+        : mapClientToConsultantDraft(record as ImportableClient)
+
+    setShowImportModal(false)
+
+    if (isFormEmpty()) {
+      // Nothing filled yet — apply directly
+      applyDraft(draft)
+    } else {
+      // Ask if existing data should be overwritten
+      setPendingDraft(draft)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   function validate(): boolean {
     const e: typeof errors = {}
@@ -145,108 +240,155 @@ function ConsultantModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl max-h-screen overflow-y-auto">
-        <h2 className="text-base font-semibold text-slate-900 mb-4">
-          {editing ? 'Editar Consultor' : 'Adicionar Consultor'}
-        </h2>
-        {editing && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <span className="text-slate-500">ID gerado:</span>
-            <span className="font-mono font-semibold text-amber-700">{editing.consultant_code}</span>
-          </div>
-        )}
-        {!editing && (
-          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
-            O ID será gerado automaticamente pelo sistema ao salvar.
-          </p>
-        )}
-        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nome completo <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.full_name}
-              onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-              className={inputCls(Boolean(errors.full_name))}
-            />
-            {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              CPF/CNPJ <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.document}
-              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
-              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
-              className={inputCls(Boolean(errors.document))}
-            />
-            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Telefone <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              className={inputCls(Boolean(errors.phone))}
-            />
-            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              E-mail <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              className={inputCls(Boolean(errors.email))}
-            />
-            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-          </div>
-          <div>
-            <p className="block text-sm font-medium text-slate-700 mb-2">
-              Regiões (UF) <span className="text-red-500">*</span>
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {BRAZIL_UFS.map((uf) => (
-                <button
-                  key={uf}
-                  type="button"
-                  onClick={() => toggleRegion(uf)}
-                  className={`rounded px-2 py-0.5 text-xs font-medium border ${
-                    form.regions.includes(uf)
-                      ? 'bg-amber-500 text-white border-amber-500'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
-                  }`}
-                >
-                  {uf}
-                </button>
-              ))}
+    <>
+      {showImportModal && (
+        <ImportFromExistingModal
+          onImport={handleImport}
+          onClose={() => setShowImportModal(false)}
+        />
+      )}
+
+      {pendingDraft && (
+        <OverwriteConfirmDialog
+          onFillEmpty={() => {
+            if (pendingDraft) {
+              // Only fill in fields that are currently blank
+              setForm((f) => ({
+                full_name: f.full_name.trim() ? f.full_name : (pendingDraft.full_name ?? f.full_name),
+                phone:     f.phone.trim()     ? f.phone     : (pendingDraft.phone     ?? f.phone),
+                email:     f.email.trim()     ? f.email     : (pendingDraft.email     ?? f.email),
+                document:  f.document.trim()  ? f.document  : (pendingDraft.document  ?? f.document),
+                regions:   f.regions.length > 0 ? f.regions : (pendingDraft.regions   ?? f.regions),
+              }))
+            }
+            setPendingDraft(null)
+          }}
+          onOverwrite={() => {
+            if (pendingDraft) applyDraft(pendingDraft)
+            setPendingDraft(null)
+          }}
+          onCancel={() => setPendingDraft(null)}
+        />
+      )}
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl max-h-screen overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              {editing ? 'Editar Consultor' : 'Adicionar Consultor'}
+            </h2>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+                title="Importar dados de usuário ou cliente existente"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Importar dados
+              </button>
             </div>
-            {errors.regions && <p className="mt-1 text-xs text-red-600">{errors.regions}</p>}
           </div>
-          {saveError && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+          {editing && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-slate-500">ID gerado:</span>
+              <span className="font-mono font-semibold text-amber-700">{editing.consultant_code}</span>
+            </div>
           )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-              {saving ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
+          {!editing && (
+            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+              O ID será gerado automaticamente pelo sistema ao salvar.
+            </p>
+          )}
+          <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Nome completo <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.full_name}
+                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                className={inputCls(Boolean(errors.full_name))}
+              />
+              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                CPF/CNPJ <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.document}
+                onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+                placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+                className={inputCls(Boolean(errors.document))}
+              />
+              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Telefone <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                className={inputCls(Boolean(errors.phone))}
+              />
+              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                E-mail <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                className={inputCls(Boolean(errors.email))}
+              />
+              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+            </div>
+            <div>
+              <p className="block text-sm font-medium text-slate-700 mb-2">
+                Regiões (UF) <span className="text-red-500">*</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {BRAZIL_UFS.map((uf) => (
+                  <button
+                    key={uf}
+                    type="button"
+                    onClick={() => toggleRegion(uf)}
+                    className={`rounded px-2 py-0.5 text-xs font-medium border ${
+                      form.regions.includes(uf)
+                        ? 'bg-amber-500 text-white border-amber-500'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+                    }`}
+                  >
+                    {uf}
+                  </button>
+                ))}
+              </div>
+              {errors.regions && <p className="mt-1 text-xs text-red-600">{errors.regions}</p>}
+            </div>
+            {saveError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -294,6 +436,41 @@ function EngineerModal({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── Import state ──────────────────────────────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState<Partial<EngineerFormState> | null>(null)
+
+  function isFormEmpty(): boolean {
+    return !form.full_name && !form.phone && !form.email
+  }
+
+  function applyDraft(draft: Partial<EngineerFormState>) {
+    setForm((f) => ({
+      full_name: draft.full_name !== undefined ? draft.full_name : f.full_name,
+      phone:     draft.phone     !== undefined ? draft.phone     : f.phone,
+      email:     draft.email     !== undefined ? draft.email     : f.email,
+      crea:      f.crea, // CREA is never imported — always keep existing value
+      document:  draft.document  !== undefined ? draft.document  : f.document,
+    }))
+  }
+
+  function handleImport(source: ImportSource, record: ImportRecord) {
+    const draft =
+      source === 'users'
+        ? mapUserToEngineerDraft(record as ImportableUser)
+        : mapClientToEngineerDraft(record as ImportableClient)
+
+    setShowImportModal(false)
+
+    if (isFormEmpty()) {
+      applyDraft(draft)
+    } else {
+      setPendingDraft(draft)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   function validate(): boolean {
     const e: typeof errors = {}
     if (!form.full_name.trim()) e.full_name = 'Nome é obrigatório.'
@@ -340,76 +517,120 @@ function EngineerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-base font-semibold text-slate-900 mb-4">
-          {editing ? 'Editar Engenheiro' : 'Adicionar Engenheiro'}
-        </h2>
-        {editing && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <span className="text-slate-500">ID gerado:</span>
-            <span className="font-mono font-semibold text-amber-700">{editing.engineer_code}</span>
-          </div>
-        )}
-        {!editing && (
-          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
-            O ID será gerado automaticamente pelo sistema ao salvar.
-          </p>
-        )}
-        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nome completo <span className="text-red-500">*</span>
-            </label>
-            <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
-            {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              CPF/CNPJ <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.document}
-              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
-              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
-              className={inputCls(Boolean(errors.document))}
-            />
-            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Telefone <span className="text-red-500">*</span>
-            </label>
-            <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
-            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              E-mail <span className="text-red-500">*</span>
-            </label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
-            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              CREA <span className="text-red-500">*</span>
-            </label>
-            <input type="text" value={form.crea} onChange={(e) => setForm((f) => ({ ...f, crea: e.target.value }))} placeholder="ex: CREA-SP 123456" className={inputCls(Boolean(errors.crea))} />
-            {errors.crea && <p className="mt-1 text-xs text-red-600">{errors.crea}</p>}
-          </div>
-          {saveError && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-              {saving ? 'Salvando...' : 'Salvar'}
+    <>
+      {showImportModal && (
+        <ImportFromExistingModal
+          onImport={handleImport}
+          onClose={() => setShowImportModal(false)}
+        />
+      )}
+
+      {pendingDraft && (
+        <OverwriteConfirmDialog
+          onFillEmpty={() => {
+            if (pendingDraft) {
+              setForm((f) => ({
+                full_name: f.full_name.trim() ? f.full_name : (pendingDraft.full_name ?? f.full_name),
+                phone:     f.phone.trim()     ? f.phone     : (pendingDraft.phone     ?? f.phone),
+                email:     f.email.trim()     ? f.email     : (pendingDraft.email     ?? f.email),
+                crea:      f.crea, // never overwrite CREA
+                document:  f.document.trim()  ? f.document  : (pendingDraft.document  ?? f.document),
+              }))
+            }
+            setPendingDraft(null)
+          }}
+          onOverwrite={() => {
+            if (pendingDraft) applyDraft(pendingDraft)
+            setPendingDraft(null)
+          }}
+          onCancel={() => setPendingDraft(null)}
+        />
+      )}
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              {editing ? 'Editar Engenheiro' : 'Adicionar Engenheiro'}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+              title="Importar dados de usuário ou cliente existente"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Importar dados
             </button>
           </div>
-        </form>
+          {editing && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-slate-500">ID gerado:</span>
+              <span className="font-mono font-semibold text-amber-700">{editing.engineer_code}</span>
+            </div>
+          )}
+          {!editing && (
+            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+              O ID será gerado automaticamente pelo sistema ao salvar.
+            </p>
+          )}
+          <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Nome completo <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
+              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                CPF/CNPJ <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.document}
+                onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+                placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+                className={inputCls(Boolean(errors.document))}
+              />
+              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Telefone <span className="text-red-500">*</span>
+              </label>
+              <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
+              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                E-mail <span className="text-red-500">*</span>
+              </label>
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
+              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                CREA <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={form.crea} onChange={(e) => setForm((f) => ({ ...f, crea: e.target.value }))} placeholder="ex: CREA-SP 123456" className={inputCls(Boolean(errors.crea))} />
+              {errors.crea && <p className="mt-1 text-xs text-red-600">{errors.crea}</p>}
+            </div>
+            {saveError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -454,6 +675,40 @@ function InstallerModal({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── Import state ──────────────────────────────────────────────────────────
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState<Partial<InstallerFormState> | null>(null)
+
+  function isFormEmpty(): boolean {
+    return !form.full_name && !form.phone && !form.email
+  }
+
+  function applyDraft(draft: Partial<InstallerFormState>) {
+    setForm((f) => ({
+      full_name: draft.full_name !== undefined ? draft.full_name : f.full_name,
+      phone:     draft.phone     !== undefined ? draft.phone     : f.phone,
+      email:     draft.email     !== undefined ? draft.email     : f.email,
+      document:  draft.document  !== undefined ? draft.document  : f.document,
+    }))
+  }
+
+  function handleImport(source: ImportSource, record: ImportRecord) {
+    const draft =
+      source === 'users'
+        ? mapUserToInstallerDraft(record as ImportableUser)
+        : mapClientToInstallerDraft(record as ImportableClient)
+
+    setShowImportModal(false)
+
+    if (isFormEmpty()) {
+      applyDraft(draft)
+    } else {
+      setPendingDraft(draft)
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   function validate(): boolean {
     const e: typeof errors = {}
     if (!form.full_name.trim()) e.full_name = 'Nome é obrigatório.'
@@ -497,69 +752,112 @@ function InstallerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h2 className="text-base font-semibold text-slate-900 mb-4">
-          {editing ? 'Editar Instalador' : 'Adicionar Instalador'}
-        </h2>
-        {editing && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            <span className="text-slate-500">ID gerado:</span>
-            <span className="font-mono font-semibold text-amber-700">{editing.installer_code}</span>
-          </div>
-        )}
-        {!editing && (
-          <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
-            O ID será gerado automaticamente pelo sistema ao salvar.
-          </p>
-        )}
-        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nome completo <span className="text-red-500">*</span>
-            </label>
-            <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
-            {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              CPF/CNPJ <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={form.document}
-              onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
-              placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
-              className={inputCls(Boolean(errors.document))}
-            />
-            {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Telefone <span className="text-red-500">*</span>
-            </label>
-            <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
-            {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              E-mail <span className="text-red-500">*</span>
-            </label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
-            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-          </div>
-          {saveError && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-              {saving ? 'Salvando...' : 'Salvar'}
+    <>
+      {showImportModal && (
+        <ImportFromExistingModal
+          onImport={handleImport}
+          onClose={() => setShowImportModal(false)}
+        />
+      )}
+
+      {pendingDraft && (
+        <OverwriteConfirmDialog
+          onFillEmpty={() => {
+            if (pendingDraft) {
+              setForm((f) => ({
+                full_name: f.full_name.trim() ? f.full_name : (pendingDraft.full_name ?? f.full_name),
+                phone:     f.phone.trim()     ? f.phone     : (pendingDraft.phone     ?? f.phone),
+                email:     f.email.trim()     ? f.email     : (pendingDraft.email     ?? f.email),
+                document:  f.document.trim()  ? f.document  : (pendingDraft.document  ?? f.document),
+              }))
+            }
+            setPendingDraft(null)
+          }}
+          onOverwrite={() => {
+            if (pendingDraft) applyDraft(pendingDraft)
+            setPendingDraft(null)
+          }}
+          onCancel={() => setPendingDraft(null)}
+        />
+      )}
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
+        <div className="mx-4 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              {editing ? 'Editar Instalador' : 'Adicionar Instalador'}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:border-amber-300 flex items-center gap-1"
+              title="Importar dados de usuário ou cliente existente"
+            >
+              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Importar dados
             </button>
           </div>
-        </form>
+          {editing && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+              <span className="text-slate-500">ID gerado:</span>
+              <span className="font-mono font-semibold text-amber-700">{editing.installer_code}</span>
+            </div>
+          )}
+          {!editing && (
+            <p className="mb-4 text-xs text-slate-500 rounded-lg bg-amber-50 px-3 py-2">
+              O ID será gerado automaticamente pelo sistema ao salvar.
+            </p>
+          )}
+          <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Nome completo <span className="text-red-500">*</span>
+              </label>
+              <input type="text" value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} className={inputCls(Boolean(errors.full_name))} />
+              {errors.full_name && <p className="mt-1 text-xs text-red-600">{errors.full_name}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                CPF/CNPJ <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.document}
+                onChange={(e) => setForm((f) => ({ ...f, document: e.target.value }))}
+                placeholder="ex: 123.456.789-00 ou 12.345.678/0001-99"
+                className={inputCls(Boolean(errors.document))}
+              />
+              {errors.document && <p className="mt-1 text-xs text-red-600">{errors.document}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Telefone <span className="text-red-500">*</span>
+              </label>
+              <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls(Boolean(errors.phone))} />
+              {errors.phone && <p className="mt-1 text-xs text-red-600">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                E-mail <span className="text-red-500">*</span>
+              </label>
+              <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls(Boolean(errors.email))} />
+              {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+            </div>
+            {saveError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-200">{saveError}</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+              <button type="submit" disabled={saving} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

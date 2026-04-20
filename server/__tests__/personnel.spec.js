@@ -381,3 +381,161 @@ describe('duplicate document detection', () => {
   })
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests — import mapper logic (mirrors personnelImportMappers.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Inline mirrors of the mapper functions for pure unit testing.
+
+const BRAZIL_UF_NAMES_MAP = {
+  acre: 'AC', alagoas: 'AL', amazonas: 'AM', bahia: 'BA',
+  'são paulo': 'SP', 'sao paulo': 'SP', paraná: 'PR', parana: 'PR',
+  'minas gerais': 'MG', 'rio de janeiro': 'RJ',
+}
+const VALID_UFS = new Set([
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO',
+  'MA','MT','MS','MG','PA','PB','PR','PE','PI',
+  'RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+])
+
+function inferUF(state) {
+  if (!state) return null
+  const trimmed = state.trim()
+  const upper = trimmed.toUpperCase()
+  if (VALID_UFS.has(upper)) return upper
+  const mapped = BRAZIL_UF_NAMES_MAP[trimmed.toLowerCase()]
+  return mapped ?? null
+}
+
+function mapUserToConsultantDraft(user) {
+  return { full_name: user.full_name ?? '', email: user.email ?? '', phone: user.phone ?? '', regions: [] }
+}
+function mapClientToConsultantDraft(client) {
+  const uf = inferUF(client.state)
+  return { full_name: client.name ?? '', email: client.email ?? '', phone: client.phone ?? '', regions: uf ? [uf] : [] }
+}
+function mapUserToEngineerDraft(user) {
+  return { full_name: user.full_name ?? '', email: user.email ?? '', phone: user.phone ?? '' }
+}
+function mapClientToEngineerDraft(client) {
+  return { full_name: client.name ?? '', email: client.email ?? '', phone: client.phone ?? '' }
+}
+function mapUserToInstallerDraft(user) {
+  return { full_name: user.full_name ?? '', email: user.email ?? '', phone: user.phone ?? '' }
+}
+function mapClientToInstallerDraft(client) {
+  return { full_name: client.name ?? '', email: client.email ?? '', phone: client.phone ?? '' }
+}
+
+const sampleUser = { id: 'u1', full_name: 'João Silva', email: 'joao@example.com', phone: '(11) 91234-5678' }
+const sampleClient = { id: 1, name: 'Maria Souza', email: 'maria@example.com', phone: '(21) 98765-4321', document: '123.456.789-00', state: 'SP', city: 'São Paulo' }
+
+describe('import mappers — consultant', () => {
+  it('mapUserToConsultantDraft fills name, email, phone; leaves regions empty', () => {
+    const draft = mapUserToConsultantDraft(sampleUser)
+    expect(draft.full_name).toBe('João Silva')
+    expect(draft.email).toBe('joao@example.com')
+    expect(draft.phone).toBe('(11) 91234-5678')
+    expect(draft.regions).toEqual([])
+  })
+
+  it('mapClientToConsultantDraft fills name, email, phone and infers UF from state', () => {
+    const draft = mapClientToConsultantDraft(sampleClient)
+    expect(draft.full_name).toBe('Maria Souza')
+    expect(draft.email).toBe('maria@example.com')
+    expect(draft.regions).toEqual(['SP'])
+  })
+
+  it('mapClientToConsultantDraft leaves regions empty when state is unknown', () => {
+    const draft = mapClientToConsultantDraft({ ...sampleClient, state: 'Unknown State' })
+    expect(draft.regions).toEqual([])
+  })
+
+  it('mapClientToConsultantDraft handles full state name', () => {
+    const draft = mapClientToConsultantDraft({ ...sampleClient, state: 'São Paulo' })
+    expect(draft.regions).toEqual(['SP'])
+  })
+
+  it('consultant_code is NOT present in any mapped draft', () => {
+    const draftUser = mapUserToConsultantDraft(sampleUser)
+    const draftClient = mapClientToConsultantDraft(sampleClient)
+    expect('consultant_code' in draftUser).toBe(false)
+    expect('consultant_code' in draftClient).toBe(false)
+  })
+})
+
+describe('import mappers — engineer', () => {
+  it('mapUserToEngineerDraft fills name, email, phone', () => {
+    const draft = mapUserToEngineerDraft(sampleUser)
+    expect(draft.full_name).toBe('João Silva')
+    expect(draft.email).toBe('joao@example.com')
+    expect(draft.phone).toBe('(11) 91234-5678')
+  })
+
+  it('mapClientToEngineerDraft fills name, email, phone', () => {
+    const draft = mapClientToEngineerDraft(sampleClient)
+    expect(draft.full_name).toBe('Maria Souza')
+    expect(draft.email).toBe('maria@example.com')
+    expect(draft.phone).toBe('(21) 98765-4321')
+  })
+
+  it('CREA is NOT present in any engineer draft', () => {
+    expect('crea' in mapUserToEngineerDraft(sampleUser)).toBe(false)
+    expect('crea' in mapClientToEngineerDraft(sampleClient)).toBe(false)
+  })
+
+  it('engineer_code is NOT present in any engineer draft', () => {
+    expect('engineer_code' in mapUserToEngineerDraft(sampleUser)).toBe(false)
+    expect('engineer_code' in mapClientToEngineerDraft(sampleClient)).toBe(false)
+  })
+})
+
+describe('import mappers — installer', () => {
+  it('mapUserToInstallerDraft fills name, email, phone', () => {
+    const draft = mapUserToInstallerDraft(sampleUser)
+    expect(draft.full_name).toBe('João Silva')
+    expect(draft.email).toBe('joao@example.com')
+    expect(draft.phone).toBe('(11) 91234-5678')
+  })
+
+  it('mapClientToInstallerDraft fills name, email, phone', () => {
+    const draft = mapClientToInstallerDraft(sampleClient)
+    expect(draft.full_name).toBe('Maria Souza')
+  })
+
+  it('installer_code is NOT present in any installer draft', () => {
+    expect('installer_code' in mapUserToInstallerDraft(sampleUser)).toBe(false)
+    expect('installer_code' in mapClientToInstallerDraft(sampleClient)).toBe(false)
+  })
+})
+
+describe('import safety rules', () => {
+  it('import does not save automatically (draft is just a plain object)', () => {
+    const draft = mapUserToConsultantDraft(sampleUser)
+    // A draft is just data — no side effects, no DB calls
+    expect(typeof draft).toBe('object')
+    expect(draft.full_name).toBe('João Silva')
+  })
+
+  it('original user object is not mutated by mapping', () => {
+    const user = { ...sampleUser }
+    const draft = mapUserToConsultantDraft(user)
+    draft.full_name = 'CHANGED'
+    expect(user.full_name).toBe('João Silva') // original untouched
+  })
+
+  it('original client object is not mutated by mapping', () => {
+    const client = { ...sampleClient }
+    const draft = mapClientToConsultantDraft(client)
+    draft.full_name = 'CHANGED'
+    expect(client.name).toBe('Maria Souza') // original untouched
+  })
+
+  it('mappers handle missing fields gracefully (return empty strings)', () => {
+    const emptyUser = { id: 'u2', full_name: null, email: undefined, phone: null }
+    const draft = mapUserToConsultantDraft(emptyUser)
+    expect(draft.full_name).toBe('')
+    expect(draft.email).toBe('')
+    expect(draft.phone).toBe('')
+  })
+})

@@ -83,6 +83,10 @@ import {
   handleInstallersUpdateRequest,
   handleInstallersDeactivateRequest,
 } from './routes/installers.js'
+import {
+  handlePersonnelImportableUsers,
+  handlePersonnelImportableClients,
+} from './routes/personnelImport.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
 import {
@@ -830,6 +834,31 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       await handlePurgeDeletedClientsRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // ── Personnel import helpers (read-only pre-fill sources) ─────────────────
+    // GET /api/personnel/importable-users    — list app users for import (admin)
+    // GET /api/personnel/importable-clients  — list clients for import (admin)
+    if (pathname === '/api/personnel/importable-users') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePersonnelImportableUsers(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        url: requestUrl,
+      })
+      return
+    }
+
+    if (pathname === '/api/personnel/importable-clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePersonnelImportableClients(req, res, {
+        sendJson: (s, b) => sendJson(res, s, b),
+        getScopedSql: createHandlerScopedSql,
+        url: requestUrl,
+      })
       return
     }
 
