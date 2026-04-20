@@ -217,7 +217,6 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
               className="fm-form-select"
               value={form.entry_type}
               onChange={(e) => set('entry_type', e.target.value)}
-              required
             >
               <option value="expense">Despesa</option>
               <option value="income">Receita</option>
@@ -236,19 +235,30 @@ function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormPr
           </div>
           <div className="fm-form-row">
             <label className="fm-form-label">Categoria</label>
-            <select
-              className="fm-form-select"
-              value={form.category}
-              onChange={(e) => set('category', e.target.value)}
-              required
-            >
-              <option value="">Selecione...</option>
-              {visibleCategories.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            {visibleCategories.length > 0 ? (
+              <select
+                className="fm-form-select"
+                value={form.category}
+                onChange={(e) => set('category', e.target.value)}
+                aria-required="false"
+              >
+                <option value="">Selecione...</option>
+                {visibleCategories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="fm-form-input"
+                type="text"
+                value={form.category}
+                onChange={(e) => set('category', e.target.value)}
+                placeholder="Ex: Instalação, Kit Solar, Mensalidade…"
+                aria-required="false"
+              />
+            )}
           </div>
           <div className="fm-form-row">
             <label className="fm-form-label">Subcategoria</label>
@@ -556,8 +566,6 @@ function EntriesTab({ entries, error, onRetry, categories, onNew, onEdit, onDele
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
 
-  if (error) return <SectionError message={error} onRetry={onRetry} />
-
   const filtered = useMemo(() => {
     return entries.filter((e) => {
       if (typeFilter && e.entry_type !== typeFilter) return false
@@ -601,12 +609,11 @@ function EntriesTab({ entries, error, onRetry, categories, onNew, onEdit, onDele
           + Novo Lançamento
         </button>
       </div>
-      {filtered.length === 0 ? (
+      {error ? (
+        <SectionError message={error} onRetry={onRetry} />
+      ) : filtered.length === 0 ? (
         <div className="fm-empty">
-          Nenhum lançamento encontrado.{' '}
-          <button type="button" className="ghost" onClick={onNew}>
-            Adicionar lançamento
-          </button>
+          Nenhum lançamento encontrado. Use o botão <strong>+ Novo Lançamento</strong> acima para adicionar.
         </div>
       ) : (
         <div className="fm-table-wrapper">
