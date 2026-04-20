@@ -76,8 +76,10 @@ function resolveBackendOrigin(rawOrigin?: string) {
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, cwd(), "")
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const env: Record<string, string> = loadEnv(mode, cwd(), "") as Record<string, string>
   const hasProxyEnv = Object.prototype.hasOwnProperty.call(env, "VITE_ANEEL_PROXY_BASE")
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const proxyBase = hasProxyEnv ? sanitizeProxyBase(env.VITE_ANEEL_PROXY_BASE) : DEFAULT_PROXY_BASE
   const enableProxy = Boolean(proxyBase)
 
@@ -94,7 +96,6 @@ export default defineConfig(({ mode }) => {
   ]
   if (enableProxy) plugins.push(aneelProxyPlugin(proxyBase))
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
   const backendOrigin = resolveBackendOrigin(env.VITE_BACKEND_ORIGIN).origin
 
   const proxy = ["/auth", "/admin"].reduce<Record<string, { target: string; changeOrigin: true }>>(

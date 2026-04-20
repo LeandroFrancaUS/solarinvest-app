@@ -628,7 +628,7 @@ describe('valor atual de venda — auto-computation from consumo', () => {
 
     const valorContrato = modo === 'leasing' ? custoVariavel : custoVariavel * 1.5
     const mensalidade = consumoKwhMes * 0.95 // rough estimate
-    const mensalidades = Array<number>(mesesProjecao).fill(mensalidade) as number[]
+    const mensalidades = Array<number>(mesesProjecao).fill(mensalidade)
 
     return {
       modo,

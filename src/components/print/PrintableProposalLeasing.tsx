@@ -803,8 +803,10 @@ function PrintableProposalLeasingInner(
     for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
       const ano = anosTusdOrdenados[index]
       if (ano <= prazoContratualTotalAnos) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const valorTusd = tusdMedioPorAno[ano]
         if (Number.isFinite(valorTusd)) {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           tusdPosContrato = Math.max(0, valorTusd ?? 0)
           break
         }
