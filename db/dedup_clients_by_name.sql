@@ -40,12 +40,10 @@
 --   1. Fazer pg_dump do banco ANTES de rodar este script em produção.
 --   2. Rodar o BLOCO A e revisar os resultados com cuidado.
 --   3. Rodar o BLOCO B para criar os backups.
---   4. Rodar o BLOCO C separadamente (sem BEGIN/COMMIT) para criar as tabelas de mapeamento.
---      - As tabelas auto-commitam e ficam visíveis em qualquer conexão posterior.
---      - IMPORTANTE: execute este bloco antes de D–G. Se precisar re-executar, rode C novamente.
---   5. Rodar os BLOCOS D–G (BEGIN/COMMIT) na mesma sessão de banco.
+--   4. Rodar os BLOCOS C–G como um único bloco (BEGIN/COMMIT).
+--      - O Bloco C cria as tabelas de mapeamento dentro da mesma transação.
 --      - Para simular sem commitar: substituir COMMIT por ROLLBACK ao final.
---   6. Rodar o BLOCO H para validar o resultado.
+--   5. Rodar o BLOCO H para validar o resultado.
 --
 -- NORMALIZAÇÃO DE NOME (sem dependência de unaccent):
 --   lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
@@ -428,25 +426,27 @@ ORDER BY 1, 2;
 
 
 -- ============================================================================================================================
--- C) MAPEAMENTO DE DUPLICADOS  (executar ANTES do BEGIN — auto-commit, persiste entre conexões)
+-- C–G) BLOCOS DE MAPEAMENTO, CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
 -- ============================================================================================================================
--- Cria tabelas de mapeamento no schema data_hygiene com a relação:
---   normalized_name  — nome normalizado do grupo
---   canonical_id     — id do registro canônico (sobrevivente) do grupo
---   duplicate_id     — id de cada registro excedente (a ser consolidado e soft-deletado)
+-- Bloco C: cria as tabelas de mapeamento de duplicados (DDL transacional no PostgreSQL).
+-- Blocos D–G: consolidação, migração de FKs, soft-delete e remoção de inválidos.
 --
--- O canônico é eleito por score de força:
---   in_portfolio (50pts) + contrato ativo (40) + billing ativo (30) + proposta ativa (20)
---   + documento válido (5) + email válido (3) + telefone válido (2)
---
--- IMPORTANTE: Este bloco NÃO usa BEGIN/COMMIT.
--- O DDL (CREATE TABLE) auto-commita imediatamente — as tabelas ficam visíveis em qualquer conexão posterior.
--- Os BLOCOs D–G lêem essas tabelas e devem ser executados após este bloco.
+-- ATENÇÃO: Envolto em BEGIN / COMMIT como uma única transação atômica.
+-- Para simular sem commitar, substituir COMMIT por ROLLBACK ao final.
+-- Execute o BLOCO B antes deste bloco (backups).
 -- ============================================================================================================================
+
+BEGIN;
 
 -- Limpeza defensiva: remover tabelas de mapeamento de execuções anteriores, se existirem.
 DROP TABLE IF EXISTS data_hygiene._duplicate_map;
 DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
+
+-- C) MAPEAMENTO DE DUPLICADOS
+-- Cria as tabelas de mapeamento dentro desta transação.
+-- O canônico é eleito por score de força:
+--   in_portfolio (50pts) + contrato ativo (40) + billing ativo (30) + proposta ativa (20)
+--   + documento válido (5) + email válido (3) + telefone válido (2)
 
 -- C1) Tabela de scores por cliente duplicado
 CREATE TABLE data_hygiene._client_strength_scores AS
@@ -536,19 +536,6 @@ FROM data_hygiene._duplicate_map
 GROUP BY normalized_name, canonical_id
 ORDER BY duplicates_count DESC, normalized_name
 LIMIT 50;
-
-
--- ============================================================================================================================
--- D–G) BLOCOS DE CONSOLIDAÇÃO, MIGRAÇÃO E REMOÇÃO (TRANSAÇÃO PRINCIPAL)
--- ============================================================================================================================
--- ATENÇÃO: Este bloco está envolto em BEGIN / COMMIT.
--- Para simular sem commitar, substituir COMMIT por ROLLBACK ao final.
--- Execute SEMPRE os BLOCOs B e C antes deste bloco.
--- Os BLOCOs D–G lêem data_hygiene._duplicate_map e data_hygiene._client_strength_scores
--- que foram criadas e auto-commitadas pelo Bloco C acima.
--- ============================================================================================================================
-
-BEGIN;
 
 
 -- ============================================================================================================================
@@ -1242,12 +1229,12 @@ ORDER BY c.in_portfolio DESC, c.id;
 COMMIT;
 
 -- NOTA: As tabelas data_hygiene._duplicate_map e data_hygiene._client_strength_scores
--- são mantidas após o COMMIT para permitir re-execuções parciais (ex: rodar apenas Block E
--- novamente sem precisar re-executar Block C). O Bloco C já possui DROP TABLE IF EXISTS
--- nas linhas iniciais, portanto execuções futuras limpam as tabelas automaticamente.
--- Para descartá-las manualmente (opcional):
+-- são criadas e removidas dentro da mesma transação. Após o COMMIT elas persistem no schema
+-- data_hygiene para fins de auditoria. Para descartá-las manualmente (opcional):
 --   DROP TABLE IF EXISTS data_hygiene._duplicate_map;
 --   DROP TABLE IF EXISTS data_hygiene._client_strength_scores;
+-- Em uma nova execução do script, o DROP TABLE IF EXISTS no início do bloco C–G as remove
+-- automaticamente antes de recriá-las com os dados atualizados.
 
 
 -- ============================================================================================================================
