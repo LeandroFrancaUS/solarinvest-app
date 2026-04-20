@@ -2,6 +2,13 @@ import { formatMoneyBR, formatMoneyBRWithDigits } from '../lib/locale/br-number'
 
 export const currency = (value: number) => formatMoneyBR(value)
 
+const fmtCurrencyBRL = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 /**
  * Formata um valor numérico como moeda brasileira (BRL).
  * Aceita number, string numérica, null ou undefined.
@@ -16,12 +23,7 @@ export function formatCurrencyBRL(value: number | string | null | undefined): st
   if (value === null || value === undefined) return 'R$ 0,00'
   const numericValue = typeof value === 'string' ? Number(value) : value
   if (!Number.isFinite(numericValue)) return 'R$ 0,00'
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numericValue)
+  return fmtCurrencyBRL.format(numericValue)
 }
 
 export const tarifaCurrency = (value: number) => formatMoneyBRWithDigits(value, 3)
