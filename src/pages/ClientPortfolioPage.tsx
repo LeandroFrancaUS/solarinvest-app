@@ -21,7 +21,16 @@ import {
   patchPortfolioProfile,
   fetchPortfolioNotes,
   addPortfolioNote,
+  exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
+import { upsertClientByDocument } from '../lib/api/clientsApi'
+import {
+  isValidCpfOrCnpj,
+  isValidBrazilPhone,
+  isValidEmail,
+  isValidCep,
+  isValidUc,
+} from '../lib/validation/clientReadiness'
 import { formatCurrencyBRL } from '../utils/formatters'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
@@ -43,6 +52,82 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   const d = new Date(value)
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
+}
+
+/**
+ * Calculates the remaining months in a contract.
+ * Returns null when there is not enough data to compute.
+ * Never returns a negative value (minimum is 0).
+ */
+function calcRemainingMonths(
+  totalMonths: number | null | undefined,
+  contractStartDate: string | null | undefined,
+  fallbackDate?: string | null,
+): number | null {
+  const term = totalMonths ?? null
+  if (!term || term <= 0) return null
+  const startRaw = contractStartDate || fallbackDate
+  if (!startRaw) return null
+  const start = new Date(startRaw)
+  if (isNaN(start.getTime())) return null
+  const now = new Date()
+  const elapsed =
+    (now.getFullYear() - start.getFullYear()) * 12 +
+    (now.getMonth() - start.getMonth())
+  return Math.max(0, Math.round(term - elapsed))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client form validation (used by AddClientModal)
+// ─────────────────────────────────────────────────────────────────────────────
+interface ClientFormErrors {
+  name?: string
+  document?: string
+  phone?: string
+  email?: string
+  cep?: string
+  uc?: string
+}
+
+interface AddClientFormData {
+  name: string
+  document: string
+  phone: string
+  email: string
+  cep: string
+  city: string
+  state: string
+  address: string
+  distribuidora: string
+  uc: string
+  consumption_kwh_month: string
+  term_months: string
+}
+
+function validateClientForm(data: AddClientFormData): ClientFormErrors {
+  const errors: ClientFormErrors = {}
+  if (!data.name.trim()) {
+    errors.name = 'Nome obrigatório'
+  }
+  if (!isValidCpfOrCnpj(data.document)) {
+    const digits = data.document.replace(/\D/g, '')
+    if (digits.length === 11) errors.document = 'CPF inválido'
+    else if (digits.length === 14) errors.document = 'CNPJ inválido'
+    else errors.document = 'CPF/CNPJ inválido'
+  }
+  if (data.phone && !isValidBrazilPhone(data.phone)) {
+    errors.phone = 'Telefone incompleto'
+  }
+  if (data.email && !isValidEmail(data.email)) {
+    errors.email = 'E-mail inválido'
+  }
+  if (data.cep && !isValidCep(data.cep)) {
+    errors.cep = 'CEP inválido'
+  }
+  if (data.uc && !isValidUc(data.uc)) {
+    errors.uc = 'UC deve ter 15 dígitos numéricos'
+  }
+  return errors
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,35 +346,58 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Client card
+// Client card (list row)
 // ─────────────────────────────────────────────────────────────────────────────
+const CARD_CONTRACT_LABELS: Record<string, string> = {
+  leasing: 'Leasing',
+  sale: 'Venda',
+  buyout: 'Buy Out',
+}
+
 function ClientCard({
   client,
-  isSelected,
-  onSelect,
+  onEdit,
+  onDelete,
 }: {
   client: PortfolioClientRow
-  isSelected: boolean
-  onSelect: () => void
+  onEdit: () => void
+  onDelete: () => void
 }) {
+  const contractLabel = client.contract_type ? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type) : '—'
+  const remainingMonths = calcRemainingMonths(
+    client.contractual_term_months ?? client.term_months,
+    client.contract_start_date,
+    client.client_created_at,
+  )
+  const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
+
   return (
-    <div
-      onClick={onSelect}
-      className={`pf-client-card${isSelected ? ' selected' : ''}`}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-        <div className="pf-card-name">
-          {client.name ?? '—'}
+    <div className="pf-client-card">
+      <div className="pf-card-body">
+        <div className="pf-card-info">
+          <div className="pf-card-name">{client.name ?? '—'}</div>
+          <div className="pf-card-doc">{client.document ?? '—'}</div>
+          <div className="pf-card-meta">
+            <span className="pf-card-contract">{contractLabel}</span>
+            <span className="pf-card-meta-sep">·</span>
+            <span className="pf-card-remaining">{remainingLabel}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          {(client.city || client.state) && (
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {[client.city, client.state].filter(Boolean).join('/')}
-            </span>
-          )}
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
-            {formatDate(client.exported_to_portfolio_at)}
-          </span>
+        <div className="pf-card-actions">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onEdit() }}
+            className="pf-row-btn pf-row-btn-edit"
+          >
+            ✏️ Editar
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="pf-row-btn pf-row-btn-delete"
+          >
+            🗑️ Excluir
+          </button>
         </div>
       </div>
     </div>
@@ -394,6 +502,7 @@ function EditarTab({
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : undefined,
         term_months: form.term_months !== '' ? Number(form.term_months) : undefined,
       })
+      console.log('[clients][update] success', { clientId: client.id, name: form.client_name })
       onToast('Cliente atualizado com sucesso.', 'success')
       onSaved({
         ...client,
@@ -2013,6 +2122,224 @@ function NotasTab({ client }: { client: PortfolioClientRow }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Add Client Modal
+// ─────────────────────────────────────────────────────────────────────────────
+function AddClientModal({
+  onClose,
+  onCreated,
+  onToast,
+}: {
+  onClose: () => void
+  onCreated: () => void
+  onToast: (msg: string, type: 'success' | 'error') => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const [errors, setErrors] = useState<ClientFormErrors>({})
+  const [globalError, setGlobalError] = useState<string | null>(null)
+  const [form, setForm] = useState<AddClientFormData>({
+    name: '',
+    document: '',
+    phone: '',
+    email: '',
+    cep: '',
+    city: '',
+    state: '',
+    address: '',
+    distribuidora: '',
+    uc: '',
+    consumption_kwh_month: '',
+    term_months: '',
+  })
+
+  const set = (field: keyof AddClientFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }))
+    setErrors((prev) => ({ ...prev, [field]: undefined }))
+    setGlobalError(null)
+  }
+
+  async function handleSave() {
+    const errs = validateClientForm(form)
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs)
+      setGlobalError('Preencha corretamente todos os campos obrigatórios antes de salvar.')
+      return
+    }
+    setSaving(true)
+    setGlobalError(null)
+    try {
+      const phoneVal = form.phone.trim()
+      const emailVal = form.email.trim()
+      const cepVal = form.cep.trim()
+      const cityVal = form.city.trim()
+      const stateVal = form.state.trim()
+      const addressVal = form.address.trim()
+      const distribuidoraVal = form.distribuidora.trim()
+      const ucVal = form.uc.trim()
+      const created = await upsertClientByDocument({
+        name: form.name.trim(),
+        document: form.document.trim(),
+        ...(phoneVal && { phone: phoneVal }),
+        ...(emailVal && { email: emailVal }),
+        ...(cepVal && { cep: cepVal }),
+        ...(cityVal && { city: cityVal }),
+        ...(stateVal && { state: stateVal }),
+        ...(addressVal && { address: addressVal }),
+        ...(distribuidoraVal && { distribuidora: distribuidoraVal }),
+        ...(ucVal && { uc: ucVal }),
+        consumption_kwh_month: form.consumption_kwh_month ? Number(form.consumption_kwh_month) : null,
+        term_months: form.term_months ? Number(form.term_months) : null,
+      })
+      const clientId = Number(created.id)
+      console.log('[clients][create] success', { clientId, name: form.name })
+      await exportClientToPortfolio(clientId)
+      onToast('Cliente adicionado à carteira com sucesso.', 'success')
+      onCreated()
+      onClose()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar cliente.'
+      console.error('[clients][create] error', msg)
+      setGlobalError(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 10 }
+  const errStyle: React.CSSProperties = { color: '#ef4444', fontSize: 11, marginTop: 2 }
+  const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1200,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        padding: '24px 16px', overflowY: 'auto',
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        style={{
+          background: 'var(--surface, #1e293b)',
+          border: '1px solid var(--border, #334155)',
+          borderRadius: 14,
+          padding: '28px 28px 24px',
+          width: '100%',
+          maxWidth: 640,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>➕ Adicionar Cliente</h2>
+          <button type="button" onClick={onClose}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>
+            ×
+          </button>
+        </div>
+
+        <div className="pf-section-card" style={{ marginBottom: 14 }}>
+          <div className="pf-section-title"><span className="pf-icon">📇</span> Identificação</div>
+          <label className="pf-label" style={labelStyle}>
+            Nome / Razão Social *
+            <input type="text" value={form.name} onChange={set('name')} placeholder="Nome completo ou Razão Social" style={{ ...inputStyle, borderColor: errors.name ? '#ef4444' : undefined }} />
+            {errors.name && <span style={errStyle}>{errors.name}</span>}
+          </label>
+          <label className="pf-label" style={labelStyle}>
+            CPF / CNPJ *
+            <input type="text" value={form.document} onChange={set('document')} placeholder="000.000.000-00 ou 00.000.000/0000-00" style={{ ...inputStyle, borderColor: errors.document ? '#ef4444' : undefined }} />
+            {errors.document && <span style={errStyle}>{errors.document}</span>}
+          </label>
+          <div style={gridStyle}>
+            <label className="pf-label" style={labelStyle}>
+              Telefone
+              <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? '#ef4444' : undefined }} />
+              {errors.phone && <span style={errStyle}>{errors.phone}</span>}
+            </label>
+            <label className="pf-label" style={labelStyle}>
+              E-mail
+              <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? '#ef4444' : undefined }} />
+              {errors.email && <span style={errStyle}>{errors.email}</span>}
+            </label>
+          </div>
+          <div style={gridStyle}>
+            <label className="pf-label" style={labelStyle}>
+              CEP
+              <input type="text" value={form.cep} onChange={set('cep')} placeholder="XXXXX-XXX" maxLength={9} style={{ ...inputStyle, borderColor: errors.cep ? '#ef4444' : undefined }} />
+              {errors.cep && <span style={errStyle}>{errors.cep}</span>}
+            </label>
+            <label className="pf-label" style={labelStyle}>
+              Estado (UF)
+              <input type="text" value={form.state} onChange={(e) => { setForm((f) => ({ ...f, state: e.target.value.toUpperCase() })) }} placeholder="SP" maxLength={2} style={inputStyle} />
+            </label>
+          </div>
+          <div style={gridStyle}>
+            <label className="pf-label" style={labelStyle}>
+              Cidade
+              <input type="text" value={form.city} onChange={set('city')} placeholder="Cidade" style={inputStyle} />
+            </label>
+            <label className="pf-label" style={labelStyle}>
+              Endereço
+              <input type="text" value={form.address} onChange={set('address')} placeholder="Rua, número, bairro" style={inputStyle} />
+            </label>
+          </div>
+        </div>
+
+        <div className="pf-section-card" style={{ marginBottom: 14 }}>
+          <div className="pf-section-title"><span className="pf-icon">⚡</span> Energia</div>
+          <label className="pf-label" style={labelStyle}>
+            Distribuidora
+            <input type="text" value={form.distribuidora} onChange={set('distribuidora')} placeholder="Ex: ENEL, CEMIG, CPFL…" style={inputStyle} />
+          </label>
+          <label className="pf-label" style={labelStyle}>
+            UC Geradora
+            <input type="text" value={form.uc} onChange={set('uc')} placeholder="000000000000000 (15 dígitos)" style={{ ...inputStyle, borderColor: errors.uc ? '#ef4444' : undefined }} />
+            {errors.uc && <span style={errStyle}>{errors.uc}</span>}
+          </label>
+          <div style={gridStyle}>
+            <label className="pf-label" style={labelStyle}>
+              Consumo (kWh/mês)
+              <input type="number" value={form.consumption_kwh_month} onChange={set('consumption_kwh_month')} placeholder="0" min={0} style={inputStyle} />
+            </label>
+            <label className="pf-label" style={labelStyle}>
+              Prazo Contratual (meses)
+              <input type="number" value={form.term_months} onChange={set('term_months')} placeholder="0" min={1} style={inputStyle} />
+            </label>
+          </div>
+        </div>
+
+        {globalError && (
+          <div style={{
+            padding: '10px 14px', borderRadius: 7, background: 'rgba(239,68,68,0.1)',
+            border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444',
+            fontSize: 13, marginBottom: 14,
+          }}>
+            {globalError}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} disabled={saving}
+            style={{ padding: '9px 20px', borderRadius: 7, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14 }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={() => void handleSave()} disabled={saving}
+            style={{
+              padding: '9px 22px', borderRadius: 7, border: 'none',
+              background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
+              fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14,
+              opacity: saving ? 0.7 : 1,
+            }}>
+            {saving ? 'Salvando…' : '💾 Salvar Cliente'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Detail Panel
 // PORTFOLIO REHYDRATION RULE (Etapa 2.4):
 //   All tabs are hydrated exclusively from GET /api/client-portfolio/:id.
@@ -2095,11 +2422,14 @@ function ClientDetailPanel({
 
   async function handleDeleteClient() {
     setConfirmDelete(false)
+    console.log('[clients][delete] initiated', { clientId })
     const ok = await deleteClient(clientId)
     if (ok) {
+      console.log('[clients][delete] success', { clientId })
       onToast('Cliente excluído com sucesso.', 'success')
       onDeleted(clientId)
     } else {
+      console.error('[clients][delete] error', { clientId })
       onToast('Não foi possível excluir o cliente.', 'error')
     }
   }
@@ -2251,9 +2581,12 @@ function ClientDetailPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Props) {
   const { clients, isLoading, error, reload, setSearch, removeClient } = useClientPortfolio()
+  const { deleting, deleteClient } = usePortfolioDelete()
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [showAddClient, setShowAddClient] = useState(false)
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2274,7 +2607,6 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
   }, [])
 
   const handleClientUpdated = useCallback(() => {
-    // Clients list will reflect changes on next reload; the panel already holds local state
     reload()
   }, [reload])
 
@@ -2289,6 +2621,22 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
     if (selectedClientId === clientId) setSelectedClientId(null)
     onClientRemovedFromPortfolio?.()
   }, [removeClient, selectedClientId, onClientRemovedFromPortfolio])
+
+  const handleInlineDelete = useCallback(async (clientId: number) => {
+    setConfirmDeleteId(null)
+    console.log('[clients][delete] initiated', { clientId })
+    const ok = await deleteClient(clientId)
+    if (ok) {
+      console.log('[clients][delete] success', { clientId })
+      removeClient(clientId)
+      if (selectedClientId === clientId) setSelectedClientId(null)
+      onClientRemovedFromPortfolio?.()
+      showToast('Cliente excluído com sucesso.', 'success')
+    } else {
+      console.error('[clients][delete] error', { clientId })
+      showToast('Não foi possível excluir o cliente.', 'error')
+    }
+  }, [deleteClient, removeClient, selectedClientId, onClientRemovedFromPortfolio, showToast])
 
   const total = clients.length
   const hasClients = total > 0
@@ -2331,6 +2679,8 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
     return alerts.slice(0, MAX_DASHBOARD_ALERTS)
   }, [clients, hasClients])
 
+  const confirmDeleteClient = clients.find((c) => c.id === confirmDeleteId)
+
   return (
     <div
       className="budget-search-page portfolio-page"
@@ -2356,19 +2706,26 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               )}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setShowAddClient(true)}
+              className="pf-btn-add-client"
+            >
+              ➕ Adicionar Cliente
+            </button>
             <button
               type="button"
               onClick={reload}
               title="Atualizar lista"
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              className="pf-btn-toolbar"
             >
               🔄
             </button>
             <button
               type="button"
               onClick={onBack}
-              style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              className="pf-btn-toolbar"
             >
               ← Voltar
             </button>
@@ -2376,22 +2733,13 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         </div>
 
         {/* Search */}
-        <div style={{ position: 'relative', maxWidth: 480 }}>
+        <div style={{ position: 'relative', maxWidth: 480, marginTop: 4 }}>
           <input
             type="search"
             placeholder="Buscar por nome, e-mail, documento, cidade, UC…"
             value={searchInput}
             onChange={handleSearch}
-            style={{
-              width: '100%',
-              padding: '8px 38px 8px 14px',
-              borderRadius: 8,
-              border: '1px solid var(--border, #334155)',
-              background: 'var(--surface, #1e293b)',
-              color: 'inherit',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
+            className="pf-search-input"
           />
           {searchInput && (
             <button
@@ -2400,7 +2748,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               aria-label="Limpar busca"
               style={{
                 position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)',
+                background: 'none', border: 'none', color: 'var(--text-muted, #6B8BB5)',
                 cursor: 'pointer', fontSize: 16, padding: 0,
               }}
             >
@@ -2415,7 +2763,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         {/* Left: list */}
         <div
           style={{
-            flex: selectedClientId ? '0 0 30%' : '1 1 100%',
+            flex: selectedClientId ? '0 0 40%' : '1 1 100%',
             overflowY: 'auto',
             padding: '12px 16px',
             transition: 'flex 0.2s',
@@ -2467,22 +2815,33 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
                 <>
                   <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Carteira vazia</p>
                   <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>
-                    Nenhum cliente foi exportado para a carteira ainda.
+                    Nenhum cliente na carteira ainda.
                     <br />
-                    Use o ícone <strong>🤝 Negócio fechado</strong> na lista de clientes para adicionar.
+                    Clique em <strong>➕ Adicionar Cliente</strong> para começar.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddClient(true)}
+                    style={{
+                      marginTop: 14, padding: '9px 20px', borderRadius: 7, border: 'none',
+                      background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff',
+                      fontWeight: 700, cursor: 'pointer', fontSize: 14,
+                    }}
+                  >
+                    ➕ Adicionar Cliente
+                  </button>
                 </>
               )}
             </div>
           )}
           {!isLoading && !error && hasClients && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {clients.map((c) => (
                 <ClientCard
                   key={c.id}
                   client={c}
-                  isSelected={selectedClientId === c.id}
-                  onSelect={() => setSelectedClientId(c.id)}
+                  onEdit={() => setSelectedClientId(c.id)}
+                  onDelete={() => setConfirmDeleteId(c.id)}
                 />
               ))}
             </div>
@@ -2493,7 +2852,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
         {selectedClientId && (
           <div
             style={{
-              flex: '0 0 70%',
+              flex: '0 0 60%',
               borderLeft: '1px solid var(--border, #334155)',
               overflow: 'hidden',
               display: 'flex',
@@ -2512,6 +2871,27 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
           </div>
         )}
       </div>
+
+      {/* Inline delete confirmation */}
+      {confirmDeleteId !== null && confirmDeleteClient && (
+        <ConfirmDialog
+          title="Excluir Cliente"
+          message={`Tem certeza que deseja excluir o cliente "${confirmDeleteClient.name ?? confirmDeleteId}"?\nEsta ação não pode ser desfeita.`}
+          confirmLabel={deleting ? 'Excluindo…' : 'Confirmar exclusão'}
+          confirmColor="#ef4444"
+          onConfirm={() => void handleInlineDelete(confirmDeleteId)}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
+
+      {/* Add client modal */}
+      {showAddClient && (
+        <AddClientModal
+          onClose={() => setShowAddClient(false)}
+          onCreated={() => { reload(); onClientRemovedFromPortfolio?.() }}
+          onToast={showToast}
+        />
+      )}
 
       {/* Toast */}
       {toast && (

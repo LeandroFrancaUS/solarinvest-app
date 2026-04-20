@@ -7,26 +7,27 @@
 /* ── 1. SCOPED DESIGN TOKENS ─────────────────────────────────── */
 .portfolio-page {
   /* Surface layers (dark institutional blue palette) */
-  --bg:           #0b1526;
-  --surface:      #122040;
-  --surface-2:    #0e1c36;
-  --surface-3:    #1a2e50;
+  --bg:           #0B1F3A;
+  --surface:      #122B4A;
+  --surface-2:    #0e2040;
+  --surface-3:    #16345C;
 
   /* Text hierarchy */
-  --text-strong:  #f0f4ff;
+  --text-strong:  #FFFFFF;
   --text-base:    #dde7f5;
-  --text-muted:   #8caac8;
-  --text-dim:     #4d6a88;
+  --text-muted:   #A8C1E0;
+  --text-dim:     #6B8BB5;
 
   /* Borders */
-  --border:        rgba(96, 160, 220, 0.22);
-  --border-strong: rgba(96, 160, 220, 0.5);
+  --border:        #1F3D66;
+  --border-strong: rgba(45, 140, 255, 0.5);
 
   /* Accent (SolarInvest orange) */
   --accent:       #f59e0b;
   --accent-soft:  rgba(245, 158, 11, 0.12);
 
   color: var(--text-base);
+  background: var(--bg);
 }
 
 /* ── 2. INPUT / SELECT / TEXTAREA OVERRIDES ───────────────────── */
@@ -44,8 +45,8 @@
 .portfolio-page select:focus,
 .portfolio-page textarea:focus {
   outline: none;
-  border-color: var(--border-strong) !important;
-  box-shadow: 0 0 0 2px rgba(96, 160, 220, 0.15) !important;
+  border-color: #2D8CFF !important;
+  box-shadow: 0 0 0 2px rgba(45, 140, 255, 0.18) !important;
 }
 
 .portfolio-page input:disabled,
@@ -309,38 +310,172 @@
   font-size: 11.5px;
 }
 
-/* ── 10. CLIENT SIDEBAR CARD ──────────────────────────────────── */
+/* ── 10. CLIENT CARD ──────────────────────────────────────────── */
 .pf-client-card {
-  cursor: pointer;
-  padding: 11px 14px;
-  border-radius: 8px;
+  padding: 16px;
+  border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface, #122040);
-  transition: border-color 0.15s, background 0.15s;
+  background: var(--surface, #122B4A);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .pf-client-card:hover {
-  border-color: var(--border-strong);
-  background: rgba(96, 160, 220, 0.07);
+  border-color: #2D8CFF;
+  background: var(--surface-3, #16345C);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
-.pf-client-card.selected {
-  border: 1.5px solid var(--accent, #f59e0b);
-  background: rgba(245, 158, 11, 0.08);
+/* Card body: info left, actions right */
+.pf-card-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.pf-client-card .pf-card-name {
+.pf-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-card-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 16px;
+  color: var(--text-strong, #FFFFFF);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
-  color: var(--text-strong);
+  line-height: 1.3;
 }
 
-.pf-client-card.selected .pf-card-name {
-  color: var(--accent, #f59e0b);
+.pf-card-doc {
+  font-size: 13px;
+  color: var(--text-muted, #A8C1E0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim, #6B8BB5);
+  flex-wrap: wrap;
+}
+
+.pf-card-meta-sep {
+  color: var(--text-dim, #6B8BB5);
+  line-height: 1;
+}
+
+.pf-card-contract {
+  white-space: nowrap;
+}
+
+.pf-card-remaining {
+  white-space: nowrap;
+}
+
+.pf-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── 10b. ROW BUTTONS (shared) ────────────────────────────────── */
+.pf-row-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+.pf-row-btn-edit {
+  border: 1.5px solid #2D8CFF;
+  background: rgba(45, 140, 255, 0.1);
+  color: #2D8CFF;
+}
+
+.pf-row-btn-edit:hover {
+  background: rgba(45, 140, 255, 0.22);
+  box-shadow: 0 2px 6px rgba(45, 140, 255, 0.2);
+}
+
+.pf-row-btn-delete {
+  border: 1.5px solid #FF4D4F;
+  background: rgba(255, 77, 79, 0.08);
+  color: #FF4D4F;
+}
+
+.pf-row-btn-delete:hover {
+  background: rgba(255, 77, 79, 0.2);
+  box-shadow: 0 2px 6px rgba(255, 77, 79, 0.2);
+}
+
+/* ── 10c. SEARCH BAR ──────────────────────────────────────────── */
+.pf-search-input {
+  width: 100%;
+  padding: 9px 38px 9px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #1F3D66);
+  background: var(--surface, #122B4A);
+  color: var(--text-strong, #FFFFFF);
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pf-search-input::placeholder {
+  color: var(--text-dim, #6B8BB5);
+  opacity: 1;
+}
+
+.pf-search-input:focus {
+  outline: none;
+  border-color: #2D8CFF;
+  box-shadow: 0 0 0 2px rgba(45, 140, 255, 0.18);
+}
+
+/* ── 10d. TOOLBAR BUTTONS ─────────────────────────────────────── */
+.pf-btn-add-client {
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #22C55E;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.pf-btn-add-client:hover {
+  background: #16A34A;
+  box-shadow: 0 3px 10px rgba(34, 197, 94, 0.3);
+}
+
+.pf-btn-toolbar {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #1F3D66);
+  background: none;
+  color: var(--text-muted, #A8C1E0);
+  cursor: pointer;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pf-btn-toolbar:hover {
+  border-color: #2D8CFF;
+  background: rgba(45, 140, 255, 0.07);
 }
 
 /* ── 11. BILLING CALCULATION RESULT ROWS ─────────────────────── */
