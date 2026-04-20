@@ -46,6 +46,16 @@ import {
 
 export type PersonnelType = 'consultants' | 'engineers' | 'installers'
 
+// Maps an API error to a user-facing message, differentiating 401/403/5xx.
+function personnelErrorMessage(err: unknown, defaultMsg: string): string {
+  const status = (err as { status?: number }).status
+  if (status === 401) return 'Sessão expirada ou usuário não autenticado. Faça login novamente.'
+  if (status === 403) return 'Sem permissão para acessar este recurso. Verifique seu perfil de acesso.'
+  if (status != null && status >= 500) return 'Erro interno do servidor. Tente novamente mais tarde.'
+  if (err instanceof Error && err.message) return err.message
+  return defaultMsg
+}
+
 function ActiveBadge({ active }: { active: boolean }) {
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${active ? 'bg-[var(--color-success-bg)] text-ds-success' : 'bg-ds-ghost text-ds-text-muted'}`}>
@@ -233,7 +243,7 @@ function ConsultantModal({
       onSaved()
       onClose()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar consultor.')
+      setSaveError(personnelErrorMessage(err, 'Erro ao salvar consultor.'))
     } finally {
       setSaving(false)
     }
@@ -510,7 +520,7 @@ function EngineerModal({
       onSaved()
       onClose()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar engenheiro.')
+      setSaveError(personnelErrorMessage(err, 'Erro ao salvar engenheiro.'))
     } finally {
       setSaving(false)
     }
@@ -745,7 +755,7 @@ function InstallerModal({
       onSaved()
       onClose()
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Erro ao salvar instalador.')
+      setSaveError(personnelErrorMessage(err, 'Erro ao salvar instalador.'))
     } finally {
       setSaving(false)
     }
@@ -917,7 +927,7 @@ export function ConsultantsTab() {
       const data = await fetchConsultants()
       setItems(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar consultores.')
+      setError(personnelErrorMessage(err, 'Erro ao carregar consultores.'))
     } finally {
       setLoading(false)
     }
@@ -945,7 +955,7 @@ export function ConsultantsTab() {
       setDeactivating(null)
       void load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao desativar consultor.')
+      setError(personnelErrorMessage(err, 'Erro ao desativar consultor.'))
       setDeactivating(null)
     } finally {
       setDeactivateLoading(false)
@@ -1076,7 +1086,7 @@ export function EngineersTab() {
     try {
       setItems(await fetchEngineers())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar engenheiros.')
+      setError(personnelErrorMessage(err, 'Erro ao carregar engenheiros.'))
     } finally {
       setLoading(false)
     }
@@ -1104,7 +1114,7 @@ export function EngineersTab() {
       setDeactivating(null)
       void load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao desativar engenheiro.')
+      setError(personnelErrorMessage(err, 'Erro ao desativar engenheiro.'))
       setDeactivating(null)
     } finally {
       setDeactivateLoading(false)
@@ -1235,7 +1245,7 @@ export function InstallersTab() {
     try {
       setItems(await fetchInstallers())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar instaladores.')
+      setError(personnelErrorMessage(err, 'Erro ao carregar instaladores.'))
     } finally {
       setLoading(false)
     }
@@ -1262,7 +1272,7 @@ export function InstallersTab() {
       setDeactivating(null)
       void load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao desativar instalador.')
+      setError(personnelErrorMessage(err, 'Erro ao desativar instalador.'))
       setDeactivating(null)
     } finally {
       setDeactivateLoading(false)

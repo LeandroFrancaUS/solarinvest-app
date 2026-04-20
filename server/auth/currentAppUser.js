@@ -52,8 +52,12 @@ async function hasApprovedAdmin() {
 async function ensureSchemaAndBootstrapData() {
   if (_initAttempted) return
   _initAttempted = true
+
+  // Step 1: Create the table if not present (idempotent; no-op when migration ran).
+  // Wrapped in its own try/catch because CREATE TABLE requires schema-CREATE privilege
+  // (Postgres 15+). If the role lacks it, we log and continue — the table was already
+  // created by the migration, and SELECT/INSERT/UPDATE still work with USAGE.
   try {
-    // Create the table if not present (idempotent; no-op when migration already ran)
     await query(`
       CREATE TABLE IF NOT EXISTS public.app_user_access (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -78,7 +82,23 @@ async function ensureSchemaAndBootstrapData() {
           CHECK (access_status IN ('pending','approved','revoked','blocked'))
       )
     `)
+  } catch (createErr) {
+    // 42501 = insufficient_privilege (schema CREATE not granted).
+    // This is non-fatal: the migration already created the table.
+    // Do NOT reset _initAttempted here — retrying won't help since the privilege
+    // won't change between invocations and the self-heals below don't need CREATE.
+    if (createErr?.code !== '42501') {
+      // Unexpected error during CREATE TABLE — reset for retry next invocation.
+      _initAttempted = false
+      console.warn('[auth/init] initialization warning (non-fatal):', createErr?.message)
+      return
+    }
+    // Schema CREATE permission denied — log once and proceed to self-heals.
+    console.warn('[auth/init] CREATE TABLE skipped (permission denied for schema public) — table assumed to exist via migration')
+  }
 
+  // Step 2: Bootstrap self-heals — only require USAGE on schema + UPDATE/INSERT on table.
+  try {
     // Self-heal: if a row for the bootstrap admin exists but is pending/inactive,
     // promote it now so the first auth request resolves correctly.
     if (ADMIN_BOOTSTRAP_EMAIL) {

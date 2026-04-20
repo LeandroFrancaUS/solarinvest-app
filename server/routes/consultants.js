@@ -168,7 +168,13 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
     return
   }
 
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
+  // Normalize regions: deduplicate, uppercase, strip empty values.
+  // Pass the JS array directly — @neondatabase/serverless serializes it as TEXT[].
+  const regions = Array.isArray(body.regions)
+    ? [...new Set(body.regions.map((uf) => String(uf).trim().toUpperCase()).filter(Boolean))]
+    : []
+
+  console.info('[consultants][create] regions normalized', { count: regions.length, regions })
 
   const rows = await sql`
     INSERT INTO public.consultants (
@@ -181,7 +187,7 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
       ${String(body.phone).trim()},
       ${String(body.email).trim().toLowerCase()},
       ${docStr},
-      ${sql.array(regions)},
+      ${regions},
       ${body.linked_user_id ?? null},
       true,
       ${actor.userId ?? null},
@@ -219,7 +225,11 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
   }
 
   const sql = await getScopedSql(actor)
-  const regions = Array.isArray(body.regions) ? body.regions.map(String) : []
+  // Normalize regions: deduplicate, uppercase, strip empty values.
+  // Pass the JS array directly — @neondatabase/serverless serializes it as TEXT[].
+  const regions = Array.isArray(body.regions)
+    ? [...new Set(body.regions.map((uf) => String(uf).trim().toUpperCase()).filter(Boolean))]
+    : []
   const docStr = String(body.document).trim()
 
   // Check document uniqueness (excluding current record)
@@ -237,7 +247,7 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
       phone              = ${String(body.phone).trim()},
       email              = ${String(body.email).trim().toLowerCase()},
       document           = ${docStr},
-      regions            = ${sql.array(regions)},
+      regions            = ${regions},
       linked_user_id     = ${body.linked_user_id ?? null},
       updated_by_user_id = ${actor.userId ?? null},
       updated_at         = now()
