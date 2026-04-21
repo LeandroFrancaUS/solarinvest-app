@@ -300,6 +300,10 @@ export async function listProjects(sql, filters = {}) {
     params.push(filters.status)
     conditions.push(`p.status = $${params.length}`)
   }
+  if (filters.client_id) {
+    params.push(Number(filters.client_id))
+    conditions.push(`p.client_id = $${params.length}`)
+  }
   if (filters.search) {
     params.push(`%${filters.search}%`)
     const idx = params.length

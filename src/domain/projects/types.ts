@@ -66,6 +66,7 @@ export interface ProjectListFilters {
   search?: string
   project_type?: ProjectType
   status?: ProjectStatus
+  client_id?: number
   limit?: number
   offset?: number
   order_by?: 'updated_at' | 'created_at' | 'client_name'

@@ -5,8 +5,13 @@ import React, { useCallback, useEffect, useState } from 'react'
 import '../styles/financial-management.css'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { patchProjectPvData } from '../services/projectsApi'
+import { fetchPortfolioClient } from '../services/clientPortfolioApi'
 import type { ProjectPvData, ProjectStatus } from '../domain/projects/types'
 import { PROJECT_STATUSES } from '../domain/projects/types'
+import {
+  PROJECT_STATUS_LABELS as PORTFOLIO_PROJECT_STATUS_LABELS,
+} from '../shared/projects/portfolioProjectOps'
+import type { PortfolioClientRow } from '../types/clientPortfolio'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -106,6 +111,13 @@ function ProjetoSection({ projectId }: ProjetoSectionProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Load portfolio client to show operational project status (installation, engineering, etc.)
+  const [portfolioClient, setPortfolioClient] = useState<PortfolioClientRow | null>(null)
+  useEffect(() => {
+    if (!project?.client_id) return
+    void fetchPortfolioClient(project.client_id).then(setPortfolioClient).catch(() => { /* graceful */ })
+  }, [project?.client_id])
+
   const handleStatusChange = useCallback(async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value as ProjectStatus
     setIsSaving(true)
@@ -169,6 +181,43 @@ function ProjetoSection({ projectId }: ProjetoSectionProps) {
         <Field label="Criado em" value={fmtDate(project.created_at)} />
         <Field label="Atualizado em" value={fmtDate(project.updated_at)} />
       </div>
+      {portfolioClient ? (
+        <div className="fm-detail-subsection">
+          <h3 className="fm-detail-subsection-title">Status Operacional</h3>
+          <div className="fm-detail-grid">
+            {portfolioClient.project_status ? (
+              <Field
+                label="Status Geral"
+                value={PORTFOLIO_PROJECT_STATUS_LABELS[portfolioClient.project_status] ?? portfolioClient.project_status}
+              />
+            ) : null}
+            {portfolioClient.installation_status ? (
+              <Field label="Instalação" value={portfolioClient.installation_status} />
+            ) : null}
+            {portfolioClient.engineering_status ? (
+              <Field label="Engenharia" value={portfolioClient.engineering_status} />
+            ) : null}
+            {portfolioClient.homologation_status ? (
+              <Field label="Homologação" value={portfolioClient.homologation_status} />
+            ) : null}
+            {portfolioClient.commissioning_status ? (
+              <Field label="Comissionamento" value={portfolioClient.commissioning_status} />
+            ) : null}
+            {portfolioClient.commissioning_date ? (
+              <Field label="Data Comissionamento" value={fmtDate(portfolioClient.commissioning_date)} />
+            ) : null}
+            {portfolioClient.integrator_name ? (
+              <Field label="Integrador" value={portfolioClient.integrator_name} />
+            ) : null}
+            {portfolioClient.engineer_name ? (
+              <Field label="Engenheiro" value={portfolioClient.engineer_name} />
+            ) : null}
+            {portfolioClient.art_number ? (
+              <Field label="Nº ART" value={portfolioClient.art_number} mono />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {saveError ? (
         <div className="fm-error-banner fm-error-banner--inline" role="alert">
           ⚠️ {saveError}

@@ -84,6 +84,7 @@ export async function fetchProjects(filters: ProjectListFilters = {}): Promise<P
     search: filters.search,
     project_type: filters.project_type,
     status: filters.status,
+    client_id: filters.client_id != null ? String(filters.client_id) : undefined,
     limit: filters.limit,
     offset: filters.offset,
     order_by: filters.order_by,
@@ -91,6 +92,15 @@ export async function fetchProjects(filters: ProjectListFilters = {}): Promise<P
   })
   const res = await apiFetch<{ data: ProjectRow[]; meta: { total: number; limit: number; offset: number } }>(url)
   return { rows: res.data, meta: res.meta }
+}
+
+/**
+ * Returns the first active financial project linked to a portfolio client, or null.
+ * Used by UsinaTab to sync pv_data with the project_pv_data record when a project exists.
+ */
+export async function fetchProjectByClientId(clientId: number): Promise<ProjectRow | null> {
+  const result = await fetchProjects({ client_id: clientId, limit: 1 })
+  return result.rows[0] ?? null
 }
 
 export async function fetchProjectById(projectId: string): Promise<ProjectDetailResponse> {

@@ -13,6 +13,18 @@ import {
 import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
+  buildProjetoForm,
+  buildProjetoSavePayload,
+  validateProjetoSave,
+  PROJECT_STATUS_LABELS,
+  INSTALLATION_STATUS_OPTIONS,
+  ENGINEERING_STATUS_OPTIONS,
+  HOMOLOGATION_STATUS_OPTIONS,
+  COMMISSIONING_STATUS_OPTIONS,
+  ART_STATUS_OPTIONS,
+} from '../shared/projects/portfolioProjectOps'
+import type { ProjetoFormData } from '../shared/projects/portfolioProjectOps'
+import {
   patchPortfolioContract,
   patchPortfolioProject,
   patchPortfolioBilling,
@@ -23,6 +35,7 @@ import {
   addPortfolioNote,
   exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
+import { patchProjectPvData, fetchProjectByClientId } from '../services/projectsApi'
 import { upsertClientByDocument } from '../lib/api/clientsApi'
 import {
   isValidCpfOrCnpj,
@@ -436,10 +449,10 @@ type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 
 function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onChange: (t: Tab) => void; showPlano: boolean }) {
   const tabs: { id: Tab; label: string; hidden?: boolean }[] = [
     { id: 'editar', label: '👤 Cliente' },
+    { id: 'plano', label: '📋 Plano', hidden: !showPlano },
     { id: 'projeto', label: '🔧 Projeto' },
     { id: 'usina', label: '☀️ Usina' },
     { id: 'contrato', label: '📄 Contrato' },
-    { id: 'plano', label: '📋 Plano', hidden: !showPlano },
     { id: 'cobranca', label: '💰 Cobrança' },
     { id: 'notas', label: '📝 Notas' },
   ]
@@ -1053,17 +1066,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Project Tab
+// Project Tab — uses shared/projects/portfolioProjectOps for types/logic
 // ─────────────────────────────────────────────────────────────────────────────
-const PROJECT_STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendente', engineering: 'Engenharia', installation: 'Instalação',
-  homologation: 'Homologação', commissioned: 'Comissionado', active: 'Ativo', issue: 'Com Problema',
-}
-
-const DEFAULT_INTEGRATOR = 'Solarinvest'
-const DEFAULT_ENGINEER = 'Tiago Souza'
-const DEFAULT_ENGINEERING_STATUS = 'Não Iniciado'
-
 function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -1080,83 +1084,23 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
     void fetchInstallers(true).then(setInstallers).catch(() => { /* graceful */ })
   }, [])
 
-  const [form, setForm] = useState({
-    project_status: client.project_status ?? 'pending',
-    installation_status: client.installation_status ?? '',
-    engineering_status: client.engineering_status ?? DEFAULT_ENGINEERING_STATUS,
-    homologation_status: client.homologation_status ?? '',
-    commissioning_status: client.commissioning_status ?? '',
-    commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
-    integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
-    engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
-    engineer_id: client.engineer_id ?? null,
-    installer_id: client.installer_id ?? null,
-    art_number: client.art_number ?? '',
-    art_issued_at: client.art_issued_at?.slice(0, 10) ?? '',
-    art_status: client.art_status ?? '',
-    project_notes: client.project_notes ?? '',
-  })
+  const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
 
-  const resetForm = () => setForm({
-    project_status: client.project_status ?? 'pending',
-    installation_status: client.installation_status ?? '',
-    engineering_status: client.engineering_status ?? DEFAULT_ENGINEERING_STATUS,
-    homologation_status: client.homologation_status ?? '',
-    commissioning_status: client.commissioning_status ?? '',
-    commissioning_date: client.commissioning_date?.slice(0, 10) ?? '',
-    integrator_name: client.integrator_name ?? DEFAULT_INTEGRATOR,
-    engineer_name: client.engineer_name ?? DEFAULT_ENGINEER,
-    engineer_id: client.engineer_id ?? null,
-    installer_id: client.installer_id ?? null,
-    art_number: client.art_number ?? '',
-    art_issued_at: client.art_issued_at?.slice(0, 10) ?? '',
-    art_status: client.art_status ?? '',
-    project_notes: client.project_notes ?? '',
-  })
+  const resetForm = () => setForm(buildProjetoForm(client))
 
   async function handleSave() {
-    // ART requires engineer
-    if (form.art_number.trim() && !form.engineer_id) {
-      setSaveError('Não é possível salvar ART sem selecionar um engenheiro.')
-      return
-    }
-    const needsObservation = 
-      form.homologation_status === 'Reprovado' || form.homologation_status === 'Pendências' ||
-      form.commissioning_status === 'Reprovado' || form.commissioning_status === 'Pendências'
-    if (needsObservation && !form.project_notes.trim()) {
-      setSaveError('Observação obrigatória quando status é Reprovado ou Pendências.')
+    const validationError = validateProjetoSave(form)
+    if (validationError) {
+      setSaveError(validationError)
       return
     }
     setSaving(true)
     setSaveError(null)
     try {
-      let finalNotes = form.project_notes
-      if (needsObservation && finalNotes.trim()) {
-        const now = new Date()
-        const ts = now.toISOString().slice(0, 16).replace('T', ' ')
-        const origin = (form.homologation_status === 'Reprovado' || form.homologation_status === 'Pendências') ? 'Homologação' : 'Comissionamento'
-        if (!finalNotes.startsWith('[')) {
-          finalNotes = `[${ts}] [${origin}] ${finalNotes}`
-        }
-      }
-      await patchPortfolioProject(client.id, {
-        ...form,
-        commissioning_date: form.commissioning_date || null,
-        installation_status: form.installation_status || null,
-        engineering_status: form.engineering_status || null,
-        homologation_status: form.homologation_status || null,
-        commissioning_status: form.commissioning_status || null,
-        integrator_name: form.integrator_name || null,
-        engineer_name: form.engineer_name || null,
-        engineer_id: form.engineer_id ?? null,
-        installer_id: form.installer_id ?? null,
-        art_number: form.art_number.trim() || null,
-        art_issued_at: form.art_issued_at || null,
-        art_status: form.art_status || null,
-        notes: finalNotes || null,
-      })
+      const payload = buildProjetoSavePayload(form)
+      await patchPortfolioProject(client.id, payload)
       onSaved({
-        project_status: form.project_status,
+        project_status: form.project_status as PortfolioClientRow['project_status'],
         installation_status: form.installation_status || null,
         engineering_status: form.engineering_status || null,
         homologation_status: form.homologation_status || null,
@@ -1169,7 +1113,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
         art_number: form.art_number.trim() || null,
         art_issued_at: form.art_issued_at || null,
         art_status: form.art_status || null,
-        project_notes: finalNotes || null,
+        project_notes: (payload.notes as string | null) ?? null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
     } catch (err: unknown) {
@@ -1193,21 +1137,14 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             Status Instalação
             <select value={form.installation_status} onChange={(e) => setForm((f) => ({ ...f, installation_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
-              <option value="Aguardando Agendamento">Aguardando Agendamento</option>
-              <option value="Agendado">Agendado</option>
-              <option value="Em Andamento">Em Andamento</option>
-              <option value="Concluído">Concluído</option>
+              {INSTALLATION_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
           <label className="pf-label">
             Status Engenharia
             <select value={form.engineering_status} onChange={(e) => setForm((f) => ({ ...f, engineering_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
-              <option value="Não Iniciado">Não Iniciado</option>
-              <option value="Análise Técnica">Análise Técnica</option>
-              <option value="Enviado à Concessionária">Enviado à Concessionária</option>
-              <option value="Aprovado">Aprovado</option>
-              <option value="Reprovado">Reprovado</option>
+              {ENGINEERING_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
         </div>
@@ -1217,20 +1154,14 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             Status Homologação
             <select value={form.homologation_status} onChange={(e) => setForm((f) => ({ ...f, homologation_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
-              <option value="Solicitado">Solicitado</option>
-              <option value="Aguardando Vistoria">Aguardando Vistoria</option>
-              <option value="Homologado">Homologado</option>
-              <option value="Reprovado">Reprovado</option>
-              <option value="Pendências">Pendências</option>
+              {HOMOLOGATION_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
           <label className="pf-label">
             Status Comissionamento
             <select value={form.commissioning_status} onChange={(e) => setForm((f) => ({ ...f, commissioning_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
-              <option value="Pendente">Pendente</option>
-              <option value="Em execução">Em execução</option>
-              <option value="Concluído">Concluído</option>
+              {COMMISSIONING_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
         </div>
@@ -1319,9 +1250,7 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
             Status da ART
             <select value={form.art_status} onChange={(e) => setForm((f) => ({ ...f, art_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
               <option value="">Selecione…</option>
-              <option value="pendente">Pendente</option>
-              <option value="emitida">Emitida</option>
-              <option value="cancelada">Cancelada</option>
+              {ART_STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
         </div>
@@ -1942,6 +1871,25 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
+      // Best-effort sync: if a financial project exists for this client, also
+      // write the usina data to project_pv_data so both views stay in sync.
+      void fetchProjectByClientId(client.id).then((proj) => {
+        if (!proj) return
+        const pvPayload = {
+          potencia_modulo_wp: ufData.potencia_modulo_wp ? Number(ufData.potencia_modulo_wp) : null,
+          numero_modulos: ufData.numero_modulos ? Number(ufData.numero_modulos) : null,
+          modelo_modulo: ufData.modelo_modulo || null,
+          modelo_inversor: ufData.modelo_inversor || null,
+          area_utilizada_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
+          geracao_estimada_kwh_mes: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
+          potencia_sistema_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+          tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+        }
+        return patchProjectPvData(proj.id, pvPayload)
+      }).catch((err: unknown) => {
+        // Non-fatal: portfolio usina save already succeeded
+        console.warn('[UsinaTab] project_pv_data sync failed (non-fatal)', err)
+      })
     } finally {
       setSaving(false)
     }
@@ -2009,6 +1957,10 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
 
+  // Note: potencia_kwp, tipo_rede, marca_inversor, indicacao removed from this form.
+  // These fields now live exclusively in project_pv_data (UsinaTab / Usina section).
+  // Legacy records may still have values in those columns; they are preserved on the
+  // server but no longer edited here.
   const [form, setForm] = useState({
     modalidade: client.modalidade ?? 'leasing',
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
@@ -2016,10 +1968,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
     mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
     prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
-    potencia_kwp: client.potencia_kwp != null ? String(client.potencia_kwp) : (client.system_kwp != null ? String(client.system_kwp) : ''),
-    tipo_rede: client.tipo_rede ?? '',
-    marca_inversor: client.marca_inversor ?? '',
-    indicacao: client.indicacao ?? '',
   })
 
   const resetForm = () => setForm({
@@ -2029,10 +1977,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
     mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
     prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
-    potencia_kwp: client.potencia_kwp != null ? String(client.potencia_kwp) : (client.system_kwp != null ? String(client.system_kwp) : ''),
-    tipo_rede: client.tipo_rede ?? '',
-    marca_inversor: client.marca_inversor ?? '',
-    indicacao: client.indicacao ?? '',
   })
 
   async function handleSave() {
@@ -2046,10 +1990,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
         mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
-        potencia_kwp: form.potencia_kwp ? Number(form.potencia_kwp) : null,
-        tipo_rede: form.tipo_rede || null,
-        marca_inversor: form.marca_inversor || null,
-        indicacao: form.indicacao || null,
       }
       await patchPortfolioPlan(client.id, payload)
       onSaved({
@@ -2061,10 +2001,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         valor_mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
-        potencia_kwp: form.potencia_kwp ? Number(form.potencia_kwp) : null,
-        tipo_rede: form.tipo_rede || null,
-        marca_inversor: form.marca_inversor || null,
-        indicacao: form.indicacao || null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
     } catch (err: unknown) {
@@ -2118,30 +2054,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
               Prazo (meses)
               <input type="number" min={0} value={form.prazo_meses} onChange={(e) => setForm((f) => ({ ...f, prazo_meses: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label className="pf-label" style={labelSty}>
-              Potência (kWp)
-              <input type="number" min={0} step="0.01" value={form.potencia_kwp} onChange={(e) => setForm((f) => ({ ...f, potencia_kwp: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
           </div>
-          <div style={gridSty}>
-            <label className="pf-label" style={labelSty}>
-              Tipo de Rede
-              <select value={form.tipo_rede} onChange={(e) => setForm((f) => ({ ...f, tipo_rede: e.target.value }))} disabled={!editMode} style={inputStyle}>
-                <option value="">Selecione…</option>
-                <option value="monofasico">Monofásico</option>
-                <option value="bifasico">Bifásico</option>
-                <option value="trifasico">Trifásico</option>
-              </select>
-            </label>
-            <label className="pf-label" style={labelSty}>
-              Marca Inversor
-              <input type="text" value={form.marca_inversor} onChange={(e) => setForm((f) => ({ ...f, marca_inversor: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-          </div>
-          <label className="pf-label" style={labelSty}>
-            Indicação
-            <input type="text" value={form.indicacao} onChange={(e) => setForm((f) => ({ ...f, indicacao: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
         </div>
       </div>
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}

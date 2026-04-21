@@ -114,6 +114,7 @@ export async function handleProjectsList(req, res, { method, sendJson, requestUr
     const filters = {
       project_type: projectTypeRaw || undefined,
       status: statusRaw || undefined,
+      client_id: qp.get('client_id') ? Number(qp.get('client_id')) : undefined,
       search: searchRaw?.trim() || undefined,
       limit: qp.get('limit') ? Number(qp.get('limit')) : undefined,
       offset: qp.get('offset') ? Number(qp.get('offset')) : undefined,
