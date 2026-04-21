@@ -3,6 +3,7 @@
 // Access: admin | page_financial_management permission only.
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import '../styles/financial-management.css'
 import {
   fetchFinancialSummary,
@@ -2270,16 +2271,19 @@ export function FinancialManagementPage({ onBack }: Props) {
       )}
 
       {/* Entry Form Drawer */}
-      {showEntryForm ? (
-        <EntryForm
-          entry={editingEntry}
-          categories={categories}
-          templates={templates}
-          onSave={handleSaveEntry}
-          onClose={handleCloseForm}
-          isSaving={isSavingEntry}
-        />
-      ) : null}
+      {showEntryForm
+        ? createPortal(
+            <EntryForm
+              entry={editingEntry}
+              categories={categories}
+              templates={templates}
+              onSave={handleSaveEntry}
+              onClose={handleCloseForm}
+              isSaving={isSavingEntry}
+            />,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
