@@ -21,6 +21,10 @@ import {
   type FinancialEntryInput,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { useProjectsStore } from '../store/useProjectsStore'
+import { ProjectDetailPage } from './ProjectDetailPage'
+import type { ProjectType, ProjectStatus } from '../domain/projects/types'
+import { PROJECT_TYPES, PROJECT_STATUSES } from '../domain/projects/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -412,59 +416,116 @@ function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projects Tab
+// Real Projects Tab (PR 2) — reads from /api/projects via useProjectsStore
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+const PROJECT_TYPE_LABELS_TAB: Record<ProjectType, string> = {
+  leasing: 'Leasing',
+  venda: 'Venda',
+}
+
+const STATUS_BADGE_CLASS_TAB: Record<ProjectStatus, string> = {
+  'Aguardando': 'fm-badge fm-badge--project-status-aguardando',
+  'Em andamento': 'fm-badge fm-badge--project-status-andamento',
+  'Concluído': 'fm-badge fm-badge--project-status-concluido',
+}
+
+interface RealProjectsTabProps {
+  onOpenProject: (id: string) => void
+}
+
+function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
+  const list = useProjectsStore((s) => s.list)
+  const listTotal = useProjectsStore((s) => s.listTotal)
+  const isLoading = useProjectsStore((s) => s.listLoading)
+  const listError = useProjectsStore((s) => s.listError)
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+
   const [search, setSearch] = useState('')
-  const [kindFilter, setKindFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState<ProjectType | ''>('')
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('')
 
-  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
-  const filtered = useMemo(() => {
-    if (error) return []
-    return projects.filter((p) => {
-      if (kindFilter && p.project_kind !== kindFilter) return false
-      if (statusFilter && p.status !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (
-          p.client_name?.toLowerCase().includes(q) ||
-          p.consultant_name?.toLowerCase().includes(q) ||
-          p.uf?.toLowerCase().includes(q)
-        )
-      }
-      return true
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value)
+    void loadProjects({
+      search: value || undefined,
+      project_type: typeFilter || undefined,
+      status: statusFilter || undefined,
     })
-  }, [projects, search, kindFilter, statusFilter, error])
+  }, [typeFilter, statusFilter, loadProjects])
 
-  if (error) return <SectionError message={error} onRetry={onRetry} />
+  const handleTypeFilter = useCallback((value: ProjectType | '') => {
+    setTypeFilter(value)
+    void loadProjects({
+      search: search || undefined,
+      project_type: value || undefined,
+      status: statusFilter || undefined,
+    })
+  }, [search, statusFilter, loadProjects])
+
+  const handleStatusFilter = useCallback((value: ProjectStatus | '') => {
+    setStatusFilter(value)
+    void loadProjects({
+      search: search || undefined,
+      project_type: typeFilter || undefined,
+      status: value || undefined,
+    })
+  }, [search, typeFilter, loadProjects])
+
+  useEffect(() => {
+    void loadProjects({ order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+  }, [loadProjects])
+
+  if (isLoading && list.length === 0) {
+    return (
+      <div className="fm-loading">
+        <span className="fm-loading-spinner" aria-hidden="true" />
+        Carregando projetos…
+      </div>
+    )
+  }
+
+  if (listError && list.length === 0) {
+    return <SectionError message={listError} onRetry={() => void loadProjects()} />
+  }
 
   return (
     <div className="fm-projects">
-      <div className="fm-filters">
-        <input
-          type="search"
-          className="fm-filter-input"
-          placeholder="Buscar cliente, consultor, UF…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select className="fm-filter-select" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-          <option value="">Todos os tipos</option>
-          <option value="leasing">Leasing</option>
-          <option value="sale">Venda</option>
-          <option value="buyout">Buyout</option>
-        </select>
-        <select className="fm-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="active">Ativo</option>
-          <option value="implanting">Em implantação</option>
-          <option value="commissioned">Comissionado</option>
-          <option value="closed">Encerrado</option>
-        </select>
+      <div className="fm-real-projects-header">
+        <div className="fm-filters">
+          <input
+            type="search"
+            className="fm-filter-input"
+            placeholder="Buscar nome, CPF/CNPJ, cidade…"
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <select
+            className="fm-filter-select"
+            value={typeFilter}
+            onChange={(e) => handleTypeFilter(e.target.value as ProjectType | '')}
+          >
+            <option value="">Todos os tipos</option>
+            {PROJECT_TYPES.map((t) => (
+              <option key={t} value={t}>{PROJECT_TYPE_LABELS_TAB[t]}</option>
+            ))}
+          </select>
+          <select
+            className="fm-filter-select"
+            value={statusFilter}
+            onChange={(e) => handleStatusFilter(e.target.value as ProjectStatus | '')}
+          >
+            <option value="">Todos os status</option>
+            {PROJECT_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <span className="fm-real-projects-meta">
+          {listTotal > 0 ? `${listTotal} projeto${listTotal !== 1 ? 's' : ''}` : null}
+        </span>
       </div>
-      {filtered.length === 0 ? (
+      {list.length === 0 ? (
         <div className="fm-empty">Nenhum projeto encontrado com os filtros aplicados.</div>
       ) : (
         <div className="fm-table-wrapper">
@@ -472,38 +533,45 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
                 <th>Tipo</th>
                 <th>Status</th>
-                <th>CAPEX</th>
-                <th>Receita Proj.</th>
-                <th>Receita Real.</th>
-                <th>Lucro Est.</th>
-                <th>ROI</th>
-                <th>Payback</th>
-                <th>Consultor</th>
-                <th>UF</th>
+                <th>Atualizado em</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--${p.project_kind}`}>
-                      {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
-                    </span>
-                  </td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatCurrencyBRL(p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.realized_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.projected_profit)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatMonths(p.payback_months)}</td>
-                  <td>{p.consultant_name ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
+              {list.map((p) => {
+                const locationLabel =
+                  p.city_snapshot && p.state_snapshot
+                    ? `${p.city_snapshot} / ${p.state_snapshot}`
+                    : p.city_snapshot ?? p.state_snapshot ?? '—'
+                const updatedAt = p.updated_at
+                  ? new Date(p.updated_at).toLocaleDateString('pt-BR')
+                  : '—'
+                return (
+                  <tr key={p.id}>
+                    <td className="fm-td-link">
+                      <button type="button" onClick={() => onOpenProject(p.id)}>
+                        {p.client_name_snapshot ?? '—'}
+                      </button>
+                    </td>
+                    <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                    <td>{locationLabel}</td>
+                    <td>
+                      <span className={`fm-badge fm-badge--${p.project_type}`}>
+                        {PROJECT_TYPE_LABELS_TAB[p.project_type] ?? p.project_type}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td>{updatedAt}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -842,6 +910,9 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
+  // Sub-navigation: drill into a project detail without leaving the financial page.
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(null)
+
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
 
@@ -995,6 +1066,16 @@ export function FinancialManagementPage({ onBack }: Props) {
 
   const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'entries', 'leasing', 'sales']
 
+  // ── Project detail sub-view ──────────────────────────────────────────────
+  if (detailProjectId !== null) {
+    return (
+      <ProjectDetailPage
+        projectId={detailProjectId}
+        onBack={() => setDetailProjectId(null)}
+      />
+    )
+  }
+
   return (
     <div className="fm-page">
       {/* Header */}
@@ -1072,7 +1153,7 @@ export function FinancialManagementPage({ onBack }: Props) {
         ) : (
           <>
             {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
-            {activeTab === 'projects' && <ProjectsTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+            {activeTab === 'projects' && <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />}
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
             {activeTab === 'entries' && (
               <EntriesTab

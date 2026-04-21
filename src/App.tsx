@@ -330,6 +330,7 @@ import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
+import { setProjectsTokenProvider } from './services/projectsApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -5438,6 +5439,7 @@ export default function App() {
     setAdminUsersTokenProvider(getAccessToken)
     setPortfolioTokenProvider(getAccessToken)
     setFinancialManagementTokenProvider(getAccessToken)
+    setProjectsTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
