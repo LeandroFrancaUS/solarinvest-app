@@ -111,6 +111,14 @@ import {
   handleFinancialCategories,
   handleFinancialDashboardFeed,
 } from './financial-management/handler.js'
+import {
+  handleProjectsList,
+  handleProjectsSummary,
+  handleProjectById,
+  handleProjectStatus,
+  handleProjectPvData,
+  handleProjectFromPlan,
+} from './projects/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1272,6 +1280,69 @@ export default async function handler(req, res) {
       }
       const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
       await handleFinancialEntries(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
+      return
+    }
+
+    // ── Projects (Gestão Financeira > Projetos) ───────────────────────────────
+
+    // GET /api/projects/summary
+    if (pathname === '/api/projects/summary') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectsSummary(req, res, { method, sendJson: sj })
+      return
+    }
+
+    // POST /api/projects/from-plan/:planId
+    {
+      const fromPlanMatch = pathname.match(/^\/api\/projects\/from-plan\/([^/]+)$/)
+      if (fromPlanMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        const planId = decodeURIComponent(fromPlanMatch[1])
+        await handleProjectFromPlan(req, res, { method, planId, readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // PATCH /api/projects/:id/status
+    {
+      const statusMatch = pathname.match(/^\/api\/projects\/([^/]+)\/status$/)
+      if (statusMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectStatus(req, res, { method, projectId: statusMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // PATCH /api/projects/:id/pv-data
+    {
+      const pvDataMatch = pathname.match(/^\/api\/projects\/([^/]+)\/pv-data$/)
+      if (pvDataMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectPvData(req, res, { method, projectId: pvDataMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // GET|PATCH /api/projects/:id
+    {
+      const byIdMatch = pathname.match(/^\/api\/projects\/([^/]+)$/)
+      if (byIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectById(req, res, { method, projectId: byIdMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // GET /api/projects
+    if (pathname === '/api/projects') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
       return
     }
 
