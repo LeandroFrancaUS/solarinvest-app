@@ -115,7 +115,12 @@ function ProjetoSection({ projectId }: ProjetoSectionProps) {
   const [portfolioClient, setPortfolioClient] = useState<PortfolioClientRow | null>(null)
   useEffect(() => {
     if (!project?.client_id) return
-    void fetchPortfolioClient(project.client_id).then(setPortfolioClient).catch(() => { /* graceful */ })
+    void fetchPortfolioClient(project.client_id)
+      .then(setPortfolioClient)
+      .catch((err: unknown) => {
+        // Non-fatal: operational status block simply won't render
+        console.warn('[ProjetoSection] failed to load portfolio client', err)
+      })
   }, [project?.client_id])
 
   const handleStatusChange = useCallback(async (e: React.ChangeEvent<HTMLSelectElement>) => {
