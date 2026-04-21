@@ -661,6 +661,104 @@
   color: var(--primary-dark, #4338ca);
 }
 
+/* ── 19. PROJECT DETAIL FIELDS ──────────────────────────────── */
+.fm-overview-projects {
+  margin-top: 24px;
+}
+
+.fm-overview-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #64748b);
+  margin: 0 0 12px;
+}
+
+.fm-project-section-action {
+  margin-left: auto;
+}
+
+.fm-section-edit-btn {
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.fm-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px 20px;
+}
+
+.fm-detail-grid--edit {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.fm-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fm-detail-field--edit {
+  gap: 4px;
+}
+
+.fm-detail-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #64748b);
+}
+
+.fm-detail-field-value {
+  font-size: 14px;
+  color: var(--text-primary, #0f172a);
+  word-break: break-word;
+}
+
+.fm-detail-field-value--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.fm-detail-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fm-status-select {
+  max-width: 180px;
+}
+
+.fm-status-select--saving {
+  opacity: 0.6;
+}
+
+.fm-loading-spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.fm-detail-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, rgba(0,0,0,0.07));
+}
+
+.fm-error-banner--inline {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
 
 /* ── 16. RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 768px) {

@@ -8,17 +8,9 @@ import {
   fetchFinancialSummary,
   fetchFinancialProjects,
   fetchFinancialCashflow,
-  fetchFinancialEntries,
-  createFinancialEntry,
-  updateFinancialEntry,
-  deleteFinancialEntry,
-  fetchFinancialCategories,
   type FinancialSummary,
   type FinancialProject,
   type CashflowPeriod,
-  type FinancialEntry,
-  type FinancialCategory,
-  type FinancialEntryInput,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
 import { useProjectsStore } from '../store/useProjectsStore'
@@ -30,7 +22,7 @@ import { PROJECT_TYPES, PROJECT_STATUSES } from '../domain/projects/types'
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'projects' | 'cashflow' | 'entries' | 'leasing' | 'sales'
+type Tab = 'overview' | 'projects' | 'cashflow' | 'leasing' | 'sales'
 
 type PeriodFilter = 'month' | 'quarter' | 'year' | 'custom'
 
@@ -62,22 +54,8 @@ const TAB_LABELS: Record<Tab, string> = {
   overview: 'Visão Geral',
   projects: 'Projetos',
   cashflow: 'Fluxo de Caixa',
-  entries: 'Lançamentos',
   leasing: 'Leasing',
   sales: 'Vendas',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  planned: 'Planejado',
-  due: 'A Vencer',
-  paid: 'Pago',
-  received: 'Recebido',
-  cancelled: 'Cancelado',
-}
-
-const ENTRY_TYPE_LABELS: Record<string, string> = {
-  income: 'Receita',
-  expense: 'Despesa',
 }
 
 const PROJECT_KIND_LABELS: Record<string, string> = {
@@ -127,271 +105,28 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entry Form (Drawer / Modal)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EntryFormProps {
-  entry?: FinancialEntry | null
-  categories: FinancialCategory[]
-  onSave: (data: FinancialEntryInput) => Promise<void>
-  onClose: () => void
-  isSaving: boolean
-}
-
-const EMPTY_ENTRY: FinancialEntryInput = {
-  entry_type: 'expense',
-  scope_type: 'company',
-  category: '',
-  subcategory: '',
-  description: '',
-  amount: 0,
-  competence_date: new Date().toISOString().substring(0, 10),
-  payment_date: null,
-  status: 'planned',
-  is_recurring: false,
-  recurrence_frequency: null,
-  project_kind: null,
-  project_id: null,
-  proposal_id: null,
-  client_id: null,
-  consultant_id: null,
-  notes: '',
-}
-
-function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormProps) {
-  const [form, setForm] = useState<FinancialEntryInput>(() =>
-    entry
-      ? {
-          entry_type: entry.entry_type,
-          scope_type: entry.scope_type,
-          category: entry.category ?? '',
-          subcategory: entry.subcategory ?? '',
-          description: entry.description ?? '',
-          amount: entry.amount,
-          competence_date: entry.competence_date ?? new Date().toISOString().substring(0, 10),
-          payment_date: entry.payment_date ?? null,
-          status: entry.status,
-          is_recurring: entry.is_recurring ?? false,
-          recurrence_frequency: entry.recurrence_frequency ?? null,
-          project_kind: entry.project_kind ?? null,
-          project_id: entry.project_id ?? null,
-          proposal_id: entry.proposal_id ?? null,
-          client_id: entry.client_id ?? null,
-          consultant_id: entry.consultant_id ?? null,
-          notes: entry.notes ?? '',
-        }
-      : EMPTY_ENTRY,
-  )
-
-  useEffect(() => {
-    console.info('[financial-ui] entry form mounted', { editing: !!entry })
-    return () => {
-      console.info('[financial-ui] entry form unmounted')
-    }
-  }, [entry])
-
-  const expenseCategories = useMemo(
-    () => categories.filter((c) => c.type === 'expense' || c.type === 'both'),
-    [categories],
-  )
-  const incomeCategories = useMemo(
-    () => categories.filter((c) => c.type === 'income' || c.type === 'both'),
-    [categories],
-  )
-  const visibleCategories = form.entry_type === 'income' ? incomeCategories : expenseCategories
-
-  const set = useCallback((field: keyof FinancialEntryInput, value: unknown) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      console.info('[financial-ui] entry form submit', { entry_type: form.entry_type, amount: form.amount })
-      await onSave(form)
-    },
-    [form, onSave],
-  )
-
-  return (
-    <div className="fm-drawer-overlay" role="dialog" aria-modal="true" aria-label="Lançamento financeiro">
-      <div className="fm-drawer">
-        <div className="fm-drawer-header">
-          <h3>{entry ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
-          <button type="button" className="fm-drawer-close ghost" onClick={onClose} aria-label="Fechar">
-            ✕
-          </button>
-        </div>
-        <form className="fm-drawer-body" onSubmit={(e) => { void handleSubmit(e) }}>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Tipo</label>
-            <select
-              className="fm-form-select"
-              value={form.entry_type}
-              onChange={(e) => set('entry_type', e.target.value)}
-            >
-              <option value="expense">Despesa</option>
-              <option value="income">Receita</option>
-            </select>
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Escopo</label>
-            <select
-              className="fm-form-select"
-              value={form.scope_type}
-              onChange={(e) => set('scope_type', e.target.value)}
-            >
-              <option value="company">Empresa</option>
-              <option value="project">Projeto</option>
-            </select>
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Categoria</label>
-            {visibleCategories.length > 0 ? (
-              <select
-                className="fm-form-select"
-                value={form.category}
-                onChange={(e) => set('category', e.target.value)}
-                aria-required="false"
-              >
-                <option value="">Selecione...</option>
-                {visibleCategories.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="fm-form-input"
-                type="text"
-                value={form.category}
-                onChange={(e) => set('category', e.target.value)}
-                placeholder="Ex: Instalação, Kit Solar, Mensalidade…"
-                aria-required="false"
-              />
-            )}
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Subcategoria</label>
-            <input
-              className="fm-form-input"
-              type="text"
-              value={form.subcategory ?? ''}
-              onChange={(e) => set('subcategory', e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Descrição</label>
-            <input
-              className="fm-form-input"
-              type="text"
-              value={form.description ?? ''}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Descreva o lançamento"
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Valor (R$)</label>
-            <input
-              className="fm-form-input"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.amount}
-              onChange={(e) => set('amount', parseFloat(e.target.value) || 0)}
-              required
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Data de Competência</label>
-            <input
-              className="fm-form-input"
-              type="date"
-              value={form.competence_date ?? ''}
-              onChange={(e) => set('competence_date', e.target.value)}
-              required
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Data de Pagamento</label>
-            <input
-              className="fm-form-input"
-              type="date"
-              value={form.payment_date ?? ''}
-              onChange={(e) => set('payment_date', e.target.value || null)}
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Status</label>
-            <select
-              className="fm-form-select"
-              value={form.status}
-              onChange={(e) => set('status', e.target.value)}
-            >
-              <option value="planned">Planejado</option>
-              <option value="due">A Vencer</option>
-              <option value="paid">Pago</option>
-              <option value="received">Recebido</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
-          </div>
-          <div className="fm-form-row fm-form-row--checkbox">
-            <label className="fm-form-label">
-              <input
-                type="checkbox"
-                checked={form.is_recurring ?? false}
-                onChange={(e) => set('is_recurring', e.target.checked)}
-              />
-              {' '}Recorrente
-            </label>
-          </div>
-          {form.is_recurring ? (
-            <div className="fm-form-row">
-              <label className="fm-form-label">Frequência</label>
-              <select
-                className="fm-form-select"
-                value={form.recurrence_frequency ?? ''}
-                onChange={(e) => set('recurrence_frequency', e.target.value || null)}
-              >
-                <option value="">Selecione...</option>
-                <option value="monthly">Mensal</option>
-                <option value="quarterly">Trimestral</option>
-                <option value="yearly">Anual</option>
-                <option value="custom">Personalizado</option>
-              </select>
-            </div>
-          ) : null}
-          <div className="fm-form-row">
-            <label className="fm-form-label">Observações</label>
-            <textarea
-              className="fm-form-textarea"
-              value={form.notes ?? ''}
-              onChange={(e) => set('notes', e.target.value)}
-              rows={3}
-              placeholder="Observações opcionais"
-            />
-          </div>
-          <div className="fm-drawer-actions">
-            <button type="button" className="ghost" onClick={onClose} disabled={isSaving}>
-              Cancelar
-            </button>
-            <button type="submit" className="primary" disabled={isSaving}>
-              {isSaving ? 'Salvando…' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Overview Tab
+// Overview Tab (PR 6: augmented with real project status counts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | null; error: string | null; onRetry: () => void }) {
+  // Load real project counts on mount.
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const projectList = useProjectsStore((s) => s.list)
+  const projectListTotal = useProjectsStore((s) => s.listTotal)
+
+  useEffect(() => {
+    void loadProjects({ limit: 500, order_by: 'updated_at', order_dir: 'desc' })
+  }, [loadProjects])
+
+  const projectCounts = useMemo(() => {
+    const aguardando = projectList.filter((p) => p.status === 'Aguardando').length
+    const andamento = projectList.filter((p) => p.status === 'Em andamento').length
+    const concluido = projectList.filter((p) => p.status === 'Concluído').length
+    const leasing = projectList.filter((p) => p.project_type === 'leasing').length
+    const venda = projectList.filter((p) => p.project_type === 'venda').length
+    return { aguardando, andamento, concluido, leasing, venda }
+  }, [projectList])
+
   if (error) return <SectionError message={error} onRetry={onRetry} />
   if (!summary) {
     return <div className="fm-empty">Carregando indicadores…</div>
@@ -405,12 +140,27 @@ function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | 
         <KpiCard label="Lucro Líquido" value={formatCurrencyBRL(summary.net_profit)} icon="💰" color={summary.net_profit >= 0 ? 'green' : 'red'} />
         <KpiCard label="ROI Médio" value={formatPct(summary.avg_roi_percent)} icon="📊" />
         <KpiCard label="Payback Médio" value={formatMonths(summary.avg_payback_months)} icon="⏱️" />
-        <KpiCard label="Projetos Ativos" value={String(summary.active_projects_count)} icon="🏗️" />
+        <KpiCard label="Projetos (total)" value={String(projectListTotal || summary.active_projects_count)} icon="🏗️" />
         <KpiCard label="MRR (Leasing)" value={formatCurrencyBRL(summary.mrr_leasing)} icon="🔄" subtitle="Receita recorrente mensal" />
         <KpiCard label="Vendas Fechadas" value={formatCurrencyBRL(summary.closed_sales_revenue)} icon="🤝" />
         <KpiCard label="Inadimplência" value={formatPct(summary.avg_default_rate_percent)} icon="⚠️" color={summary.avg_default_rate_percent > 5 ? 'red' : 'green'} />
         <KpiCard label="Margem Líquida" value={formatPct(summary.avg_net_margin_percent)} icon="📉" />
       </div>
+      {projectList.length > 0 ? (
+        <div className="fm-overview-projects">
+          <h3 className="fm-overview-section-title">Projetos por Status</h3>
+          <div className="fm-kpi-grid">
+            <KpiCard label="Aguardando" value={String(projectCounts.aguardando)} icon="⏳" />
+            <KpiCard label="Em andamento" value={String(projectCounts.andamento)} icon="🔨" color="green" />
+            <KpiCard label="Concluídos" value={String(projectCounts.concluido)} icon="✅" color="green" />
+          </div>
+          <h3 className="fm-overview-section-title" style={{ marginTop: 16 }}>Projetos por Tipo</h3>
+          <div className="fm-kpi-grid">
+            <KpiCard label="Leasing" value={String(projectCounts.leasing)} icon="🔄" />
+            <KpiCard label="Venda" value={String(projectCounts.venda)} icon="🤝" />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -625,134 +375,6 @@ function CashflowTab({ cashflow, error, onRetry }: { cashflow: CashflowPeriod[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entries Tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EntriesTabProps {
-  entries: FinancialEntry[]
-  error: string | null
-  onRetry: () => void
-  categories: FinancialCategory[]
-  onNew: () => void
-  onEdit: (entry: FinancialEntry) => void
-  onDelete: (id: string) => void
-  isDeleting: boolean
-}
-
-function EntriesTab({ entries, error, onRetry, categories: _categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-
-  const filtered = useMemo(() => {
-    return entries.filter((e) => {
-      if (typeFilter && e.entry_type !== typeFilter) return false
-      if (statusFilter && e.status !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (
-          e.description?.toLowerCase().includes(q) ||
-          e.category?.toLowerCase().includes(q) ||
-          e.subcategory?.toLowerCase().includes(q)
-        )
-      }
-      return true
-    })
-  }, [entries, search, typeFilter, statusFilter])
-
-  return (
-    <div className="fm-entries">
-      <div className="fm-entries-header">
-        <div className="fm-filters">
-          <input
-            type="search"
-            className="fm-filter-input"
-            placeholder="Buscar descrição, categoria…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select className="fm-filter-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="">Todos os tipos</option>
-            <option value="income">Receita</option>
-            <option value="expense">Despesa</option>
-          </select>
-          <select className="fm-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Todos os status</option>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <button type="button" className="primary" onClick={onNew}>
-          + Novo Lançamento
-        </button>
-      </div>
-      {error ? (
-        <SectionError message={error} onRetry={onRetry} />
-      ) : filtered.length === 0 ? (
-        <div className="fm-empty">
-          Nenhum lançamento encontrado. Use o botão <strong>+ Novo Lançamento</strong> acima para adicionar.
-        </div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Categoria</th>
-                <th>Descrição</th>
-                <th>Valor</th>
-                <th>Competência</th>
-                <th>Status</th>
-                <th>Recorrente</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e) => (
-                <tr key={e.id}>
-                  <td>
-                    <span className={`fm-badge fm-badge--${e.entry_type}`}>
-                      {ENTRY_TYPE_LABELS[e.entry_type] ?? e.entry_type}
-                    </span>
-                  </td>
-                  <td>{e.category ?? '—'}{e.subcategory ? ` / ${e.subcategory}` : ''}</td>
-                  <td>{e.description ?? '—'}</td>
-                  <td className={e.entry_type === 'income' ? 'fm-value--positive' : 'fm-value--negative'}>
-                    {formatCurrencyBRL(e.amount)}
-                  </td>
-                  <td>{formatDate(e.competence_date)}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--status-${e.status}`}>
-                      {STATUS_LABELS[e.status] ?? e.status}
-                    </span>
-                  </td>
-                  <td>{e.is_recurring ? 'Sim' : 'Não'}</td>
-                  <td className="fm-actions-cell">
-                    <button type="button" className="ghost fm-action-btn" onClick={() => onEdit(e)}>
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost fm-action-btn fm-action-btn--danger"
-                      onClick={() => onDelete(e.id)}
-                      disabled={isDeleting}
-                      aria-label={`Excluir lançamento ${e.description ?? ''}`}
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Leasing Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -922,17 +544,7 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [cashflow, setCashflow] = useState<CashflowPeriod[]>([])
   const [cashflowError, setCashflowError] = useState<string | null>(null)
 
-  const [entries, setEntries] = useState<FinancialEntry[]>([])
-  const [entriesError, setEntriesError] = useState<string | null>(null)
-
-  const [categories, setCategories] = useState<FinancialCategory[]>([])
-
   const [isLoading, setIsLoading] = useState(true)
-
-  const [showEntryForm, setShowEntryForm] = useState(false)
-  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
-  const [isSavingEntry, setIsSavingEntry] = useState(false)
-  const [isDeletingEntry, setIsDeletingEntry] = useState(false)
 
   const getPeriodParams = useCallback(() => {
     const now = new Date()
@@ -962,17 +574,14 @@ export function FinancialManagementPage({ onBack }: Props) {
     setSummaryError(null)
     setProjectsError(null)
     setCashflowError(null)
-    setEntriesError(null)
 
     const params = getPeriodParams()
 
     // Load each section independently so one failure doesn't break the whole page
-    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes] = await Promise.allSettled([
+    const [summaryRes, projectsRes, cashflowRes] = await Promise.allSettled([
       fetchFinancialSummary(params),
       fetchFinancialProjects(params),
       fetchFinancialCashflow(params),
-      fetchFinancialEntries(params),
-      fetchFinancialCategories(),
     ])
 
     if (summaryRes.status === 'fulfilled') {
@@ -996,20 +605,6 @@ export function FinancialManagementPage({ onBack }: Props) {
       setCashflowError(cashflowRes.reason instanceof Error ? cashflowRes.reason.message : 'Erro ao carregar fluxo de caixa.')
     }
 
-    if (entriesRes.status === 'fulfilled') {
-      setEntries(entriesRes.value)
-    } else {
-      console.error('[financial-management] entries error', entriesRes.reason)
-      setEntriesError(entriesRes.reason instanceof Error ? entriesRes.reason.message : 'Erro ao carregar lançamentos.')
-    }
-
-    if (categoriesRes.status === 'fulfilled') {
-      setCategories(categoriesRes.value)
-    } else {
-      console.error('[financial-management] categories error', categoriesRes.reason)
-      // categories are non-critical; leave existing list intact
-    }
-
     setIsLoading(false)
   }, [getPeriodParams])
 
@@ -1017,54 +612,7 @@ export function FinancialManagementPage({ onBack }: Props) {
     void loadData()
   }, [loadData])
 
-  const handleNewEntry = useCallback(() => {
-    console.info('[financial-ui] new entry click')
-    setEditingEntry(null)
-    setShowEntryForm(true)
-  }, [])
-
-  const handleEditEntry = useCallback((entry: FinancialEntry) => {
-    setEditingEntry(entry)
-    setShowEntryForm(true)
-  }, [])
-
-  const handleSaveEntry = useCallback(async (data: FinancialEntryInput) => {
-    setIsSavingEntry(true)
-    try {
-      if (editingEntry) {
-        await updateFinancialEntry(editingEntry.id, data)
-      } else {
-        await createFinancialEntry(data)
-      }
-      setShowEntryForm(false)
-      setEditingEntry(null)
-      await loadData()
-    } catch (err) {
-      console.error('[financial-management] saveEntry error', err)
-    } finally {
-      setIsSavingEntry(false)
-    }
-  }, [editingEntry, loadData])
-
-  const handleDeleteEntry = useCallback(async (id: string) => {
-    if (!window.confirm('Deseja excluir este lançamento?')) return
-    setIsDeletingEntry(true)
-    try {
-      await deleteFinancialEntry(id)
-      await loadData()
-    } catch (err) {
-      console.error('[financial-management] deleteEntry error', err)
-    } finally {
-      setIsDeletingEntry(false)
-    }
-  }, [loadData])
-
-  const handleCloseForm = useCallback(() => {
-    setShowEntryForm(false)
-    setEditingEntry(null)
-  }, [])
-
-  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'entries', 'leasing', 'sales']
+  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'leasing', 'sales']
 
   // ── Project detail sub-view ──────────────────────────────────────────────
   if (detailProjectId !== null) {
@@ -1155,34 +703,11 @@ export function FinancialManagementPage({ onBack }: Props) {
             {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
             {activeTab === 'projects' && <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />}
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
-            {activeTab === 'entries' && (
-              <EntriesTab
-                entries={entries}
-                error={entriesError}
-                onRetry={() => void loadData()}
-                categories={categories}
-                onNew={handleNewEntry}
-                onEdit={handleEditEntry}
-                onDelete={(id) => { void handleDeleteEntry(id) }}
-                isDeleting={isDeletingEntry}
-              />
-            )}
             {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
             {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
           </>
         )}
       </div>
-
-      {/* Entry Form Drawer */}
-      {showEntryForm ? (
-        <EntryForm
-          entry={editingEntry}
-          categories={categories}
-          onSave={handleSaveEntry}
-          onClose={handleCloseForm}
-          isSaving={isSavingEntry}
-        />
-      ) : null}
     </div>
   )
 }
