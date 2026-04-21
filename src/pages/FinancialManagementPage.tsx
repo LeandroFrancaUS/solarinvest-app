@@ -286,7 +286,7 @@ function EntryForm({ entry, categories, templates, onSave, onClose, isSaving }: 
 
   return (
     <div
-      className="fm-drawer-overlay"
+      className="fm-drawer-backdrop"
       role="presentation"
       onClick={onClose}
     >
