@@ -7,6 +7,8 @@
 // does not support nested sql`` fragments inside ternaries) — same pattern
 // used in server/financial-management/repository.js.
 
+import { isUuid } from './planMapper.js'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,11 +205,7 @@ export async function getPlanSnapshotFromContract(sql, contractId) {
   if (!row) return null
 
   // source_proposal_id is stored as TEXT (may or may not be a UUID).
-  const proposalId =
-    typeof row.source_proposal_id === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.source_proposal_id)
-      ? row.source_proposal_id
-      : null
+  const proposalId = isUuid(row.source_proposal_id) ? row.source_proposal_id : null
 
   return {
     client_id: Number(row.client_id),
@@ -310,14 +308,17 @@ export async function listProjects(sql, filters = {}) {
     )
   }
 
-  const allowedOrderBy = new Set(['updated_at', 'created_at', 'client_name'])
-  const orderCol =
-    filters.order_by && allowedOrderBy.has(filters.order_by) ? filters.order_by : 'updated_at'
+  // Whitelist ORDER BY via a static mapping — avoids ANY string
+  // interpolation of caller-supplied values into the SQL text.
+  const ORDER_BY_SQL = Object.freeze({
+    updated_at: 'p.updated_at',
+    created_at: 'p.created_at',
+    client_name: 'p.client_name_snapshot',
+  })
+  const orderCol = ORDER_BY_SQL[filters.order_by] ? filters.order_by : 'updated_at'
+  const orderColSql = ORDER_BY_SQL[orderCol]
   const orderDir = filters.order_dir === 'asc' ? 'ASC' : 'DESC'
-  const orderSql =
-    orderCol === 'client_name'
-      ? `p.client_name_snapshot ${orderDir} NULLS LAST`
-      : `p.${orderCol} ${orderDir} NULLS LAST`
+  const orderSql = `${orderColSql} ${orderDir} NULLS LAST`
 
   params.push(limit)
   const limitIdx = params.length

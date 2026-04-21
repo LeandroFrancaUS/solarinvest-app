@@ -12,7 +12,7 @@
 
 import { Client } from 'pg'
 import { getNeonDatabaseConfig } from '../server/database/neonConfig.js'
-import { buildNewProjectFields } from '../server/projects/planMapper.js'
+import { buildNewProjectFields, isUuid } from '../server/projects/planMapper.js'
 
 function resolveConnectionString() {
   const { directConnectionString, connectionString } = getNeonDatabaseConfig()
@@ -80,11 +80,7 @@ async function run() {
         client_id: Number(row.client_id),
         plan_id: `contract:${row.contract_id}`,
         contract_id: Number(row.contract_id),
-        proposal_id:
-          typeof row.source_proposal_id === 'string' &&
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.source_proposal_id)
-            ? row.source_proposal_id
-            : null,
+        proposal_id: isUuid(row.source_proposal_id) ? row.source_proposal_id : null,
         contract_type: row.contract_type,
         client_name: row.client_name,
         cpf_cnpj: row.cpf_cnpj,

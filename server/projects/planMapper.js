@@ -84,3 +84,14 @@ export function buildNewProjectFields(snapshot, initialStatus = 'Aguardando') {
 export function buildPlanIdFromContract(contractId) {
   return `contract:${contractId}`
 }
+
+/**
+ * Canonical RFC-4122 UUID shape — used to validate proposal_id before we
+ * cast it to the uuid type at the DB layer.
+ */
+export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function isUuid(value) {
+  return typeof value === 'string' && UUID_REGEX.test(value)
+}
+
