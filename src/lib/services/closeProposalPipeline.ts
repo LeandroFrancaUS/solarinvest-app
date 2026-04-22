@@ -38,12 +38,18 @@ import {
 
 /** Minimal client registration fields needed for closing validation */
 export interface ClosingClienteDados extends ClienteDadosInput {
+  razaoSocial?: string
   nome?: string
   documento?: string
+  cpf?: string
+  cnpj?: string
   email?: string
   telefone?: string
   cep?: string
   uc?: string
+  ucGeradora?: string
+  ucBeneficiaria?: string
+  ucBeneficiarias?: string[]
   distribuidora?: string
 }
 
@@ -238,7 +244,15 @@ export function closeProposalAndHydrateClientPortfolio(
   // Step 2 — Map proposal → portfolio fields ──────────────────────────────────
   logStep(2, 'mapping_proposal_to_portfolio')
 
-  const payload = mapProposalDataToPortfolioFields(snapshot, clienteDados)
+  const normalizedBeneficiarias = (input.ucBeneficiarias ?? [])
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item) => item.length > 0)
+
+  const payload = mapProposalDataToPortfolioFields(snapshot, {
+    ...clienteDados,
+    ucBeneficiaria: clienteDados.ucBeneficiaria ?? normalizedBeneficiarias[0],
+    ucBeneficiarias: clienteDados.ucBeneficiarias ?? normalizedBeneficiarias,
+  })
 
   // Table name → payload group map for logging and tablesPopulated derivation
   const tablePayloadMap: Record<string, Record<string, unknown>> = {

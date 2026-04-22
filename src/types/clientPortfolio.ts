@@ -19,6 +19,7 @@ export interface PortfolioClientRow {
   distribuidora: string | null
   uc: string | null
   uc_beneficiaria: string | null
+  uc_beneficiarias?: string[] | null
   owner_user_id: string | null
   created_by_user_id: string | null
   client_created_at: string

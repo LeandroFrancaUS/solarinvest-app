@@ -1,6 +1,7 @@
 // src/lib/domain/__tests__/proposalPortfolioMapping.test.ts
 import { describe, it, expect } from 'vitest'
 import {
+  mapClientFormToPortfolioPayload,
   mapProposalDataToPortfolioFields,
   type SnapshotInput,
   type ClienteDadosInput,
@@ -79,10 +80,34 @@ const fullCliente: ClienteDadosInput = {
   endereco: 'Rua Exemplo, 123',
   distribuidora: 'Enel São Paulo',
   uc: '123456789012345',
+  ucBeneficiaria: '678901234567890',
   indicacaoNome: 'Maria Santos',
   temIndicacao: true,
   diaVencimento: '10',
 }
+
+describe('mapClientFormToPortfolioPayload', () => {
+  it('importa os dados do formulário do cliente para a carteira ao fechar negócio', () => {
+    const source: ClienteDadosInput = {
+      nome: 'João',
+      cpf: '123',
+      email: 'joao@email.com',
+      telefone: '62999999999',
+      cidade: 'Anápolis',
+      uf: 'GO',
+      ucGeradora: '12345',
+      ucBeneficiaria: '67890',
+    }
+
+    const result = mapClientFormToPortfolioPayload(source)
+
+    expect(result.client_name).toBe('João')
+    expect(result.client_document).toBe('123')
+    expect(result.client_email).toBe('joao@email.com')
+    expect(result.uc_geradora).toBe('12345')
+    expect(result.uc_beneficiaria).toBe('67890')
+  })
+})
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Leasing snapshot mapping
@@ -101,6 +126,7 @@ describe('mapProposalDataToPortfolioFields — leasing snapshot', () => {
     expect(result.clients.client_address).toBe('Rua Exemplo, 123')
     expect(result.clients.distribuidora).toBe('Enel São Paulo')
     expect(result.clients.uc).toBe('123456789012345')
+    expect(result.clients.uc_beneficiaria).toBe('678901234567890')
   })
 
   it('maps system_kwp from leasingSnapshot.dadosTecnicos.potenciaInstaladaKwp', () => {
