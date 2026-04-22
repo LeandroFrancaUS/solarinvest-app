@@ -8,10 +8,11 @@ import { createStore } from './createStore'
 import {
   fetchProjects,
   fetchProjectById,
+  fetchProjectsSummary,
   patchProjectStatus,
   type ProjectListResponse,
 } from '../services/projectsApi'
-import type { ProjectListFilters, ProjectRow, ProjectPvData, ProjectStatus } from '../domain/projects/types'
+import type { ProjectListFilters, ProjectRow, ProjectPvData, ProjectStatus, ProjectSummary } from '../domain/projects/types'
 
 interface ProjectCache {
   project: ProjectRow
@@ -27,6 +28,11 @@ interface ProjectsState {
   listError: string | null
   lastListFilters: ProjectListFilters
 
+  // Summary (server-side aggregated counts)
+  summary: ProjectSummary | null
+  summaryLoading: boolean
+  summaryError: string | null
+
   // Detail cache
   cache: Record<string, ProjectCache>
   detailLoading: Record<string, boolean>
@@ -34,6 +40,7 @@ interface ProjectsState {
 
   // Actions
   loadProjects: (filters?: ProjectListFilters) => Promise<void>
+  loadSummary: () => Promise<void>
   loadProjectById: (id: string, forceRefresh?: boolean) => Promise<void>
   updateStatus: (id: string, status: ProjectStatus) => Promise<void>
   clearCache: () => void
@@ -48,6 +55,10 @@ export const useProjectsStore = createStore<ProjectsState>((set, get) => ({
   listLoading: false,
   listError: null,
   lastListFilters: {},
+
+  summary: null,
+  summaryLoading: false,
+  summaryError: null,
 
   cache: {},
   detailLoading: {},
@@ -66,6 +77,17 @@ export const useProjectsStore = createStore<ProjectsState>((set, get) => ({
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao carregar projetos.'
       set({ listLoading: false, listError: msg })
+    }
+  },
+
+  async loadSummary(): Promise<void> {
+    set({ summaryLoading: true, summaryError: null })
+    try {
+      const data = await fetchProjectsSummary()
+      set({ summary: data, summaryLoading: false })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao carregar resumo de projetos.'
+      set({ summaryLoading: false, summaryError: msg })
     }
   },
 
@@ -107,6 +129,6 @@ export const useProjectsStore = createStore<ProjectsState>((set, get) => ({
   },
 
   clearCache(): void {
-    set({ cache: {}, detailLoading: {}, detailError: {}, list: [], listTotal: 0 })
+    set({ cache: {}, detailLoading: {}, detailError: {}, list: [], listTotal: 0, summary: null })
   },
 }))

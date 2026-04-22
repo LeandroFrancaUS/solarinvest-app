@@ -105,59 +105,53 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Overview Tab (PR 6: augmented with real project status counts)
+// Overview Tab (PR 6: augmented with real project status counts via loadSummary)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | null; error: string | null; onRetry: () => void }) {
-  // Load real project counts on mount.
-  const loadProjects = useProjectsStore((s) => s.loadProjects)
-  const projectList = useProjectsStore((s) => s.list)
-  const projectListTotal = useProjectsStore((s) => s.listTotal)
+  // Load server-side aggregated project counts on mount (no 500-row load).
+  const loadSummary = useProjectsStore((s) => s.loadSummary)
+  const projectSummary = useProjectsStore((s) => s.summary)
+  const summaryLoading = useProjectsStore((s) => s.summaryLoading)
 
   useEffect(() => {
-    void loadProjects({ limit: 500, order_by: 'updated_at', order_dir: 'desc' })
-  }, [loadProjects])
-
-  const projectCounts = useMemo(() => {
-    const aguardando = projectList.filter((p) => p.status === 'Aguardando').length
-    const andamento = projectList.filter((p) => p.status === 'Em andamento').length
-    const concluido = projectList.filter((p) => p.status === 'Concluído').length
-    const leasing = projectList.filter((p) => p.project_type === 'leasing').length
-    const venda = projectList.filter((p) => p.project_type === 'venda').length
-    return { aguardando, andamento, concluido, leasing, venda }
-  }, [projectList])
+    void loadSummary()
+  }, [loadSummary])
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
   if (!summary) {
     return <div className="fm-empty">Carregando indicadores…</div>
   }
+
+  const totalProjects = projectSummary?.total ?? summary.active_projects_count
+
   return (
     <div className="fm-overview">
       <div className="fm-kpi-grid">
         <KpiCard label="Receita Projetada" value={formatCurrencyBRL(summary.total_projected_revenue)} icon="📈" color="green" />
         <KpiCard label="Receita Realizada" value={formatCurrencyBRL(summary.total_realized_revenue)} icon="✅" color="green" />
-        <KpiCard label="Custo Total" value={formatCurrencyBRL(summary.total_cost)} icon="💸" color="red" />
+        <KpiCard label="CAPEX Total" value={formatCurrencyBRL(summary.total_cost)} icon="💸" color="red" />
         <KpiCard label="Lucro Líquido" value={formatCurrencyBRL(summary.net_profit)} icon="💰" color={summary.net_profit >= 0 ? 'green' : 'red'} />
         <KpiCard label="ROI Médio" value={formatPct(summary.avg_roi_percent)} icon="📊" />
         <KpiCard label="Payback Médio" value={formatMonths(summary.avg_payback_months)} icon="⏱️" />
-        <KpiCard label="Projetos (total)" value={String(projectListTotal || summary.active_projects_count)} icon="🏗️" />
-        <KpiCard label="MRR (Leasing)" value={formatCurrencyBRL(summary.mrr_leasing)} icon="🔄" subtitle="Receita recorrente mensal" />
+        <KpiCard label="Projetos (total)" value={String(totalProjects)} icon="🏗️" />
+        <KpiCard label="MRR (Leasing)" value={formatCurrencyBRL(summary.mrr_leasing)} icon="🔄" subtitle="Mensalidade recorrente" />
         <KpiCard label="Vendas Fechadas" value={formatCurrencyBRL(summary.closed_sales_revenue)} icon="🤝" />
         <KpiCard label="Inadimplência" value={formatPct(summary.avg_default_rate_percent)} icon="⚠️" color={summary.avg_default_rate_percent > 5 ? 'red' : 'green'} />
         <KpiCard label="Margem Líquida" value={formatPct(summary.avg_net_margin_percent)} icon="📉" />
       </div>
-      {projectList.length > 0 ? (
+      {!summaryLoading && projectSummary ? (
         <div className="fm-overview-projects">
           <h3 className="fm-overview-section-title">Projetos por Status</h3>
           <div className="fm-kpi-grid">
-            <KpiCard label="Aguardando" value={String(projectCounts.aguardando)} icon="⏳" />
-            <KpiCard label="Em andamento" value={String(projectCounts.andamento)} icon="🔨" color="green" />
-            <KpiCard label="Concluídos" value={String(projectCounts.concluido)} icon="✅" color="green" />
+            <KpiCard label="Aguardando" value={String(projectSummary.by_status['Aguardando'] ?? 0)} icon="⏳" />
+            <KpiCard label="Em andamento" value={String(projectSummary.by_status['Em andamento'] ?? 0)} icon="🔨" color="green" />
+            <KpiCard label="Concluídos" value={String(projectSummary.by_status['Concluído'] ?? 0)} icon="✅" color="green" />
           </div>
           <h3 className="fm-overview-section-title" style={{ marginTop: 16 }}>Projetos por Tipo</h3>
           <div className="fm-kpi-grid">
-            <KpiCard label="Leasing" value={String(projectCounts.leasing)} icon="🔄" />
-            <KpiCard label="Venda" value={String(projectCounts.venda)} icon="🤝" />
+            <KpiCard label="Leasing" value={String(projectSummary.by_type['leasing'] ?? 0)} icon="🔄" />
+            <KpiCard label="Venda" value={String(projectSummary.by_type['venda'] ?? 0)} icon="🤝" />
           </div>
         </div>
       ) : null}
@@ -379,8 +373,19 @@ function CashflowTab({ cashflow, error, onRetry }: { cashflow: CashflowPeriod[];
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  // Load real leasing projects from store as fallback when snapshots are empty.
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const realProjects = useProjectsStore((s) => s.list)
+
+  useEffect(() => {
+    if (projects.length === 0 && !error) {
+      void loadProjects({ project_type: 'leasing', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+    }
+  }, [projects.length, error, loadProjects])
+
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const leasingProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'leasing')), [projects, error])
+  const realLeasingProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'leasing'), [realProjects])
 
   const totals = useMemo(() => {
     const totalMrr = leasingProjects.reduce((sum, p) => sum + (p.monthly_revenue ?? 0), 0)
@@ -397,6 +402,53 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
 
+  // When no financial snapshots exist, render a basic table from the projects store.
+  if (leasingProjects.length === 0) {
+    if (realLeasingProjects.length === 0) {
+      return <div className="fm-empty">Nenhum projeto de leasing disponível.</div>
+    }
+    return (
+      <div className="fm-leasing">
+        <div className="fm-kpi-grid">
+          <KpiCard label="Projetos Leasing" value={String(realLeasingProjects.length)} icon="📋" />
+        </div>
+        <p className="fm-empty" style={{ fontSize: 13, marginBottom: 8 }}>
+          Dados financeiros detalhados ainda não disponíveis. Exibindo projetos cadastrados.
+        </p>
+        <div className="fm-table-wrapper">
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
+                <th>Status</th>
+                <th>Atualizado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {realLeasingProjects.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.client_name_snapshot ?? '—'}</td>
+                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>
+                    {p.city_snapshot && p.state_snapshot
+                      ? `${p.city_snapshot} / ${p.state_snapshot}`
+                      : p.city_snapshot ?? p.state_snapshot ?? '—'}
+                  </td>
+                  <td>
+                    <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>{p.status}</span>
+                  </td>
+                  <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fm-leasing">
       <div className="fm-kpi-grid">
@@ -407,42 +459,38 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
         <KpiCard label="ROI Médio" value={formatPct(totals.avgRoi)} icon="📊" />
         <KpiCard label="Payback Médio" value={formatMonths(totals.avgPayback)} icon="⏱️" />
       </div>
-      {leasingProjects.length === 0 ? (
-        <div className="fm-empty">Nenhum projeto de leasing disponível.</div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Mensalidade</th>
-                <th>Receita Proj.</th>
-                <th>CAPEX</th>
-                <th>ROI</th>
-                <th>Payback</th>
-                <th>Inadimpl.</th>
-                <th>Status</th>
-                <th>UF</th>
+      <div className="fm-table-wrapper">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Mensalidade</th>
+              <th>Receita Proj.</th>
+              <th>CAPEX</th>
+              <th>ROI</th>
+              <th>Payback</th>
+              <th>Inadimpl.</th>
+              <th>Status</th>
+              <th>UF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leasingProjects.map((p) => (
+              <tr key={p.id}>
+                <td>{p.client_name ?? '—'}</td>
+                <td>{formatCurrencyBRL(p.monthly_revenue)}</td>
+                <td>{formatCurrencyBRL(p.projected_revenue)}</td>
+                <td>{formatCurrencyBRL(p.capex_total)}</td>
+                <td>{formatPct(p.roi_percent)}</td>
+                <td>{formatMonths(p.payback_months)}</td>
+                <td>{formatPct(p.default_rate_percent)}</td>
+                <td>{p.status ?? '—'}</td>
+                <td>{p.uf ?? '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {leasingProjects.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>{formatCurrencyBRL(p.monthly_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatMonths(p.payback_months)}</td>
-                  <td>{formatPct(p.default_rate_percent)}</td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -452,8 +500,19 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  // Load real venda projects from store as fallback when snapshots are empty.
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const realProjects = useProjectsStore((s) => s.list)
+
+  useEffect(() => {
+    if (projects.length === 0 && !error) {
+      void loadProjects({ project_type: 'venda', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+    }
+  }, [projects.length, error, loadProjects])
+
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const saleProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout')), [projects, error])
+  const realVendaProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'venda'), [realProjects])
 
   const totals = useMemo(() => {
     const totalRevenue = saleProjects.reduce((sum, p) => sum + (p.realized_revenue ?? p.projected_revenue ?? 0), 0)
@@ -468,6 +527,53 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
 
+  // When no financial snapshots exist, render a basic table from the projects store.
+  if (saleProjects.length === 0) {
+    if (realVendaProjects.length === 0) {
+      return <div className="fm-empty">Nenhum projeto de venda disponível.</div>
+    }
+    return (
+      <div className="fm-sales">
+        <div className="fm-kpi-grid">
+          <KpiCard label="Projetos Venda" value={String(realVendaProjects.length)} icon="🤝" />
+        </div>
+        <p className="fm-empty" style={{ fontSize: 13, marginBottom: 8 }}>
+          Dados financeiros detalhados ainda não disponíveis. Exibindo projetos cadastrados.
+        </p>
+        <div className="fm-table-wrapper">
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
+                <th>Status</th>
+                <th>Atualizado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {realVendaProjects.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.client_name_snapshot ?? '—'}</td>
+                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>
+                    {p.city_snapshot && p.state_snapshot
+                      ? `${p.city_snapshot} / ${p.state_snapshot}`
+                      : p.city_snapshot ?? p.state_snapshot ?? '—'}
+                  </td>
+                  <td>
+                    <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>{p.status}</span>
+                  </td>
+                  <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fm-sales">
       <div className="fm-kpi-grid">
@@ -478,46 +584,42 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
         <KpiCard label="Margem Média" value={formatPct(totals.avgMargin)} icon="📊" />
         <KpiCard label="Ticket Médio" value={formatCurrencyBRL(totals.ticketMedio)} icon="🎫" />
       </div>
-      {saleProjects.length === 0 ? (
-        <div className="fm-empty">Nenhum projeto de venda disponível.</div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Receita</th>
-                <th>CAPEX</th>
-                <th>Lucro Est.</th>
-                <th>Margem</th>
-                <th>Comissão</th>
-                <th>Status</th>
-                <th>UF</th>
+      <div className="fm-table-wrapper">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Tipo</th>
+              <th>Receita</th>
+              <th>CAPEX</th>
+              <th>Lucro Est.</th>
+              <th>Margem</th>
+              <th>Comissão</th>
+              <th>Status</th>
+              <th>UF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saleProjects.map((p) => (
+              <tr key={p.id}>
+                <td>{p.client_name ?? '—'}</td>
+                <td>
+                  <span className={`fm-badge fm-badge--${p.project_kind}`}>
+                    {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
+                  </span>
+                </td>
+                <td>{formatCurrencyBRL(p.realized_revenue ?? p.projected_revenue)}</td>
+                <td>{formatCurrencyBRL(p.capex_total)}</td>
+                <td>{formatCurrencyBRL(p.projected_profit)}</td>
+                <td>{formatPct(p.roi_percent)}</td>
+                <td>{formatCurrencyBRL(p.commission_amount)}</td>
+                <td>{p.status ?? '—'}</td>
+                <td>{p.uf ?? '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {saleProjects.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--${p.project_kind}`}>
-                      {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
-                    </span>
-                  </td>
-                  <td>{formatCurrencyBRL(p.realized_revenue ?? p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatCurrencyBRL(p.projected_profit)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatCurrencyBRL(p.commission_amount)}</td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
