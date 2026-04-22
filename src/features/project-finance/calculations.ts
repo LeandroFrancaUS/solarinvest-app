@@ -1,18 +1,14 @@
 // src/features/project-finance/calculations.ts
 // Pure functions for deriving financial KPIs from a profile form state.
 // Uses the same engine functions as the Análise Financeira:
-//   - computeIRR, computeNPV, computePayback (from investmentMetrics)
+//   - calcularKpis (from analiseFinanceiraSpreadsheet) for KPI computation
+//   - impostos_percent applied to fator_liquido, matching AnaliseFinanceiraInput
 //
 // System sizing values (potência, geração, consumo) come from the project's
 // Usina Fotovoltaica (ProjectPvData) — NOT from the financial form itself.
 // No React, no side effects — safe to call from anywhere.
 
-import {
-  computeIRR,
-  computeNPV,
-  computePayback,
-  toMonthlyRate,
-} from '../../lib/finance/investmentMetrics'
+import { calcularKpis } from '../../lib/finance/analiseFinanceiraSpreadsheet'
 import type {
   ProjectFinanceFormState,
   ProjectFinanceSummaryKPIs,
@@ -63,7 +59,15 @@ export function computeMargemEsperadaPct(
 
 /**
  * Computes the auto-calculated financial KPIs for a project using the
- * SAME engine as the Análise Financeira (computeIRR, computeNPV, computePayback).
+ * SAME engine as the Análise Financeira (calcularKpis from
+ * analiseFinanceiraSpreadsheet, which internally uses computeIRR, computeNPV,
+ * computePayback).
+ *
+ * Cash-flow construction mirrors the Análise Financeira methodology:
+ *  - Leasing: fator_liquido = 1 − impostos − inadimplência − opex
+ *             investment base = capex (costs already include seguro/CAC)
+ *  - Venda:   lucro líquido = lucro bruto − impostos sobre a receita
+ *             single-period flow: t0 = −capex, t1 = capex + lucro_liquido
  *
  * System sizing values (consumo, potência, geração) come from pvData
  * (Usina Fotovoltaica) — not from the financial form.
@@ -78,6 +82,7 @@ export function computeProjectKPIs(
   technicalParams?: ProjectFinanceTechnicalParams,
 ): ProjectFinanceComputed {
   const taxaDesconto = technicalParams?.taxa_desconto_aa_pct ?? null
+  const impostosPercent = technicalParams?.impostos_percent ?? 0
 
   const capex = computeCustoTotal(form)
 
@@ -91,47 +96,50 @@ export function computeProjectKPIs(
 
     if (!mensalidade || mensalidade <= 0 || prazo <= 0) return nullKPIs
 
+    // fator_liquido mirrors analiseFinanceiraSpreadsheet.calcularAnaliseLeasing:
+    // 1 − impostos − inadimplência − custo_operacional
+    const impostos = impostosPercent / 100
     const inadimplencia = (form.inadimplencia_pct ?? 0) / 100
     const opex = (form.opex_pct ?? 0) / 100
-    const fatorLiquido = Math.max(0, 1 - inadimplencia - opex)
+    const fatorLiquido = Math.max(0, 1 - impostos - inadimplencia - opex)
     const mensalidadeLiquida = mensalidade * fatorLiquido
 
-    // Build monthly cash-flow series: t0 = −capex, t1..tn = mensalidade líquida
-    const flows: number[] = [-capex, ...Array<number>(prazo).fill(mensalidadeLiquida)]
-
-    const payback_meses = computePayback(flows)
-
-    const tirMensal = computeIRR(flows)
-    const tir_pct = tirMensal !== null ? (Math.pow(1 + tirMensal, 12) - 1) * 100 : null
-
-    const taxaMensal = taxaDesconto != null && taxaDesconto > 0 ? toMonthlyRate(taxaDesconto) : 0
-    const vpl = taxaMensal > 0 ? computeNPV(flows, taxaMensal) : null
+    // fluxos = net inflows only (without t0) — calcularKpis prepends −capex
+    const fluxos: number[] = Array<number>(prazo).fill(mensalidadeLiquida)
 
     const receitaLiquida = mensalidadeLiquida * prazo
     const lucro = receitaLiquida - capex
-    const roi_pct = capex > 0 ? (lucro / capex) * 100 : 0
 
-    return { payback_meses, roi_pct, tir_pct, vpl }
+    const kpis = calcularKpis(fluxos, capex, lucro, taxaDesconto)
+
+    return {
+      payback_meses: kpis.payback_meses,
+      roi_pct: kpis.roi_percent,
+      tir_pct: kpis.tir_anual_percent,
+      vpl: kpis.vpl,
+    }
   }
 
-  // venda
+  // venda: mirrors analiseFinanceiraSpreadsheet.calcularAnaliseVenda KPI path.
+  // t0: −capex, t1: capex + lucro_liquido  (single-period transaction)
   const receita = form.receita_esperada ?? form.valor_venda ?? null
   if (!receita || receita <= 0) return nullKPIs
 
-  const lucro = receita - capex
-  const roi_pct = (lucro / capex) * 100
+  const impostosRs = receita * (impostosPercent / 100)
+  const lucroBruto = receita - capex
+  const lucroLiquido = lucroBruto - impostosRs
 
-  // Venda: single-period flow — t0: −capex, t1: +receita
-  const flows: number[] = [-capex, receita]
-  const payback_meses = computePayback(flows)
-  const tirMensal = computeIRR(flows)
-  // Annualize monthly IRR to % a.a. — same formula as leasing path above.
-  const tir_pct = tirMensal !== null ? (Math.pow(1 + tirMensal, 12) - 1) * 100 : null
+  // fluxos = inflow at t1 only (without t0) — calcularKpis prepends −capex
+  const fluxos: number[] = [capex + lucroLiquido]
 
-  const taxaMensal = taxaDesconto != null && taxaDesconto > 0 ? toMonthlyRate(taxaDesconto) : 0
-  const vpl = taxaMensal > 0 ? computeNPV(flows, taxaMensal) : null
+  const kpis = calcularKpis(fluxos, capex, lucroLiquido, taxaDesconto)
 
-  return { payback_meses, roi_pct, tir_pct, vpl }
+  return {
+    payback_meses: kpis.payback_meses,
+    roi_pct: kpis.roi_percent,
+    tir_pct: kpis.tir_anual_percent,
+    vpl: kpis.vpl,
+  }
 }
 
 /**

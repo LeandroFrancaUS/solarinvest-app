@@ -8,6 +8,7 @@ import type {
   ProjectFinanceContractType,
   ProjectFinanceComputed,
   ProjectFinanceOverrides,
+  ProjectFinanceTechnicalParams,
   OverridableField,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -164,10 +165,12 @@ interface Props {
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
+  technicalParams: ProjectFinanceTechnicalParams
   isSaving: boolean
   isDirty: boolean
   error: string | null
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
   restoreAuto: (field: OverridableField) => void
   restoreAll: () => void
@@ -182,10 +185,12 @@ export function ProjectFinanceEditor({
   pvData,
   calculated,
   overrides,
+  technicalParams,
   isSaving,
   isDirty,
   error,
   setField,
+  setTechnicalParam,
   setOverride,
   restoreAuto,
   restoreAll,
@@ -204,7 +209,9 @@ export function ProjectFinanceEditor({
             pvData={pvData}
             calculated={calculated}
             overrides={overrides}
+            technicalParams={technicalParams}
             setField={setField}
+            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
           />
@@ -215,7 +222,9 @@ export function ProjectFinanceEditor({
             pvData={pvData}
             calculated={calculated}
             overrides={overrides}
+            technicalParams={technicalParams}
             setField={setField}
+            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
           />

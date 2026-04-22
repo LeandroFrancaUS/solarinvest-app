@@ -67,12 +67,14 @@ interface UseProjectFinanceReturn {
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
   summary: ProjectFinanceSummaryKPIs
+  technicalParams: ProjectFinanceTechnicalParams
   isLoading: boolean
   isSaving: boolean
   isDirty: boolean
   error: string | null
   load: () => Promise<void>
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
   restoreAuto: (field: OverridableField) => void
   restoreAll: () => void
@@ -137,6 +139,13 @@ export function useProjectFinance(
   const setField = useCallback(
     <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => {
       setForm((prev) => ({ ...prev, [key]: value }))
+    },
+    [],
+  )
+
+  const setTechnicalParam = useCallback(
+    <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => {
+      setTechnicalParams((prev) => ({ ...(prev ?? {}), [key]: value }))
     },
     [],
   )
@@ -219,12 +228,14 @@ export function useProjectFinance(
     effective,
     overrides,
     summary,
+    technicalParams: technicalParams ?? {},
     isLoading,
     isSaving,
     isDirty,
     error,
     load,
     setField,
+    setTechnicalParam,
     setOverride,
     restoreAuto,
     restoreAll,

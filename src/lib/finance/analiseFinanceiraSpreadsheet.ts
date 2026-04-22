@@ -422,7 +422,7 @@ function calcularAnaliseLeasing(
   }
 }
 
-function calcularKpis(
+export function calcularKpis(
   fluxos: number[],
   investimento_inicial_rs: number,
   lucro_base: number,

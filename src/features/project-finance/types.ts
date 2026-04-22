@@ -27,6 +27,12 @@ export interface ProjectFinanceTechnicalParams {
   dias_mes?: number
   potencia_modulo_wp?: number
   taxa_desconto_aa_pct?: number
+  /**
+   * Tax rate applied to gross revenue before computing net cash flows.
+   * Mirrors the `impostos_percent` field in AnaliseFinanceiraInput so that
+   * the project finance form uses the exact same calculation methodology.
+   */
+  impostos_percent?: number
 }
 
 // ─── Auto-computed result from the shared engine ─────────────────────────────
