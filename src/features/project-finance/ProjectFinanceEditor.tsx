@@ -1,0 +1,175 @@
+// src/features/project-finance/ProjectFinanceEditor.tsx
+// Expanded editor container: shows the correct form variant (leasing or venda)
+// based on the resolved contract type. Includes save, cancel and totals bar.
+
+import React from 'react'
+import type { ProjectFinanceFormState, ProjectFinanceContractType } from './types'
+import { ProjectFinanceLeasingForm } from './ProjectFinanceLeasingForm'
+import { ProjectFinanceVendaForm } from './ProjectFinanceVendaForm'
+import { computeCustoTotal, computeLucroEsperado, computeMargemEsperadaPct } from './calculations'
+
+// ─── Locale helpers ──────────────────────────────────────────────────────────
+
+function fmtCurrency(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function fmtPct(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return `${value.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+}
+
+// ─── Totals bar ───────────────────────────────────────────────────────────────
+
+function TotalsBar({
+  form,
+  contractType,
+  isSaving,
+  isDirty,
+  onSave,
+  onCancel,
+  error,
+}: {
+  form: ProjectFinanceFormState
+  contractType: ProjectFinanceContractType
+  isSaving: boolean
+  isDirty: boolean
+  onSave: () => void
+  onCancel: () => void
+  error: string | null
+}) {
+  const custo = computeCustoTotal(form)
+  const lucro = computeLucroEsperado(form.receita_esperada, custo)
+  const margem = computeMargemEsperadaPct(form.receita_esperada, lucro)
+
+  const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
+
+  return (
+    <div
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        background: 'var(--bg-card, #1e293b)',
+        borderTop: '1px solid var(--border)',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        flexWrap: 'wrap',
+        zIndex: 10,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 12,
+          color: 'var(--text-muted)',
+          marginRight: 8,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        📊 {contractLabel}
+      </span>
+
+      <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+        <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Custo:</span>
+        <strong>{fmtCurrency(custo)}</strong>
+      </span>
+
+      {form.receita_esperada != null ? (
+        <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Receita:</span>
+          <strong>{fmtCurrency(form.receita_esperada)}</strong>
+        </span>
+      ) : null}
+
+      {lucro != null ? (
+        <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Lucro:</span>
+          <strong style={{ color: lucro >= 0 ? 'var(--ds-success, #22c55e)' : 'var(--ds-danger, #ef4444)' }}>
+            {fmtCurrency(lucro)}
+          </strong>
+        </span>
+      ) : null}
+
+      {margem != null ? (
+        <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Margem:</span>
+          <strong>{fmtPct(margem)}</strong>
+        </span>
+      ) : null}
+
+      <span style={{ flex: 1 }} />
+
+      {error ? (
+        <span style={{ fontSize: 12, color: 'var(--ds-danger, #ef4444)', marginRight: 8 }}>
+          ⚠️ {error}
+        </span>
+      ) : null}
+
+      <button
+        type="button"
+        className="ghost"
+        onClick={onCancel}
+        disabled={isSaving}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        Cancelar
+      </button>
+      <button
+        type="button"
+        className="primary"
+        onClick={onSave}
+        disabled={isSaving || !isDirty}
+        style={{ whiteSpace: 'nowrap' }}
+      >
+        {isSaving ? 'Salvando…' : '💾 Salvar'}
+      </button>
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+interface Props {
+  form: ProjectFinanceFormState
+  contractType: ProjectFinanceContractType
+  isSaving: boolean
+  isDirty: boolean
+  error: string | null
+  setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  onSave: () => void
+  onCancel: () => void
+}
+
+export function ProjectFinanceEditor({
+  form,
+  contractType,
+  isSaving,
+  isDirty,
+  error,
+  setField,
+  onSave,
+  onCancel,
+}: Props) {
+  return (
+    <div>
+      <div style={{ padding: '0 4px' }}>
+        {contractType === 'leasing' ? (
+          <ProjectFinanceLeasingForm form={form} setField={setField} />
+        ) : (
+          <ProjectFinanceVendaForm form={form} setField={setField} />
+        )}
+      </div>
+      <TotalsBar
+        form={form}
+        contractType={contractType}
+        isSaving={isSaving}
+        isDirty={isDirty}
+        onSave={onSave}
+        onCancel={onCancel}
+        error={error}
+      />
+    </div>
+  )
+}

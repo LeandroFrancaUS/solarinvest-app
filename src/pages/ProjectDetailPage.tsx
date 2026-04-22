@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 // Gestão Financeira > Projetos > Detalhe do Projeto.
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import '../styles/financial-management.css'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { patchProjectPvData } from '../services/projectsApi'
@@ -12,12 +12,7 @@ import {
   PROJECT_STATUS_LABELS as PORTFOLIO_PROJECT_STATUS_LABELS,
 } from '../shared/projects/portfolioProjectOps'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
-import {
-  computeLeasingFinancialSummary,
-  computeVendaFinancialSummary,
-  LeasingFinancialCore,
-  VendaFinancialCore,
-} from '../features/financial-engine'
+import { ProjectFinanceSection } from '../features/project-finance/ProjectFinanceSection'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -566,62 +561,6 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PR 4: Financeiro Section — embeds the financial-engine core per project_type
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface FinanceiroSectionProps {
-  projectId: string
-}
-
-function FinanceiroSection({ projectId }: FinanceiroSectionProps) {
-  const project = useProjectsStore((s) => s.cache[projectId]?.project ?? null)
-  const pv = useProjectsStore((s) => s.cache[projectId]?.pv_data ?? null)
-
-  const [portfolioClient, setPortfolioClient] = useState<PortfolioClientRow | null>(null)
-  useEffect(() => {
-    if (!project?.client_id) return
-    void fetchPortfolioClient(project.client_id)
-      .then(setPortfolioClient)
-      .catch((err: unknown) => {
-        console.warn('[FinanceiroSection] failed to load portfolio client', err)
-      })
-  }, [project?.client_id])
-
-  const tipoBadge = project ? (PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type) : '—'
-
-  const financialCore = useMemo(() => {
-    if (!project || !portfolioClient) return null
-    if (project.project_type === 'leasing') {
-      const summary = computeLeasingFinancialSummary(portfolioClient, pv)
-      return <LeasingFinancialCore summary={summary} />
-    }
-    if (project.project_type === 'venda') {
-      const summary = computeVendaFinancialSummary(portfolioClient, pv)
-      return <VendaFinancialCore summary={summary} />
-    }
-    return null
-  }, [project, portfolioClient, pv])
-
-  if (!project) return null
-
-  return (
-    <Section icon="💰" title="Financeiro">
-      <div className="fm-detail-grid">
-        <Field
-          label="Tipo de negócio"
-          value={<span className={`fm-badge fm-badge--${project.project_type}`}>{tipoBadge}</span>}
-        />
-      </div>
-      {financialCore ?? (
-        <div className="fm-project-section-placeholder" style={{ marginTop: 12 }}>
-          <p>Carregando dados financeiros…</p>
-        </div>
-      )}
-    </Section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // ProjectDetailPage
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -709,7 +648,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
       <UsinaSection projectId={projectId} />
 
       {/* ── Section 3: Financeiro ── */}
-      <FinanceiroSection projectId={projectId} />
+      <ProjectFinanceSection projectId={projectId} />
     </div>
   )
 }
