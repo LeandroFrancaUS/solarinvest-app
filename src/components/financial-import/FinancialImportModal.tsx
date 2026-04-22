@@ -8,6 +8,7 @@
 //   4. Report   — show what was created/updated
 
 import React, { useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   ParseResult,
   PreviewItem,
@@ -380,7 +381,10 @@ export function FinancialImportModal({ onClose, onImportComplete }: Props) {
   const newClients = parseResult?.summary.total_new_clients ?? 0
   const conflicts = parseResult?.summary.total_conflicts ?? 0
 
-  return (
+  // Render via Portal so the modal escapes any ancestor stacking context
+  // (transforms, overflow:hidden, z-index, etc.) and is always anchored to <body>.
+  // Falls back to inline rendering if document.body is unavailable (SSR safety).
+  const modalNode = (
     <div className="fim-overlay" role="dialog" aria-modal="true" aria-label="Importar Excel">
       <div className="fim-modal">
         {/* Header */}
@@ -597,4 +601,9 @@ export function FinancialImportModal({ onClose, onImportComplete }: Props) {
       </div>
     </div>
   )
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalNode, document.body)
+  }
+  return modalNode
 }
