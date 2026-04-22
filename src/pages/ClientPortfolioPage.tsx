@@ -54,6 +54,8 @@ import { generateNotificationsForClient } from '../domain/billing/BillingNotific
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
+import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
+import { ImportarContratoDialog } from '../components/carteira/contrato/ImportarContratoDialog'
 
 interface Props {
   onBack: () => void
@@ -338,6 +340,16 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
   const image = att.url && isImage(att.mimeType, att.fileName)
   const sizeLabel = att.sizeBytes != null ? `${(att.sizeBytes / 1024).toFixed(1)} KB` : null
   const icon = pdf ? '📄' : image ? '🖼️' : '📎'
+  const shouldOpenPdfInNewTab = Boolean(pdf && att.url)
+
+  function handlePreviewClick() {
+    if (!att.url) return
+    if (shouldOpenPdfInNewTab) {
+      window.open(att.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setShowPreview(true)
+  }
 
   return (
     <>
@@ -353,9 +365,9 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
         </span>
         {sizeLabel && <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{sizeLabel}</span>}
         {previewable && (
-          <button type="button" onClick={() => setShowPreview(true)}
+          <button type="button" onClick={handlePreviewClick}
             style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
-            👁️ Visualizar
+            {shouldOpenPdfInNewTab ? '🔎 Abrir PDF' : '👁️ Visualizar'}
           </button>
         )}
         {att.url && (
@@ -758,20 +770,6 @@ function EditarTab({
               </div>
             )}
           </div>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              Consumo (kWh/mês)
-              <input type="number" value={form.consumption_kwh_month} onChange={(e) => setForm((f) => ({ ...f, consumption_kwh_month: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              Potência (kWp)
-              <input type="number" value={form.system_kwp} onChange={(e) => setForm((f) => ({ ...f, system_kwp: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-          </div>
-          <label className="pf-label" style={labelStyle}>
-            Prazo Contratual (meses)
-            <input type="number" value={form.term_months} onChange={(e) => setForm((f) => ({ ...f, term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
         </div>
       </div>
 
@@ -840,6 +838,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [consultants, setConsultants] = useState<Consultant[]>([])
+  const [showImportDialog, setShowImportDialog] = useState(false)
   // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
   const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
     // If DB has an explicit attachments array (even empty), use it — avoids clobbering a
@@ -941,7 +940,10 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div className="pf-section-card">
-        <div className="pf-section-title"><span className="pf-icon">📄</span> Dados do Contrato</div>
+        <div className="pf-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span><span className="pf-icon">📄</span> Dados do Contrato</span>
+          <ImportarContratoButton onClick={() => setShowImportDialog(true)} disabled={saving} />
+        </div>
         <div style={{ display: 'grid', gap: 10 }}>
           <label className="pf-label" style={labelSty}>
             Tipo de Contrato
@@ -1144,6 +1146,44 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           onCancel={() => setShowSavePrompt(false)}
         />
       )}
+      <ImportarContratoDialog
+        open={showImportDialog}
+        client={client}
+        existingAttachments={contractAttachments}
+        onClose={() => setShowImportDialog(false)}
+        onImported={({ attachment, contractSignedAt, sourceProposalId, contractualTermMonths, kwhContratado, contractorName, contractorDocument, contractorEmail, contractorPhone, contractorAddress, contractorCity, contractorState }) => {
+          const nextAttachments = [
+            ...contractAttachments.filter((item) => item.origin !== 'importacao_contrato'),
+            attachment,
+          ]
+          setContractAttachments(nextAttachments)
+          setForm((prev) => ({
+            ...prev,
+            contract_status: 'active',
+            contract_signed_at: contractSignedAt ? contractSignedAt.slice(0, 10) : prev.contract_signed_at,
+            source_proposal_id: sourceProposalId ?? prev.source_proposal_id,
+            contractual_term_months:
+              contractualTermMonths != null ? String(contractualTermMonths) : prev.contractual_term_months,
+          }))
+          onSaved({
+            contract_status: 'active',
+            contract_signed_at: contractSignedAt ? contractSignedAt.slice(0, 10) : null,
+            source_proposal_id: sourceProposalId,
+            contractual_term_months: contractualTermMonths,
+            contract_attachments: nextAttachments,
+            kwh_contratado: kwhContratado,
+            kwh_mes_contratado: kwhContratado,
+            name: contractorName,
+            document: contractorDocument,
+            email: contractorEmail,
+            phone: contractorPhone,
+            address: contractorAddress,
+            city: contractorCity,
+            state: contractorState,
+          } as Partial<PortfolioClientRow>)
+          setShowImportDialog(false)
+        }}
+      />
     </div>
   )
 }
