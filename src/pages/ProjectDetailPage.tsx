@@ -459,7 +459,7 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
               readOnly
               aria-readonly="true"
               value={form.potencia_sistema_kwp != null
-                ? Number(form.potencia_sistema_kwp.toFixed(3))
+                ? form.potencia_sistema_kwp.toFixed(3)
                 : ''}
               tabIndex={-1}
             />
