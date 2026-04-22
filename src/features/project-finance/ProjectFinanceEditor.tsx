@@ -10,6 +10,7 @@ import type {
   ProjectFinanceOverrides,
   OverridableField,
 } from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 import { ProjectFinanceLeasingForm } from './ProjectFinanceLeasingForm'
 import { ProjectFinanceVendaForm } from './ProjectFinanceVendaForm'
 import { computeCustoTotal, computeLucroEsperado, computeMargemEsperadaPct } from './calculations'
@@ -158,6 +159,8 @@ interface Props {
   contractType: ProjectFinanceContractType
   /** Contract term in months from the contract. Readonly. */
   contractTermMonths: number | null
+  /** PV system data from Usina Fotovoltaica. Displayed as readonly info. */
+  pvData: ProjectPvData | null
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
@@ -176,8 +179,8 @@ export function ProjectFinanceEditor({
   form,
   contractType,
   contractTermMonths,
+  pvData,
   calculated,
-  effective,
   overrides,
   isSaving,
   isDirty,
@@ -198,8 +201,8 @@ export function ProjectFinanceEditor({
           <ProjectFinanceLeasingForm
             form={form}
             contractTermMonths={contractTermMonths}
+            pvData={pvData}
             calculated={calculated}
-            effective={effective}
             overrides={overrides}
             setField={setField}
             setOverride={setOverride}
@@ -209,8 +212,8 @@ export function ProjectFinanceEditor({
           <ProjectFinanceVendaForm
             form={form}
             contractTermMonths={contractTermMonths}
+            pvData={pvData}
             calculated={calculated}
-            effective={effective}
             overrides={overrides}
             setField={setField}
             setOverride={setOverride}

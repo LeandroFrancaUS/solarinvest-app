@@ -1,6 +1,7 @@
 // src/features/project-finance/ProjectFinanceLeasingForm.tsx
 // Editable form for the Leasing variant of the project financial profile.
 // Shows cost, revenue, leasing-specific and KPI fields.
+// Sistema Fotovoltaico values come read-only from pvData (Usina Fotovoltaica).
 // Does NOT include modules: Nova Simulação, Simulações Salvas, IA, Monte Carlo,
 // Packs, Análise Financeira checklist, Módulo Dedicado (Aprovar/Reprovar).
 
@@ -11,6 +12,7 @@ import type {
   ProjectFinanceOverrides,
   OverridableField,
 } from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 import { computeCustoTotal } from './calculations'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -89,13 +91,7 @@ function FieldText({
   return (
     <div className="fm-detail-field fm-detail-field--edit">
       <label className="fm-detail-field-label" htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className="fm-form-input"
-        type="text"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <input id={id} className="fm-form-input" type="text" value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
     </div>
   )
 }
@@ -110,7 +106,7 @@ function ReadonlyField({ label, value }: { label: string; value: React.ReactNode
 }
 
 /**
- * A field that is auto-computed by the engine but can be manually overridden.
+ * A KPI field that is auto-computed by the engine but can be manually overridden.
  * Shows "Automático" or "Manual" badge and a restore button.
  */
 function FieldWithOverride({
@@ -138,8 +134,6 @@ function FieldWithOverride({
   onOverride: (field: OverridableField, value: number) => void
   onRestore: (field: OverridableField) => void
 }) {
-  const displayValue = isOverridden ? overrideValue : effectiveValue
-
   return (
     <div className="fm-detail-field fm-detail-field--edit">
       <label className="fm-detail-field-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -226,14 +220,79 @@ function SectionTitle({ title }: { title: string }) {
   )
 }
 
+// ─── PV System Info Bar ───────────────────────────────────────────────────────
+// Displays system sizing values from the Usina Fotovoltaica — readonly.
+
+function PvInfoBar({
+  pvData,
+  contractTermMonths,
+  formPrazo,
+}: {
+  pvData: ProjectPvData | null
+  contractTermMonths: number | null
+  formPrazo: number | null | undefined
+}) {
+  const prazo = contractTermMonths ?? formPrazo
+  const items: { label: string; value: React.ReactNode }[] = [
+    {
+      label: 'Consumo',
+      value: pvData?.consumo_kwh_mes != null
+        ? `${fmtNum(pvData.consumo_kwh_mes, 0)} kWh/mês`
+        : '—',
+    },
+    {
+      label: 'Potência',
+      value: pvData?.potencia_sistema_kwp != null
+        ? `${fmtNum(pvData.potencia_sistema_kwp, 2)} kWp`
+        : '—',
+    },
+    {
+      label: 'Geração est.',
+      value: pvData?.geracao_estimada_kwh_mes != null
+        ? `${fmtNum(pvData.geracao_estimada_kwh_mes, 0)} kWh/mês`
+        : '—',
+    },
+    {
+      label: 'Prazo',
+      value: prazo != null ? `${prazo} meses 🔒` : '— 🔒',
+    },
+  ]
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px 20px',
+        padding: '10px 14px',
+        marginBottom: 12,
+        background: 'var(--bg-inset, rgba(15,23,42,0.5))',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4 }}>
+        ☀️ Usina Fotovoltaica
+      </span>
+      {items.map((item) => (
+        <span key={item.label} style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{item.label}:</span>
+          <strong>{item.value}</strong>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
   form: ProjectFinanceFormState
   /** Contract term in months from the contract. Readonly. */
   contractTermMonths: number | null
+  /** PV system data from the Usina Fotovoltaica section. Readonly. */
+  pvData: ProjectPvData | null
   calculated: ProjectFinanceComputed
-  effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
   setOverride: (field: OverridableField, value: number) => void
@@ -243,72 +302,24 @@ interface Props {
 export function ProjectFinanceLeasingForm({
   form,
   contractTermMonths,
+  pvData,
   calculated,
-  effective,
+
   overrides,
   setField,
   setOverride,
   restoreAuto,
 }: Props) {
   const custoTotal = computeCustoTotal(form)
-  const prazoDisplay = contractTermMonths ?? form.prazo_contratual_meses
 
   return (
     <div>
-      {/* ── Sistema Fotovoltaico ─────────────────────────────── */}
-      <SectionTitle title="Sistema Fotovoltaico" />
-      <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
-          id="pf-leasing-consumo"
-          label="Consumo"
-          unit="kWh/mês"
-          value={form.consumo_kwh_mes}
-          onChange={(v) => setField('consumo_kwh_mes', v ?? undefined)}
-        />
-
-        {/* Potência — auto-computed from consumo, overrideable */}
-        <FieldWithOverride
-          id="pf-leasing-potencia"
-          label="Potência instalada"
-          field="potencia_instalada_kwp"
-          effectiveValue={calculated.potencia_instalada_kwp}
-          isOverridden={'potencia_instalada_kwp' in overrides}
-          overrideValue={overrides.potencia_instalada_kwp ?? null}
-          unit="kWp"
-          step={0.001}
-          format={(v) => fmtNum(v, 3)}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
-        />
-
-        {/* Geração — auto-computed from consumo, overrideable */}
-        <FieldWithOverride
-          id="pf-leasing-geracao"
-          label="Geração estimada"
-          field="geracao_estimada_kwh_mes"
-          effectiveValue={calculated.geracao_estimada_kwh_mes}
-          isOverridden={'geracao_estimada_kwh_mes' in overrides}
-          overrideValue={overrides.geracao_estimada_kwh_mes ?? null}
-          unit="kWh/mês"
-          step={1}
-          format={(v) => fmtNum(v, 0)}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
-        />
-
-        {/* Prazo contratual — readonly, comes from contract */}
-        <ReadonlyField
-          label="Prazo contratual (meses)"
-          value={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <strong>{prazoDisplay ?? '—'}</strong>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                🔒 Contrato
-              </span>
-            </span>
-          }
-        />
-      </div>
+      {/* ── Usina Fotovoltaica info (readonly) ───────────────── */}
+      <PvInfoBar
+        pvData={pvData}
+        contractTermMonths={contractTermMonths}
+        formPrazo={form.prazo_contratual_meses}
+      />
 
       {/* ── Custos do Projeto ────────────────────────────────── */}
       <SectionTitle title="Custos do Projeto" />
@@ -377,7 +388,6 @@ export function ProjectFinanceLeasingForm({
           onChange={(v) => setField('custo_diversos', v ?? undefined)}
           step={0.01}
         />
-        {/* Custo total — read only, auto-computed */}
         <ReadonlyField
           label="Custo total do projeto"
           value={

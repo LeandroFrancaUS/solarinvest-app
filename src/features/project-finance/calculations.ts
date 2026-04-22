@@ -1,11 +1,12 @@
 // src/features/project-finance/calculations.ts
 // Pure functions for deriving financial KPIs from a profile form state.
 // Uses the same engine functions as the Análise Financeira:
-//   - calcularBaseSistema (system sizing from consumo)
 //   - computeIRR, computeNPV, computePayback (from investmentMetrics)
+//
+// System sizing values (potência, geração, consumo) come from the project's
+// Usina Fotovoltaica (ProjectPvData) — NOT from the financial form itself.
 // No React, no side effects — safe to call from anywhere.
 
-import { calcularBaseSistema } from '../../lib/finance/analiseFinanceiraSpreadsheet'
 import {
   computeIRR,
   computeNPV,
@@ -21,15 +22,7 @@ import type {
   ProjectFinanceTechnicalParams,
   OverridableField,
 } from './types'
-
-// ─── Defaults for system-sizing parameters ───────────────────────────────────
-// Used when the caller does not supply explicit technical params.
-// Values represent Brazilian average conditions.
-
-export const DEFAULT_IRRADIACAO_KWH_M2_DIA = 4.5
-export const DEFAULT_PERFORMANCE_RATIO = 0.75
-export const DEFAULT_DIAS_MES = 30
-export const DEFAULT_POTENCIA_MODULO_WP = 590
+import type { ProjectPvData } from '../../domain/projects/types'
 
 // ─── Cost helpers ─────────────────────────────────────────────────────────────
 
@@ -70,8 +63,10 @@ export function computeMargemEsperadaPct(
 
 /**
  * Computes the auto-calculated financial KPIs for a project using the
- * SAME engine as the Análise Financeira (calcularBaseSistema, computeIRR,
- * computeNPV, computePayback).
+ * SAME engine as the Análise Financeira (computeIRR, computeNPV, computePayback).
+ *
+ * System sizing values (consumo, potência, geração) come from pvData
+ * (Usina Fotovoltaica) — not from the financial form.
  *
  * Returns null for any metric that cannot be computed due to missing inputs.
  */
@@ -79,49 +74,22 @@ export function computeProjectKPIs(
   form: ProjectFinanceFormState,
   contractType: ProjectFinanceContractType,
   contractTermMonths: number,
+  pvData: ProjectPvData | null,
   technicalParams?: ProjectFinanceTechnicalParams,
 ): ProjectFinanceComputed {
-  const irradiacao = technicalParams?.irradiacao_kwh_m2_dia ?? DEFAULT_IRRADIACAO_KWH_M2_DIA
-  const pr = technicalParams?.performance_ratio ?? DEFAULT_PERFORMANCE_RATIO
-  const dias = technicalParams?.dias_mes ?? DEFAULT_DIAS_MES
-  const moduloWp = technicalParams?.potencia_modulo_wp ?? DEFAULT_POTENCIA_MODULO_WP
   const taxaDesconto = technicalParams?.taxa_desconto_aa_pct ?? null
 
-  // ── System sizing ─────────────────────────────────────────────────────────
-  const consumo = form.consumo_kwh_mes ?? null
-  let potencia_instalada_kwp: number | null = null
-  let geracao_estimada_kwh_mes: number | null = null
-
-  if (consumo != null && consumo > 0) {
-    try {
-      const sys = calcularBaseSistema({
-        consumo_kwh_mes: consumo,
-        irradiacao_kwh_m2_dia: irradiacao,
-        performance_ratio: pr,
-        dias_mes: dias,
-        potencia_modulo_wp: moduloWp,
-      })
-      potencia_instalada_kwp = sys.potencia_sistema_kwp
-      geracao_estimada_kwh_mes = sys.potencia_sistema_kwp * irradiacao * pr * dias
-    } catch {
-      // engine errors → leave null
-    }
-  }
-
-  // ── KPIs ──────────────────────────────────────────────────────────────────
   const capex = computeCustoTotal(form)
 
-  if (capex == null || capex <= 0) {
-    return { potencia_instalada_kwp, geracao_estimada_kwh_mes, payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
-  }
+  const nullKPIs: ProjectFinanceComputed = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
+
+  if (capex == null || capex <= 0) return nullKPIs
 
   if (contractType === 'leasing') {
     const prazo = contractTermMonths
     const mensalidade = form.mensalidade_base ?? null
 
-    if (!mensalidade || mensalidade <= 0 || prazo <= 0) {
-      return { potencia_instalada_kwp, geracao_estimada_kwh_mes, payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
-    }
+    if (!mensalidade || mensalidade <= 0 || prazo <= 0) return nullKPIs
 
     const inadimplencia = (form.inadimplencia_pct ?? 0) / 100
     const opex = (form.opex_pct ?? 0) / 100
@@ -143,14 +111,12 @@ export function computeProjectKPIs(
     const lucro = receitaLiquida - capex
     const roi_pct = capex > 0 ? (lucro / capex) * 100 : 0
 
-    return { potencia_instalada_kwp, geracao_estimada_kwh_mes, payback_meses, roi_pct, tir_pct, vpl }
+    return { payback_meses, roi_pct, tir_pct, vpl }
   }
 
   // venda
   const receita = form.receita_esperada ?? form.valor_venda ?? null
-  if (!receita || receita <= 0) {
-    return { potencia_instalada_kwp, geracao_estimada_kwh_mes, payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
-  }
+  if (!receita || receita <= 0) return nullKPIs
 
   const lucro = receita - capex
   const roi_pct = (lucro / capex) * 100
@@ -164,7 +130,7 @@ export function computeProjectKPIs(
   const taxaMensal = taxaDesconto != null && taxaDesconto > 0 ? toMonthlyRate(taxaDesconto) : 0
   const vpl = taxaMensal > 0 ? computeNPV(flows, taxaMensal) : null
 
-  return { potencia_instalada_kwp, geracao_estimada_kwh_mes, payback_meses, roi_pct, tir_pct, vpl }
+  return { payback_meses, roi_pct, tir_pct, vpl }
 }
 
 /**
@@ -189,16 +155,17 @@ export function applyOverrides(
 
 /**
  * Main orchestrator — maps inputs → calculated → effective.
- * Mirrors the pseudocode from the problem specification.
+ * System sizing values come from pvData (Usina Fotovoltaica), not the form.
  */
 export function computeProjectFinancialState(
   form: ProjectFinanceFormState,
   contractType: ProjectFinanceContractType,
   contractTermMonths: number,
+  pvData: ProjectPvData | null,
   overrides: ProjectFinanceOverrides = {},
   technicalParams?: ProjectFinanceTechnicalParams,
 ): { calculated: ProjectFinanceComputed; effective: ProjectFinanceComputed } {
-  const calculated = computeProjectKPIs(form, contractType, contractTermMonths, technicalParams)
+  const calculated = computeProjectKPIs(form, contractType, contractTermMonths, pvData, technicalParams)
   const effective = applyOverrides(calculated, overrides)
   return { calculated, effective }
 }

@@ -575,6 +575,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
   }, [projectId, loadProjectById])
 
   const project = cached?.project ?? null
+  const pvData = cached?.pv_data ?? null
 
   if (isLoading && !project) {
     return (
@@ -648,7 +649,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
       <UsinaSection projectId={projectId} />
 
       {/* ── Section 3: Financeiro ── */}
-      <ProjectFinanceSection projectId={projectId} />
+      <ProjectFinanceSection projectId={projectId} pvData={pvData} />
     </div>
   )
 }

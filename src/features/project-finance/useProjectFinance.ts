@@ -1,10 +1,12 @@
 // src/features/project-finance/useProjectFinance.ts
 // React hook for loading, editing and saving project financial profiles.
 // Implements:
-//   - Auto-fill: when consumo changes, recalculate potencia/geracao/KPIs using
-//     the same engine as Análise Financeira (calcularBaseSistema, computeIRR, etc.)
+//   - Auto-compute KPIs using the same engine as Análise Financeira
+//     (computeIRR, computeNPV, computePayback) whenever form inputs change
 //   - Override mechanism: manual values persist through recalculations
 //   - Readonly contract term: sourced from client_contracts
+//   - System sizing values (consumo, potência, geração) come from pvData
+//     (Usina Fotovoltaica) — NOT from the financial form
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchProjectFinance, saveProjectFinance } from './api'
@@ -19,6 +21,7 @@ import type {
   OverridableField,
   ProjectFinanceTechnicalParams,
 } from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 
 // Build a form state from a profile row (or empty defaults)
 function profileToFormState(profile: ProjectFinanceProfile | null): ProjectFinanceFormState {
@@ -29,9 +32,6 @@ function profileToFormState(profile: ProjectFinanceProfile | null): ProjectFinan
     snapshot_source: profile.snapshot_source,
   }
   if (profile.client_id != null) out.client_id = profile.client_id
-  if (profile.consumo_kwh_mes != null) out.consumo_kwh_mes = profile.consumo_kwh_mes
-  if (profile.potencia_instalada_kwp != null) out.potencia_instalada_kwp = profile.potencia_instalada_kwp
-  if (profile.geracao_estimada_kwh_mes != null) out.geracao_estimada_kwh_mes = profile.geracao_estimada_kwh_mes
   if (profile.prazo_contratual_meses != null) out.prazo_contratual_meses = profile.prazo_contratual_meses
   if (profile.custo_equipamentos != null) out.custo_equipamentos = profile.custo_equipamentos
   if (profile.custo_instalacao != null) out.custo_instalacao = profile.custo_instalacao
@@ -61,7 +61,7 @@ interface UseProjectFinanceReturn {
   profile: ProjectFinanceProfile | null
   form: ProjectFinanceFormState
   contractType: ProjectFinanceContractType
-  /** Contract term from client_contracts. Readonly — do not allow user to change. */
+  /** Contract term in months from client_contracts. Readonly. */
   contractTermMonths: number | null
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
@@ -80,7 +80,10 @@ interface UseProjectFinanceReturn {
   reset: () => void
 }
 
-export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
+export function useProjectFinance(
+  projectId: string,
+  pvData: ProjectPvData | null = null,
+): UseProjectFinanceReturn {
   const [profile, setProfile] = useState<ProjectFinanceProfile | null>(null)
   const [contractType, setContractType] = useState<ProjectFinanceContractType>('leasing')
   const [contractTermMonths, setContractTermMonths] = useState<number | null>(null)
@@ -124,11 +127,12 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     void load()
   }, [load])
 
-  // Auto-compute KPIs using the shared engine (same as Análise Financeira)
+  // Auto-compute KPIs using the shared engine (same as Análise Financeira).
+  // System sizing values come from pvData (Usina Fotovoltaica), not the form.
   const { calculated, effective } = useMemo(() => {
     const termMonths = contractTermMonths ?? (form.prazo_contratual_meses ?? 0)
-    return computeProjectFinancialState(form, contractType, termMonths, overrides, technicalParams)
-  }, [form, contractType, contractTermMonths, overrides, technicalParams])
+    return computeProjectFinancialState(form, contractType, termMonths, pvData, overrides, technicalParams)
+  }, [form, contractType, contractTermMonths, pvData, overrides, technicalParams])
 
   const setField = useCallback(
     <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => {
@@ -158,22 +162,27 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     setError(null)
     try {
       const termMonths = contractTermMonths ?? (form.prazo_contratual_meses ?? 0)
-      const payload: ProjectFinanceFormState = {
+      // Build save payload — use null (not undefined) for computed KPI fields
+      // because ProjectFinanceFormState uses exactOptionalPropertyTypes.
+      const kpiOverlay: Partial<ProjectFinanceFormState> = {}
+      if (effective.payback_meses != null) kpiOverlay.payback_meses = effective.payback_meses
+      if (effective.roi_pct != null) kpiOverlay.roi_pct = effective.roi_pct
+      if (effective.tir_pct != null) kpiOverlay.tir_pct = effective.tir_pct
+      if (effective.vpl != null) kpiOverlay.vpl = effective.vpl
+
+      // Build save payload — cast to avoid exactOptionalPropertyTypes friction with spread.
+      // The underlying shape is correct; TypeScript's strict mode false-positives on spreading
+      // Partial types.
+      const payload = {
         ...form,
+        ...kpiOverlay,
         contract_type: contractType,
-        // Sync computed KPIs into the form for storage (using effective = overrides applied)
-        potencia_instalada_kwp: effective.potencia_instalada_kwp ?? form.potencia_instalada_kwp,
-        geracao_estimada_kwh_mes: effective.geracao_estimada_kwh_mes ?? form.geracao_estimada_kwh_mes,
-        payback_meses: effective.payback_meses ?? undefined,
-        roi_pct: effective.roi_pct ?? undefined,
-        tir_pct: effective.tir_pct ?? undefined,
-        vpl: effective.vpl ?? undefined,
         // prazo_contratual_meses mirrors from contract (readonly)
         prazo_contratual_meses: termMonths > 0 ? termMonths : form.prazo_contratual_meses,
         // Persist overrides and technical params
         override_payload_json: Object.keys(overrides).length > 0 ? overrides : null,
         technical_params_json: technicalParams ?? null,
-      }
+      } as ProjectFinanceFormState
       const saved = await saveProjectFinance(projectId, payload)
       setProfile(saved)
       const fs = profileToFormState(saved)
@@ -196,11 +205,10 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     setError(null)
   }, [savedForm, savedOverrides])
 
-  const summary = computeSummaryKPIs(
-    { ...form, payback_meses: effective.payback_meses ?? undefined, roi_pct: effective.roi_pct ?? undefined },
-    contractType,
-    profile?.updated_at,
-  )
+  const summaryForm: ProjectFinanceFormState = { ...form }
+  if (effective.payback_meses != null) summaryForm.payback_meses = effective.payback_meses
+  if (effective.roi_pct != null) summaryForm.roi_pct = effective.roi_pct
+  const summary = computeSummaryKPIs(summaryForm, contractType, profile?.updated_at)
 
   return {
     profile,
@@ -224,3 +232,4 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     reset,
   }
 }
+

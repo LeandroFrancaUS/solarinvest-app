@@ -8,12 +8,10 @@ export type ProjectFinanceStatus = 'draft' | 'active' | 'archived'
 
 /**
  * Auto-computable fields that can be manually overridden.
- * When a field is present in the overrides map, its value takes precedence
- * over the auto-calculated result.
+ * System sizing (potencia, geracao) is NOT overrideable here —
+ * those values come read-only from the Usina Fotovoltaica (ProjectPvData).
  */
 export type OverridableField =
-  | 'potencia_instalada_kwp'
-  | 'geracao_estimada_kwh_mes'
   | 'payback_meses'
   | 'roi_pct'
   | 'tir_pct'
@@ -33,9 +31,8 @@ export interface ProjectFinanceTechnicalParams {
 
 // ─── Auto-computed result from the shared engine ─────────────────────────────
 
+/** KPI fields computed by the shared engine. Overrideable via manual entry. */
 export interface ProjectFinanceComputed {
-  potencia_instalada_kwp: number | null
-  geracao_estimada_kwh_mes: number | null
   payback_meses: number | null
   roi_pct: number | null
   tir_pct: number | null
