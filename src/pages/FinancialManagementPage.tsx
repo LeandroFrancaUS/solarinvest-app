@@ -8,30 +8,28 @@ import {
   fetchFinancialSummary,
   fetchFinancialProjects,
   fetchFinancialCashflow,
-  fetchFinancialEntries,
-  createFinancialEntry,
-  updateFinancialEntry,
-  deleteFinancialEntry,
-  fetchFinancialCategories,
   type FinancialSummary,
   type FinancialProject,
   type CashflowPeriod,
-  type FinancialEntry,
-  type FinancialCategory,
-  type FinancialEntryInput,
 } from '../services/financialManagementApi'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { useProjectsStore } from '../store/useProjectsStore'
+import { ProjectDetailPage } from './ProjectDetailPage'
+import type { ProjectType, ProjectStatus } from '../domain/projects/types'
+import { PROJECT_TYPES, PROJECT_STATUSES } from '../domain/projects/types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'projects' | 'cashflow' | 'entries' | 'leasing' | 'sales'
+type Tab = 'overview' | 'projects' | 'cashflow' | 'leasing' | 'sales'
 
 type PeriodFilter = 'month' | 'quarter' | 'year' | 'custom'
 
 interface Props {
   onBack: () => void
+  /** Called when the user wants to open a specific project from another page. */
+  initialProjectId?: string | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,32 +46,12 @@ function formatMonths(value: number | null | undefined): string {
   return `${value.toFixed(1)} meses`
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const d = new Date(value)
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
-}
-
 const TAB_LABELS: Record<Tab, string> = {
   overview: 'Visão Geral',
   projects: 'Projetos',
   cashflow: 'Fluxo de Caixa',
-  entries: 'Lançamentos',
   leasing: 'Leasing',
   sales: 'Vendas',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  planned: 'Planejado',
-  due: 'A Vencer',
-  paid: 'Pago',
-  received: 'Recebido',
-  cancelled: 'Cancelado',
-}
-
-const ENTRY_TYPE_LABELS: Record<string, string> = {
-  income: 'Receita',
-  expense: 'Despesa',
 }
 
 const PROJECT_KIND_LABELS: Record<string, string> = {
@@ -123,348 +101,171 @@ function SectionError({ message, onRetry }: { message: string; onRetry: () => vo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entry Form (Drawer / Modal)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EntryFormProps {
-  entry?: FinancialEntry | null
-  categories: FinancialCategory[]
-  onSave: (data: FinancialEntryInput) => Promise<void>
-  onClose: () => void
-  isSaving: boolean
-}
-
-const EMPTY_ENTRY: FinancialEntryInput = {
-  entry_type: 'expense',
-  scope_type: 'company',
-  category: '',
-  subcategory: '',
-  description: '',
-  amount: 0,
-  competence_date: new Date().toISOString().substring(0, 10),
-  payment_date: null,
-  status: 'planned',
-  is_recurring: false,
-  recurrence_frequency: null,
-  project_kind: null,
-  project_id: null,
-  proposal_id: null,
-  client_id: null,
-  consultant_id: null,
-  notes: '',
-}
-
-function EntryForm({ entry, categories, onSave, onClose, isSaving }: EntryFormProps) {
-  const [form, setForm] = useState<FinancialEntryInput>(() =>
-    entry
-      ? {
-          entry_type: entry.entry_type,
-          scope_type: entry.scope_type,
-          category: entry.category ?? '',
-          subcategory: entry.subcategory ?? '',
-          description: entry.description ?? '',
-          amount: entry.amount,
-          competence_date: entry.competence_date ?? new Date().toISOString().substring(0, 10),
-          payment_date: entry.payment_date ?? null,
-          status: entry.status,
-          is_recurring: entry.is_recurring ?? false,
-          recurrence_frequency: entry.recurrence_frequency ?? null,
-          project_kind: entry.project_kind ?? null,
-          project_id: entry.project_id ?? null,
-          proposal_id: entry.proposal_id ?? null,
-          client_id: entry.client_id ?? null,
-          consultant_id: entry.consultant_id ?? null,
-          notes: entry.notes ?? '',
-        }
-      : EMPTY_ENTRY,
-  )
-
-  useEffect(() => {
-    console.info('[financial-ui] entry form mounted', { editing: !!entry })
-    return () => {
-      console.info('[financial-ui] entry form unmounted')
-    }
-  }, [entry])
-
-  const expenseCategories = useMemo(
-    () => categories.filter((c) => c.type === 'expense' || c.type === 'both'),
-    [categories],
-  )
-  const incomeCategories = useMemo(
-    () => categories.filter((c) => c.type === 'income' || c.type === 'both'),
-    [categories],
-  )
-  const visibleCategories = form.entry_type === 'income' ? incomeCategories : expenseCategories
-
-  const set = useCallback((field: keyof FinancialEntryInput, value: unknown) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-  }, [])
-
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      console.info('[financial-ui] entry form submit', { entry_type: form.entry_type, amount: form.amount })
-      await onSave(form)
-    },
-    [form, onSave],
-  )
-
-  return (
-    <div className="fm-drawer-overlay" role="dialog" aria-modal="true" aria-label="Lançamento financeiro">
-      <div className="fm-drawer">
-        <div className="fm-drawer-header">
-          <h3>{entry ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
-          <button type="button" className="fm-drawer-close ghost" onClick={onClose} aria-label="Fechar">
-            ✕
-          </button>
-        </div>
-        <form className="fm-drawer-body" onSubmit={(e) => { void handleSubmit(e) }}>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Tipo</label>
-            <select
-              className="fm-form-select"
-              value={form.entry_type}
-              onChange={(e) => set('entry_type', e.target.value)}
-            >
-              <option value="expense">Despesa</option>
-              <option value="income">Receita</option>
-            </select>
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Escopo</label>
-            <select
-              className="fm-form-select"
-              value={form.scope_type}
-              onChange={(e) => set('scope_type', e.target.value)}
-            >
-              <option value="company">Empresa</option>
-              <option value="project">Projeto</option>
-            </select>
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Categoria</label>
-            {visibleCategories.length > 0 ? (
-              <select
-                className="fm-form-select"
-                value={form.category}
-                onChange={(e) => set('category', e.target.value)}
-                aria-required="false"
-              >
-                <option value="">Selecione...</option>
-                {visibleCategories.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className="fm-form-input"
-                type="text"
-                value={form.category}
-                onChange={(e) => set('category', e.target.value)}
-                placeholder="Ex: Instalação, Kit Solar, Mensalidade…"
-                aria-required="false"
-              />
-            )}
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Subcategoria</label>
-            <input
-              className="fm-form-input"
-              type="text"
-              value={form.subcategory ?? ''}
-              onChange={(e) => set('subcategory', e.target.value)}
-              placeholder="Opcional"
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Descrição</label>
-            <input
-              className="fm-form-input"
-              type="text"
-              value={form.description ?? ''}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Descreva o lançamento"
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Valor (R$)</label>
-            <input
-              className="fm-form-input"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.amount}
-              onChange={(e) => set('amount', parseFloat(e.target.value) || 0)}
-              required
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Data de Competência</label>
-            <input
-              className="fm-form-input"
-              type="date"
-              value={form.competence_date ?? ''}
-              onChange={(e) => set('competence_date', e.target.value)}
-              required
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Data de Pagamento</label>
-            <input
-              className="fm-form-input"
-              type="date"
-              value={form.payment_date ?? ''}
-              onChange={(e) => set('payment_date', e.target.value || null)}
-            />
-          </div>
-          <div className="fm-form-row">
-            <label className="fm-form-label">Status</label>
-            <select
-              className="fm-form-select"
-              value={form.status}
-              onChange={(e) => set('status', e.target.value)}
-            >
-              <option value="planned">Planejado</option>
-              <option value="due">A Vencer</option>
-              <option value="paid">Pago</option>
-              <option value="received">Recebido</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
-          </div>
-          <div className="fm-form-row fm-form-row--checkbox">
-            <label className="fm-form-label">
-              <input
-                type="checkbox"
-                checked={form.is_recurring ?? false}
-                onChange={(e) => set('is_recurring', e.target.checked)}
-              />
-              {' '}Recorrente
-            </label>
-          </div>
-          {form.is_recurring ? (
-            <div className="fm-form-row">
-              <label className="fm-form-label">Frequência</label>
-              <select
-                className="fm-form-select"
-                value={form.recurrence_frequency ?? ''}
-                onChange={(e) => set('recurrence_frequency', e.target.value || null)}
-              >
-                <option value="">Selecione...</option>
-                <option value="monthly">Mensal</option>
-                <option value="quarterly">Trimestral</option>
-                <option value="yearly">Anual</option>
-                <option value="custom">Personalizado</option>
-              </select>
-            </div>
-          ) : null}
-          <div className="fm-form-row">
-            <label className="fm-form-label">Observações</label>
-            <textarea
-              className="fm-form-textarea"
-              value={form.notes ?? ''}
-              onChange={(e) => set('notes', e.target.value)}
-              rows={3}
-              placeholder="Observações opcionais"
-            />
-          </div>
-          <div className="fm-drawer-actions">
-            <button type="button" className="ghost" onClick={onClose} disabled={isSaving}>
-              Cancelar
-            </button>
-            <button type="submit" className="primary" disabled={isSaving}>
-              {isSaving ? 'Salvando…' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Overview Tab
+// Overview Tab (PR 6: augmented with real project status counts via loadSummary)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function OverviewTab({ summary, error, onRetry }: { summary: FinancialSummary | null; error: string | null; onRetry: () => void }) {
+  // Load server-side aggregated project counts on mount (no 500-row load).
+  const loadSummary = useProjectsStore((s) => s.loadSummary)
+  const projectSummary = useProjectsStore((s) => s.summary)
+  const summaryLoading = useProjectsStore((s) => s.summaryLoading)
+
+  useEffect(() => {
+    void loadSummary()
+  }, [loadSummary])
+
   if (error) return <SectionError message={error} onRetry={onRetry} />
   if (!summary) {
     return <div className="fm-empty">Carregando indicadores…</div>
   }
+
+  const totalProjects = projectSummary?.total ?? summary.active_projects_count
+
   return (
     <div className="fm-overview">
       <div className="fm-kpi-grid">
         <KpiCard label="Receita Projetada" value={formatCurrencyBRL(summary.total_projected_revenue)} icon="📈" color="green" />
         <KpiCard label="Receita Realizada" value={formatCurrencyBRL(summary.total_realized_revenue)} icon="✅" color="green" />
-        <KpiCard label="Custo Total" value={formatCurrencyBRL(summary.total_cost)} icon="💸" color="red" />
+        <KpiCard label="CAPEX Total" value={formatCurrencyBRL(summary.total_cost)} icon="💸" color="red" />
         <KpiCard label="Lucro Líquido" value={formatCurrencyBRL(summary.net_profit)} icon="💰" color={summary.net_profit >= 0 ? 'green' : 'red'} />
         <KpiCard label="ROI Médio" value={formatPct(summary.avg_roi_percent)} icon="📊" />
         <KpiCard label="Payback Médio" value={formatMonths(summary.avg_payback_months)} icon="⏱️" />
-        <KpiCard label="Projetos Ativos" value={String(summary.active_projects_count)} icon="🏗️" />
-        <KpiCard label="MRR (Leasing)" value={formatCurrencyBRL(summary.mrr_leasing)} icon="🔄" subtitle="Receita recorrente mensal" />
+        <KpiCard label="Projetos (total)" value={String(totalProjects)} icon="🏗️" />
+        <KpiCard label="MRR (Leasing)" value={formatCurrencyBRL(summary.mrr_leasing)} icon="🔄" subtitle="Mensalidade recorrente" />
         <KpiCard label="Vendas Fechadas" value={formatCurrencyBRL(summary.closed_sales_revenue)} icon="🤝" />
         <KpiCard label="Inadimplência" value={formatPct(summary.avg_default_rate_percent)} icon="⚠️" color={summary.avg_default_rate_percent > 5 ? 'red' : 'green'} />
         <KpiCard label="Margem Líquida" value={formatPct(summary.avg_net_margin_percent)} icon="📉" />
       </div>
+      {!summaryLoading && projectSummary ? (
+        <div className="fm-overview-projects">
+          <h3 className="fm-overview-section-title">Projetos por Status</h3>
+          <div className="fm-kpi-grid">
+            <KpiCard label="Aguardando" value={String(projectSummary.by_status['Aguardando'] ?? 0)} icon="⏳" />
+            <KpiCard label="Em andamento" value={String(projectSummary.by_status['Em andamento'] ?? 0)} icon="🔨" color="green" />
+            <KpiCard label="Concluídos" value={String(projectSummary.by_status['Concluído'] ?? 0)} icon="✅" color="green" />
+          </div>
+          <h3 className="fm-overview-section-title" style={{ marginTop: 16 }}>Projetos por Tipo</h3>
+          <div className="fm-kpi-grid">
+            <KpiCard label="Leasing" value={String(projectSummary.by_type['leasing'] ?? 0)} icon="🔄" />
+            <KpiCard label="Venda" value={String(projectSummary.by_type['venda'] ?? 0)} icon="🤝" />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Projects Tab
+// Real Projects Tab (PR 2) — reads from /api/projects via useProjectsStore
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+const PROJECT_TYPE_LABELS_TAB: Record<ProjectType, string> = {
+  leasing: 'Leasing',
+  venda: 'Venda',
+}
+
+const STATUS_BADGE_CLASS_TAB: Record<ProjectStatus, string> = {
+  'Aguardando': 'fm-badge fm-badge--project-status-aguardando',
+  'Em andamento': 'fm-badge fm-badge--project-status-andamento',
+  'Concluído': 'fm-badge fm-badge--project-status-concluido',
+}
+
+interface RealProjectsTabProps {
+  onOpenProject: (id: string) => void
+}
+
+function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
+  const list = useProjectsStore((s) => s.list)
+  const listTotal = useProjectsStore((s) => s.listTotal)
+  const isLoading = useProjectsStore((s) => s.listLoading)
+  const listError = useProjectsStore((s) => s.listError)
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+
   const [search, setSearch] = useState('')
-  const [kindFilter, setKindFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [typeFilter, setTypeFilter] = useState<ProjectType | ''>('')
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('')
 
-  // useMemo must be called before any conditional return to satisfy Rules of Hooks.
-  const filtered = useMemo(() => {
-    if (error) return []
-    return projects.filter((p) => {
-      if (kindFilter && p.project_kind !== kindFilter) return false
-      if (statusFilter && p.status !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (
-          p.client_name?.toLowerCase().includes(q) ||
-          p.consultant_name?.toLowerCase().includes(q) ||
-          p.uf?.toLowerCase().includes(q)
-        )
-      }
-      return true
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value)
+    void loadProjects({
+      search: value || undefined,
+      project_type: typeFilter || undefined,
+      status: statusFilter || undefined,
     })
-  }, [projects, search, kindFilter, statusFilter, error])
+  }, [typeFilter, statusFilter, loadProjects])
 
-  if (error) return <SectionError message={error} onRetry={onRetry} />
+  const handleTypeFilter = useCallback((value: ProjectType | '') => {
+    setTypeFilter(value)
+    void loadProjects({
+      search: search || undefined,
+      project_type: value || undefined,
+      status: statusFilter || undefined,
+    })
+  }, [search, statusFilter, loadProjects])
+
+  const handleStatusFilter = useCallback((value: ProjectStatus | '') => {
+    setStatusFilter(value)
+    void loadProjects({
+      search: search || undefined,
+      project_type: typeFilter || undefined,
+      status: value || undefined,
+    })
+  }, [search, typeFilter, loadProjects])
+
+  useEffect(() => {
+    void loadProjects({ order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+  }, [loadProjects])
+
+  if (isLoading && list.length === 0) {
+    return (
+      <div className="fm-loading">
+        <span className="fm-loading-spinner" aria-hidden="true" />
+        Carregando projetos…
+      </div>
+    )
+  }
+
+  if (listError && list.length === 0) {
+    return <SectionError message={listError} onRetry={() => void loadProjects()} />
+  }
 
   return (
     <div className="fm-projects">
-      <div className="fm-filters">
-        <input
-          type="search"
-          className="fm-filter-input"
-          placeholder="Buscar cliente, consultor, UF…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select className="fm-filter-select" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-          <option value="">Todos os tipos</option>
-          <option value="leasing">Leasing</option>
-          <option value="sale">Venda</option>
-          <option value="buyout">Buyout</option>
-        </select>
-        <select className="fm-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="active">Ativo</option>
-          <option value="implanting">Em implantação</option>
-          <option value="commissioned">Comissionado</option>
-          <option value="closed">Encerrado</option>
-        </select>
+      <div className="fm-real-projects-header">
+        <div className="fm-filters">
+          <input
+            type="search"
+            className="fm-filter-input"
+            placeholder="Buscar nome, CPF/CNPJ, cidade…"
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+          />
+          <select
+            className="fm-filter-select"
+            value={typeFilter}
+            onChange={(e) => handleTypeFilter(e.target.value as ProjectType | '')}
+          >
+            <option value="">Todos os tipos</option>
+            {PROJECT_TYPES.map((t) => (
+              <option key={t} value={t}>{PROJECT_TYPE_LABELS_TAB[t]}</option>
+            ))}
+          </select>
+          <select
+            className="fm-filter-select"
+            value={statusFilter}
+            onChange={(e) => handleStatusFilter(e.target.value as ProjectStatus | '')}
+          >
+            <option value="">Todos os status</option>
+            {PROJECT_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <span className="fm-real-projects-meta">
+          {listTotal > 0 ? `${listTotal} projeto${listTotal !== 1 ? 's' : ''}` : null}
+        </span>
       </div>
-      {filtered.length === 0 ? (
+      {list.length === 0 ? (
         <div className="fm-empty">Nenhum projeto encontrado com os filtros aplicados.</div>
       ) : (
         <div className="fm-table-wrapper">
@@ -472,38 +273,45 @@ function ProjectsTab({ projects, error, onRetry }: { projects: FinancialProject[
             <thead>
               <tr>
                 <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
                 <th>Tipo</th>
                 <th>Status</th>
-                <th>CAPEX</th>
-                <th>Receita Proj.</th>
-                <th>Receita Real.</th>
-                <th>Lucro Est.</th>
-                <th>ROI</th>
-                <th>Payback</th>
-                <th>Consultor</th>
-                <th>UF</th>
+                <th>Atualizado em</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--${p.project_kind}`}>
-                      {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
-                    </span>
-                  </td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatCurrencyBRL(p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.realized_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.projected_profit)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatMonths(p.payback_months)}</td>
-                  <td>{p.consultant_name ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
+              {list.map((p) => {
+                const locationLabel =
+                  p.city_snapshot && p.state_snapshot
+                    ? `${p.city_snapshot} / ${p.state_snapshot}`
+                    : p.city_snapshot ?? p.state_snapshot ?? '—'
+                const updatedAt = p.updated_at
+                  ? new Date(p.updated_at).toLocaleDateString('pt-BR')
+                  : '—'
+                return (
+                  <tr key={p.id}>
+                    <td className="fm-td-link">
+                      <button type="button" onClick={() => onOpenProject(p.id)}>
+                        {p.client_name_snapshot ?? '—'}
+                      </button>
+                    </td>
+                    <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                    <td>{locationLabel}</td>
+                    <td>
+                      <span className={`fm-badge fm-badge--${p.project_type}`}>
+                        {PROJECT_TYPE_LABELS_TAB[p.project_type] ?? p.project_type}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td>{updatedAt}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -557,140 +365,23 @@ function CashflowTab({ cashflow, error, onRetry }: { cashflow: CashflowPeriod[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entries Tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EntriesTabProps {
-  entries: FinancialEntry[]
-  error: string | null
-  onRetry: () => void
-  categories: FinancialCategory[]
-  onNew: () => void
-  onEdit: (entry: FinancialEntry) => void
-  onDelete: (id: string) => void
-  isDeleting: boolean
-}
-
-function EntriesTab({ entries, error, onRetry, categories: _categories, onNew, onEdit, onDelete, isDeleting }: EntriesTabProps) {
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
-
-  const filtered = useMemo(() => {
-    return entries.filter((e) => {
-      if (typeFilter && e.entry_type !== typeFilter) return false
-      if (statusFilter && e.status !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (
-          e.description?.toLowerCase().includes(q) ||
-          e.category?.toLowerCase().includes(q) ||
-          e.subcategory?.toLowerCase().includes(q)
-        )
-      }
-      return true
-    })
-  }, [entries, search, typeFilter, statusFilter])
-
-  return (
-    <div className="fm-entries">
-      <div className="fm-entries-header">
-        <div className="fm-filters">
-          <input
-            type="search"
-            className="fm-filter-input"
-            placeholder="Buscar descrição, categoria…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select className="fm-filter-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="">Todos os tipos</option>
-            <option value="income">Receita</option>
-            <option value="expense">Despesa</option>
-          </select>
-          <select className="fm-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Todos os status</option>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <button type="button" className="primary" onClick={onNew}>
-          + Novo Lançamento
-        </button>
-      </div>
-      {error ? (
-        <SectionError message={error} onRetry={onRetry} />
-      ) : filtered.length === 0 ? (
-        <div className="fm-empty">
-          Nenhum lançamento encontrado. Use o botão <strong>+ Novo Lançamento</strong> acima para adicionar.
-        </div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Categoria</th>
-                <th>Descrição</th>
-                <th>Valor</th>
-                <th>Competência</th>
-                <th>Status</th>
-                <th>Recorrente</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e) => (
-                <tr key={e.id}>
-                  <td>
-                    <span className={`fm-badge fm-badge--${e.entry_type}`}>
-                      {ENTRY_TYPE_LABELS[e.entry_type] ?? e.entry_type}
-                    </span>
-                  </td>
-                  <td>{e.category ?? '—'}{e.subcategory ? ` / ${e.subcategory}` : ''}</td>
-                  <td>{e.description ?? '—'}</td>
-                  <td className={e.entry_type === 'income' ? 'fm-value--positive' : 'fm-value--negative'}>
-                    {formatCurrencyBRL(e.amount)}
-                  </td>
-                  <td>{formatDate(e.competence_date)}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--status-${e.status}`}>
-                      {STATUS_LABELS[e.status] ?? e.status}
-                    </span>
-                  </td>
-                  <td>{e.is_recurring ? 'Sim' : 'Não'}</td>
-                  <td className="fm-actions-cell">
-                    <button type="button" className="ghost fm-action-btn" onClick={() => onEdit(e)}>
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost fm-action-btn fm-action-btn--danger"
-                      onClick={() => onDelete(e.id)}
-                      disabled={isDeleting}
-                      aria-label={`Excluir lançamento ${e.description ?? ''}`}
-                    >
-                      🗑️
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Leasing Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  // Load real leasing projects from store as fallback when snapshots are empty.
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const realProjects = useProjectsStore((s) => s.list)
+
+  useEffect(() => {
+    if (projects.length === 0 && !error) {
+      void loadProjects({ project_type: 'leasing', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+    }
+  }, [projects.length, error, loadProjects])
+
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const leasingProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'leasing')), [projects, error])
+  const realLeasingProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'leasing'), [realProjects])
 
   const totals = useMemo(() => {
     const totalMrr = leasingProjects.reduce((sum, p) => sum + (p.monthly_revenue ?? 0), 0)
@@ -707,6 +398,53 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
 
+  // When no financial snapshots exist, render a basic table from the projects store.
+  if (leasingProjects.length === 0) {
+    if (realLeasingProjects.length === 0) {
+      return <div className="fm-empty">Nenhum projeto de leasing disponível.</div>
+    }
+    return (
+      <div className="fm-leasing">
+        <div className="fm-kpi-grid">
+          <KpiCard label="Projetos Leasing" value={String(realLeasingProjects.length)} icon="📋" />
+        </div>
+        <p className="fm-empty" style={{ fontSize: 13, marginBottom: 8 }}>
+          Dados financeiros detalhados ainda não disponíveis. Exibindo projetos cadastrados.
+        </p>
+        <div className="fm-table-wrapper">
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
+                <th>Status</th>
+                <th>Atualizado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {realLeasingProjects.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.client_name_snapshot ?? '—'}</td>
+                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>
+                    {p.city_snapshot && p.state_snapshot
+                      ? `${p.city_snapshot} / ${p.state_snapshot}`
+                      : p.city_snapshot ?? p.state_snapshot ?? '—'}
+                  </td>
+                  <td>
+                    <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>{p.status}</span>
+                  </td>
+                  <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fm-leasing">
       <div className="fm-kpi-grid">
@@ -717,42 +455,38 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
         <KpiCard label="ROI Médio" value={formatPct(totals.avgRoi)} icon="📊" />
         <KpiCard label="Payback Médio" value={formatMonths(totals.avgPayback)} icon="⏱️" />
       </div>
-      {leasingProjects.length === 0 ? (
-        <div className="fm-empty">Nenhum projeto de leasing disponível.</div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Mensalidade</th>
-                <th>Receita Proj.</th>
-                <th>CAPEX</th>
-                <th>ROI</th>
-                <th>Payback</th>
-                <th>Inadimpl.</th>
-                <th>Status</th>
-                <th>UF</th>
+      <div className="fm-table-wrapper">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Mensalidade</th>
+              <th>Receita Proj.</th>
+              <th>CAPEX</th>
+              <th>ROI</th>
+              <th>Payback</th>
+              <th>Inadimpl.</th>
+              <th>Status</th>
+              <th>UF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {leasingProjects.map((p) => (
+              <tr key={p.id}>
+                <td>{p.client_name ?? '—'}</td>
+                <td>{formatCurrencyBRL(p.monthly_revenue)}</td>
+                <td>{formatCurrencyBRL(p.projected_revenue)}</td>
+                <td>{formatCurrencyBRL(p.capex_total)}</td>
+                <td>{formatPct(p.roi_percent)}</td>
+                <td>{formatMonths(p.payback_months)}</td>
+                <td>{formatPct(p.default_rate_percent)}</td>
+                <td>{p.status ?? '—'}</td>
+                <td>{p.uf ?? '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {leasingProjects.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>{formatCurrencyBRL(p.monthly_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatMonths(p.payback_months)}</td>
-                  <td>{formatPct(p.default_rate_percent)}</td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -762,8 +496,19 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; error: string | null; onRetry: () => void }) {
+  // Load real venda projects from store as fallback when snapshots are empty.
+  const loadProjects = useProjectsStore((s) => s.loadProjects)
+  const realProjects = useProjectsStore((s) => s.list)
+
+  useEffect(() => {
+    if (projects.length === 0 && !error) {
+      void loadProjects({ project_type: 'venda', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
+    }
+  }, [projects.length, error, loadProjects])
+
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const saleProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout')), [projects, error])
+  const realVendaProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'venda'), [realProjects])
 
   const totals = useMemo(() => {
     const totalRevenue = saleProjects.reduce((sum, p) => sum + (p.realized_revenue ?? p.projected_revenue ?? 0), 0)
@@ -778,6 +523,53 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 
   if (error) return <SectionError message={error} onRetry={onRetry} />
 
+  // When no financial snapshots exist, render a basic table from the projects store.
+  if (saleProjects.length === 0) {
+    if (realVendaProjects.length === 0) {
+      return <div className="fm-empty">Nenhum projeto de venda disponível.</div>
+    }
+    return (
+      <div className="fm-sales">
+        <div className="fm-kpi-grid">
+          <KpiCard label="Projetos Venda" value={String(realVendaProjects.length)} icon="🤝" />
+        </div>
+        <p className="fm-empty" style={{ fontSize: 13, marginBottom: 8 }}>
+          Dados financeiros detalhados ainda não disponíveis. Exibindo projetos cadastrados.
+        </p>
+        <div className="fm-table-wrapper">
+          <table className="fm-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>CPF / CNPJ</th>
+                <th>Cidade / UF</th>
+                <th>Status</th>
+                <th>Atualizado em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {realVendaProjects.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.client_name_snapshot ?? '—'}</td>
+                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>
+                    {p.city_snapshot && p.state_snapshot
+                      ? `${p.city_snapshot} / ${p.state_snapshot}`
+                      : p.city_snapshot ?? p.state_snapshot ?? '—'}
+                  </td>
+                  <td>
+                    <span className={STATUS_BADGE_CLASS_TAB[p.status] ?? 'fm-badge'}>{p.status}</span>
+                  </td>
+                  <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fm-sales">
       <div className="fm-kpi-grid">
@@ -788,46 +580,42 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
         <KpiCard label="Margem Média" value={formatPct(totals.avgMargin)} icon="📊" />
         <KpiCard label="Ticket Médio" value={formatCurrencyBRL(totals.ticketMedio)} icon="🎫" />
       </div>
-      {saleProjects.length === 0 ? (
-        <div className="fm-empty">Nenhum projeto de venda disponível.</div>
-      ) : (
-        <div className="fm-table-wrapper">
-          <table className="fm-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Receita</th>
-                <th>CAPEX</th>
-                <th>Lucro Est.</th>
-                <th>Margem</th>
-                <th>Comissão</th>
-                <th>Status</th>
-                <th>UF</th>
+      <div className="fm-table-wrapper">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Tipo</th>
+              <th>Receita</th>
+              <th>CAPEX</th>
+              <th>Lucro Est.</th>
+              <th>Margem</th>
+              <th>Comissão</th>
+              <th>Status</th>
+              <th>UF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saleProjects.map((p) => (
+              <tr key={p.id}>
+                <td>{p.client_name ?? '—'}</td>
+                <td>
+                  <span className={`fm-badge fm-badge--${p.project_kind}`}>
+                    {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
+                  </span>
+                </td>
+                <td>{formatCurrencyBRL(p.realized_revenue ?? p.projected_revenue)}</td>
+                <td>{formatCurrencyBRL(p.capex_total)}</td>
+                <td>{formatCurrencyBRL(p.projected_profit)}</td>
+                <td>{formatPct(p.roi_percent)}</td>
+                <td>{formatCurrencyBRL(p.commission_amount)}</td>
+                <td>{p.status ?? '—'}</td>
+                <td>{p.uf ?? '—'}</td>
               </tr>
-            </thead>
-            <tbody>
-              {saleProjects.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.client_name ?? '—'}</td>
-                  <td>
-                    <span className={`fm-badge fm-badge--${p.project_kind}`}>
-                      {PROJECT_KIND_LABELS[p.project_kind] ?? p.project_kind}
-                    </span>
-                  </td>
-                  <td>{formatCurrencyBRL(p.realized_revenue ?? p.projected_revenue)}</td>
-                  <td>{formatCurrencyBRL(p.capex_total)}</td>
-                  <td>{formatCurrencyBRL(p.projected_profit)}</td>
-                  <td>{formatPct(p.roi_percent)}</td>
-                  <td>{formatCurrencyBRL(p.commission_amount)}</td>
-                  <td>{p.status ?? '—'}</td>
-                  <td>{p.uf ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -836,11 +624,21 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function FinancialManagementPage({ onBack }: Props) {
+export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+
+  // Sub-navigation: drill into a project detail without leaving the financial page.
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(initialProjectId ?? null)
+
+  // When arriving with an initialProjectId, jump straight to the projects tab.
+  useEffect(() => {
+    if (initialProjectId) {
+      setActiveTab('projects')
+    }
+  }, [initialProjectId])
 
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)
@@ -851,17 +649,7 @@ export function FinancialManagementPage({ onBack }: Props) {
   const [cashflow, setCashflow] = useState<CashflowPeriod[]>([])
   const [cashflowError, setCashflowError] = useState<string | null>(null)
 
-  const [entries, setEntries] = useState<FinancialEntry[]>([])
-  const [entriesError, setEntriesError] = useState<string | null>(null)
-
-  const [categories, setCategories] = useState<FinancialCategory[]>([])
-
   const [isLoading, setIsLoading] = useState(true)
-
-  const [showEntryForm, setShowEntryForm] = useState(false)
-  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
-  const [isSavingEntry, setIsSavingEntry] = useState(false)
-  const [isDeletingEntry, setIsDeletingEntry] = useState(false)
 
   const getPeriodParams = useCallback(() => {
     const now = new Date()
@@ -891,17 +679,14 @@ export function FinancialManagementPage({ onBack }: Props) {
     setSummaryError(null)
     setProjectsError(null)
     setCashflowError(null)
-    setEntriesError(null)
 
     const params = getPeriodParams()
 
     // Load each section independently so one failure doesn't break the whole page
-    const [summaryRes, projectsRes, cashflowRes, entriesRes, categoriesRes] = await Promise.allSettled([
+    const [summaryRes, projectsRes, cashflowRes] = await Promise.allSettled([
       fetchFinancialSummary(params),
       fetchFinancialProjects(params),
       fetchFinancialCashflow(params),
-      fetchFinancialEntries(params),
-      fetchFinancialCategories(),
     ])
 
     if (summaryRes.status === 'fulfilled') {
@@ -925,20 +710,6 @@ export function FinancialManagementPage({ onBack }: Props) {
       setCashflowError(cashflowRes.reason instanceof Error ? cashflowRes.reason.message : 'Erro ao carregar fluxo de caixa.')
     }
 
-    if (entriesRes.status === 'fulfilled') {
-      setEntries(entriesRes.value)
-    } else {
-      console.error('[financial-management] entries error', entriesRes.reason)
-      setEntriesError(entriesRes.reason instanceof Error ? entriesRes.reason.message : 'Erro ao carregar lançamentos.')
-    }
-
-    if (categoriesRes.status === 'fulfilled') {
-      setCategories(categoriesRes.value)
-    } else {
-      console.error('[financial-management] categories error', categoriesRes.reason)
-      // categories are non-critical; leave existing list intact
-    }
-
     setIsLoading(false)
   }, [getPeriodParams])
 
@@ -946,54 +717,17 @@ export function FinancialManagementPage({ onBack }: Props) {
     void loadData()
   }, [loadData])
 
-  const handleNewEntry = useCallback(() => {
-    console.info('[financial-ui] new entry click')
-    setEditingEntry(null)
-    setShowEntryForm(true)
-  }, [])
+  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'leasing', 'sales']
 
-  const handleEditEntry = useCallback((entry: FinancialEntry) => {
-    setEditingEntry(entry)
-    setShowEntryForm(true)
-  }, [])
-
-  const handleSaveEntry = useCallback(async (data: FinancialEntryInput) => {
-    setIsSavingEntry(true)
-    try {
-      if (editingEntry) {
-        await updateFinancialEntry(editingEntry.id, data)
-      } else {
-        await createFinancialEntry(data)
-      }
-      setShowEntryForm(false)
-      setEditingEntry(null)
-      await loadData()
-    } catch (err) {
-      console.error('[financial-management] saveEntry error', err)
-    } finally {
-      setIsSavingEntry(false)
-    }
-  }, [editingEntry, loadData])
-
-  const handleDeleteEntry = useCallback(async (id: string) => {
-    if (!window.confirm('Deseja excluir este lançamento?')) return
-    setIsDeletingEntry(true)
-    try {
-      await deleteFinancialEntry(id)
-      await loadData()
-    } catch (err) {
-      console.error('[financial-management] deleteEntry error', err)
-    } finally {
-      setIsDeletingEntry(false)
-    }
-  }, [loadData])
-
-  const handleCloseForm = useCallback(() => {
-    setShowEntryForm(false)
-    setEditingEntry(null)
-  }, [])
-
-  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'entries', 'leasing', 'sales']
+  // ── Project detail sub-view ──────────────────────────────────────────────
+  if (detailProjectId !== null) {
+    return (
+      <ProjectDetailPage
+        projectId={detailProjectId}
+        onBack={() => setDetailProjectId(null)}
+      />
+    )
+  }
 
   return (
     <div className="fm-page">
@@ -1072,36 +806,13 @@ export function FinancialManagementPage({ onBack }: Props) {
         ) : (
           <>
             {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
-            {activeTab === 'projects' && <ProjectsTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+            {activeTab === 'projects' && <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />}
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
-            {activeTab === 'entries' && (
-              <EntriesTab
-                entries={entries}
-                error={entriesError}
-                onRetry={() => void loadData()}
-                categories={categories}
-                onNew={handleNewEntry}
-                onEdit={handleEditEntry}
-                onDelete={(id) => { void handleDeleteEntry(id) }}
-                isDeleting={isDeletingEntry}
-              />
-            )}
             {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
             {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
           </>
         )}
       </div>
-
-      {/* Entry Form Drawer */}
-      {showEntryForm ? (
-        <EntryForm
-          entry={editingEntry}
-          categories={categories}
-          onSave={handleSaveEntry}
-          onClose={handleCloseForm}
-          isSaving={isSavingEntry}
-        />
-      ) : null}
     </div>
   )
 }

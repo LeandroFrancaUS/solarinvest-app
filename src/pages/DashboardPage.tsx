@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listClients } from '../lib/api/clientsApi.js'
 import { listProposals } from '../lib/api/proposalsApi.js'
+import { fetchProjectsSummary } from '../services/projectsApi.js'
+import { fetchFinancialDashboardFeed } from '../services/financialManagementApi.js'
 import {
   computeDashboardSnapshot,
   defaultFilters,
@@ -13,6 +15,9 @@ import {
   trackEvent,
 } from '../domain/analytics/index.js'
 import type { AnalyticsRecord, DashboardFilters } from '../domain/analytics/types.js'
+import type { ProjectSummary } from '../domain/projects/types.js'
+import type { FinancialDashboardFeed } from '../domain/projects/projectsPanelKpis.js'
+import { deriveProjectsPanelKPIs } from '../domain/projects/projectsPanelKpis.js'
 import {
   DashboardFiltersPanel,
   KpiCards,
@@ -20,6 +25,7 @@ import {
   RevenueChart,
   ForecastPanel,
   DrilldownTable,
+  ProjectsPanel,
 } from '../components/dashboard/index.js'
 import { useAppAuth } from '../auth/guards/RequireAuthorizedUser.js'
 
@@ -30,6 +36,8 @@ export function DashboardPage() {
   const [filters, setFilters] = useState<DashboardFilters>(defaultFilters())
   const [loadState, setLoadState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [projectSummary, setProjectSummary] = useState<ProjectSummary | null>(null)
+  const [financialFeed, setFinancialFeed] = useState<FinancialDashboardFeed | null>(null)
 
   // Gate data loading on a confirmed authenticated session from the auth context.
   // DashboardPage is rendered inside RequireAuthorizedUser which guarantees the user
@@ -45,9 +53,11 @@ export function DashboardPage() {
     setLoadState('loading')
     setError(null)
     try {
-      const [clientsRes, proposalsRes] = await Promise.allSettled([
+      const [clientsRes, proposalsRes, projectSummaryRes, financialFeedRes] = await Promise.allSettled([
         listClients({ limit: 1000 }),
         listProposals({ limit: 1000 }),
+        fetchProjectsSummary(),
+        fetchFinancialDashboardFeed(),
       ])
 
       const allRecords: AnalyticsRecord[] = []
@@ -67,6 +77,15 @@ export function DashboardPage() {
             allRecords.push(rec)
           }
         }
+      }
+
+      // Project summary and financial feed are loaded independently (may fail for
+      // users without the required permissions — handled gracefully).
+      if (projectSummaryRes.status === 'fulfilled') {
+        setProjectSummary(projectSummaryRes.value)
+      }
+      if (financialFeedRes.status === 'fulfilled') {
+        setFinancialFeed(financialFeedRes.value)
       }
 
       invalidateSnapshotCache()
@@ -89,6 +108,12 @@ export function DashboardPage() {
   const snapshot = useMemo(
     () => computeDashboardSnapshot(records, filters),
     [records, filters],
+  )
+
+  // ── Project/financial panel KPIs (server-aggregated, no re-derivation) ──
+  const projectsPanelKPIs = useMemo(
+    () => deriveProjectsPanelKPIs(projectSummary, financialFeed),
+    [projectSummary, financialFeed],
   )
 
   // ── Extract available filter values ─────────────────────────────────────
@@ -145,6 +170,9 @@ export function DashboardPage() {
 
       {/* KPI Cards */}
       <KpiCards kpis={snapshot.kpis} />
+
+      {/* Projects + financial aggregation panel */}
+      <ProjectsPanel kpis={projectsPanelKPIs} />
 
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">

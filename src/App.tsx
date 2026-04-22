@@ -3,17 +3,6 @@ import { CheckboxSmall } from './components/CheckboxSmall'
 import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 import { createRoot } from 'react-dom/client'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  ReferenceLine,
-  CartesianGrid,
-} from 'recharts'
 
 import {
   selectCreditoMensal,
@@ -330,6 +319,7 @@ import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
+import { setProjectsTokenProvider } from './services/projectsApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -999,18 +989,6 @@ type CrmContratoFinanceiro = {
   status: CrmFinanceiroStatus
 }
 
-type CrmLancamentoCaixa = {
-  id: string
-  leadId?: string | undefined
-  dataIso: string
-  categoria: 'Receita' | 'Custo Fixo' | 'Custo Variável' | 'Investimento'
-  origem: string
-  formaPagamento: 'Pix' | 'Boleto' | 'Cartão' | 'Transferência'
-  tipo: 'entrada' | 'saida'
-  valor: number
-  observacao?: string | undefined
-}
-
 type CrmCustoProjeto = {
   id: string
   leadId: string
@@ -1033,7 +1011,6 @@ type CrmDataset = {
   leads: CrmLeadRecord[]
   timeline: CrmTimelineEntry[]
   contratos: CrmContratoFinanceiro[]
-  lancamentos: CrmLancamentoCaixa[]
   custos: CrmCustoProjeto[]
   manutencoes: CrmManutencaoRegistro[]
 }
@@ -1561,7 +1538,6 @@ const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 // SolarInvest company information for contracts
 const CLIENTE_INICIAL: ClienteDados = {
   nome: '',
-  apelido: '',
   documento: '',
   rg: '',
   estadoCivil: '',
@@ -2915,7 +2891,7 @@ const parseClientesCsv = (content: string): unknown[] => {
         case 'desconto_percentual':
         case 'mensalidade':
         case 'prazo_meses': {
-          const num = parseFloat(value.replace(',', '.'))
+          const num = toNumberFlexible(value)
           if (Number.isFinite(num)) {
             if (!registro.energyProfile) registro.energyProfile = {}
             registro.energyProfile[key] = num
@@ -3165,20 +3141,6 @@ const CRM_INSTALACAO_STATUS: { id: CrmLeadRecord['instalacaoStatus']; label: str
   { id: 'concluida', label: 'Concluída' },
 ]
 
-const CRM_FINANCEIRO_CATEGORIAS: CrmLancamentoCaixa['categoria'][] = [
-  'Receita',
-  'Custo Fixo',
-  'Custo Variável',
-  'Investimento',
-]
-
-const CRM_FORMAS_PAGAMENTO: CrmLancamentoCaixa['formaPagamento'][] = [
-  'Pix',
-  'Boleto',
-  'Cartão',
-  'Transferência',
-]
-
 const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
   (acc, stage, index) => {
     acc[stage.id] = index
@@ -3205,13 +3167,12 @@ const CRM_DATASET_VAZIO: CrmDataset = {
   leads: [],
   timeline: [],
   contratos: [],
-  lancamentos: [],
   custos: [],
   manutencoes: [],
 }
 
 const gerarIdCrm = (
-  prefixo: 'lead' | 'evento' | 'contrato' | 'lancamento' | 'custo' | 'manutencao',
+  prefixo: 'lead' | 'evento' | 'contrato' | 'custo' | 'manutencao',
 ) => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return `${prefixo}-${crypto.randomUUID()}`
@@ -3320,40 +3281,6 @@ const sanitizarContratoCrm = (
   }
 }
 
-const sanitizarLancamentoCrm = (
-  valor: Partial<CrmLancamentoCaixa>,
-  leadIds: Set<string>,
-): CrmLancamentoCaixa | null => {
-  const dataIso = typeof valor.dataIso === 'string' && valor.dataIso ? valor.dataIso : new Date().toISOString()
-  const categoria = CRM_FINANCEIRO_CATEGORIAS.includes((valor.categoria as CrmLancamentoCaixa['categoria']) ?? 'Receita')
-    ? (valor.categoria as CrmLancamentoCaixa['categoria'])
-    : 'Receita'
-  const forma = CRM_FORMAS_PAGAMENTO.includes(
-    (valor.formaPagamento as CrmLancamentoCaixa['formaPagamento']) ?? 'Pix',
-  )
-    ? (valor.formaPagamento as CrmLancamentoCaixa['formaPagamento'])
-    : 'Pix'
-  const tipo = valor.tipo === 'saida' ? 'saida' : 'entrada'
-  const valorNumerico = Number.isFinite(valor.valor) ? Number(valor.valor) : 0
-
-  if (valor.leadId && !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('lancamento'),
-    leadId: valor.leadId && leadIds.has(valor.leadId) ? valor.leadId : undefined,
-    dataIso,
-    categoria,
-    origem: typeof valor.origem === 'string' && valor.origem ? valor.origem : 'Operação',
-    formaPagamento: forma,
-    tipo,
-    valor: valorNumerico,
-    observacao:
-      typeof valor.observacao === 'string' && valor.observacao ? valor.observacao.slice(0, 280) : undefined,
-  }
-}
-
 const sanitizarCustoCrm = (
   valor: Partial<CrmCustoProjeto>,
   leadIds: Set<string>,
@@ -3440,12 +3367,6 @@ const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
         .filter((item): item is CrmContratoFinanceiro => Boolean(item))
     : []
 
-  const lancamentos = Array.isArray(bruto.lancamentos)
-    ? bruto.lancamentos
-        .map((item) => sanitizarLancamentoCrm(item as Partial<CrmLancamentoCaixa>, leadIds))
-        .filter((item): item is CrmLancamentoCaixa => Boolean(item))
-    : []
-
   const custos = Array.isArray(bruto.custos)
     ? bruto.custos
         .map((item) => sanitizarCustoCrm(item as Partial<CrmCustoProjeto>, leadIds))
@@ -3462,10 +3383,9 @@ const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
   timeline.sort((a, b) => (a.criadoEmIso < b.criadoEmIso ? 1 : -1))
 
   contratos.sort((a, b) => (a.vencimentoInicialIso < b.vencimentoInicialIso ? -1 : 1))
-  lancamentos.sort((a, b) => (a.dataIso < b.dataIso ? 1 : -1))
   manutencoes.sort((a, b) => (a.dataIso > b.dataIso ? 1 : -1))
 
-  return { leads, timeline, contratos, lancamentos, custos, manutencoes }
+  return { leads, timeline, contratos, custos, manutencoes }
 }
 
 const carregarDatasetCrm = (): CrmDataset => {
@@ -5438,6 +5358,7 @@ export default function App() {
     setAdminUsersTokenProvider(getAccessToken)
     setPortfolioTokenProvider(getAccessToken)
     setFinancialManagementTokenProvider(getAccessToken)
+    setProjectsTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -5557,6 +5478,8 @@ export default function App() {
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
+  // Pending project ID to auto-open in Gestão Financeira when navigating there from another page.
+  const [pendingFinancialProjectId, setPendingFinancialProjectId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
       return INITIAL_VALUES.activeTab
@@ -7343,7 +7266,6 @@ export default function App() {
   useEffect(() => {
     vendaActions.updateCliente({
       nome: cliente.nome ?? '',
-      apelido: cliente.apelido ?? '',
       documento: cliente.documento ?? '',
       email: cliente.email ?? '',
       telefone: cliente.telefone ?? '',
@@ -7421,16 +7343,6 @@ export default function App() {
   const [crmLeadForm, setCrmLeadForm] = useState<CrmLeadFormState>({ ...CRM_EMPTY_LEAD_FORM })
   const [crmNotaTexto, setCrmNotaTexto] = useState('')
   const [crmDataset, setCrmDataset] = useState<CrmDataset>(() => carregarDatasetCrm())
-  const [crmLancamentoForm, setCrmLancamentoForm] = useState({
-    dataIso: new Date().toISOString().slice(0, 10),
-    categoria: 'Receita' as CrmLancamentoCaixa['categoria'],
-    origem: 'Leasing',
-    formaPagamento: 'Pix' as CrmLancamentoCaixa['formaPagamento'],
-    tipo: 'entrada' as CrmLancamentoCaixa['tipo'],
-    valor: '',
-    leadId: '' as string,
-    observacao: '',
-  })
   const [crmCustosForm, setCrmCustosForm] = useState({
     equipamentos: '',
     maoDeObra: '',
@@ -13501,7 +13413,6 @@ export default function App() {
       }))
       setCrmCustosForm({ equipamentos: '', maoDeObra: '', deslocamento: '', taxasSeguros: '' })
       setCrmManutencaoForm((prev) => ({ ...prev, leadId: '' }))
-      setCrmLancamentoForm((prev) => ({ ...prev, leadId: '' }))
       return
     }
 
@@ -13532,11 +13443,6 @@ export default function App() {
       ...prev,
       leadId: crmLeadSelecionado.id,
       dataIso: prev.dataIso || new Date().toISOString().slice(0, 10),
-    }))
-
-    setCrmLancamentoForm((prev) => ({
-      ...prev,
-      leadId: crmLeadSelecionado.id,
     }))
   }, [crmDataset.contratos, crmDataset.custos, crmLeadSelecionado])
 
@@ -13620,44 +13526,6 @@ export default function App() {
   }, [crmDataset.leads])
 
   const crmFinanceiroResumo = useMemo(() => {
-    const entradas = crmDataset.lancamentos
-      .filter((item) => item.tipo === 'entrada')
-      .reduce((total, item) => total + item.valor, 0)
-    const saidas = crmDataset.lancamentos
-      .filter((item) => item.tipo === 'saida')
-      .reduce((total, item) => total + item.valor, 0)
-    const saldo = entradas - saidas
-
-    const agrupadoPorDia = crmDataset.lancamentos.reduce(
-      (acc, item) => {
-        const dia = item.dataIso.slice(0, 10)
-        if (!acc[dia]) {
-          acc[dia] = { entradas: 0, saidas: 0 }
-        }
-        if (item.tipo === 'entrada') {
-          acc[dia].entradas += item.valor
-        } else {
-          acc[dia].saidas += item.valor
-        }
-        return acc
-      },
-      {} as Record<string, { entradas: number; saidas: number }>,
-    )
-
-    let saldoAcumulado = 0
-    const fluxoOrdenado = Object.entries(agrupadoPorDia)
-      .sort(([dataA], [dataB]) => (dataA < dataB ? -1 : 1))
-      .map(([data, valores]) => {
-        const saldoDia = valores.entradas - valores.saidas
-        saldoAcumulado += saldoDia
-        return {
-          data,
-          entradas: valores.entradas,
-          saidas: valores.saidas,
-          saldoAcumulado,
-        }
-      })
-
     const contratosLeasing = crmDataset.contratos.filter((contrato) => contrato.modelo === 'LEASING')
     const contratosVenda = crmDataset.contratos.filter((contrato) => contrato.modelo === 'VENDA_DIRETA')
 
@@ -13692,17 +13560,13 @@ export default function App() {
     margens.sort((a, b) => b.margemBruta - a.margemBruta)
 
     return {
-      entradas,
-      saidas,
-      saldo,
-      fluxoOrdenado,
       previsaoLeasing,
       previsaoVendas,
       inadimplentes,
       contratosAtivos,
       margens: margens.slice(0, 8),
     }
-  }, [crmDataset.contratos, crmDataset.custos, crmDataset.lancamentos, crmDataset.leads])
+  }, [crmDataset.contratos, crmDataset.custos, crmDataset.leads])
 
   const crmPosVendaResumo = useMemo(() => {
     // Quantifica todas as manutenções cadastradas para criar os alertas de pós-venda.
@@ -14128,7 +13992,6 @@ export default function App() {
           contratos: prev.contratos.filter((contrato) => contrato.leadId !== leadId),
           custos: prev.custos.filter((custo) => custo.leadId !== leadId),
           manutencoes: prev.manutencoes.filter((manutencao) => manutencao.leadId !== leadId),
-          lancamentos: prev.lancamentos.filter((lancamento) => lancamento.leadId !== leadId),
         }
       })
 
@@ -14141,66 +14004,6 @@ export default function App() {
       }
     },
     [adicionarNotificacao, crmLeadSelecionadoId],
-  )
-
-  const handleRegistrarLancamentoCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
-      const valorNumerico = Number(String(crmLancamentoForm.valor).replace(',', '.'))
-      if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
-        adicionarNotificacao('Informe um valor numérico positivo para o lançamento financeiro.', 'error')
-        return
-      }
-
-      const dataIso = crmLancamentoForm.dataIso
-        ? new Date(`${crmLancamentoForm.dataIso}T00:00:00`).toISOString()
-        : new Date().toISOString()
-
-      const leadIdReferencia = crmLancamentoForm.leadId || crmLeadSelecionado?.id
-      const leadValido = leadIdReferencia
-        ? crmDataset.leads.some((lead) => lead.id === leadIdReferencia)
-        : false
-
-      const novoLancamento: CrmLancamentoCaixa = {
-        id: gerarIdCrm('lancamento'),
-        leadId: leadValido ? leadIdReferencia : undefined,
-        dataIso,
-        categoria: crmLancamentoForm.categoria,
-        origem: crmLancamentoForm.origem.trim() || 'Operação',
-        formaPagamento: crmLancamentoForm.formaPagamento,
-        tipo: crmLancamentoForm.tipo,
-        valor: Math.round(valorNumerico * 100) / 100,
-        observacao: crmLancamentoForm.observacao.trim() || undefined,
-      }
-
-      const evento: CrmTimelineEntry | null = novoLancamento.leadId
-        ? {
-            id: gerarIdCrm('evento'),
-            leadId: novoLancamento.leadId,
-            mensagem: `Lançamento financeiro (${novoLancamento.tipo === 'entrada' ? 'entrada' : 'saída'}) de ${currency(
-              novoLancamento.valor,
-            )} registrado em ${formatarDataCurta(dataIso)}.`,
-            tipo: 'status',
-            criadoEmIso: new Date().toISOString(),
-          }
-        : null
-
-      setCrmDataset((prev) => ({
-        ...prev,
-        lancamentos: [novoLancamento, ...prev.lancamentos].slice(0, 200),
-        timeline: evento ? [evento, ...prev.timeline].slice(0, 120) : prev.timeline,
-      }))
-
-      setCrmLancamentoForm((prev) => ({
-        ...prev,
-        valor: '',
-        observacao: '',
-      }))
-
-      adicionarNotificacao('Lançamento financeiro salvo com sucesso.', 'success')
-    },
-    [adicionarNotificacao, crmDataset.leads, crmLancamentoForm, crmLeadSelecionado],
   )
 
   const handleSalvarCustosCrm = useCallback(
@@ -14985,23 +14788,11 @@ export default function App() {
             <div>
               <h2>6. Financeiro integrado</h2>
               <p>
-                Controle de contratos de leasing e vendas diretas, lançamentos de caixa e análise de margens para cada
+                Controle de contratos de leasing e vendas diretas e análise de margens para cada
                 usina.
               </p>
             </div>
             <div className="crm-metrics">
-              <div>
-                <span>Entradas</span>
-                <strong>{currency(crmFinanceiroResumo.entradas)}</strong>
-              </div>
-              <div>
-                <span>Saídas</span>
-                <strong>{currency(crmFinanceiroResumo.saidas)}</strong>
-              </div>
-              <div>
-                <span>Saldo acumulado</span>
-                <strong>{currency(crmFinanceiroResumo.saldo)}</strong>
-              </div>
               <div>
                 <span>Contratos ativos</span>
                 <strong>{crmFinanceiroResumo.contratosAtivos}</strong>
@@ -15013,7 +14804,7 @@ export default function App() {
             </div>
           </div>
           <div className="crm-finance-grid">
-            {/* Coluna 1: formulários de contratos, lançamentos e custos para alimentar o financeiro do CRM. */}
+            {/* Coluna 1: formulários de contratos e custos para alimentar o financeiro do CRM. */}
             <div className="crm-finance-forms">
               <form onSubmit={handleSalvarContratoCrm} className="crm-form">
                 <fieldset>
@@ -15136,118 +14927,6 @@ export default function App() {
                 </button>
               </form>
 
-              <form onSubmit={handleRegistrarLancamentoCrm} className="crm-form">
-                <fieldset>
-                  <legend>Lançamento de caixa</legend>
-                  <div className="crm-form-row">
-                    <label>
-                      Data
-                      <input
-                        type="date"
-                        value={crmLancamentoForm.dataIso}
-                        onChange={(event) =>
-                          setCrmLancamentoForm((prev) => ({ ...prev, dataIso: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label>
-                      Tipo
-                      <select
-                        value={crmLancamentoForm.tipo}
-                        onChange={(event) =>
-                          setCrmLancamentoForm((prev) => ({
-                            ...prev,
-                            tipo: event.target.value as CrmLancamentoCaixa['tipo'],
-                          }))
-                        }
-                      >
-                        <option value="entrada">Entrada</option>
-                        <option value="saida">Saída</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="crm-form-row">
-                    <label>
-                      Categoria
-                      <select
-                        value={crmLancamentoForm.categoria}
-                        onChange={(event) =>
-                          setCrmLancamentoForm((prev) => ({
-                            ...prev,
-                            categoria: event.target.value as CrmLancamentoCaixa['categoria'],
-                          }))
-                        }
-                      >
-                        {CRM_FINANCEIRO_CATEGORIAS.map((categoria) => (
-                          <option key={categoria} value={categoria}>
-                            {categoria}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Forma de pagamento
-                      <select
-                        value={crmLancamentoForm.formaPagamento}
-                        onChange={(event) =>
-                          setCrmLancamentoForm((prev) => ({
-                            ...prev,
-                            formaPagamento: event.target.value as CrmLancamentoCaixa['formaPagamento'],
-                          }))
-                        }
-                      >
-                        {CRM_FORMAS_PAGAMENTO.map((forma) => (
-                          <option key={forma} value={forma}>
-                            {forma}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                  <label>
-                    Origem do lançamento
-                    <input
-                      value={crmLancamentoForm.origem}
-                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, origem: event.target.value }))}
-                      placeholder="Leasing, venda direta, manutenção..."
-                    />
-                  </label>
-                  <label>
-                    Valor (R$)
-                    <input
-                      value={crmLancamentoForm.valor}
-                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, valor: event.target.value }))}
-                      placeholder="Ex: 1800"
-                    />
-                  </label>
-                  <label>
-                    Associar a lead (opcional)
-                    <select
-                      value={crmLancamentoForm.leadId}
-                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, leadId: event.target.value }))}
-                    >
-                      <option value="">Usar lead selecionado</option>
-                      {crmDataset.leads.map((lead) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Observação
-                    <textarea
-                      rows={2}
-                      value={crmLancamentoForm.observacao}
-                      onChange={(event) => setCrmLancamentoForm((prev) => ({ ...prev, observacao: event.target.value }))}
-                    />
-                  </label>
-                </fieldset>
-                <button type="submit" className="ghost">
-                  Registrar lançamento
-                </button>
-              </form>
-
               <form onSubmit={handleSalvarCustosCrm} className="crm-form">
                 <fieldset>
                   <legend>Custos do projeto selecionado</legend>
@@ -15289,74 +14968,8 @@ export default function App() {
                 </button>
               </form>
             </div>
-            {/* Coluna 2: painéis analíticos que resumem fluxo de caixa e margens. */}
+            {/* Coluna 2: painel analítico de margens e ROI. */}
             <div className="crm-finance-analytics">
-              <div className="crm-flow-chart">
-                <h3>Fluxo de caixa consolidado</h3>
-                {crmFinanceiroResumo.fluxoOrdenado.length === 0 ? (
-                  <p className="crm-empty">Cadastre lançamentos para visualizar o fluxo de caixa.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <LineChart data={crmFinanceiroResumo.fluxoOrdenado}>
-                      <CartesianGrid stroke={chartTheme.grid} strokeDasharray="6 6" />
-                      <XAxis
-                        dataKey="data"
-                        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-                        tickFormatter={(valor) => valor.slice(5)}
-                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
-                        stroke={chartTheme.grid}
-                      />
-                      <YAxis
-                        stroke={chartTheme.grid}
-                        tick={{ fill: chartTheme.tick, fontSize: 12 }}
-                        tickFormatter={formatAxis}
-                        width={90}
-                      />
-                      <Tooltip
-                        formatter={(value: number) => currency(value)}
-                        labelFormatter={(label) => `Dia ${label}`}
-                        contentStyle={{
-                          background: chartTheme.tooltipBg,
-                          borderRadius: 12,
-                          border: '1px solid var(--border)',
-                          color: chartTheme.tooltipText,
-                        }}
-                        itemStyle={{ color: chartTheme.tooltipText }}
-                        labelStyle={{ color: chartTheme.tooltipText }}
-                      />
-                      <Legend verticalAlign="top" height={36} wrapperStyle={{ color: chartTheme.legend }} />
-                      <Line
-                        type="monotone"
-                        dataKey="entradas"
-                        name="Entradas"
-                        stroke="#22c55e"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="saidas"
-                        name="Saídas"
-                        stroke="#ef4444"
-                        strokeWidth={2}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="saldoAcumulado"
-                        name="Saldo acumulado"
-                        stroke="#38bdf8"
-                        strokeWidth={3}
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                      <ReferenceLine y={0} stroke="rgba(239,68,68,0.45)" strokeDasharray="4 4" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
               <div className="crm-margins">
                 <h3>ROI e margens por lead</h3>
                 <table className="crm-table">
@@ -22221,18 +21834,6 @@ export default function App() {
         </Field>
         <Field
           label={labelWithTooltip(
-            'Apelido',
-            'Nome pelo qual o cliente é conhecido. Usado como identificação informal em comunicações e listas.',
-          )}
-        >
-          <input
-            value={cliente.apelido}
-            onChange={(e) => handleClienteChange('apelido', e.target.value)}
-            placeholder="Nome informal ou apelido"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
             'CPF/CNPJ',
             'Documento fiscal do titular da unidade consumidora. Para pessoa física: CPF. Para pessoa jurídica: CNPJ.',
           )}
@@ -23061,10 +22662,11 @@ export default function App() {
               handleClienteChange('consultorNome', consultor ? consultorDisplayName(consultor) : '')
             }}
             aria-label="Consultor responsável"
+            style={{ color: 'var(--input-text, #0f172a)', backgroundColor: 'var(--input-bg, #fff)' }}
           >
             <option value="">— Selecione um consultor —</option>
             {formConsultores.map((c) => (
-              <option key={c.id} value={String(c.id)}>
+              <option key={c.id} value={String(c.id)} style={{ color: '#0f172a', backgroundColor: '#fff' }}>
                 {formatConsultantOptionLabel(c)}
               </option>
             ))}
@@ -27049,8 +26651,8 @@ export default function App() {
               <strong>{formatNumberBRWithOptions(totalOrcamentos, { maximumFractionDigits: 0 })}</strong>
             </div>
             <div className="kpi kpi-highlight">
-              <span>Saldo em caixa</span>
-              <strong>{currency(crmFinanceiroResumo.saldo)}</strong>
+              <span>Previsão leasing</span>
+              <strong>{currency(crmFinanceiroResumo.previsaoLeasing)}</strong>
             </div>
             <div className="kpi">
               <span>Receita recorrente (leasing)</span>
@@ -27119,16 +26721,16 @@ export default function App() {
         <section className="card dashboard-panel">
           <div className="card-header">
             <h3>Indicadores financeiros</h3>
-            <p>Visão rápida do fluxo de caixa e contratos acompanhados.</p>
+            <p>Visão rápida de contratos e previsão de receita.</p>
           </div>
           <dl className="dashboard-metrics">
             <div>
-              <dt>Entradas acumuladas</dt>
-              <dd>{currency(crmFinanceiroResumo.entradas)}</dd>
+              <dt>Previsão leasing</dt>
+              <dd>{currency(crmFinanceiroResumo.previsaoLeasing)}</dd>
             </div>
             <div>
-              <dt>Saídas acumuladas</dt>
-              <dd>{currency(crmFinanceiroResumo.saidas)}</dd>
+              <dt>Previsão vendas</dt>
+              <dd>{currency(crmFinanceiroResumo.previsaoVendas)}</dd>
             </div>
             <div>
               <dt>Contratos ativos</dt>
@@ -29660,11 +29262,18 @@ export default function App() {
                     .then((refreshed) => setClientesSalvos(refreshed))
                     .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
                 }}
+                onOpenFinancialProject={(projectId) => {
+                  setPendingFinancialProjectId(projectId)
+                  setActivePage('financial-management')
+                }}
               />
             : null
         ) : activePage === 'financial-management' ? (
           canSeeFinancialManagementEffective
-            ? <FinancialManagementPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+            ? <FinancialManagementPage
+                onBack={() => setActivePage(lastPrimaryPageRef.current)}
+                initialProjectId={pendingFinancialProjectId}
+              />
             : null
         ) : (
           <div className="page">

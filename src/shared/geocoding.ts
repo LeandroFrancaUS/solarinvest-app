@@ -93,7 +93,7 @@ export async function geocodeCity(
     if (!response.ok) return null
     const data = (await response.json() as unknown) as NominatimResult[]
     if (!data || data.length === 0) return null
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
+    return { lat: Number(data[0].lat), lng: Number(data[0].lon) }
   } catch {
     return null
   }
