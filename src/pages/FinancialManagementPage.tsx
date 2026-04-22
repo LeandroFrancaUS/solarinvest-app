@@ -28,6 +28,8 @@ type PeriodFilter = 'month' | 'quarter' | 'year' | 'custom'
 
 interface Props {
   onBack: () => void
+  /** Called when the user wants to open a specific project from another page. */
+  initialProjectId?: string | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -622,14 +624,21 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function FinancialManagementPage({ onBack }: Props) {
+export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
   // Sub-navigation: drill into a project detail without leaving the financial page.
-  const [detailProjectId, setDetailProjectId] = useState<string | null>(null)
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(initialProjectId ?? null)
+
+  // When arriving with an initialProjectId, jump straight to the projects tab.
+  useEffect(() => {
+    if (initialProjectId) {
+      setActiveTab('projects')
+    }
+  }, [initialProjectId])
 
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [summaryError, setSummaryError] = useState<string | null>(null)

@@ -35,7 +35,7 @@ import {
   addPortfolioNote,
   exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
-import { patchProjectPvData, fetchProjectByClientId } from '../services/projectsApi'
+import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract } from '../services/projectsApi'
 import { upsertClientByDocument } from '../lib/api/clientsApi'
 import {
   isValidCpfOrCnpj,
@@ -60,6 +60,8 @@ interface Props {
   /** Called after a client is successfully removed from the portfolio or deleted,
    *  so the main clients list can refresh its in_portfolio status. */
   onClientRemovedFromPortfolio?: () => void
+  /** Called when the user wants to navigate to a specific project in Gestão Financeira. */
+  onOpenFinancialProject?: (projectId: string) => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -446,14 +448,24 @@ function ClientCard({
 // ─────────────────────────────────────────────────────────────────────────────
 type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 'notas'
 
-function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onChange: (t: Tab) => void; showPlano: boolean }) {
-  const tabs: { id: Tab; label: string; hidden?: boolean }[] = [
+function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled }: {
+  activeTab: Tab
+  onChange: (t: Tab) => void
+  showPlano: boolean
+  cobrancaEnabled: boolean
+}) {
+  const tabs: { id: Tab; label: string; hidden?: boolean; disabled?: boolean; title?: string }[] = [
     { id: 'editar', label: '👤 Cliente' },
+    { id: 'contrato', label: '📄 Contrato' },
     { id: 'plano', label: '📋 Plano', hidden: !showPlano },
     { id: 'projeto', label: '🔧 Projeto' },
     { id: 'usina', label: '☀️ Usina' },
-    { id: 'contrato', label: '📄 Contrato' },
-    { id: 'cobranca', label: '💰 Cobrança' },
+    {
+      id: 'cobranca',
+      label: '💰 Cobrança',
+      disabled: !cobrancaEnabled,
+      title: cobrancaEnabled ? undefined : 'Disponível após a instalação ser concluída',
+    },
     { id: 'notas', label: '📝 Notas' },
   ]
   return (
@@ -462,8 +474,10 @@ function DetailTabBar({ activeTab, onChange, showPlano }: { activeTab: Tab; onCh
         <button
           key={t.id}
           type="button"
-          onClick={() => onChange(t.id)}
-          className={`pf-tab-btn${activeTab === t.id ? ' active' : ''}`}
+          onClick={() => { if (!t.disabled) onChange(t.id) }}
+          className={`pf-tab-btn${activeTab === t.id ? ' active' : ''}${t.disabled ? ' disabled' : ''}`}
+          disabled={t.disabled}
+          title={t.title}
         >
           {t.label}
         </button>
@@ -811,6 +825,12 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_attachments: contractAttachments,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
+      // Auto-create a project in Gestão Financeira when contract becomes active
+      if (form.contract_status === 'active' && client.contract_status !== 'active' && client.contract_id != null) {
+        createProjectFromContract(client.contract_id).catch((err) => {
+          console.warn('[portfolio][contrato] auto-create project failed (non-blocking):', err)
+        })
+      }
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
@@ -1068,12 +1088,23 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Project Tab — uses shared/projects/portfolioProjectOps for types/logic
 // ─────────────────────────────────────────────────────────────────────────────
-function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function ProjetoTab({
+  client,
+  onSaved,
+  onOpenFinancialProject,
+}: {
+  client: PortfolioClientRow
+  onSaved: (patch: Partial<PortfolioClientRow>) => void
+  onOpenFinancialProject?: (projectId: string) => void
+}) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+
+  // Financial project linked to this client in Gestão Financeira
+  const [financialProjectId, setFinancialProjectId] = useState<string | null>(null)
 
   // Personnel lists loaded from the API
   const [engineers, setEngineers] = useState<Engineer[]>([])
@@ -1082,7 +1113,10 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
   useEffect(() => {
     void fetchEngineers(true).then(setEngineers).catch(() => { /* graceful — use text field */ })
     void fetchInstallers(true).then(setInstallers).catch(() => { /* graceful */ })
-  }, [])
+    void fetchProjectByClientId(client.id).then((p) => {
+      if (p) setFinancialProjectId(p.id)
+    }).catch(() => { /* graceful */ })
+  }, [client.id])
 
   const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
 
@@ -1273,6 +1307,17 @@ function ProjetoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: 
         </label>
       </div>
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginTop: 8 }}>{saveError}</p>}
+      {financialProjectId && onOpenFinancialProject && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="pf-btn pf-btn-edit"
+            onClick={() => onOpenFinancialProject(financialProjectId)}
+          >
+            📂 Gerenciar projeto
+          </button>
+        </div>
+      )}
       <div className="pf-footer-actions">
         {!editMode && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
@@ -2517,6 +2562,7 @@ function ClientDetailPanel({
   onRemovedFromPortfolio,
   onDeleted,
   onToast,
+  onOpenFinancialProject,
 }: {
   clientId: number
   onClose: () => void
@@ -2524,6 +2570,7 @@ function ClientDetailPanel({
   onRemovedFromPortfolio: (clientId: number) => void
   onDeleted: (clientId: number) => void
   onToast: (msg: string, type: 'success' | 'error') => void
+  onOpenFinancialProject?: (projectId: string) => void
 }) {
   const { client, isLoading, error, reloadSilent, setClient: setHookClient } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
@@ -2654,7 +2701,12 @@ function ClientDetailPanel({
 
       {/* Tabs + content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-        <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
+        <DetailTabBar
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          showPlano={displayClient.contract_type === 'leasing'}
+          cobrancaEnabled={displayClient.installation_status === 'Concluído'}
+        />
         {activeTab === 'editar' && (
           <EditarTab
             key={`editar-${refreshKey}`}
@@ -2671,8 +2723,8 @@ function ClientDetailPanel({
         {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'cobranca' && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+        {activeTab === 'cobranca' && displayClient.installation_status === 'Concluído' && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
@@ -2707,7 +2759,12 @@ function ClientDetailPanel({
           onToggleMode={() => setViewMode('collapsed')}
         >
           <div style={{ padding: '16px 24px', maxWidth: 1100, margin: '0 auto' }}>
-            <DetailTabBar activeTab={activeTab} onChange={setActiveTab} showPlano={displayClient.contract_type === 'leasing'} />
+            <DetailTabBar
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              showPlano={displayClient.contract_type === 'leasing'}
+              cobrancaEnabled={displayClient.installation_status === 'Concluído'}
+            />
             {activeTab === 'editar' && (
               <EditarTab
                 key={`fs-editar-${refreshKey}`}
@@ -2724,8 +2781,8 @@ function ClientDetailPanel({
             {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'cobranca' && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+            {activeTab === 'cobranca' && displayClient.installation_status === 'Concluído' && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
@@ -2737,7 +2794,7 @@ function ClientDetailPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Props) {
+export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOpenFinancialProject }: Props) {
   const { clients, isLoading, error, reload, setSearch, removeClient } = useClientPortfolio()
   const { deleting, deleteClient } = usePortfolioDelete()
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
@@ -3022,6 +3079,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio }: Pr
               onRemovedFromPortfolio={handleRemovedFromPortfolio}
               onDeleted={handleDeleted}
               onToast={showToast}
+              onOpenFinancialProject={onOpenFinancialProject}
             />
           </div>
         )}

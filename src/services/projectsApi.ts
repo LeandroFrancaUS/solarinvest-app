@@ -136,3 +136,20 @@ export async function fetchProjectsSummary(): Promise<ProjectSummary> {
   const res = await apiFetch<{ data: ProjectSummary }>(url)
   return res.data
 }
+
+/**
+ * Creates (or reuses) a project in Gestão Financeira for the given contract.
+ * Uses POST /api/projects/from-plan/:contractId — idempotent, safe to call
+ * every time a contract is activated.
+ * Returns the project row plus a `created` flag.
+ */
+export async function createProjectFromContract(
+  contractId: number,
+): Promise<{ project: ProjectRow; created: boolean }> {
+  const url = buildUrl(`/api/projects/from-plan/${contractId}`)
+  const res = await apiFetch<{ data: ProjectRow; meta: { created: boolean } }>(url, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return { project: res.data, created: res.meta.created }
+}

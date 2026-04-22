@@ -5478,6 +5478,8 @@ export default function App() {
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
+  // Pending project ID to auto-open in Gestão Financeira when navigating there from another page.
+  const [pendingFinancialProjectId, setPendingFinancialProjectId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     if (typeof window === 'undefined') {
       return INITIAL_VALUES.activeTab
@@ -29260,11 +29262,18 @@ export default function App() {
                     .then((refreshed) => setClientesSalvos(refreshed))
                     .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
                 }}
+                onOpenFinancialProject={(projectId) => {
+                  setPendingFinancialProjectId(projectId)
+                  setActivePage('financial-management')
+                }}
               />
             : null
         ) : activePage === 'financial-management' ? (
           canSeeFinancialManagementEffective
-            ? <FinancialManagementPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+            ? <FinancialManagementPage
+                onBack={() => setActivePage(lastPrimaryPageRef.current)}
+                initialProjectId={pendingFinancialProjectId}
+              />
             : null
         ) : (
           <div className="page">

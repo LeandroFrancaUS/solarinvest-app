@@ -86,6 +86,13 @@
   font-weight: 700;
 }
 
+.pf-tab-btn.disabled,
+.pf-tab-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 /* ── 4. SECTION CARDS ─────────────────────────────────────────── */
 .pf-section-card {
   background: var(--surface);
