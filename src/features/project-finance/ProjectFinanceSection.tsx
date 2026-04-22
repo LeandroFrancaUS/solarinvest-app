@@ -6,27 +6,38 @@ import React, { useCallback, useState } from 'react'
 import { useProjectFinance } from './useProjectFinance'
 import { ProjectFinanceSummary } from './ProjectFinanceSummary'
 import { ProjectFinanceEditor } from './ProjectFinanceEditor'
+import type { ProjectPvData } from '../../domain/projects/types'
 
 interface Props {
   projectId: string
-  /** A label showing the resolved contract type from parent (used for badge) */
-  contractTypeHint?: 'leasing' | 'venda'
+  /**
+   * PV system data from the Usina Fotovoltaica section.
+   * Used as source-of-truth for consumo, potência, geração (readonly in finance).
+   */
+  pvData?: ProjectPvData | null
 }
 
-export function ProjectFinanceSection({ projectId }: Props) {
+export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
   const {
     profile,
     form,
     contractType,
+    contractTermMonths,
+    calculated,
+    effective,
+    overrides,
     summary,
     isLoading,
     isSaving,
     isDirty,
     error,
     setField,
+    setOverride,
+    restoreAuto,
+    restoreAll,
     save,
     reset,
-  } = useProjectFinance(projectId)
+  } = useProjectFinance(projectId, pvData)
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -44,14 +55,13 @@ export function ProjectFinanceSection({ projectId }: Props) {
     setIsExpanded(false)
   }, [isDirty, reset])
 
-  const handleSave = useCallback(async () => {
-    try {
-      await save()
+  const handleSave = useCallback(() => {
+    save().then(() => {
       setSaveSuccess(true)
       setIsExpanded(false)
-    } catch {
+    }).catch(() => {
       // error is surfaced in the editor footer
-    }
+    })
   }, [save])
 
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
@@ -75,7 +85,6 @@ export function ProjectFinanceSection({ projectId }: Props) {
     )
   }
 
-  // ── Action button ──────────────────────────────────────────────────────────
   const actionButton = !isExpanded ? (
     <button
       type="button"
@@ -109,14 +118,12 @@ export function ProjectFinanceSection({ projectId }: Props) {
       </div>
 
       <div className="fm-project-section-body">
-        {/* Error banner (loading error) */}
         {error && !isExpanded ? (
           <div className="fm-error-banner fm-error-banner--inline" role="alert" style={{ marginBottom: 12 }}>
             ⚠️ {error}
           </div>
         ) : null}
 
-        {/* Collapsed summary */}
         {!isExpanded ? (
           hasProfile ? (
             <ProjectFinanceSummary summary={summary} />
@@ -130,16 +137,23 @@ export function ProjectFinanceSection({ projectId }: Props) {
           )
         ) : null}
 
-        {/* Expanded editor */}
         {isExpanded ? (
           <ProjectFinanceEditor
             form={form}
             contractType={contractType}
+            contractTermMonths={contractTermMonths}
+            pvData={pvData}
+            calculated={calculated}
+            effective={effective}
+            overrides={overrides}
             isSaving={isSaving}
             isDirty={isDirty}
             error={error}
             setField={setField}
-          onSave={handleSave}
+            setOverride={setOverride}
+            restoreAuto={restoreAuto}
+            restoreAll={restoreAll}
+            onSave={handleSave}
             onCancel={handleCancel}
           />
         ) : null}

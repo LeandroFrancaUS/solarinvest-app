@@ -1,15 +1,27 @@
 // src/features/project-finance/useProjectFinance.ts
 // React hook for loading, editing and saving project financial profiles.
+// Implements:
+//   - Auto-compute KPIs using the same engine as Análise Financeira
+//     (computeIRR, computeNPV, computePayback) whenever form inputs change
+//   - Override mechanism: manual values persist through recalculations
+//   - Readonly contract term: sourced from client_contracts
+//   - System sizing values (consumo, potência, geração) come from pvData
+//     (Usina Fotovoltaica) — NOT from the financial form
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchProjectFinance, saveProjectFinance } from './api'
-import { computeSummaryKPIs } from './calculations'
+import { computeSummaryKPIs, computeProjectFinancialState } from './calculations'
 import type {
   ProjectFinanceProfile,
   ProjectFinanceFormState,
   ProjectFinanceContractType,
   ProjectFinanceSummaryKPIs,
+  ProjectFinanceComputed,
+  ProjectFinanceOverrides,
+  OverridableField,
+  ProjectFinanceTechnicalParams,
 } from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 
 // Build a form state from a profile row (or empty defaults)
 function profileToFormState(profile: ProjectFinanceProfile | null): ProjectFinanceFormState {
@@ -20,9 +32,6 @@ function profileToFormState(profile: ProjectFinanceProfile | null): ProjectFinan
     snapshot_source: profile.snapshot_source,
   }
   if (profile.client_id != null) out.client_id = profile.client_id
-  if (profile.consumo_kwh_mes != null) out.consumo_kwh_mes = profile.consumo_kwh_mes
-  if (profile.potencia_instalada_kwp != null) out.potencia_instalada_kwp = profile.potencia_instalada_kwp
-  if (profile.geracao_estimada_kwh_mes != null) out.geracao_estimada_kwh_mes = profile.geracao_estimada_kwh_mes
   if (profile.prazo_contratual_meses != null) out.prazo_contratual_meses = profile.prazo_contratual_meses
   if (profile.custo_equipamentos != null) out.custo_equipamentos = profile.custo_equipamentos
   if (profile.custo_instalacao != null) out.custo_instalacao = profile.custo_instalacao
@@ -44,10 +53,6 @@ function profileToFormState(profile: ProjectFinanceProfile | null): ProjectFinan
   if (profile.entrada_pct != null) out.entrada_pct = profile.entrada_pct
   if (profile.parcelamento_meses != null) out.parcelamento_meses = profile.parcelamento_meses
   if (profile.custo_financeiro_pct != null) out.custo_financeiro_pct = profile.custo_financeiro_pct
-  if (profile.payback_meses != null) out.payback_meses = profile.payback_meses
-  if (profile.roi_pct != null) out.roi_pct = profile.roi_pct
-  if (profile.tir_pct != null) out.tir_pct = profile.tir_pct
-  if (profile.vpl != null) out.vpl = profile.vpl
   if (profile.notas != null) out.notas = profile.notas
   return out
 }
@@ -56,6 +61,11 @@ interface UseProjectFinanceReturn {
   profile: ProjectFinanceProfile | null
   form: ProjectFinanceFormState
   contractType: ProjectFinanceContractType
+  /** Contract term in months from client_contracts. Readonly. */
+  contractTermMonths: number | null
+  calculated: ProjectFinanceComputed
+  effective: ProjectFinanceComputed
+  overrides: ProjectFinanceOverrides
   summary: ProjectFinanceSummaryKPIs
   isLoading: boolean
   isSaving: boolean
@@ -63,21 +73,32 @@ interface UseProjectFinanceReturn {
   error: string | null
   load: () => Promise<void>
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setOverride: (field: OverridableField, value: number) => void
+  restoreAuto: (field: OverridableField) => void
+  restoreAll: () => void
   save: () => Promise<void>
   reset: () => void
 }
 
-export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
+export function useProjectFinance(
+  projectId: string,
+  pvData: ProjectPvData | null = null,
+): UseProjectFinanceReturn {
   const [profile, setProfile] = useState<ProjectFinanceProfile | null>(null)
   const [contractType, setContractType] = useState<ProjectFinanceContractType>('leasing')
+  const [contractTermMonths, setContractTermMonths] = useState<number | null>(null)
   const [form, setForm] = useState<ProjectFinanceFormState>({})
   const [savedForm, setSavedForm] = useState<ProjectFinanceFormState>({})
+  const [overrides, setOverrides] = useState<ProjectFinanceOverrides>({})
+  const [savedOverrides, setSavedOverrides] = useState<ProjectFinanceOverrides>({})
+  const [technicalParams, setTechnicalParams] = useState<ProjectFinanceTechnicalParams | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const isDirty =
-    JSON.stringify(form) !== JSON.stringify(savedForm)
+    JSON.stringify(form) !== JSON.stringify(savedForm) ||
+    JSON.stringify(overrides) !== JSON.stringify(savedOverrides)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -85,10 +106,16 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     try {
       const res = await fetchProjectFinance(projectId)
       setContractType(res.contract_type)
+      setContractTermMonths(res.contract_term_months ?? null)
       setProfile(res.profile)
       const fs = profileToFormState(res.profile)
       setForm(fs)
       setSavedForm(fs)
+      const ov: ProjectFinanceOverrides = res.profile?.override_payload_json ?? {}
+      setOverrides(ov)
+      setSavedOverrides(ov)
+      const tp: ProjectFinanceTechnicalParams | undefined = res.profile?.technical_params_json ?? undefined
+      setTechnicalParams(tp)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar financeiro.')
     } finally {
@@ -100,6 +127,13 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     void load()
   }, [load])
 
+  // Auto-compute KPIs using the shared engine (same as Análise Financeira).
+  // System sizing values come from pvData (Usina Fotovoltaica), not the form.
+  const { calculated, effective } = useMemo(() => {
+    const termMonths = contractTermMonths ?? (form.prazo_contratual_meses ?? 0)
+    return computeProjectFinancialState(form, contractType, termMonths, pvData, overrides, technicalParams)
+  }, [form, contractType, contractTermMonths, pvData, overrides, technicalParams])
+
   const setField = useCallback(
     <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => {
       setForm((prev) => ({ ...prev, [key]: value }))
@@ -107,38 +141,83 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     [],
   )
 
+  const setOverride = useCallback((field: OverridableField, value: number) => {
+    setOverrides((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const restoreAuto = useCallback((field: OverridableField) => {
+    setOverrides((prev) => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }, [])
+
+  const restoreAll = useCallback(() => {
+    setOverrides({})
+  }, [])
+
   const save = useCallback(async () => {
     setIsSaving(true)
     setError(null)
     try {
-      const payload: ProjectFinanceFormState = {
+      const termMonths = contractTermMonths ?? (form.prazo_contratual_meses ?? 0)
+      // Build save payload — use null (not undefined) for computed KPI fields
+      // because ProjectFinanceFormState uses exactOptionalPropertyTypes.
+      const kpiOverlay: Partial<ProjectFinanceFormState> = {}
+      if (effective.payback_meses != null) kpiOverlay.payback_meses = effective.payback_meses
+      if (effective.roi_pct != null) kpiOverlay.roi_pct = effective.roi_pct
+      if (effective.tir_pct != null) kpiOverlay.tir_pct = effective.tir_pct
+      if (effective.vpl != null) kpiOverlay.vpl = effective.vpl
+
+      // Build save payload — cast to avoid exactOptionalPropertyTypes friction with spread.
+      // The underlying shape is correct; TypeScript's strict mode false-positives on spreading
+      // Partial types.
+      const payload = {
         ...form,
+        ...kpiOverlay,
         contract_type: contractType,
-      }
+        // prazo_contratual_meses mirrors from contract (readonly)
+        prazo_contratual_meses: termMonths > 0 ? termMonths : form.prazo_contratual_meses,
+        // Persist overrides and technical params
+        override_payload_json: Object.keys(overrides).length > 0 ? overrides : null,
+        technical_params_json: technicalParams ?? null,
+      } as ProjectFinanceFormState
       const saved = await saveProjectFinance(projectId, payload)
       setProfile(saved)
       const fs = profileToFormState(saved)
       setForm(fs)
       setSavedForm(fs)
+      const ov: ProjectFinanceOverrides = saved.override_payload_json ?? {}
+      setOverrides(ov)
+      setSavedOverrides(ov)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar financeiro.')
       throw err
     } finally {
       setIsSaving(false)
     }
-  }, [projectId, form, contractType])
+  }, [projectId, form, contractType, contractTermMonths, overrides, effective, technicalParams])
 
   const reset = useCallback(() => {
     setForm(savedForm)
+    setOverrides(savedOverrides)
     setError(null)
-  }, [savedForm])
+  }, [savedForm, savedOverrides])
 
-  const summary = computeSummaryKPIs(form, contractType, profile?.updated_at)
+  const summaryForm: ProjectFinanceFormState = { ...form }
+  if (effective.payback_meses != null) summaryForm.payback_meses = effective.payback_meses
+  if (effective.roi_pct != null) summaryForm.roi_pct = effective.roi_pct
+  const summary = computeSummaryKPIs(summaryForm, contractType, profile?.updated_at)
 
   return {
     profile,
     form,
     contractType,
+    contractTermMonths,
+    calculated,
+    effective,
+    overrides,
     summary,
     isLoading,
     isSaving,
@@ -146,7 +225,11 @@ export function useProjectFinance(projectId: string): UseProjectFinanceReturn {
     error,
     load,
     setField,
+    setOverride,
+    restoreAuto,
+    restoreAll,
     save,
     reset,
   }
 }
+

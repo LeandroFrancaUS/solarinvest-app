@@ -3,7 +3,14 @@
 // based on the resolved contract type. Includes save, cancel and totals bar.
 
 import React from 'react'
-import type { ProjectFinanceFormState, ProjectFinanceContractType } from './types'
+import type {
+  ProjectFinanceFormState,
+  ProjectFinanceContractType,
+  ProjectFinanceComputed,
+  ProjectFinanceOverrides,
+  OverridableField,
+} from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 import { ProjectFinanceLeasingForm } from './ProjectFinanceLeasingForm'
 import { ProjectFinanceVendaForm } from './ProjectFinanceVendaForm'
 import { computeCustoTotal, computeLucroEsperado, computeMargemEsperadaPct } from './calculations'
@@ -29,7 +36,9 @@ function TotalsBar({
   isDirty,
   onSave,
   onCancel,
+  onRestoreAll,
   error,
+  hasOverrides,
 }: {
   form: ProjectFinanceFormState
   contractType: ProjectFinanceContractType
@@ -37,7 +46,9 @@ function TotalsBar({
   isDirty: boolean
   onSave: () => void
   onCancel: () => void
+  onRestoreAll: () => void
   error: string | null
+  hasOverrides: boolean
 }) {
   const custo = computeCustoTotal(form)
   const lucro = computeLucroEsperado(form.receita_esperada, custo)
@@ -101,6 +112,18 @@ function TotalsBar({
 
       <span style={{ flex: 1 }} />
 
+      {hasOverrides ? (
+        <button
+          type="button"
+          className="ghost"
+          onClick={onRestoreAll}
+          style={{ fontSize: 12, whiteSpace: 'nowrap', color: 'var(--ds-warning, #f59e0b)' }}
+          title="Restaurar todos os campos para automático"
+        >
+          ↺ Restaurar tudo
+        </button>
+      ) : null}
+
       {error ? (
         <span style={{ fontSize: 12, color: 'var(--ds-danger, #ef4444)', marginRight: 8 }}>
           ⚠️ {error}
@@ -134,10 +157,20 @@ function TotalsBar({
 interface Props {
   form: ProjectFinanceFormState
   contractType: ProjectFinanceContractType
+  /** Contract term in months from the contract. Readonly. */
+  contractTermMonths: number | null
+  /** PV system data from Usina Fotovoltaica. Displayed as readonly info. */
+  pvData: ProjectPvData | null
+  calculated: ProjectFinanceComputed
+  effective: ProjectFinanceComputed
+  overrides: ProjectFinanceOverrides
   isSaving: boolean
   isDirty: boolean
   error: string | null
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setOverride: (field: OverridableField, value: number) => void
+  restoreAuto: (field: OverridableField) => void
+  restoreAll: () => void
   onSave: () => void
   onCancel: () => void
 }
@@ -145,20 +178,47 @@ interface Props {
 export function ProjectFinanceEditor({
   form,
   contractType,
+  contractTermMonths,
+  pvData,
+  calculated,
+  overrides,
   isSaving,
   isDirty,
   error,
   setField,
+  setOverride,
+  restoreAuto,
+  restoreAll,
   onSave,
   onCancel,
 }: Props) {
+  const hasOverrides = Object.keys(overrides).length > 0
+
   return (
     <div>
       <div style={{ padding: '0 4px' }}>
         {contractType === 'leasing' ? (
-          <ProjectFinanceLeasingForm form={form} setField={setField} />
+          <ProjectFinanceLeasingForm
+            form={form}
+            contractTermMonths={contractTermMonths}
+            pvData={pvData}
+            calculated={calculated}
+            overrides={overrides}
+            setField={setField}
+            setOverride={setOverride}
+            restoreAuto={restoreAuto}
+          />
         ) : (
-          <ProjectFinanceVendaForm form={form} setField={setField} />
+          <ProjectFinanceVendaForm
+            form={form}
+            contractTermMonths={contractTermMonths}
+            pvData={pvData}
+            calculated={calculated}
+            overrides={overrides}
+            setField={setField}
+            setOverride={setOverride}
+            restoreAuto={restoreAuto}
+          />
         )}
       </div>
       <TotalsBar
@@ -168,7 +228,9 @@ export function ProjectFinanceEditor({
         isDirty={isDirty}
         onSave={onSave}
         onCancel={onCancel}
+        onRestoreAll={restoreAll}
         error={error}
+        hasOverrides={hasOverrides}
       />
     </div>
   )

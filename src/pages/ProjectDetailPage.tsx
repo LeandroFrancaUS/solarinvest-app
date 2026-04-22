@@ -9,6 +9,13 @@ import { fetchPortfolioClient } from '../services/clientPortfolioApi'
 import type { ProjectPvData, ProjectStatus } from '../domain/projects/types'
 import { PROJECT_STATUSES } from '../domain/projects/types'
 import {
+  reverseGenerationToKwp,
+  estimateMonthlyGenerationKWh,
+  DEFAULT_PERFORMANCE_RATIO,
+  DEFAULT_DIAS_MES,
+} from '../lib/energy/generation'
+import { IRRADIACAO_FALLBACK } from '../utils/irradiacao'
+import {
   PROJECT_STATUS_LABELS as PORTFOLIO_PROJECT_STATUS_LABELS,
 } from '../shared/projects/portfolioProjectOps'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
@@ -272,13 +279,48 @@ interface UsinaFormData {
   modelo_inversor: string
 }
 
-/** Auto-computes system power from number of modules and module wattage. */
-function calcPotenciaSistema(
-  nModulos: number | null,
+/**
+ * Auto-computes derived Usina fields from the two primary inputs using the
+ * SAME engine as the proposta leasing (reverseGenerationToKwp +
+ * estimateMonthlyGenerationKWh — both backed by the leasing financial engine).
+ *
+ * Returns null for each derived field when an input is missing or invalid.
+ */
+function computeUsinaAuto(
+  consumo: number | null,
   potModuloWp: number | null,
-): number | null {
-  if (nModulos == null || potModuloWp == null || nModulos <= 0 || potModuloWp <= 0) return null
-  return (nModulos * potModuloWp) / 1000
+): {
+  numero_modulos: number | null
+  potencia_sistema_kwp: number | null
+  geracao_estimada_kwh_mes: number | null
+} {
+  const nullResult = { numero_modulos: null, potencia_sistema_kwp: null, geracao_estimada_kwh_mes: null }
+  if (!consumo || consumo <= 0 || !potModuloWp || potModuloWp <= 0) return nullResult
+
+  // Step 1: find required kWp to cover monthly consumption
+  const kwpNecessario = reverseGenerationToKwp(consumo, {
+    hsp: IRRADIACAO_FALLBACK,
+    pr: DEFAULT_PERFORMANCE_RATIO,
+    dias_mes: DEFAULT_DIAS_MES,
+  })
+  if (!kwpNecessario) return nullResult
+
+  // Step 2: round up to whole modules (same rounding as calcularBaseSistema)
+  const numero_modulos = Math.ceil((kwpNecessario * 1000) / potModuloWp)
+  if (numero_modulos <= 0) return nullResult
+
+  // Step 3: exact system capacity from actual modules
+  const potencia_sistema_kwp = (numero_modulos * potModuloWp) / 1000
+
+  // Step 4: monthly generation from installed capacity
+  const geracao_estimada_kwh_mes = estimateMonthlyGenerationKWh({
+    potencia_instalada_kwp: potencia_sistema_kwp,
+    irradiacao_kwh_m2_dia: IRRADIACAO_FALLBACK,
+    performance_ratio: DEFAULT_PERFORMANCE_RATIO,
+    dias_mes: DEFAULT_DIAS_MES,
+  }) || null
+
+  return { numero_modulos, potencia_sistema_kwp, geracao_estimada_kwh_mes }
 }
 
 function pvDataToForm(pv: ProjectPvData | null): UsinaFormData {
@@ -326,13 +368,19 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
     setSaveError(null)
   }, [])
 
-  // setField handles auto-computation of potencia_sistema_kwp
+  // setField handles auto-computation of derived fields using the leasing engine
   const setField = useCallback(<K extends keyof UsinaFormData>(key: K, value: UsinaFormData[K]) => {
     setForm((prev) => {
       const next = { ...prev, [key]: value }
-      // Re-compute system power whenever module count or wattage changes
-      if (key === 'numero_modulos' || key === 'potencia_modulo_wp') {
-        next.potencia_sistema_kwp = calcPotenciaSistema(next.numero_modulos, next.potencia_modulo_wp)
+      // Re-compute derived fields whenever consumo or module wattage changes
+      if (key === 'consumo_kwh_mes' || key === 'potencia_modulo_wp') {
+        const auto = computeUsinaAuto(
+          key === 'consumo_kwh_mes' ? (value as number | null) : prev.consumo_kwh_mes,
+          key === 'potencia_modulo_wp' ? (value as number | null) : prev.potencia_modulo_wp,
+        )
+        next.numero_modulos = auto.numero_modulos
+        next.potencia_sistema_kwp = auto.potencia_sistema_kwp
+        next.geracao_estimada_kwh_mes = auto.geracao_estimada_kwh_mes
       }
       return next
     })
@@ -409,20 +457,20 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
             </select>
           </div>
 
-          {/* Número de módulos */}
+          {/* Número de módulos — auto-computed from consumo + module wattage */}
           <div className="fm-detail-field fm-detail-field--edit">
-            <label className="fm-detail-field-label" htmlFor="usina-n-modulos">Número de módulos</label>
+            <label className="fm-detail-field-label" htmlFor="usina-n-modulos">
+              Número de módulos
+              <span className="fm-field-hint"> (auto)</span>
+            </label>
             <input
               id="usina-n-modulos"
               className="fm-form-input"
               type="number"
-              min="1"
-              step="1"
+              readOnly
+              aria-readonly="true"
               value={form.numero_modulos ?? ''}
-              onChange={(e) => {
-                const v = e.target.valueAsNumber
-                setField('numero_modulos', isNaN(v) ? null : Math.trunc(v))
-              }}
+              tabIndex={-1}
             />
           </div>
 
@@ -460,9 +508,12 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
             />
           </div>
 
-          {/* Geração estimada */}
+          {/* Geração estimada — auto-computed, but can be manually adjusted */}
           <div className="fm-detail-field fm-detail-field--edit">
-            <label className="fm-detail-field-label" htmlFor="usina-geracao">Geração estimada (kWh/mês)</label>
+            <label className="fm-detail-field-label" htmlFor="usina-geracao">
+              Geração estimada (kWh/mês)
+              <span className="fm-field-hint"> (auto)</span>
+            </label>
             <input
               id="usina-geracao"
               className="fm-form-input"
@@ -575,6 +626,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
   }, [projectId, loadProjectById])
 
   const project = cached?.project ?? null
+  const pvData = cached?.pv_data ?? null
 
   if (isLoading && !project) {
     return (
@@ -648,7 +700,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
       <UsinaSection projectId={projectId} />
 
       {/* ── Section 3: Financeiro ── */}
-      <ProjectFinanceSection projectId={projectId} />
+      <ProjectFinanceSection projectId={projectId} pvData={pvData} />
     </div>
   )
 }

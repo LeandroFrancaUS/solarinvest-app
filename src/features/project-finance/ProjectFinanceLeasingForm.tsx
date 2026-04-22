@@ -1,11 +1,18 @@
 // src/features/project-finance/ProjectFinanceLeasingForm.tsx
 // Editable form for the Leasing variant of the project financial profile.
 // Shows cost, revenue, leasing-specific and KPI fields.
+// Sistema Fotovoltaico values come read-only from pvData (Usina Fotovoltaica).
 // Does NOT include modules: Nova Simulação, Simulações Salvas, IA, Monte Carlo,
 // Packs, Análise Financeira checklist, Módulo Dedicado (Aprovar/Reprovar).
 
 import React from 'react'
-import type { ProjectFinanceFormState } from './types'
+import type {
+  ProjectFinanceFormState,
+  ProjectFinanceComputed,
+  ProjectFinanceOverrides,
+  OverridableField,
+} from './types'
+import type { ProjectPvData } from '../../domain/projects/types'
 import { computeCustoTotal } from './calculations'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -13,6 +20,11 @@ import { computeCustoTotal } from './calculations'
 function fmtCurrency(value: number | null | undefined): string {
   if (value == null) return '—'
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function fmtNum(value: number | null | undefined, decimals = 2): string {
+  if (value == null) return '—'
+  return value.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
 // ─── Field components ────────────────────────────────────────────────────────
@@ -79,13 +91,7 @@ function FieldText({
   return (
     <div className="fm-detail-field fm-detail-field--edit">
       <label className="fm-detail-field-label" htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className="fm-form-input"
-        type="text"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <input id={id} className="fm-form-input" type="text" value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
     </div>
   )
 }
@@ -99,6 +105,113 @@ function ReadonlyField({ label, value }: { label: string; value: React.ReactNode
   )
 }
 
+/**
+ * A KPI field that is auto-computed by the engine but can be manually overridden.
+ * Shows "Automático" or "Manual" badge and a restore button.
+ */
+function FieldWithOverride({
+  id,
+  label,
+  field,
+  effectiveValue,
+  isOverridden,
+  overrideValue,
+  unit,
+  step = 'any',
+  format,
+  onOverride,
+  onRestore,
+}: {
+  id: string
+  label: string
+  field: OverridableField
+  effectiveValue: number | null
+  isOverridden: boolean
+  overrideValue: number | null
+  unit?: string
+  step?: string | number
+  format?: (v: number | null) => string
+  onOverride: (field: OverridableField, value: number) => void
+  onRestore: (field: OverridableField) => void
+}) {
+  return (
+    <div className="fm-detail-field fm-detail-field--edit">
+      <label className="fm-detail-field-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {label}
+        {unit ? <span className="fm-field-hint"> ({unit})</span> : null}
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            padding: '1px 5px',
+            borderRadius: 3,
+            marginLeft: 4,
+            background: isOverridden ? 'var(--ds-warning-bg, rgba(245,158,11,0.15))' : 'var(--ds-success-bg, rgba(34,197,94,0.12))',
+            color: isOverridden ? 'var(--ds-warning, #f59e0b)' : 'var(--ds-success, #22c55e)',
+          }}
+        >
+          {isOverridden ? 'Manual' : 'Automático'}
+        </span>
+        {isOverridden ? (
+          <button
+            type="button"
+            onClick={() => onRestore(field)}
+            style={{
+              fontSize: 10,
+              padding: '1px 5px',
+              marginLeft: 2,
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+            }}
+            title="Restaurar valor automático"
+          >
+            ↺ Auto
+          </button>
+        ) : null}
+      </label>
+      {isOverridden ? (
+        <input
+          id={id}
+          className="fm-form-input"
+          type="number"
+          step={step}
+          value={overrideValue ?? ''}
+          onChange={(e) => {
+            const n = e.target.valueAsNumber
+            if (!isNaN(n)) onOverride(field, n)
+          }}
+        />
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="fm-detail-field-value" style={{ flex: 1 }}>
+            {format ? format(effectiveValue) : fmtNum(effectiveValue)}
+          </span>
+          <button
+            type="button"
+            onClick={() => onOverride(field, effectiveValue ?? 0)}
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              background: 'none',
+              border: '1px solid var(--border)',
+              borderRadius: 3,
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              whiteSpace: 'nowrap',
+            }}
+            title="Editar manualmente"
+          >
+            ✏️ Editar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SectionTitle({ title }: { title: string }) {
   return (
     <h3 className="fm-detail-subsection-title" style={{ marginTop: 20, marginBottom: 8 }}>
@@ -107,52 +220,105 @@ function SectionTitle({ title }: { title: string }) {
   )
 }
 
+// ─── PV System Info Bar ───────────────────────────────────────────────────────
+// Displays system sizing values from the Usina Fotovoltaica — readonly.
+
+function PvInfoBar({
+  pvData,
+  contractTermMonths,
+  formPrazo,
+}: {
+  pvData: ProjectPvData | null
+  contractTermMonths: number | null
+  formPrazo: number | null | undefined
+}) {
+  const prazo = contractTermMonths ?? formPrazo
+  const items: { label: string; value: React.ReactNode }[] = [
+    {
+      label: 'Consumo',
+      value: pvData?.consumo_kwh_mes != null
+        ? `${fmtNum(pvData.consumo_kwh_mes, 0)} kWh/mês`
+        : '—',
+    },
+    {
+      label: 'Potência',
+      value: pvData?.potencia_sistema_kwp != null
+        ? `${fmtNum(pvData.potencia_sistema_kwp, 2)} kWp`
+        : '—',
+    },
+    {
+      label: 'Geração est.',
+      value: pvData?.geracao_estimada_kwh_mes != null
+        ? `${fmtNum(pvData.geracao_estimada_kwh_mes, 0)} kWh/mês`
+        : '—',
+    },
+    {
+      label: 'Prazo',
+      value: prazo != null ? `${prazo} meses 🔒` : '— 🔒',
+    },
+  ]
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px 20px',
+        padding: '10px 14px',
+        marginBottom: 12,
+        background: 'var(--bg-inset, rgba(15,23,42,0.5))',
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4 }}>
+        ☀️ Usina Fotovoltaica
+      </span>
+      {items.map((item) => (
+        <span key={item.label} style={{ whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>{item.label}:</span>
+          <strong>{item.value}</strong>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface Props {
   form: ProjectFinanceFormState
+  /** Contract term in months from the contract. Readonly. */
+  contractTermMonths: number | null
+  /** PV system data from the Usina Fotovoltaica section. Readonly. */
+  pvData: ProjectPvData | null
+  calculated: ProjectFinanceComputed
+  overrides: ProjectFinanceOverrides
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setOverride: (field: OverridableField, value: number) => void
+  restoreAuto: (field: OverridableField) => void
 }
 
-export function ProjectFinanceLeasingForm({ form, setField }: Props) {
+export function ProjectFinanceLeasingForm({
+  form,
+  contractTermMonths,
+  pvData,
+  calculated,
+  overrides,
+  setField,
+  setOverride,
+  restoreAuto,
+}: Props) {
   const custoTotal = computeCustoTotal(form)
 
   return (
     <div>
-      {/* ── Sistema Fotovoltaico ─────────────────────────────── */}
-      <SectionTitle title="Sistema Fotovoltaico" />
-      <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
-          id="pf-leasing-consumo"
-          label="Consumo"
-          unit="kWh/mês"
-          value={form.consumo_kwh_mes}
-          onChange={(v) => setField('consumo_kwh_mes', v ?? undefined)}
-        />
-        <FieldNumber
-          id="pf-leasing-potencia"
-          label="Potência instalada"
-          unit="kWp"
-          value={form.potencia_instalada_kwp}
-          onChange={(v) => setField('potencia_instalada_kwp', v ?? undefined)}
-          step={0.001}
-        />
-        <FieldNumber
-          id="pf-leasing-geracao"
-          label="Geração estimada"
-          unit="kWh/mês"
-          value={form.geracao_estimada_kwh_mes}
-          onChange={(v) => setField('geracao_estimada_kwh_mes', v ?? undefined)}
-        />
-        <FieldNumber
-          id="pf-leasing-prazo"
-          label="Prazo contratual"
-          unit="meses"
-          value={form.prazo_contratual_meses}
-          onChange={(v) => setField('prazo_contratual_meses', v ?? undefined)}
-          step={1}
-        />
-      </div>
+      {/* ── Usina Fotovoltaica info (readonly) ───────────────── */}
+      <PvInfoBar
+        pvData={pvData}
+        contractTermMonths={contractTermMonths}
+        formPrazo={form.prazo_contratual_meses}
+      />
 
       {/* ── Custos do Projeto ────────────────────────────────── */}
       <SectionTitle title="Custos do Projeto" />
@@ -221,7 +387,6 @@ export function ProjectFinanceLeasingForm({ form, setField }: Props) {
           onChange={(v) => setField('custo_diversos', v ?? undefined)}
           step={0.01}
         />
-        {/* Custo total — read only, auto-computed */}
         <ReadonlyField
           label="Custo total do projeto"
           value={
@@ -306,40 +471,60 @@ export function ProjectFinanceLeasingForm({ form, setField }: Props) {
         />
       </div>
 
-      {/* ── KPIs ────────────────────────────────────────────── */}
-      <SectionTitle title="KPIs Financeiros" />
+      {/* ── KPIs Financeiros ─────────────────────────────────── */}
+      <SectionTitle title="KPIs Financeiros (calculados pelo motor)" />
       <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-payback"
           label="Payback"
+          field="payback_meses"
+          effectiveValue={calculated.payback_meses}
+          isOverridden={'payback_meses' in overrides}
+          overrideValue={overrides.payback_meses ?? null}
           unit="meses"
-          value={form.payback_meses}
-          onChange={(v) => setField('payback_meses', v ?? undefined)}
           step={0.1}
+          format={(v) => fmtNum(v, 1)}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-roi"
           label="ROI"
+          field="roi_pct"
+          effectiveValue={calculated.roi_pct}
+          isOverridden={'roi_pct' in overrides}
+          overrideValue={overrides.roi_pct ?? null}
           unit="%"
-          value={form.roi_pct}
-          onChange={(v) => setField('roi_pct', v ?? undefined)}
           step={0.01}
+          format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-tir"
-          label="TIR (IRR)"
+          label="TIR (IRR anual)"
+          field="tir_pct"
+          effectiveValue={calculated.tir_pct}
+          isOverridden={'tir_pct' in overrides}
+          overrideValue={overrides.tir_pct ?? null}
           unit="% a.a."
-          value={form.tir_pct}
-          onChange={(v) => setField('tir_pct', v ?? undefined)}
           step={0.01}
+          format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-vpl"
           label="VPL (NPV)"
+          field="vpl"
+          effectiveValue={calculated.vpl}
+          isOverridden={'vpl' in overrides}
+          overrideValue={overrides.vpl ?? null}
           unit="R$"
-          value={form.vpl}
-          onChange={(v) => setField('vpl', v ?? undefined)}
           step={0.01}
+          format={fmtCurrency}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
       </div>
 
