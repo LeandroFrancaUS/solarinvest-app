@@ -593,6 +593,7 @@ export async function exportClientToPortfolio(sql, clientId, actorUserId) {
  * Returns the updated row, or null if the client does not exist.
  */
 export async function updatePortfolioClientProfile(sql, clientId, fields) {
+  const hasUcBeneficiariaField = Object.prototype.hasOwnProperty.call(fields, 'uc_beneficiaria')
   const rows = await sql`
     UPDATE public.clients
     SET
@@ -605,7 +606,10 @@ export async function updatePortfolioClientProfile(sql, clientId, fields) {
       client_document       = COALESCE(${fields.client_document ?? null}, client_document),
       distribuidora         = COALESCE(${fields.distribuidora ?? null}, distribuidora),
       uc_geradora           = COALESCE(${fields.uc_geradora ?? null}, uc_geradora),
-      uc_beneficiaria       = COALESCE(${fields.uc_beneficiaria ?? null}, uc_beneficiaria),
+      uc_beneficiaria       = CASE
+        WHEN ${hasUcBeneficiariaField} THEN ${fields.uc_beneficiaria ?? null}
+        ELSE uc_beneficiaria
+      END,
       consumption_kwh_month = COALESCE(${fields.consumption_kwh_month ?? null}, consumption_kwh_month),
       system_kwp            = COALESCE(${fields.system_kwp ?? null}, system_kwp),
       term_months           = COALESCE(${fields.term_months ?? null}, term_months),

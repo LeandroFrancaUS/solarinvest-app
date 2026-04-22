@@ -533,7 +533,6 @@ function EditarTab({
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
-  const [showAddUcPlaceholder, setShowAddUcPlaceholder] = useState(false)
   const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
   const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
@@ -588,8 +587,8 @@ function EditarTab({
         client_address: form.client_address || undefined,
         distribuidora: form.distribuidora || undefined,
         uc_geradora: form.uc_geradora || undefined,
-        uc_beneficiaria: beneficiaryUCs[0] || undefined,
-        uc_beneficiarias: beneficiaryUCs.length > 0 ? beneficiaryUCs : undefined,
+        uc_beneficiaria: beneficiaryUCs[0] ?? null,
+        uc_beneficiarias: beneficiaryUCs,
         consumption_kwh_month: form.consumption_kwh_month !== '' ? Number(form.consumption_kwh_month) : undefined,
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : undefined,
         term_months: form.term_months !== '' ? Number(form.term_months) : undefined,
@@ -614,7 +613,6 @@ function EditarTab({
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
       })
       setEditMode(false)
-      setShowAddUcPlaceholder(false)
     } catch {
       onToast('Não foi possível salvar as alterações do cliente.', 'error')
     } finally {
@@ -682,25 +680,26 @@ function EditarTab({
             <label className="pf-label" style={labelStyle}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span>UC Geradora</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!editMode) return
-                    setShowUcBeneficiariaField(true)
-                    setShowAddUcPlaceholder(true)
-                    setForm((prev) => (
-                      prev.uc_beneficiarias.length > 0
-                        ? prev
-                        : { ...prev, uc_beneficiarias: [''] }
-                    ))
-                  }}
-                  disabled={!editMode}
-                  className="pf-uc-add-btn"
-                  aria-label="Adicionar UC beneficiária"
-                  title="Adicionar UC beneficiária"
-                >
-                  +
-                </button>
+                {form.uc_beneficiarias.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editMode) return
+                      setShowUcBeneficiariaField(true)
+                      setForm((prev) => (
+                        prev.uc_beneficiarias.length > 0
+                          ? prev
+                          : { ...prev, uc_beneficiarias: [''] }
+                      ))
+                    }}
+                    disabled={!editMode}
+                    className="pf-uc-add-btn"
+                    aria-label="Adicionar UC beneficiária"
+                    title="Adicionar UC beneficiária"
+                  >
+                    +
+                  </button>
+                )}
               </span>
               <input type="text" value={form.uc_geradora} onChange={(e) => setForm((f) => ({ ...f, uc_geradora: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
@@ -709,7 +708,7 @@ function EditarTab({
                 {form.uc_beneficiarias.map((uc, index) => (
                   <label key={`uc-beneficiaria-${index}`} className="pf-label" style={labelStyle}>
                     {`UC Beneficiária ${index + 1}`}
-                    <div style={{ display: 'grid', gridTemplateColumns: editMode ? '1fr auto' : '1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: editMode && index === form.uc_beneficiarias.length - 1 ? '1fr auto auto' : '1fr', gap: 8 }}>
                       <input
                         type="text"
                         value={uc}
@@ -722,44 +721,43 @@ function EditarTab({
                         disabled={!editMode}
                         style={inputStyle}
                       />
-                      {editMode && form.uc_beneficiarias.length > 1 && (
+                      {editMode && index === form.uc_beneficiarias.length - 1 && (
                         <button
                           type="button"
                           onClick={() => setForm((prev) => ({
                             ...prev,
-                            uc_beneficiarias: prev.uc_beneficiarias.filter((_, itemIndex) => itemIndex !== index),
+                            uc_beneficiarias: [...prev.uc_beneficiarias, ''],
                           }))}
-                          className="pf-row-btn pf-row-btn-delete"
-                          aria-label={`Remover UC beneficiária ${index + 1}`}
-                          title={`Remover UC beneficiária ${index + 1}`}
+                          className="pf-uc-add-secondary-btn"
+                          aria-label="Adicionar UC beneficiária"
+                          title="Adicionar UC beneficiária"
                         >
-                          Remover
+                          +
+                        </button>
+                      )}
+                      {editMode && index === form.uc_beneficiarias.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => {
+                            const nextBeneficiaryUCs = prev.uc_beneficiarias.filter((_, itemIndex) => itemIndex !== index)
+                            if (nextBeneficiaryUCs.length === 0) {
+                              setShowUcBeneficiariaField(false)
+                            }
+                            return { ...prev, uc_beneficiarias: nextBeneficiaryUCs }
+                          })}
+                          className="pf-uc-add-secondary-btn"
+                          aria-label="Remover última UC beneficiária"
+                          title="Remover última UC beneficiária"
+                        >
+                          -
                         </button>
                       )}
                     </div>
                   </label>
                 ))}
-                {editMode && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((prev) => ({
-                      ...prev,
-                      uc_beneficiarias: [...prev.uc_beneficiarias, ''],
-                    }))}
-                    className="pf-uc-add-secondary-btn"
-                    aria-label="Adicionar outra UC beneficiária"
-                  >
-                    + Adicionar outra UC beneficiária
-                  </button>
-                )}
               </div>
             )}
           </div>
-          {showAddUcPlaceholder && editMode && (
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
-              Em breve será possível adicionar múltiplas UCs beneficiárias.
-            </p>
-          )}
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
               Consumo (kWh/mês)
@@ -793,7 +791,6 @@ function EditarTab({
         {editMode && (
           <button type="button" onClick={() => {
             setEditMode(false)
-            setShowAddUcPlaceholder(false)
             setShowUcBeneficiariaField(hasUcBeneficiaria)
             resetForm()
           }}
