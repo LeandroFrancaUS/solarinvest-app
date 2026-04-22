@@ -148,7 +148,7 @@ export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' 
   const firstName = getFirstName(fullName)
   if (firstName) return firstName
   if (fullName) return fullName
-  const email = (c as { email?: string }).email?.trim() ?? ''
+  const email = c.email?.trim() ?? ''
   return email || 'Consultor não informado'
 }
 
@@ -164,7 +164,7 @@ export function formatConsultantOptionLabel(c: Pick<ConsultantPickerEntry, 'full
   if (nickname && fullName) return `(${nickname}) ${fullName}`
   if (nickname) return nickname
   if (fullName) return fullName
-  const email = (c as { email?: string }).email?.trim() ?? ''
+  const email = c.email?.trim() ?? ''
   return email || 'Consultor sem nome'
 }
 
