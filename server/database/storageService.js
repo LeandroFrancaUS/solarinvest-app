@@ -1,12 +1,63 @@
 import { createUserScopedSql } from './withRLSContext.js'
+import { gunzipSync, gzipSync } from 'node:zlib'
 
 const DEFAULT_USER_ID = 'default'
+const MAX_STORAGE_VALUE_BYTES = 5 * 1024 * 1024
+const STORAGE_COMPRESSION_MARKER = '__si_compression'
+const STORAGE_COMPRESSION_TYPE = 'gzip-base64'
+const STORAGE_COMPRESSION_DATA_KEY = 'data'
+
+function getUtf8Bytes(value) {
+  return Buffer.byteLength(value, 'utf8')
+}
+
+function decodeCompressedEnvelope(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+  if (raw[STORAGE_COMPRESSION_MARKER] !== STORAGE_COMPRESSION_TYPE) {
+    return null
+  }
+  const data = raw[STORAGE_COMPRESSION_DATA_KEY]
+  if (typeof data !== 'string' || data.length === 0) {
+    return null
+  }
+
+  try {
+    const gunzipped = gunzipSync(Buffer.from(data, 'base64')).toString('utf8')
+    return JSON.parse(gunzipped)
+  } catch {
+    return null
+  }
+}
+
+function encodeCompressedEnvelope(raw) {
+  const json = JSON.stringify(raw)
+  if (!json) {
+    return raw
+  }
+
+  try {
+    const compressedBase64 = gzipSync(Buffer.from(json, 'utf8')).toString('base64')
+    const envelope = {
+      [STORAGE_COMPRESSION_MARKER]: STORAGE_COMPRESSION_TYPE,
+      [STORAGE_COMPRESSION_DATA_KEY]: compressedBase64,
+    }
+    return JSON.stringify(envelope).length < json.length ? envelope : raw
+  } catch {
+    return raw
+  }
+}
 
 function normalizeJsonValue(raw) {
   if (raw === null || raw === undefined) {
     return null
   }
   if (typeof raw === 'object') {
+    const decoded = decodeCompressedEnvelope(raw)
+    if (decoded !== null) {
+      return decoded
+    }
     return raw
   }
   if (typeof raw === 'string') {
@@ -187,7 +238,13 @@ export class StorageService {
     await this.ensureInitialized()
     const { userId, userRole } = this.resolveRlsContext(context)
     const normalizedValue = value === undefined ? null : value
-    const serializedValue = normalizedValue === null ? null : JSON.stringify(normalizedValue)
+    const compressedValue = normalizedValue === null ? null : encodeCompressedEnvelope(normalizedValue)
+    const serializedValue = compressedValue === null ? null : JSON.stringify(compressedValue)
+    if (serializedValue && getUtf8Bytes(serializedValue) > MAX_STORAGE_VALUE_BYTES) {
+      const error = new Error('STORAGE_PAYLOAD_TOO_LARGE')
+      error.code = 'STORAGE_PAYLOAD_TOO_LARGE'
+      throw error
+    }
     const scopedSql = createUserScopedSql(this.sql, { userId, role: userRole })
 
     await scopedSql`
