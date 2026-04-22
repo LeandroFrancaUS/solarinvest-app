@@ -183,6 +183,8 @@ export interface ContractAttachment {
   url?: string | null
   storageKey?: string | null
   uploadedAt?: string | null
+  category?: string | null
+  origin?: string | null
 }
 
 export interface ClientNote {
