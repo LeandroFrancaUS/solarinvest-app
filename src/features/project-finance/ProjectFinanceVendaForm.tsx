@@ -201,11 +201,11 @@ export function ProjectFinanceVendaForm({ form, setField }: Props) {
         <FieldNumber
           id="pf-venda-financeiro"
           label="Custo financeiro"
-          unit="R$"
+          unit="%"
           value={form.custo_financeiro_pct}
           onChange={(v) => setField('custo_financeiro_pct', v ?? undefined)}
           step={0.01}
-          hint="(% sobre venda)"
+          hint="(sobre venda)"
         />
         <FieldNumber
           id="pf-venda-diversos"

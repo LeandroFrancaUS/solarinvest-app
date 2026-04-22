@@ -139,7 +139,7 @@ export function ProjectFinanceSection({ projectId }: Props) {
             isDirty={isDirty}
             error={error}
             setField={setField}
-            onSave={() => { void handleSave() }}
+          onSave={handleSave}
             onCancel={handleCancel}
           />
         ) : null}
