@@ -4,6 +4,8 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import '../styles/financial-management.css'
+import '../styles/financial-import.css'
+import { FinancialImportModal } from '../components/financial-import/FinancialImportModal'
 import {
   fetchFinancialSummary,
   fetchFinancialProjects,
@@ -629,6 +631,7 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Sub-navigation: drill into a project detail without leaving the financial page.
   const [detailProjectId, setDetailProjectId] = useState<string | null>(initialProjectId ?? null)
@@ -731,6 +734,12 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
 
   return (
     <div className="fm-page">
+      {showImportModal && (
+        <FinancialImportModal
+          onClose={() => setShowImportModal(false)}
+          onImportComplete={() => { void loadData() }}
+        />
+      )}
       {/* Header */}
       <div className="fm-page-header">
         <div className="fm-page-header-left">
@@ -743,6 +752,17 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
           </div>
         </div>
         <div className="fm-page-header-right">
+          <button
+            type="button"
+            className="primary fm-import-btn"
+            onClick={() => {
+              console.log('[fm-import] button clicked — opening modal')
+              setShowImportModal(true)
+            }}
+            title="Importar dados via planilha Excel (.xlsx)"
+          >
+            📥 Importar Excel
+          </button>
           <div className="fm-period-filters">
             {(['month', 'quarter', 'year', 'custom'] as PeriodFilter[]).map((p) => (
               <button
