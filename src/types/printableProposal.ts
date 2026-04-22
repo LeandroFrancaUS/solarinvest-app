@@ -72,7 +72,8 @@ export type PrintableProposalImage = {
 
 export type ClienteDados = {
   nome: string
-  apelido: string
+  /** @deprecated Not shown in the proposal form since PR5. Kept as optional for backward-compat reading of old records. */
+  apelido?: string
   documento: string
   rg: string
   estadoCivil: string

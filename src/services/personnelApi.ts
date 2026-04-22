@@ -138,27 +138,34 @@ export function getFirstName(fullName: string): string {
 
 /**
  * Returns the display name for a consultant in closed/read-view fields.
- * Priority: apelido → first name → full_name → fallback.
+ * Priority: apelido → first name → full_name → email → fallback.
  * This ensures proposals and client portfolio show a short, friendly name.
  */
-export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+export function consultorDisplayName(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'> & { email?: string }): string {
   const nickname = c.apelido?.trim() ?? ''
   if (nickname) return nickname
   const fullName = c.full_name?.trim() ?? ''
   const firstName = getFirstName(fullName)
-  return firstName || fullName || 'Consultor não informado'
+  if (firstName) return firstName
+  if (fullName) return fullName
+  const email = (c as { email?: string }).email?.trim() ?? ''
+  return email || 'Consultor não informado'
 }
 
 /**
  * Returns the label for a consultant dropdown option.
  * Format: `(apelido) full_name` when apelido is set, otherwise `full_name`.
+ * Falls back to email or a placeholder when neither name field is available.
  * Example: `(Kim) Joaquim Amarildo de Oliveira`
  */
-export function formatConsultantOptionLabel(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'>): string {
+export function formatConsultantOptionLabel(c: Pick<ConsultantPickerEntry, 'full_name' | 'apelido'> & { email?: string }): string {
   const nickname = c.apelido?.trim() ?? ''
   const fullName = c.full_name?.trim() ?? ''
-  if (nickname) return `(${nickname}) ${fullName}`
-  return fullName
+  if (nickname && fullName) return `(${nickname}) ${fullName}`
+  if (nickname) return nickname
+  if (fullName) return fullName
+  const email = (c as { email?: string }).email?.trim() ?? ''
+  return email || 'Consultor sem nome'
 }
 
 /**

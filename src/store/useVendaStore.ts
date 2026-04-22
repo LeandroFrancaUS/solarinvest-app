@@ -8,7 +8,8 @@ export type ModoVenda = 'direta' | 'leasing'
 
 export type VendaClienteInfo = {
   nome: string
-  apelido: string
+  /** @deprecated Not shown in the proposal form since PR5. Kept as optional for backward-compat reading of old records. */
+  apelido?: string
   documento: string
   email: string
   telefone: string
@@ -130,7 +131,6 @@ const canUseSessionStorage = (): boolean =>
 const createInitialState = (): VendaState => ({
   cliente: {
     nome: '',
-    apelido: '',
     documento: '',
     email: '',
     telefone: '',
