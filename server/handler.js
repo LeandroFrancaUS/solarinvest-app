@@ -120,6 +120,11 @@ import {
   handleProjectFromPlan,
 } from './projects/handler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
+import {
+  handleFinancialImportParse,
+  handleFinancialImportConfirm,
+  handleFinancialImportBatches,
+} from './financial-import/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1355,6 +1360,32 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleProjectsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // ── Financial Import (Excel) ──────────────────────────────────────────────
+    // POST /api/financial-import/parse   — upload XLSX → preview
+    // POST /api/financial-import/confirm — upload XLSX → full import
+    // GET  /api/financial-import/batches — list recent batches (audit log)
+
+    if (pathname === '/api/financial-import/parse') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialImportParse(req, res, { method, sendJson: sj })
+      return
+    }
+
+    if (pathname === '/api/financial-import/confirm') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialImportConfirm(req, res, { method, sendJson: sj })
+      return
+    }
+
+    if (pathname === '/api/financial-import/batches') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleFinancialImportBatches(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
       return
     }
 

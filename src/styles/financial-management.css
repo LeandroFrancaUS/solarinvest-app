@@ -808,3 +808,10 @@
     flex-direction: column;
   }
 }
+
+/* ── Import Excel button ─────────────────────────────────────────────────── */
+.fm-import-btn {
+  font-size: 0.85rem;
+  padding: 7px 14px;
+  white-space: nowrap;
+}
