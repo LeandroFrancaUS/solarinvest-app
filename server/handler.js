@@ -152,7 +152,7 @@ const MIME_TYPES = {
 
 const STORAGE_API_PATH = '/api/storage'
 const TEST_API_PATH = '/api/test'
-const MAX_JSON_BODY_BYTES = 256 * 1024
+const MAX_JSON_BODY_BYTES = 5 * 1024 * 1024
 const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
 
@@ -269,7 +269,9 @@ const readJsonBody = async (req) => {
     req.on('data', (chunk) => {
       totalLength += chunk.length
       if (totalLength > MAX_JSON_BODY_BYTES) {
-        reject(new Error('Payload acima do limite permitido.'))
+        const error = new Error('Payload acima do limite permitido.')
+        error.code = 'PAYLOAD_TOO_LARGE'
+        reject(error)
         return
       }
       accumulated += chunk
@@ -279,7 +281,9 @@ const readJsonBody = async (req) => {
       try {
         resolve(JSON.parse(accumulated))
       } catch {
-        reject(new Error('JSON inválido na requisição.'))
+        const error = new Error('JSON inválido na requisição.')
+        error.code = 'INVALID_JSON'
+        reject(error)
       }
     })
     req.on('error', reject)
@@ -675,7 +679,20 @@ export default async function handler(req, res) {
       }
 
       if (method === 'PUT' || method === 'POST') {
-        const body = await readJsonBody(req)
+        let body = {}
+        try {
+          body = await readJsonBody(req)
+        } catch (parseError) {
+          if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
+            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+            return
+          }
+          if (parseError?.code === 'INVALID_JSON') {
+            sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
+            return
+          }
+          throw parseError
+        }
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         const value = body.value === undefined ? null : body.value
         if (!key) return sendJson(res, 400, { ok: false, code: 'VALIDATION_ERROR', message: 'Chave de armazenamento inválida.' })
@@ -684,6 +701,10 @@ export default async function handler(req, res) {
           await storageService.setEntry({ userId, userRole: resolvedRole }, key, value)
           sendNoContent(res)
         } catch (storageErr) {
+          if (storageErr?.code === 'STORAGE_PAYLOAD_TOO_LARGE') {
+            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+            return
+          }
           console.error('[storage] failed', {
             userId,
             userRole: resolvedRole,
@@ -696,7 +717,20 @@ export default async function handler(req, res) {
       }
 
       if (method === 'DELETE') {
-        const body = await readJsonBody(req)
+        let body = {}
+        try {
+          body = await readJsonBody(req)
+        } catch (parseError) {
+          if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
+            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+            return
+          }
+          if (parseError?.code === 'INVALID_JSON') {
+            sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
+            return
+          }
+          throw parseError
+        }
         const key = typeof body.key === 'string' ? body.key.trim() : ''
         try {
           if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })

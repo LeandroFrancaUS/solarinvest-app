@@ -41,6 +41,9 @@ const cache = new Map<string, string>()
 const pendingUploads = new Map<string, AbortController>()
 let syncEnabled = true
 let initializationWaitPromise: Promise<void> | null = null
+const STORAGE_COMPRESSION_MARKER = '__si_compression'
+const STORAGE_COMPRESSION_TYPE = 'gzip-base64'
+const STORAGE_COMPRESSION_DATA_KEY = 'data'
 
 /**
  * Optional Bearer-token provider for Stack Auth.
@@ -148,7 +151,7 @@ function handleSyncSuccess(): void {
 }
 
 /** Maximum safe body size for a single /api/storage PUT request. */
-const SAFE_STORAGE_PAYLOAD_BYTES = 250_000
+const SAFE_STORAGE_PAYLOAD_BYTES = 5_000_000
 
 /** Returns the byte size of the serialised JSON. */
 const getJsonSizeBytes = (str: string): number => {
@@ -160,6 +163,51 @@ const getJsonSizeBytes = (str: string): number => {
   } catch {
     return str.length * 2
   }
+}
+
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+  return btoa(binary)
+}
+
+const gzipStringToBase64 = async (value: string): Promise<string | null> => {
+  if (typeof CompressionStream === 'undefined') {
+    return null
+  }
+
+  try {
+    const stream = new CompressionStream('gzip')
+    const writer = stream.writable.getWriter()
+    writer.write(new TextEncoder().encode(value))
+    await writer.close()
+
+    const compressedBuffer = await new Response(stream.readable).arrayBuffer()
+    return bytesToBase64(new Uint8Array(compressedBuffer))
+  } catch {
+    return null
+  }
+}
+
+const encodeValueForTransport = async (value: string): Promise<unknown> => {
+  const compressed = await gzipStringToBase64(value)
+  if (!compressed) {
+    return value
+  }
+
+  const compressedEnvelope = {
+    [STORAGE_COMPRESSION_MARKER]: STORAGE_COMPRESSION_TYPE,
+    [STORAGE_COMPRESSION_DATA_KEY]: compressed,
+  }
+
+  const compressedSize = getJsonSizeBytes(JSON.stringify(compressedEnvelope))
+  const rawSize = getJsonSizeBytes(value)
+
+  return compressedSize < rawSize ? compressedEnvelope : value
 }
 
 const persistPut = (key: string, value: string) => {
@@ -182,11 +230,11 @@ const persistPut = (key: string, value: string) => {
   }
   pendingUploads.set(key, controller)
 
-  void buildHeaders().then((headers) =>
+  void Promise.all([buildHeaders(), encodeValueForTransport(value)]).then(([headers, encodedValue]) =>
     fetch(STORAGE_ENDPOINT, {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ key, value }),
+      body: JSON.stringify({ key, value: encodedValue }),
       credentials: 'include',
       signal: controller.signal,
     }),
@@ -289,10 +337,11 @@ export const persistRemoteStorageEntry = async (
   }
 
   const headers = await buildHeaders()
+  const encodedValue = await encodeValueForTransport(value)
   await fetch(STORAGE_ENDPOINT, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ key, value }),
+    body: JSON.stringify({ key, value: encodedValue }),
     credentials: 'include',
   })
 }

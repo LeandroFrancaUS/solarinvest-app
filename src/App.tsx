@@ -1922,37 +1922,47 @@ const isQuotaExceededError = (error: unknown) => {
   return false
 }
 
-const persistBudgetsToLocalStorage = (
-  registros: OrcamentoSalvo[],
-): { persisted: OrcamentoSalvo[]; pruned: OrcamentoSalvo[] } => {
+const persistWithFallback = <T,>(
+  key: string,
+  registros: T[],
+  options: {
+    serialize: (items: T[]) => string
+    reduce: (items: T[]) => T[] | null
+  },
+): { persisted: T[]; droppedCount: number } => {
   if (typeof window === 'undefined') {
-    return { persisted: registros, pruned: [] }
+    return { persisted: registros, droppedCount: 0 }
   }
 
   if (registros.length === 0) {
-    window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
-    return { persisted: [], pruned: [] }
+    window.localStorage.removeItem(key)
+    return { persisted: [], droppedCount: 0 }
   }
 
   const working = [...registros]
-  const pruned: OrcamentoSalvo[] = []
+  let droppedCount = 0
   let lastError: unknown = null
 
-  while (working.length > 0) {
+  while (working.length >= 0) {
     try {
-      window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(working))
-      return { persisted: working, pruned }
+      if (working.length === 0) {
+        window.localStorage.removeItem(key)
+      } else {
+        window.localStorage.setItem(key, options.serialize(working))
+      }
+      return { persisted: working, droppedCount }
     } catch (error) {
       lastError = error
       if (!isQuotaExceededError(error)) {
         throw error
       }
 
-      const removed = working.pop()
-      if (!removed) {
+      const next = options.reduce(working)
+      if (!next) {
         break
       }
-      pruned.push(removed)
+      droppedCount += Math.max(0, working.length - next.length)
+      working.splice(0, working.length, ...next)
     }
   }
 
@@ -1963,15 +1973,42 @@ const persistBudgetsToLocalStorage = (
   throw new Error('Falha ao salvar orçamentos no armazenamento local.')
 }
 
-const alertPrunedBudgets = (pruned: OrcamentoSalvo[]) => {
-  if (typeof window === 'undefined' || pruned.length === 0) {
+const persistBudgetsToLocalStorage = (
+  registros: OrcamentoSalvo[],
+): { persisted: OrcamentoSalvo[]; droppedCount: number } =>
+  persistWithFallback(BUDGETS_STORAGE_KEY, registros, {
+    serialize: (items) => JSON.stringify(items),
+    reduce: (items) => items.slice(0, -1),
+  })
+
+const persistClientesToLocalStorage = (
+  registros: ClienteRegistro[],
+): { persisted: ClienteRegistro[]; droppedCount: number } => {
+  let strippedSnapshots = false
+  return persistWithFallback(CLIENTES_STORAGE_KEY, registros, {
+    serialize: (items) => (strippedSnapshots ? JSON.stringify(items) : serializeClientesForStorage(items)),
+    reduce: (items) => {
+      if (!strippedSnapshots) {
+        strippedSnapshots = true
+        return items.map((registro) => {
+          const { propostaSnapshot: _propostaSnapshot, ...rest } = registro
+          return rest as ClienteRegistro
+        })
+      }
+      return items.slice(0, -1)
+    },
+  })
+}
+
+const alertPrunedBudgets = (droppedCount: number) => {
+  if (typeof window === 'undefined' || droppedCount === 0) {
     return
   }
 
   const mensagem =
-    pruned.length === 1
+    droppedCount === 1
       ? 'O armazenamento local estava cheio. O orçamento mais antigo foi removido para salvar a versão atual.'
-      : `O armazenamento local estava cheio. ${pruned.length} orçamentos antigos foram removidos para salvar a versão atual.`
+      : `O armazenamento local estava cheio. ${droppedCount} orçamentos antigos foram removidos para salvar a versão atual.`
 
   window.alert(mensagem)
 }
@@ -12873,7 +12910,7 @@ export default function App() {
 
       if (houveAtualizacaoIds) {
         try {
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
+          persistClientesToLocalStorage(registros)
         } catch (error) {
           console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
         }
@@ -13013,7 +13050,7 @@ export default function App() {
         }
       }
       // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(filteredRegistros)) } catch {}
+      try { persistClientesToLocalStorage(filteredRegistros) } catch {}
       setClientsSyncState('online-db')
       setClientsSource('api')
       setLastSuccessfulApiLoadAt(Date.now())
@@ -13059,7 +13096,7 @@ export default function App() {
             ? oneDrivePayload
             : JSON.stringify(oneDrivePayload)
         const registros = parseClientesSalvos(raw)
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
+        persistClientesToLocalStorage(registros)
         const reconciled = registros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
         setClientsSource('server-storage')
         console.info('[clients][load] source', {
@@ -13119,7 +13156,7 @@ export default function App() {
       if (typeof window !== 'undefined') {
         try {
           if (registros.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registros))
+            persistClientesToLocalStorage(registros)
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
@@ -15565,7 +15602,7 @@ export default function App() {
       )
 
       try {
-        window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(combinados))
+        persistClientesToLocalStorage(combinados)
       } catch (error) {
         if (isQuotaExceededError(error)) {
           try {
@@ -16494,41 +16531,19 @@ export default function App() {
     // warnings only.  User-visible warnings are reserved for offline / degraded mode
     // where localStorage really is the primary store.
     try {
-      window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(ordenados))
-    } catch (error) {
-      if (isQuotaExceededError(error)) {
-        // Quota full — attempt progressive pruning: first drop snapshots entirely,
-        // then drop old records until it fits or we run out of options.
-        try {
-          const ultraLite = ordenados.map((r) => ({ ...r, propostaSnapshot: undefined }))
-          window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(ultraLite))
-          console.warn('[ClienteSave] localStorage quota tight — saved without snapshots')
-        } catch {
-          try {
-            // Last resort: keep only the 5 most recently updated records without snapshots
-            const recent = ordenados.slice(0, 5).map((r) => ({ ...r, propostaSnapshot: undefined }))
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, JSON.stringify(recent))
-            console.warn('[ClienteSave] localStorage quota critical — saved only 5 most recent records; data is safe on server')
-            // Only surface to the user when the server is unavailable — in that case the
-            // local cache is the only copy and the user needs to know it was trimmed.
-            if (!syncedToBackend) {
-              localSaveWarning =
-                'Dados salvos localmente com espaço reduzido. Alguns registros antigos foram removidos do cache do navegador.'
-            }
-          } catch (finalError) {
-            console.error('[ClienteSave] localStorage save failed even after pruning.', finalError)
-            if (!syncedToBackend) {
-              localSaveWarning =
-                'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
-            }
-          }
-        }
-      } else {
-        console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
+      const { droppedCount } = persistClientesToLocalStorage(ordenados)
+      if (droppedCount > 0) {
+        console.warn(`[ClienteSave] localStorage quota tight — pruned ${droppedCount} registro(s) do cache`)
         if (!syncedToBackend) {
           localSaveWarning =
-            'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
+            'Dados salvos localmente com espaço reduzido. Alguns registros antigos foram removidos do cache do navegador.'
         }
+      }
+    } catch (error) {
+      console.warn('[ClienteSave] non-quota localStorage error — backend save already confirmed; proceeding without local cache', error)
+      if (!syncedToBackend) {
+        localSaveWarning =
+          'Não foi possível salvar localmente. Seus dados foram enviados ao servidor mas podem não estar disponíveis offline.'
       }
     }
 
@@ -16870,7 +16885,7 @@ export default function App() {
         // Cache update is best-effort and must never revert a successful backend operation.
         try {
           if (registrosAtualizados.length > 0) {
-            window.localStorage.setItem(CLIENTES_STORAGE_KEY, serializeClientesForStorage(registrosAtualizados))
+            persistClientesToLocalStorage(registrosAtualizados)
           } else {
             window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
           }
@@ -17977,9 +17992,9 @@ export default function App() {
             registroAtualizado,
             ...registrosExistentes.filter((_, index) => index !== registroExistenteIndex),
           ]
-          const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+          const { persisted, droppedCount } = persistBudgetsToLocalStorage(registrosAtualizados)
           setOrcamentosSalvos(persisted)
-          alertPrunedBudgets(pruned)
+          alertPrunedBudgets(droppedCount)
           void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
           void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
             if (error instanceof OneDriveIntegrationMissingError) {
@@ -18030,9 +18045,9 @@ export default function App() {
 
         existingIds.add(registro.id)
         const registrosAtualizados = [registro, ...registrosExistentes]
-        const { persisted, pruned } = persistBudgetsToLocalStorage(registrosAtualizados)
+        const { persisted, droppedCount } = persistBudgetsToLocalStorage(registrosAtualizados)
         setOrcamentosSalvos(persisted)
-        alertPrunedBudgets(pruned)
+        alertPrunedBudgets(droppedCount)
         void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
         void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
           if (error instanceof OneDriveIntegrationMissingError) {
