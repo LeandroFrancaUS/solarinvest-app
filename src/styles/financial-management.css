@@ -727,6 +727,15 @@
   color: var(--text-muted, #64748b);
 }
 
+.fm-field-hint {
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 2px;
+}
+
 .fm-detail-field-value {
   font-size: 14px;
   color: var(--text-primary, #0f172a);

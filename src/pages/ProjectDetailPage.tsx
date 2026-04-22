@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 // Gestão Financeira > Projetos > Detalhe do Projeto.
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import '../styles/financial-management.css'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { patchProjectPvData } from '../services/projectsApi'
@@ -12,6 +12,12 @@ import {
   PROJECT_STATUS_LABELS as PORTFOLIO_PROJECT_STATUS_LABELS,
 } from '../shared/projects/portfolioProjectOps'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
+import {
+  computeLeasingFinancialSummary,
+  computeVendaFinancialSummary,
+  LeasingFinancialCore,
+  VendaFinancialCore,
+} from '../features/financial-engine'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -234,29 +240,61 @@ function ProjetoSection({ projectId }: ProjetoSectionProps) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PR 4: Usina Fotovoltaica Section (display + inline edit)
+// State uses canonical number|null — no string conversions in form data.
+// potencia_sistema_kwp is auto-computed from numero_modulos × potencia_modulo_wp.
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface UsinaFormState {
-  consumo_kwh_mes: string
-  potencia_modulo_wp: string
-  numero_modulos: string
+// Standard module power options (Wp) — reused from UfConfigurationFields
+const POTENCIA_MODULO_OPTIONS: number[] = [
+  440, 450, 455, 460, 465, 470, 475, 480, 505, 540, 545, 550, 555, 560, 565,
+  570, 575, 580, 585, 590, 595, 600, 605, 610, 615, 620, 625, 630, 635, 640,
+  645, 650, 655, 660, 665, 670, 700,
+]
+
+const TIPO_REDE_OPTIONS = [
+  { value: '', label: 'Selecione…' },
+  { value: 'monofasico', label: 'Monofásico' },
+  { value: 'bifasico', label: 'Bifásico' },
+  { value: 'trifasico', label: 'Trifásico' },
+] as const
+
+const TIPO_REDE_LABELS: Record<string, string> = {
+  monofasico: 'Monofásico',
+  bifasico: 'Bifásico',
+  trifasico: 'Trifásico',
+}
+
+// Canonical number|null form data — no string state
+interface UsinaFormData {
+  consumo_kwh_mes: number | null
+  potencia_modulo_wp: number | null
+  numero_modulos: number | null
   tipo_rede: string
-  potencia_sistema_kwp: string
-  geracao_estimada_kwh_mes: string
-  area_utilizada_m2: string
+  potencia_sistema_kwp: number | null // auto-computed
+  geracao_estimada_kwh_mes: number | null
+  area_utilizada_m2: number | null
   modelo_modulo: string
   modelo_inversor: string
 }
 
-function pvDataToForm(pv: ProjectPvData | null): UsinaFormState {
+/** Auto-computes system power from number of modules and module wattage. */
+function calcPotenciaSistema(
+  nModulos: number | null,
+  potModuloWp: number | null,
+): number | null {
+  if (nModulos == null || potModuloWp == null || nModulos <= 0 || potModuloWp <= 0) return null
+  return (nModulos * potModuloWp) / 1000
+}
+
+function pvDataToForm(pv: ProjectPvData | null): UsinaFormData {
   return {
-    consumo_kwh_mes: pv?.consumo_kwh_mes != null ? String(pv.consumo_kwh_mes) : '',
-    potencia_modulo_wp: pv?.potencia_modulo_wp != null ? String(pv.potencia_modulo_wp) : '',
-    numero_modulos: pv?.numero_modulos != null ? String(pv.numero_modulos) : '',
+    consumo_kwh_mes: pv?.consumo_kwh_mes ?? null,
+    potencia_modulo_wp: pv?.potencia_modulo_wp ?? null,
+    numero_modulos: pv?.numero_modulos ?? null,
     tipo_rede: pv?.tipo_rede ?? '',
-    potencia_sistema_kwp: pv?.potencia_sistema_kwp != null ? String(pv.potencia_sistema_kwp) : '',
-    geracao_estimada_kwh_mes: pv?.geracao_estimada_kwh_mes != null ? String(pv.geracao_estimada_kwh_mes) : '',
-    area_utilizada_m2: pv?.area_utilizada_m2 != null ? String(pv.area_utilizada_m2) : '',
+    potencia_sistema_kwp: pv?.potencia_sistema_kwp ?? null,
+    geracao_estimada_kwh_mes: pv?.geracao_estimada_kwh_mes ?? null,
+    area_utilizada_m2: pv?.area_utilizada_m2 ?? null,
     modelo_modulo: pv?.modelo_modulo ?? '',
     modelo_inversor: pv?.modelo_inversor ?? '',
   }
@@ -272,7 +310,7 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
   const pv = cached?.pv_data ?? null
 
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<UsinaFormState>(() => pvDataToForm(pv))
+  const [form, setForm] = useState<UsinaFormData>(() => pvDataToForm(pv))
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -293,23 +331,30 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
     setSaveError(null)
   }, [])
 
-  const setField = useCallback((field: keyof UsinaFormState, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
+  // setField handles auto-computation of potencia_sistema_kwp
+  const setField = useCallback(<K extends keyof UsinaFormData>(key: K, value: UsinaFormData[K]) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value }
+      // Re-compute system power whenever module count or wattage changes
+      if (key === 'numero_modulos' || key === 'potencia_modulo_wp') {
+        next.potencia_sistema_kwp = calcPotenciaSistema(next.numero_modulos, next.potencia_modulo_wp)
+      }
+      return next
+    })
   }, [])
 
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     setSaveError(null)
     try {
-      const toNum = (v: string) => v.trim() === '' ? null : Number(v)
       await patchProjectPvData(projectId, {
-        consumo_kwh_mes: toNum(form.consumo_kwh_mes),
-        potencia_modulo_wp: toNum(form.potencia_modulo_wp),
-        numero_modulos: toNum(form.numero_modulos),
-        tipo_rede: form.tipo_rede.trim() || null,
-        potencia_sistema_kwp: toNum(form.potencia_sistema_kwp),
-        geracao_estimada_kwh_mes: toNum(form.geracao_estimada_kwh_mes),
-        area_utilizada_m2: toNum(form.area_utilizada_m2),
+        consumo_kwh_mes: form.consumo_kwh_mes,
+        potencia_modulo_wp: form.potencia_modulo_wp,
+        numero_modulos: form.numero_modulos,
+        tipo_rede: form.tipo_rede || null,
+        potencia_sistema_kwp: form.potencia_sistema_kwp,
+        geracao_estimada_kwh_mes: form.geracao_estimada_kwh_mes,
+        area_utilizada_m2: form.area_utilizada_m2,
         modelo_modulo: form.modelo_modulo.trim() || null,
         modelo_inversor: form.modelo_inversor.trim() || null,
       })
@@ -332,30 +377,152 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
     return (
       <Section icon="☀️" title="Usina Fotovoltaica">
         <div className="fm-detail-grid fm-detail-grid--edit">
-          {([
-            { key: 'consumo_kwh_mes', label: 'Consumo (kWh/mês)', type: 'number' },
-            { key: 'potencia_modulo_wp', label: 'Potência do módulo (Wp)', type: 'number' },
-            { key: 'numero_modulos', label: 'Número de módulos', type: 'number' },
-            { key: 'tipo_rede', label: 'Tipo de rede', type: 'text' },
-            { key: 'potencia_sistema_kwp', label: 'Potência do sistema (kWp)', type: 'number' },
-            { key: 'geracao_estimada_kwh_mes', label: 'Geração estimada (kWh/mês)', type: 'number' },
-            { key: 'area_utilizada_m2', label: 'Área utilizada (m²)', type: 'number' },
-            { key: 'modelo_modulo', label: 'Modelo do módulo', type: 'text' },
-            { key: 'modelo_inversor', label: 'Modelo do inversor', type: 'text' },
-          ] as Array<{ key: keyof UsinaFormState; label: string; type: string }>).map(({ key, label, type }) => (
-            <div key={key} className="fm-detail-field fm-detail-field--edit">
-              <label className="fm-detail-field-label" htmlFor={`usina-${key}`}>{label}</label>
-              <input
-                id={`usina-${key}`}
-                className="fm-form-input"
-                type={type}
-                step={type === 'number' ? 'any' : undefined}
-                min={type === 'number' ? '0' : undefined}
-                value={form[key]}
-                onChange={(e) => setField(key, e.target.value)}
-              />
-            </div>
-          ))}
+
+          {/* Consumo */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-consumo">Consumo (kWh/mês)</label>
+            <input
+              id="usina-consumo"
+              className="fm-form-input"
+              type="number"
+              min="0"
+              step="any"
+              value={form.consumo_kwh_mes ?? ''}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                setField('consumo_kwh_mes', isNaN(v) ? null : v)
+              }}
+            />
+          </div>
+
+          {/* Potência do módulo — select with standard Wp values */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-pot-modulo">Potência do módulo (Wp)</label>
+            <select
+              id="usina-pot-modulo"
+              className="fm-form-select"
+              value={form.potencia_modulo_wp ?? ''}
+              onChange={(e) => {
+                const v = e.target.value === '' ? null : Number(e.target.value)
+                setField('potencia_modulo_wp', v)
+              }}
+            >
+              <option value="">Selecione…</option>
+              {POTENCIA_MODULO_OPTIONS.map((wp) => (
+                <option key={wp} value={wp}>{wp.toLocaleString('pt-BR')} Wp</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Número de módulos */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-n-modulos">Número de módulos</label>
+            <input
+              id="usina-n-modulos"
+              className="fm-form-input"
+              type="number"
+              min="1"
+              step="1"
+              value={form.numero_modulos ?? ''}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                setField('numero_modulos', isNaN(v) ? null : Math.trunc(v))
+              }}
+            />
+          </div>
+
+          {/* Tipo de rede — select */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-tipo-rede">Tipo de rede</label>
+            <select
+              id="usina-tipo-rede"
+              className="fm-form-select"
+              value={form.tipo_rede}
+              onChange={(e) => setField('tipo_rede', e.target.value)}
+            >
+              {TIPO_REDE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Potência do sistema — auto-computed, read-only */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-pot-sistema">
+              Potência do sistema (kWp)
+              <span className="fm-field-hint"> (auto)</span>
+            </label>
+            <input
+              id="usina-pot-sistema"
+              className="fm-form-input"
+              type="number"
+              readOnly
+              aria-readonly="true"
+              value={form.potencia_sistema_kwp != null
+                ? Number(form.potencia_sistema_kwp.toFixed(3))
+                : ''}
+              tabIndex={-1}
+            />
+          </div>
+
+          {/* Geração estimada */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-geracao">Geração estimada (kWh/mês)</label>
+            <input
+              id="usina-geracao"
+              className="fm-form-input"
+              type="number"
+              min="0"
+              step="any"
+              value={form.geracao_estimada_kwh_mes ?? ''}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                setField('geracao_estimada_kwh_mes', isNaN(v) ? null : v)
+              }}
+            />
+          </div>
+
+          {/* Área utilizada */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-area">Área utilizada (m²)</label>
+            <input
+              id="usina-area"
+              className="fm-form-input"
+              type="number"
+              min="0"
+              step="any"
+              value={form.area_utilizada_m2 ?? ''}
+              onChange={(e) => {
+                const v = e.target.valueAsNumber
+                setField('area_utilizada_m2', isNaN(v) ? null : v)
+              }}
+            />
+          </div>
+
+          {/* Modelo do módulo */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-modelo-modulo">Modelo do módulo</label>
+            <input
+              id="usina-modelo-modulo"
+              className="fm-form-input"
+              type="text"
+              value={form.modelo_modulo}
+              onChange={(e) => setField('modelo_modulo', e.target.value)}
+            />
+          </div>
+
+          {/* Modelo do inversor */}
+          <div className="fm-detail-field fm-detail-field--edit">
+            <label className="fm-detail-field-label" htmlFor="usina-modelo-inversor">Modelo do inversor</label>
+            <input
+              id="usina-modelo-inversor"
+              className="fm-form-input"
+              type="text"
+              value={form.modelo_inversor}
+              onChange={(e) => setField('modelo_inversor', e.target.value)}
+            />
+          </div>
+
         </div>
         {saveError ? (
           <div className="fm-error-banner fm-error-banner--inline" role="alert">⚠️ {saveError}</div>
@@ -379,7 +546,10 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
           <Field label="Consumo" value={fmtNum(pv.consumo_kwh_mes, 'kWh/mês')} />
           <Field label="Potência do módulo" value={fmtNum(pv.potencia_modulo_wp, 'Wp')} />
           <Field label="Número de módulos" value={fmtNum(pv.numero_modulos)} />
-          <Field label="Tipo de rede" value={pv.tipo_rede ?? '—'} />
+          <Field
+            label="Tipo de rede"
+            value={pv.tipo_rede ? (TIPO_REDE_LABELS[pv.tipo_rede] ?? pv.tipo_rede) : '—'}
+          />
           <Field label="Potência do sistema" value={fmtNum(pv.potencia_sistema_kwp, 'kWp')} />
           <Field label="Geração estimada" value={fmtNum(pv.geracao_estimada_kwh_mes, 'kWh/mês')} />
           <Field label="Área utilizada" value={fmtNum(pv.area_utilizada_m2, 'm²')} />
@@ -396,7 +566,7 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PR 4: Financeiro Section
+// PR 4: Financeiro Section — embeds the financial-engine core per project_type
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface FinanceiroSectionProps {
@@ -407,14 +577,32 @@ function FinanceiroSection({ projectId }: FinanceiroSectionProps) {
   const project = useProjectsStore((s) => s.cache[projectId]?.project ?? null)
   const pv = useProjectsStore((s) => s.cache[projectId]?.pv_data ?? null)
 
+  const [portfolioClient, setPortfolioClient] = useState<PortfolioClientRow | null>(null)
+  useEffect(() => {
+    if (!project?.client_id) return
+    void fetchPortfolioClient(project.client_id)
+      .then(setPortfolioClient)
+      .catch((err: unknown) => {
+        console.warn('[FinanceiroSection] failed to load portfolio client', err)
+      })
+  }, [project?.client_id])
+
+  const tipoBadge = project ? (PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type) : '—'
+
+  const financialCore = useMemo(() => {
+    if (!project || !portfolioClient) return null
+    if (project.project_type === 'leasing') {
+      const summary = computeLeasingFinancialSummary(portfolioClient, pv)
+      return <LeasingFinancialCore summary={summary} />
+    }
+    if (project.project_type === 'venda') {
+      const summary = computeVendaFinancialSummary(portfolioClient, pv)
+      return <VendaFinancialCore summary={summary} />
+    }
+    return null
+  }, [project, portfolioClient, pv])
+
   if (!project) return null
-
-  // Derive rough financial indicators from pv_data and project type
-  // Full motor integration (Leasing / Venda engine) is deferred to a future PR.
-  const tipoBadge = PROJECT_TYPE_LABELS[project.project_type] ?? project.project_type
-
-  const potenciaKwp = pv?.potencia_sistema_kwp
-  const geracaoKwhMes = pv?.geracao_estimada_kwh_mes
 
   return (
     <Section icon="💰" title="Financeiro">
@@ -423,18 +611,12 @@ function FinanceiroSection({ projectId }: FinanceiroSectionProps) {
           label="Tipo de negócio"
           value={<span className={`fm-badge fm-badge--${project.project_type}`}>{tipoBadge}</span>}
         />
-        {potenciaKwp != null ? (
-          <Field label="Potência instalada" value={fmtNum(potenciaKwp, 'kWp')} />
-        ) : null}
-        {geracaoKwhMes != null ? (
-          <Field label="Geração estimada" value={fmtNum(geracaoKwhMes, 'kWh/mês')} />
-        ) : null}
       </div>
-      <div className="fm-project-section-placeholder" style={{ marginTop: 12 }}>
-        <p>
-          Motor financeiro completo ({project.project_type === 'leasing' ? 'Leasing' : 'Venda Direta'}) será integrado em um próximo PR.
-        </p>
-      </div>
+      {financialCore ?? (
+        <div className="fm-project-section-placeholder" style={{ marginTop: 12 }}>
+          <p>Carregando dados financeiros…</p>
+        </div>
+      )}
     </Section>
   )
 }
