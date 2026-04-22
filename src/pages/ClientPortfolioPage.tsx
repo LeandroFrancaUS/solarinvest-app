@@ -788,7 +788,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     setSaving(true)
     setSaveError(null)
     try {
-      await patchPortfolioContract(client.id, {
+      const savedContractId = await patchPortfolioContract(client.id, {
         ...form,
         id: client.contract_id ?? undefined,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
@@ -826,8 +826,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
       // Auto-create a project in Gestão Financeira when contract becomes active
-      if (form.contract_status === 'active' && client.contract_status !== 'active' && client.contract_id != null) {
-        createProjectFromContract(client.contract_id).catch((err) => {
+      if (form.contract_status === 'active' && client.contract_status !== 'active') {
+        createProjectFromContract(savedContractId).catch((err) => {
           console.warn('[portfolio][contrato] auto-create project failed (non-blocking):', err)
         })
       }

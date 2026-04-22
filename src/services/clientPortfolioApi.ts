@@ -119,11 +119,12 @@ export async function patchPortfolioProfile(clientId: number, data: Record<strin
   })
 }
 
-export async function patchPortfolioContract(clientId: number, data: Record<string, unknown>): Promise<void> {
-  await apiFetch(resolveApiUrl(`/api/client-portfolio/${clientId}/contract`), {
+export async function patchPortfolioContract(clientId: number, data: Record<string, unknown>): Promise<number> {
+  const res = await apiFetch<{ data: { id: number } }>(resolveApiUrl(`/api/client-portfolio/${clientId}/contract`), {
     method: 'PATCH',
     body: JSON.stringify(data),
   })
+  return res.data.id
 }
 
 export async function patchPortfolioProject(clientId: number, data: Record<string, unknown>): Promise<void> {
