@@ -27,11 +27,13 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
     effective,
     overrides,
     summary,
+    technicalParams,
     isLoading,
     isSaving,
     isDirty,
     error,
     setField,
+    setTechnicalParam,
     setOverride,
     restoreAuto,
     restoreAll,
@@ -146,10 +148,12 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
             calculated={calculated}
             effective={effective}
             overrides={overrides}
+            technicalParams={technicalParams}
             isSaving={isSaving}
             isDirty={isDirty}
             error={error}
             setField={setField}
+            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
             restoreAll={restoreAll}

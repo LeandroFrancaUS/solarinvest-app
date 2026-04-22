@@ -7,6 +7,7 @@ import type {
   ProjectFinanceFormState,
   ProjectFinanceComputed,
   ProjectFinanceOverrides,
+  ProjectFinanceTechnicalParams,
   OverridableField,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -155,13 +156,16 @@ interface Props {
   pvData: ProjectPvData | null
   calculated: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
+  technicalParams: ProjectFinanceTechnicalParams
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
+  setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
   restoreAuto: (field: OverridableField) => void
 }
 
 export function ProjectFinanceVendaForm({
-  form, contractTermMonths, pvData, calculated, overrides, setField, setOverride, restoreAuto,
+  form, contractTermMonths, pvData, calculated, overrides, technicalParams,
+  setField, setTechnicalParam, setOverride, restoreAuto,
 }: Props) {
   const custoTotal = computeCustoTotal(form)
 
@@ -189,6 +193,12 @@ export function ProjectFinanceVendaForm({
         <FieldNumber id="pf-venda-entrada" label="Entrada" unit="%" value={form.entrada_pct} onChange={(v) => setField('entrada_pct', v ?? undefined)} step={0.1} min={0} />
         <FieldNumber id="pf-venda-parcelamento" label="Parcelamento" unit="x" value={form.parcelamento_meses} onChange={(v) => setField('parcelamento_meses', v ?? undefined)} step={1} min={1} />
         <FieldNumber id="pf-venda-receita" label="Receita total esperada" unit="R$" value={form.receita_esperada} onChange={(v) => setField('receita_esperada', v ?? undefined)} step={0.01} hint="(total recebido)" />
+      </div>
+
+      <SectionTitle title="Parâmetros de Cálculo (motor = Análise Financeira)" />
+      <div className="fm-detail-grid fm-detail-grid--edit">
+        <FieldNumber id="pf-venda-impostos-pct" label="Alíquota de impostos sobre receita" unit="%" value={technicalParams.impostos_percent ?? 0} onChange={(v) => setTechnicalParam('impostos_percent', v ?? undefined)} step={0.1} min={0} hint="Deduzida do lucro, igual ao campo Impostos da Análise Financeira" />
+        <FieldNumber id="pf-venda-taxa-desconto" label="Taxa de desconto (VPL)" unit="% a.a." value={technicalParams.taxa_desconto_aa_pct ?? null} onChange={(v) => setTechnicalParam('taxa_desconto_aa_pct', v ?? undefined)} step={0.1} min={0} hint="Usada para calcular o VPL (NPV). Deixe vazio para omitir o VPL." />
       </div>
 
       <SectionTitle title="KPIs Financeiros (calculados pelo motor)" />
