@@ -112,6 +112,12 @@ function getBeneficiaryUCs(client: { uc_beneficiaria?: unknown; uc_beneficiarias
   return single ? [single] : []
 }
 
+function sanitizeBeneficiaryUCs(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Brazilian state UF list (used by AddClientModal)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -528,7 +534,8 @@ function EditarTab({
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [showAddUcPlaceholder, setShowAddUcPlaceholder] = useState(false)
-  const hasUcBeneficiaria = getBeneficiaryUCs(client).length > 0
+  const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
+  const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
 
   const [form, setForm] = useState({
@@ -541,7 +548,7 @@ function EditarTab({
     client_address: client.address ?? '',
     distribuidora: client.distribuidora ?? '',
     uc_geradora: client.uc ?? '',
-    uc_beneficiaria: client.uc_beneficiaria ?? '',
+    uc_beneficiarias: initialUcBeneficiarias,
     consumption_kwh_month: client.consumption_kwh_month != null ? String(client.consumption_kwh_month) : '',
     system_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     term_months: client.term_months != null ? String(client.term_months) : '',
@@ -557,7 +564,7 @@ function EditarTab({
     client_address: client.address ?? '',
     distribuidora: client.distribuidora ?? '',
     uc_geradora: client.uc ?? '',
-    uc_beneficiaria: client.uc_beneficiaria ?? '',
+    uc_beneficiarias: initialUcBeneficiarias,
     consumption_kwh_month: client.consumption_kwh_month != null ? String(client.consumption_kwh_month) : '',
     system_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     term_months: client.term_months != null ? String(client.term_months) : '',
@@ -570,6 +577,7 @@ function EditarTab({
   async function handleSave() {
     setSaving(true)
     try {
+      const beneficiaryUCs = sanitizeBeneficiaryUCs(form.uc_beneficiarias)
       await patchPortfolioProfile(client.id, {
         client_name: form.client_name || undefined,
         client_document: form.client_document || undefined,
@@ -580,7 +588,8 @@ function EditarTab({
         client_address: form.client_address || undefined,
         distribuidora: form.distribuidora || undefined,
         uc_geradora: form.uc_geradora || undefined,
-        uc_beneficiaria: form.uc_beneficiaria || undefined,
+        uc_beneficiaria: beneficiaryUCs[0] || undefined,
+        uc_beneficiarias: beneficiaryUCs.length > 0 ? beneficiaryUCs : undefined,
         consumption_kwh_month: form.consumption_kwh_month !== '' ? Number(form.consumption_kwh_month) : undefined,
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : undefined,
         term_months: form.term_months !== '' ? Number(form.term_months) : undefined,
@@ -598,7 +607,8 @@ function EditarTab({
         address: form.client_address || client.address,
         distribuidora: form.distribuidora || client.distribuidora,
         uc: form.uc_geradora || client.uc,
-        uc_beneficiaria: form.uc_beneficiaria || client.uc_beneficiaria,
+        uc_beneficiaria: beneficiaryUCs[0] ?? null,
+        uc_beneficiarias: beneficiaryUCs,
         consumption_kwh_month: form.consumption_kwh_month !== '' ? Number(form.consumption_kwh_month) : client.consumption_kwh_month,
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : client.system_kwp,
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
@@ -678,6 +688,11 @@ function EditarTab({
                     if (!editMode) return
                     setShowUcBeneficiariaField(true)
                     setShowAddUcPlaceholder(true)
+                    setForm((prev) => (
+                      prev.uc_beneficiarias.length > 0
+                        ? prev
+                        : { ...prev, uc_beneficiarias: [''] }
+                    ))
                   }}
                   disabled={!editMode}
                   className="pf-uc-add-btn"
@@ -690,10 +705,54 @@ function EditarTab({
               <input type="text" value={form.uc_geradora} onChange={(e) => setForm((f) => ({ ...f, uc_geradora: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
             {showUcBeneficiariaField && (
-              <label className="pf-label" style={labelStyle}>
-                UC Beneficiária
-                <input type="text" value={form.uc_beneficiaria} onChange={(e) => setForm((f) => ({ ...f, uc_beneficiaria: e.target.value }))} disabled={!editMode} style={inputStyle} />
-              </label>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {form.uc_beneficiarias.map((uc, index) => (
+                  <label key={`uc-beneficiaria-${index}`} className="pf-label" style={labelStyle}>
+                    {`UC Beneficiária ${index + 1}`}
+                    <div style={{ display: 'grid', gridTemplateColumns: editMode ? '1fr auto' : '1fr', gap: 8 }}>
+                      <input
+                        type="text"
+                        value={uc}
+                        onChange={(e) => setForm((prev) => ({
+                          ...prev,
+                          uc_beneficiarias: prev.uc_beneficiarias.map((item, itemIndex) => (
+                            itemIndex === index ? e.target.value : item
+                          )),
+                        }))}
+                        disabled={!editMode}
+                        style={inputStyle}
+                      />
+                      {editMode && form.uc_beneficiarias.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((prev) => ({
+                            ...prev,
+                            uc_beneficiarias: prev.uc_beneficiarias.filter((_, itemIndex) => itemIndex !== index),
+                          }))}
+                          className="pf-row-btn pf-row-btn-delete"
+                          aria-label={`Remover UC beneficiária ${index + 1}`}
+                          title={`Remover UC beneficiária ${index + 1}`}
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                  </label>
+                ))}
+                {editMode && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({
+                      ...prev,
+                      uc_beneficiarias: [...prev.uc_beneficiarias, ''],
+                    }))}
+                    className="pf-uc-add-secondary-btn"
+                    aria-label="Adicionar outra UC beneficiária"
+                  >
+                    + Adicionar outra UC beneficiária
+                  </button>
+                )}
+              </div>
             )}
           </div>
           {showAddUcPlaceholder && editMode && (

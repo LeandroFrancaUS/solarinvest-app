@@ -368,6 +368,18 @@
   cursor: not-allowed;
 }
 
+.pf-uc-add-secondary-btn {
+  width: fit-content;
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--accent);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .pf-card-doc {
   font-size: 13px;
   color: var(--text-muted);
