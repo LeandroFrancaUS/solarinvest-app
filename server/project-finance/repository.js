@@ -96,6 +96,10 @@ function mapProfileRow(row) {
     updated_at: row.updated_at,
     created_by_user_id: row.created_by_user_id,
     updated_by_user_id: row.updated_by_user_id,
+
+    // Override / technical params (added in migration 0048)
+    override_payload_json: row.override_payload_json ?? null,
+    technical_params_json: row.technical_params_json ?? null,
   }
 }
 
@@ -148,7 +152,9 @@ export async function findProjectFinanceByProjectId(sql, projectId) {
       pfp.created_at,
       pfp.updated_at,
       pfp.created_by_user_id,
-      pfp.updated_by_user_id
+      pfp.updated_by_user_id,
+      pfp.override_payload_json,
+      pfp.technical_params_json
     FROM project_financial_profiles pfp
     WHERE pfp.project_id = ${String(projectId)}::uuid
       AND pfp.status != 'archived'
@@ -163,10 +169,20 @@ export async function findProjectFinanceByProjectId(sql, projectId) {
  * and falling back to the project's own project_type.
  */
 export async function resolveProjectContractType(sql, projectId) {
+  const result = await resolveProjectContract(sql, projectId)
+  return result?.contract_type ?? null
+}
+
+/**
+ * Resolves the contract type AND contractual term months for a project.
+ * Returns { contract_type, contract_term_months } or null when not found.
+ */
+export async function resolveProjectContract(sql, projectId) {
   const rows = await sql`
     SELECT
       p.project_type,
-      cc.contract_type
+      cc.contract_type,
+      cc.contractual_term_months
     FROM projects p
     LEFT JOIN client_contracts cc ON cc.id = p.contract_id
     WHERE p.id = ${String(projectId)}::uuid
@@ -175,7 +191,10 @@ export async function resolveProjectContractType(sql, projectId) {
   `
   const row = rows[0]
   if (!row) return null
-  return resolveContractType(row.contract_type, row.project_type)
+  return {
+    contract_type: resolveContractType(row.contract_type, row.project_type),
+    contract_term_months: row.contractual_term_months != null ? Number(row.contractual_term_months) : null,
+  }
 }
 
 /**
@@ -227,6 +246,14 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
     vpl: toNumberOrNull(fields.vpl),
 
     notas: toTextOrNull(fields.notas),
+
+    // Override/technical params (migration 0048) — stored as JSONB
+    override_payload_json: fields.override_payload_json != null && typeof fields.override_payload_json === 'object'
+      ? JSON.stringify(fields.override_payload_json)
+      : null,
+    technical_params_json: fields.technical_params_json != null && typeof fields.technical_params_json === 'object'
+      ? JSON.stringify(fields.technical_params_json)
+      : null,
   }
 
   // Derive custo_total_projeto server-side
@@ -296,7 +323,9 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
       notas,
       last_calculated_at,
       created_by_user_id,
-      updated_by_user_id
+      updated_by_user_id,
+      override_payload_json,
+      technical_params_json
     ) VALUES (
       ${String(projectId)}::uuid,
       ${f.client_id},
@@ -337,7 +366,9 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
       ${f.notas},
       now(),
       ${userId},
-      ${userId}
+      ${userId},
+      ${f.override_payload_json}::jsonb,
+      ${f.technical_params_json}::jsonb
     )
     ON CONFLICT ON CONSTRAINT pfp_project_id_unique
     DO UPDATE SET
@@ -378,7 +409,9 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
       vpl                      = EXCLUDED.vpl,
       notas                    = EXCLUDED.notas,
       last_calculated_at       = now(),
-      updated_by_user_id       = EXCLUDED.updated_by_user_id
+      updated_by_user_id       = EXCLUDED.updated_by_user_id,
+      override_payload_json    = EXCLUDED.override_payload_json,
+      technical_params_json    = EXCLUDED.technical_params_json
     RETURNING
       id::text,
       project_id::text,
@@ -422,7 +455,9 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
       created_at,
       updated_at,
       created_by_user_id,
-      updated_by_user_id
+      updated_by_user_id,
+      override_payload_json,
+      technical_params_json
   `
   return mapProfileRow(rows[0])
 }

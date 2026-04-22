@@ -18,12 +18,19 @@ export function ProjectFinanceSection({ projectId }: Props) {
     profile,
     form,
     contractType,
+    contractTermMonths,
+    calculated,
+    effective,
+    overrides,
     summary,
     isLoading,
     isSaving,
     isDirty,
     error,
     setField,
+    setOverride,
+    restoreAuto,
+    restoreAll,
     save,
     reset,
   } = useProjectFinance(projectId)
@@ -44,14 +51,13 @@ export function ProjectFinanceSection({ projectId }: Props) {
     setIsExpanded(false)
   }, [isDirty, reset])
 
-  const handleSave = useCallback(async () => {
-    try {
-      await save()
+  const handleSave = useCallback(() => {
+    save().then(() => {
       setSaveSuccess(true)
       setIsExpanded(false)
-    } catch {
+    }).catch(() => {
       // error is surfaced in the editor footer
-    }
+    })
   }, [save])
 
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
@@ -135,11 +141,18 @@ export function ProjectFinanceSection({ projectId }: Props) {
           <ProjectFinanceEditor
             form={form}
             contractType={contractType}
+            contractTermMonths={contractTermMonths}
+            calculated={calculated}
+            effective={effective}
+            overrides={overrides}
             isSaving={isSaving}
             isDirty={isDirty}
             error={error}
             setField={setField}
-          onSave={handleSave}
+            setOverride={setOverride}
+            restoreAuto={restoreAuto}
+            restoreAll={restoreAll}
+            onSave={handleSave}
             onCancel={handleCancel}
           />
         ) : null}

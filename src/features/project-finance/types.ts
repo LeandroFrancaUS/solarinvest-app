@@ -4,6 +4,46 @@
 export type ProjectFinanceContractType = 'leasing' | 'venda'
 export type ProjectFinanceStatus = 'draft' | 'active' | 'archived'
 
+// ─── Override types ──────────────────────────────────────────────────────────
+
+/**
+ * Auto-computable fields that can be manually overridden.
+ * When a field is present in the overrides map, its value takes precedence
+ * over the auto-calculated result.
+ */
+export type OverridableField =
+  | 'potencia_instalada_kwp'
+  | 'geracao_estimada_kwh_mes'
+  | 'payback_meses'
+  | 'roi_pct'
+  | 'tir_pct'
+  | 'vpl'
+
+export type ProjectFinanceOverrides = Partial<Record<OverridableField, number | null>>
+
+// ─── Optional technical parameters used by the shared engine ─────────────────
+
+export interface ProjectFinanceTechnicalParams {
+  irradiacao_kwh_m2_dia?: number
+  performance_ratio?: number
+  dias_mes?: number
+  potencia_modulo_wp?: number
+  taxa_desconto_aa_pct?: number
+}
+
+// ─── Auto-computed result from the shared engine ─────────────────────────────
+
+export interface ProjectFinanceComputed {
+  potencia_instalada_kwp: number | null
+  geracao_estimada_kwh_mes: number | null
+  payback_meses: number | null
+  roi_pct: number | null
+  tir_pct: number | null
+  vpl: number | null
+}
+
+// ─── Profile ─────────────────────────────────────────────────────────────────
+
 export interface ProjectFinanceProfile {
   id: string
   project_id: string
@@ -49,7 +89,7 @@ export interface ProjectFinanceProfile {
   parcelamento_meses: number | null
   custo_financeiro_pct: number | null
 
-  // KPIs
+  // KPIs (stored for display; auto-computed from engine on save)
   payback_meses: number | null
   roi_pct: number | null
   tir_pct: number | null
@@ -61,6 +101,10 @@ export interface ProjectFinanceProfile {
   updated_at: string
   created_by_user_id: string | null
   updated_by_user_id: string | null
+
+  // Override / technical params (migration 0048)
+  override_payload_json: ProjectFinanceOverrides | null
+  technical_params_json: ProjectFinanceTechnicalParams | null
 }
 
 /** Fields that can be submitted in a PUT /api/projects/:id/finance */
@@ -86,5 +130,7 @@ export interface ProjectFinanceSummaryKPIs {
 export interface ProjectFinanceGetResponse {
   profile: ProjectFinanceProfile | null
   contract_type: ProjectFinanceContractType
+  /** Contractual term in months, sourced from client_contracts. Readonly. */
+  contract_term_months: number | null
   project_id: string
 }

@@ -12,6 +12,7 @@ import { resolveActor, actorRole } from '../proposals/permissions.js'
 import {
   findProjectFinanceByProjectId,
   resolveProjectContractType,
+  resolveProjectContract,
   upsertProjectFinance,
 } from './repository.js'
 import { findProjectById } from '../projects/repository.js'
@@ -91,12 +92,14 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
       }
 
       const profile = await findProjectFinanceByProjectId(sql, projectId)
-      const resolvedContractType = await resolveProjectContractType(sql, projectId)
+      const contract = await resolveProjectContract(sql, projectId)
+      const resolvedContractType = contract?.contract_type ?? null
 
       sendJson(200, {
         data: {
           profile,
           contract_type: resolvedContractType ?? project.project_type ?? 'leasing',
+          contract_term_months: contract?.contract_term_months ?? null,
           project_id: projectId,
         },
       })
@@ -142,10 +145,18 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
 
       // If contract_type is not provided in body, resolve from contract/project.
       let contract_type = body.contract_type
+      let contract_term_months = null
       if (!contract_type) {
-        contract_type = await resolveProjectContractType(sql, projectId)
-        contract_type = contract_type ?? project.project_type ?? 'leasing'
+        const contract = await resolveProjectContract(sql, projectId)
+        contract_type = contract?.contract_type ?? project.project_type ?? 'leasing'
+        contract_term_months = contract?.contract_term_months ?? null
       }
+
+      // Backend always ignores manual changes to contract_type and
+      // contract_term_months — these come from the contract only.
+      const overridePayload = body.override_payload_json != null
+        ? body.override_payload_json
+        : undefined
 
       const profile = await upsertProjectFinance(
         sql,
@@ -154,6 +165,7 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
           ...body,
           contract_type,
           client_id: body.client_id ?? project.client_id,
+          ...(overridePayload !== undefined ? { override_payload_json: overridePayload } : {}),
         },
         actor?.userId ?? null,
       )
@@ -162,6 +174,7 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
         ok: true,
         data: profile,
         contract_type,
+        contract_term_months,
         project_id: projectId,
       })
     } catch (err) {
