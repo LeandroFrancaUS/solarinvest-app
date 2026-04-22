@@ -125,7 +125,8 @@ export function computeProjectKPIs(
   const flows: number[] = [-capex, receita]
   const payback_meses = computePayback(flows)
   const tirMensal = computeIRR(flows)
-  const tir_pct = tirMensal !== null ? tirMensal * 100 : null
+  // Annualize monthly IRR to % a.a. — same formula as leasing path above.
+  const tir_pct = tirMensal !== null ? (Math.pow(1 + tirMensal, 12) - 1) * 100 : null
 
   const taxaMensal = taxaDesconto != null && taxaDesconto > 0 ? toMonthlyRate(taxaDesconto) : 0
   const vpl = taxaMensal > 0 ? computeNPV(flows, taxaMensal) : null

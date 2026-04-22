@@ -304,7 +304,6 @@ export function ProjectFinanceLeasingForm({
   contractTermMonths,
   pvData,
   calculated,
-
   overrides,
   setField,
   setOverride,
