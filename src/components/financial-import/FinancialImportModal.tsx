@@ -7,7 +7,7 @@
 //   3. Confirm  — trigger actual import
 //   4. Report   — show what was created/updated
 
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   ParseResult,
@@ -304,6 +304,13 @@ export function FinancialImportModal({ onClose, onImportComplete }: Props) {
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<ConfirmResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    console.log('[fm-import] FinancialImportModal mounted')
+    return () => {
+      console.log('[fm-import] FinancialImportModal unmounted')
+    }
+  }, [])
 
   const resetError = () => setError(null)
 

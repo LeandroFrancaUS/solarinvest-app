@@ -755,7 +755,10 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
           <button
             type="button"
             className="primary fm-import-btn"
-            onClick={() => setShowImportModal(true)}
+            onClick={() => {
+              console.log('[fm-import] button clicked — opening modal')
+              setShowImportModal(true)
+            }}
             title="Importar dados via planilha Excel (.xlsx)"
           >
             📥 Importar Excel
