@@ -44,12 +44,6 @@ function formatMonths(value: number | null | undefined): string {
   return `${value.toFixed(1)} meses`
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const d = new Date(value)
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
-}
-
 const TAB_LABELS: Record<Tab, string> = {
   overview: 'Visão Geral',
   projects: 'Projetos',

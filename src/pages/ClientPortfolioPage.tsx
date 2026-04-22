@@ -2394,7 +2394,7 @@ function AddClientModal({
               <input
                 type="text"
                 value={form.cep}
-                onChange={handleCepChange}
+                onChange={(e) => { void handleCepChange(e) }}
                 placeholder="XXXXX-XXX"
                 maxLength={9}
                 style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }}

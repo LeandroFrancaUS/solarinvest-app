@@ -2891,7 +2891,7 @@ const parseClientesCsv = (content: string): unknown[] => {
         case 'desconto_percentual':
         case 'mensalidade':
         case 'prazo_meses': {
-          const num = parseFloat(value.replace(',', '.'))
+          const num = toNumberFlexible(value)
           if (Number.isFinite(num)) {
             if (!registro.energyProfile) registro.energyProfile = {}
             registro.energyProfile[key] = num
