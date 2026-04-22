@@ -172,7 +172,7 @@ export async function upsertPowerPlant(sql, projectId, clientId, proposalId, dat
       geracao_estimada_kwh_mes = EXCLUDED.geracao_estimada_kwh_mes,
       potencia_instalada_kwp   = EXCLUDED.potencia_instalada_kwp,
       potencia_modulo_wp       = EXCLUDED.potencia_modulo_wp,
-      quantidade_modulos        = EXCLUDED.quantidade_modulos,
+      quantidade_modulos       = EXCLUDED.quantidade_modulos,
       modelo_modulo            = EXCLUDED.modelo_modulo,
       modelo_inversor          = EXCLUDED.modelo_inversor,
       irradiacao               = EXCLUDED.irradiacao,

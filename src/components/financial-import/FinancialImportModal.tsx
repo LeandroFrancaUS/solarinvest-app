@@ -175,14 +175,16 @@ function PreviewTable({ items }: { items: PreviewItem[] }) {
               </thead>
               <tbody>
                 {costItems.map((item, i) => {
-                  const e = item.entry as Record<string, unknown> | null
+                  const e = item.entry
+                  const desc = e?.description
+                  const cat = e?.category
                   return (
                     <tr key={i}>
                       <td>{item.sheetName}</td>
                       <td>{SHEET_TYPE_LABELS[item.worksheetType]}</td>
-                      <td>{String(e?.description ?? '—')}</td>
+                      <td>{typeof desc === 'string' ? desc : '—'}</td>
                       <td>{fmtBRL(typeof e?.amount === 'number' ? e.amount : null)}</td>
-                      <td>{String(e?.category ?? '—')}</td>
+                      <td>{typeof cat === 'string' ? cat : '—'}</td>
                     </tr>
                   )
                 })}
@@ -541,7 +543,7 @@ export function FinancialImportModal({ onClose, onImportComplete }: Props) {
           {step === 'upload' && (
             <button
               className="fim-btn fim-btn--primary"
-              onClick={handleParse}
+              onClick={() => { void handleParse() }}
               disabled={!file || loading}
             >
               {loading ? 'Analisando…' : 'Analisar →'}
@@ -577,8 +579,8 @@ export function FinancialImportModal({ onClose, onImportComplete }: Props) {
                 ← Voltar
               </button>
               <button
-                className="fim-btn fim-btn--danger"
-                onClick={handleConfirm}
+                className="fim-btn fim-btn--confirm"
+                onClick={() => { void handleConfirm() }}
                 disabled={loading}
               >
                 {loading ? 'Importando…' : '✅ Confirmar importação'}

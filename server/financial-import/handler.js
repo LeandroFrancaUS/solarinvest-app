@@ -136,7 +136,13 @@ function extractMultipartFile(buffer, contentType) {
 
     // Data ends at the next boundary
     const nextBoundary = buffer.indexOf(boundary, pos)
-    const dataEnd = nextBoundary === -1 ? buffer.length : nextBoundary - 2 // -2 for \r\n before boundary
+    // Trim the CRLF (or LF-only) line ending that precedes the next boundary marker.
+    let dataEnd = nextBoundary === -1 ? buffer.length : nextBoundary
+    if (dataEnd >= 2 && buffer[dataEnd - 2] === 0x0d && buffer[dataEnd - 1] === 0x0a) {
+      dataEnd -= 2 // strip \r\n
+    } else if (dataEnd >= 1 && buffer[dataEnd - 1] === 0x0a) {
+      dataEnd -= 1 // strip \n only
+    }
     return buffer.slice(pos, dataEnd)
   }
 

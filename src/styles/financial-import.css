@@ -508,11 +508,11 @@
   background: #f9fafb;
 }
 
-.fim-btn--danger {
+.fim-btn--confirm {
   background: #059669;
   color: #ffffff;
 }
 
-.fim-btn--danger:hover:not(:disabled) {
+.fim-btn--confirm:hover:not(:disabled) {
   background: #047857;
 }

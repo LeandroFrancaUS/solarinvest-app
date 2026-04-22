@@ -219,11 +219,15 @@ function colLettersToIndex(letters) {
 }
 
 function decodeXmlEntities(str) {
-  return str
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+  // Process all entities in a single pass to avoid double-unescaping.
+  // e.g. &amp;lt; → &lt; → < would be wrong; single-pass prevents this.
+  return str.replace(/&(?:amp|lt|gt|quot|apos|#(\d+));/g, (match, dec) => {
+    if (dec !== undefined) return String.fromCharCode(parseInt(dec, 10))
+    if (match === '&amp;') return '&'
+    if (match === '&lt;')  return '<'
+    if (match === '&gt;')  return '>'
+    if (match === '&quot;') return '"'
+    if (match === '&apos;') return "'"
+    return match
+  })
 }
