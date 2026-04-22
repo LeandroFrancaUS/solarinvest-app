@@ -104,8 +104,11 @@ export interface SnapshotInput {
 
 /** Subset of ClienteDados needed for mapping */
 export interface ClienteDadosInput {
+  razaoSocial?: string
   nome?: string
   documento?: string
+  cpf?: string
+  cnpj?: string
   email?: string
   telefone?: string
   cep?: string
@@ -114,6 +117,9 @@ export interface ClienteDadosInput {
   endereco?: string
   distribuidora?: string
   uc?: string
+  ucGeradora?: string
+  ucBeneficiaria?: string
+  ucBeneficiarias?: string[]
   indicacaoNome?: string
   temIndicacao?: boolean
   diaVencimento?: string
@@ -133,6 +139,7 @@ export interface ClientsPayload {
   client_address?: string
   distribuidora?: string
   uc?: string
+  uc_beneficiaria?: string
   consumption_kwh_month?: number
   system_kwp?: number
   term_months?: number
@@ -210,6 +217,46 @@ function first<T>(...candidates: Array<T | undefined | null>): T | undefined {
     if (c !== undefined && c !== null) return c
   }
   return undefined
+}
+
+function pickFirstNonEmpty(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const trimmed = toStr(value)
+    if (trimmed) return trimmed
+  }
+  return undefined
+}
+
+export interface ClientFormPortfolioPayload {
+  client_name?: string
+  client_document?: string
+  client_email?: string
+  client_phone?: string
+  client_address?: string
+  client_city?: string
+  client_state?: string
+  client_zip?: string
+  uc_geradora?: string
+  uc_beneficiaria?: string
+}
+
+export function mapClientFormToPortfolioPayload(source: ClienteDadosInput): ClientFormPortfolioPayload {
+  const firstBeneficiary =
+    pickFirstNonEmpty(source.ucBeneficiaria)
+    ?? source.ucBeneficiarias?.map((item) => toStr(item)).find((item): item is string => item != null)
+
+  return {
+    client_name: pickFirstNonEmpty(source.razaoSocial, source.nome),
+    client_document: pickFirstNonEmpty(source.cnpj, source.cpf, source.documento),
+    client_email: pickFirstNonEmpty(source.email),
+    client_phone: pickFirstNonEmpty(source.telefone),
+    client_address: pickFirstNonEmpty(source.endereco),
+    client_city: pickFirstNonEmpty(source.cidade),
+    client_state: pickFirstNonEmpty(source.uf),
+    client_zip: pickFirstNonEmpty(source.cep)?.replace(/\D/g, ''),
+    uc_geradora: pickFirstNonEmpty(source.ucGeradora, source.uc),
+    uc_beneficiaria: firstBeneficiary,
+  }
 }
 
 // ─── Main function ────────────────────────────────────────────────────────────
@@ -351,16 +398,18 @@ export function mapProposalDataToPortfolioFields(
   // ─────────────────────────────────────────────────────────────────────────
 
   const clientsPayload: ClientsPayload = {}
-  if (toStr(cliente.nome)) clientsPayload.client_name = cliente.nome!.trim()
-  if (toStr(cliente.documento)) clientsPayload.client_document = cliente.documento!.trim()
-  if (toStr(cliente.email)) clientsPayload.client_email = cliente.email!.trim()
-  if (toStr(cliente.telefone)) clientsPayload.client_phone = cliente.telefone!.trim()
-  if (toStr(cliente.cep)) clientsPayload.client_cep = cliente.cep!.replace(/\D/g, '')
-  if (toStr(cliente.cidade)) clientsPayload.client_city = cliente.cidade!.trim()
-  if (toStr(cliente.uf)) clientsPayload.client_state = cliente.uf!.trim()
-  if (toStr(cliente.endereco)) clientsPayload.client_address = cliente.endereco!.trim()
+  const clientFormPayload = mapClientFormToPortfolioPayload(cliente)
+  if (clientFormPayload.client_name) clientsPayload.client_name = clientFormPayload.client_name
+  if (clientFormPayload.client_document) clientsPayload.client_document = clientFormPayload.client_document
+  if (clientFormPayload.client_email) clientsPayload.client_email = clientFormPayload.client_email
+  if (clientFormPayload.client_phone) clientsPayload.client_phone = clientFormPayload.client_phone
+  if (clientFormPayload.client_zip) clientsPayload.client_cep = clientFormPayload.client_zip
+  if (clientFormPayload.client_city) clientsPayload.client_city = clientFormPayload.client_city
+  if (clientFormPayload.client_state) clientsPayload.client_state = clientFormPayload.client_state
+  if (clientFormPayload.client_address) clientsPayload.client_address = clientFormPayload.client_address
   if (toStr(cliente.distribuidora)) clientsPayload.distribuidora = cliente.distribuidora!.trim()
-  if (toStr(cliente.uc)) clientsPayload.uc = cliente.uc!.trim()
+  if (clientFormPayload.uc_geradora) clientsPayload.uc = clientFormPayload.uc_geradora
+  if (clientFormPayload.uc_beneficiaria) clientsPayload.uc_beneficiaria = clientFormPayload.uc_beneficiaria
   if (consumptionKwh !== undefined) clientsPayload.consumption_kwh_month = consumptionKwh
   if (systemKwp !== undefined) clientsPayload.system_kwp = systemKwp
   if (termMonths !== undefined) clientsPayload.term_months = termMonths

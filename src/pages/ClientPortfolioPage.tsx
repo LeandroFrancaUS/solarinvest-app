@@ -96,6 +96,22 @@ function calcRemainingMonths(
   return Math.max(0, Math.round(term - elapsed))
 }
 
+function toTrimmedString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function getBeneficiaryUCs(client: { uc_beneficiaria?: unknown; uc_beneficiarias?: unknown }): string[] {
+  if (Array.isArray(client.uc_beneficiarias)) {
+    return client.uc_beneficiarias
+      .map((item) => toTrimmedString(item))
+      .filter((item): item is string => item != null)
+  }
+  const single = toTrimmedString(client.uc_beneficiaria)
+  return single ? [single] : []
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Brazilian state UF list (used by AddClientModal)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -409,12 +425,21 @@ function ClientCard({
     client.client_created_at,
   )
   const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
+  const clientName = client.name?.trim() || '—'
 
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
         <div className="pf-card-info">
-          <div className="pf-card-name">{client.name ?? '—'}</div>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="pf-card-name-button"
+            aria-label={`Abrir cliente ${clientName}`}
+            title={`Abrir cliente ${clientName}`}
+          >
+            <span className="pf-card-name">{clientName}</span>
+          </button>
           <div className="pf-card-doc">{client.document ?? '—'}</div>
           <div className="pf-card-meta">
             <span className="pf-card-contract">{contractLabel}</span>
@@ -502,6 +527,9 @@ function EditarTab({
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  const [showAddUcPlaceholder, setShowAddUcPlaceholder] = useState(false)
+  const hasUcBeneficiaria = getBeneficiaryUCs(client).length > 0
+  const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
 
   const [form, setForm] = useState({
     client_name: client.name ?? '',
@@ -534,6 +562,10 @@ function EditarTab({
     system_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     term_months: client.term_months != null ? String(client.term_months) : '',
   })
+
+  useEffect(() => {
+    setShowUcBeneficiariaField(hasUcBeneficiaria)
+  }, [hasUcBeneficiaria, client.id])
 
   async function handleSave() {
     setSaving(true)
@@ -572,6 +604,7 @@ function EditarTab({
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
       })
       setEditMode(false)
+      setShowAddUcPlaceholder(false)
     } catch {
       onToast('Não foi possível salvar as alterações do cliente.', 'error')
     } finally {
@@ -637,14 +670,37 @@ function EditarTab({
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
-              UC Geradora
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span>UC Geradora</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!editMode) return
+                    setShowUcBeneficiariaField(true)
+                    setShowAddUcPlaceholder(true)
+                  }}
+                  disabled={!editMode}
+                  className="pf-uc-add-btn"
+                  aria-label="Adicionar UC beneficiária"
+                  title="Adicionar UC beneficiária"
+                >
+                  +
+                </button>
+              </span>
               <input type="text" value={form.uc_geradora} onChange={(e) => setForm((f) => ({ ...f, uc_geradora: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label className="pf-label" style={labelStyle}>
-              UC Beneficiária
-              <input type="text" value={form.uc_beneficiaria} onChange={(e) => setForm((f) => ({ ...f, uc_beneficiaria: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
+            {showUcBeneficiariaField && (
+              <label className="pf-label" style={labelStyle}>
+                UC Beneficiária
+                <input type="text" value={form.uc_beneficiaria} onChange={(e) => setForm((f) => ({ ...f, uc_beneficiaria: e.target.value }))} disabled={!editMode} style={inputStyle} />
+              </label>
+            )}
           </div>
+          {showAddUcPlaceholder && editMode && (
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #94a3b8)' }}>
+              Em breve será possível adicionar múltiplas UCs beneficiárias.
+            </p>
+          )}
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
               Consumo (kWh/mês)
@@ -676,7 +732,12 @@ function EditarTab({
           </button>
         )}
         {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
+          <button type="button" onClick={() => {
+            setEditMode(false)
+            setShowAddUcPlaceholder(false)
+            setShowUcBeneficiariaField(hasUcBeneficiaria)
+            resetForm()
+          }}
             className="pf-btn pf-btn-cancel">
             Cancelar
           </button>
@@ -751,14 +812,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
     contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
-    contract_start_date: client.contract_start_date?.slice(0, 10) ?? '',
-    billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
-    expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
     buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
-    buyout_status: client.buyout_status ?? '',
-    buyout_date: client.buyout_date?.slice(0, 10) ?? '',
-    buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
     contract_notes: client.contract_notes ?? '',
     consultant_id: client.consultant_id ?? '',
     consultant_name: client.consultant_name ?? '',
@@ -770,14 +825,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
     contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
-    contract_start_date: client.contract_start_date?.slice(0, 10) ?? '',
-    billing_start_date: client.billing_start_date?.slice(0, 10) ?? '',
-    expected_billing_end_date: client.expected_billing_end_date?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
     buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
-    buyout_status: client.buyout_status ?? '',
-    buyout_date: client.buyout_date?.slice(0, 10) ?? '',
-    buyout_amount_reference: client.buyout_amount_reference != null ? String(client.buyout_amount_reference) : '',
     contract_notes: client.contract_notes ?? '',
     consultant_id: client.consultant_id ?? '',
     consultant_name: client.consultant_name ?? '',
@@ -793,12 +842,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         id: client.contract_id ?? undefined,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         contract_signed_at: form.contract_signed_at || null,
-        contract_start_date: form.contract_start_date || null,
-        billing_start_date: form.billing_start_date || null,
-        expected_billing_end_date: form.expected_billing_end_date || null,
-        buyout_status: form.buyout_status || null,
-        buyout_date: form.buyout_date || null,
-        buyout_amount_reference: form.buyout_amount_reference !== '' ? Number(form.buyout_amount_reference) : null,
         source_proposal_id: form.source_proposal_id || null,
         notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
@@ -810,14 +853,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_status: form.contract_status,
         source_proposal_id: form.source_proposal_id || null,
         contract_signed_at: form.contract_signed_at || null,
-        contract_start_date: form.contract_start_date || null,
-        billing_start_date: form.billing_start_date || null,
-        expected_billing_end_date: form.expected_billing_end_date || null,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         buyout_eligible: form.buyout_eligible,
-        buyout_status: form.buyout_status || null,
-        buyout_date: form.buyout_date || null,
-        buyout_amount_reference: form.buyout_amount_reference !== '' ? Number(form.buyout_amount_reference) : null,
         contract_notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
@@ -876,20 +913,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               Data de Assinatura
               <input type="date" value={form.contract_signed_at} onChange={(e) => setForm((f) => ({ ...f, contract_signed_at: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
-            <label className="pf-label" style={labelSty}>
-              Início do Contrato
-              <input type="date" value={form.contract_start_date} onChange={(e) => setForm((f) => ({ ...f, contract_start_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-          </div>
-          <div style={gridSty}>
-            <label className="pf-label" style={labelSty}>
-              Início da Cobrança
-              <input type="date" value={form.billing_start_date} onChange={(e) => setForm((f) => ({ ...f, billing_start_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-            <label className="pf-label" style={labelSty}>
-              Fim Previsto da Cobrança
-              <input type="date" value={form.expected_billing_end_date} onChange={(e) => setForm((f) => ({ ...f, expected_billing_end_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
           </div>
           <label className="pf-label" style={labelSty}>
             Prazo Contratual (meses)
@@ -912,22 +935,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                 <input type="checkbox" checked={form.buyout_eligible} onChange={(e) => setForm((f) => ({ ...f, buyout_eligible: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} />
                 Elegível para Buy Out
               </label>
-              {form.buyout_eligible && (
-                <div style={gridSty}>
-                  <label className="pf-label" style={labelSty}>
-                    Status do Buy Out
-                    <input type="text" value={form.buyout_status} onChange={(e) => setForm((f) => ({ ...f, buyout_status: e.target.value }))} disabled={!editMode} style={inputStyle} />
-                  </label>
-                  <label className="pf-label" style={labelSty}>
-                    Data do Buy Out
-                    <input type="date" value={form.buyout_date} onChange={(e) => setForm((f) => ({ ...f, buyout_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-                  </label>
-                  <label className="pf-label" style={labelSty}>
-                    Valor de Referência Buy Out (R$)
-                    <input type="number" min={0} step="0.01" value={form.buyout_amount_reference} onChange={(e) => setForm((f) => ({ ...f, buyout_amount_reference: e.target.value }))} disabled={!editMode} style={inputStyle} />
-                  </label>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -1407,7 +1414,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
     expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
     recurrence_type: client.recurrence_type ?? 'monthly',
-    payment_status: client.billing_payment_status ?? 'pending',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
@@ -1419,7 +1425,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
     expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
     recurrence_type: client.recurrence_type ?? 'monthly',
-    payment_status: client.billing_payment_status ?? 'pending',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
@@ -1487,7 +1492,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         first_billing_date: form.first_billing_date || null,
         expected_last_billing_date: form.expected_last_billing_date || null,
         recurrence_type: form.recurrence_type,
-        billing_payment_status: form.payment_status,
         auto_reminder_enabled: form.auto_reminder_enabled,
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
@@ -1551,16 +1555,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                 <option value="quarterly">Trimestral</option>
                 <option value="annual">Anual</option>
                 <option value="custom">Personalizado</option>
-              </select>
-            </label>
-            <label className="pf-label" style={labelSty}>
-              Status de Pagamento
-              <select value={form.payment_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, payment_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
-                <option value="pending">Pendente</option>
-                <option value="current">Em Dia</option>
-                <option value="overdue">Inadimplente</option>
-                <option value="written_off">Baixado</option>
-                <option value="cancelled">Cancelado</option>
               </select>
             </label>
           </div>
@@ -2011,7 +2005,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
-    mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
     prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
   })
 
@@ -2020,7 +2013,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
-    mensalidade: client.mensalidade != null ? String(client.mensalidade) : (client.valor_mensalidade != null ? String(client.valor_mensalidade) : ''),
     prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
   })
 
@@ -2033,7 +2025,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         kwh_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
-        mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
       }
       await patchPortfolioPlan(client.id, payload)
@@ -2043,8 +2034,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         kwh_mes_contratado: form.kwh_mes_contratado ? Number(form.kwh_mes_contratado) : null,
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
-        mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
-        valor_mensalidade: form.mensalidade ? Number(form.mensalidade) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
@@ -2088,10 +2077,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
             <label className="pf-label" style={labelSty}>
               Tarifa Atual (R$/kWh)
               <input type="number" min={0} step="0.0001" value={form.tarifa_atual} onChange={(e) => setForm((f) => ({ ...f, tarifa_atual: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-            <label className="pf-label" style={labelSty}>
-              Mensalidade (R$)
-              <input type="number" min={0} step="0.01" value={form.mensalidade} onChange={(e) => setForm((f) => ({ ...f, mensalidade: e.target.value }))} disabled={!editMode} style={inputStyle} />
             </label>
           </div>
           <div style={gridSty}>

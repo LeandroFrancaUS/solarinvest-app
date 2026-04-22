@@ -260,6 +260,13 @@ describe('closeProposalAndHydrateClientPortfolio', () => {
     expect(c.client_cep).toBe('01001000')
   })
 
+  it('imports uc_beneficiaria when provided by close pipeline source data', () => {
+    const result = closeProposalAndHydrateClientPortfolio(validLeasingInput({
+      ucBeneficiarias: ['678901234567890'],
+    }))
+    expect(result.payload?.clients.uc_beneficiaria).toBe('678901234567890')
+  })
+
   it('produces diagnostic log entries', () => {
     const result = closeProposalAndHydrateClientPortfolio(validLeasingInput())
     expect(result.log.length).toBeGreaterThan(0)
