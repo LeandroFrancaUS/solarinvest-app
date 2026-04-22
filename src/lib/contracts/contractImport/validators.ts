@@ -49,6 +49,13 @@ export function buildImportEligibility(
   if (args.contractorSignature && !args.contractorSignature.signedAt) {
     reasons.push('Data/hora da assinatura do contratante não encontrada.')
   }
+  if (args.contractorSignature && args.fields.contractorDocument) {
+    const signerDoc = normalizeDocument(args.contractorSignature.signerDocument)
+    const contractorDoc = normalizeDocument(args.fields.contractorDocument)
+    if (signerDoc && contractorDoc && signerDoc !== contractorDoc) {
+      reasons.push('CPF/CNPJ da assinatura é diferente do CPF/CNPJ do contratante.')
+    }
+  }
 
   for (const diff of args.discrepancies) {
     if (diff.severity === 'blocking') {

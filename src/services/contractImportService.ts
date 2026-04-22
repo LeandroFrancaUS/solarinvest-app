@@ -1,5 +1,5 @@
 import type { ContractAttachment, PortfolioClientRow } from '../types/clientPortfolio'
-import { patchPortfolioContract, patchPortfolioPlan } from './clientPortfolioApi'
+import { patchPortfolioContract, patchPortfolioPlan, patchPortfolioProfile } from './clientPortfolioApi'
 import { buildContractImportAuditLog } from '../lib/contracts/contractImport/audit'
 import { parseContractFromText, extractPdfText } from '../lib/contracts/contractImport/parser'
 import { compareImportedWithPlan } from '../lib/contracts/contractImport/planComparator'
@@ -59,6 +59,7 @@ function buildComparisons(client: PortfolioClientRow, preview: {
   proposalCode: string | null
   city: string | null
   state: string | null
+  cep: string | null
 }): ContractImportComparisonItem[] {
   const rows: Array<Omit<ContractImportComparisonItem, 'status' | 'requiresManualApproval'>> = [
     { code: 'CMP_CONTRACTOR_NAME', field: 'contractorName', label: 'Nome do contratante', currentValue: stringifyValue(client.name), importedValue: stringifyValue(preview.contractorName) },
@@ -70,6 +71,7 @@ function buildComparisons(client: PortfolioClientRow, preview: {
     { code: 'CMP_PROPOSAL_CODE', field: 'proposalCode', label: 'Código', currentValue: stringifyValue(client.source_proposal_id), importedValue: stringifyValue(preview.proposalCode) },
     { code: 'CMP_CITY', field: 'city', label: 'Cidade', currentValue: stringifyValue(client.city), importedValue: stringifyValue(preview.city) },
     { code: 'CMP_STATE', field: 'state', label: 'UF', currentValue: stringifyValue(client.state), importedValue: stringifyValue(preview.state) },
+    { code: 'CMP_CEP', field: 'cep', label: 'CEP', currentValue: null, importedValue: stringifyValue(preview.cep) },
   ]
 
   return rows.map((row) => {
@@ -133,6 +135,7 @@ export async function previewContractImport(file: File, client: PortfolioClientR
     proposalCode: parsed.fields.proposalCode,
     city: parsed.fields.city,
     state: parsed.fields.state,
+    cep: parsed.fields.contractorPostalCode,
   })
   const comparisonDiscrepancies = comparisons
     .filter((item) => item.status === 'red')
@@ -236,6 +239,17 @@ export async function applyContractImport(input: {
     kwh_contratado: payload.kwhContratado,
     prazo_meses: payload.prazoContratualMeses,
     modalidade: input.client.modalidade ?? 'leasing',
+  })
+
+  await patchPortfolioProfile(input.client.id, {
+    client_name: input.preview.parsedFields.contractorName ?? undefined,
+    client_document: input.preview.parsedFields.contractorDocument ?? undefined,
+    client_phone: input.preview.parsedFields.contractorPhone ?? undefined,
+    client_email: input.preview.parsedFields.contractorEmail ?? undefined,
+    client_city: input.preview.parsedFields.city ?? undefined,
+    client_state: input.preview.parsedFields.state ?? undefined,
+    client_address: input.preview.parsedFields.contractorAddress ?? undefined,
+    client_cep: input.preview.parsedFields.contractorPostalCode ?? undefined,
   })
 
   return {

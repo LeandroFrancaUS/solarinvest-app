@@ -22,12 +22,30 @@ export function ImportarContratoDialog({
     sourceProposalId: string | null
     contractualTermMonths: number | null
     kwhContratado: number | null
+    contractorName: string | null
+    contractorDocument: string | null
+    contractorEmail: string | null
+    contractorPhone: string | null
+    contractorAddress: string | null
+    contractorCity: string | null
+    contractorState: string | null
   }) => void
 }) {
   const [state, setState] = useState<ContractImportState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<ContractImportPreview | null>(null)
   const [approvedCodes, setApprovedCodes] = useState<Set<string>>(new Set())
+  const [selectedFileName, setSelectedFileName] = useState('Nenhum arquivo selecionado')
+  const stateLabel: Record<ContractImportState, string> = {
+    idle: 'aguardando arquivo',
+    uploading: 'carregando',
+    parsing: 'lendo PDF',
+    validating: 'validando',
+    ready: 'pronto',
+    warning: 'atenção',
+    error: 'erro',
+    imported: 'importado',
+  }
 
   const canConfirm = useMemo(() => {
     if (!preview) return false
@@ -47,16 +65,21 @@ export function ImportarContratoDialog({
         <h3 style={{ margin: 0, color: '#0f172a' }}>Importar contrato</h3>
         <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>Selecione um PDF assinado para validar assinatura, comparar dados e preencher a aba Contrato.</p>
 
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={(e) => {
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #cbd5e1', borderRadius: 8, padding: 8 }}>
+          <span className="pf-btn pf-btn-edit" style={{ cursor: 'pointer' }}>Escolher arquivo</span>
+          <span style={{ fontSize: 12, color: '#475569' }}>{selectedFileName}</span>
+          <input
+            type="file"
+            accept="application/pdf"
+            style={{ display: 'none' }}
+            onChange={(e) => {
             void (async () => {
               const file = e.target.files?.[0]
               if (!file) return
               setError(null)
               setPreview(null)
               setApprovedCodes(new Set())
+              setSelectedFileName(file.name)
               try {
                 setState('uploading')
                 setState('parsing')
@@ -71,10 +94,11 @@ export function ImportarContratoDialog({
                 e.target.value = ''
               }
             })()
-          }}
-        />
+            }}
+          />
+        </label>
 
-        <div style={{ fontSize: 12, color: '#334155' }}>Estado: <strong>{state}</strong></div>
+        <div style={{ fontSize: 12, color: '#334155' }}>Status: <strong>{stateLabel[state]}</strong></div>
         {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
         {preview && (
@@ -124,6 +148,13 @@ export function ImportarContratoDialog({
                     sourceProposalId: result.payload.proposalCode,
                     contractualTermMonths: result.payload.prazoContratualMeses,
                     kwhContratado: result.payload.kwhContratado,
+                    contractorName: preview.parsedFields.contractorName,
+                    contractorDocument: preview.parsedFields.contractorDocument,
+                    contractorEmail: preview.parsedFields.contractorEmail,
+                    contractorPhone: preview.parsedFields.contractorPhone,
+                    contractorAddress: preview.parsedFields.contractorAddress,
+                    contractorCity: preview.parsedFields.city,
+                    contractorState: preview.parsedFields.state,
                   })
                 } catch (err) {
                   setState('error')

@@ -47,7 +47,7 @@ export function ContractImportDiffTable({
                   type="checkbox"
                   checked={approvedCodes.has(item.code)}
                   onChange={() => onToggleApprove(item.code)}
-                  style={{ marginRight: 6 }}
+                  style={{ marginRight: 6, width: 14, height: 14, accentColor: '#2563eb' }}
                 />
                 Aprovar divergência manualmente
               </label>

@@ -37,6 +37,7 @@ export type ParsedContractFields = {
   kwhContratado: number | null
   city: string | null
   state: string | null
+  contractorPostalCode: string | null
   distributor: string | null
   unitConsumerNumber: string | null
   installationType: string | null

@@ -770,20 +770,6 @@ function EditarTab({
               </div>
             )}
           </div>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              Consumo (kWh/mês)
-              <input type="number" value={form.consumption_kwh_month} onChange={(e) => setForm((f) => ({ ...f, consumption_kwh_month: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              Potência (kWp)
-              <input type="number" value={form.system_kwp} onChange={(e) => setForm((f) => ({ ...f, system_kwp: e.target.value }))} disabled={!editMode} style={inputStyle} />
-            </label>
-          </div>
-          <label className="pf-label" style={labelStyle}>
-            Prazo Contratual (meses)
-            <input type="number" value={form.term_months} onChange={(e) => setForm((f) => ({ ...f, term_months: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
         </div>
       </div>
 
@@ -1165,7 +1151,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         client={client}
         existingAttachments={contractAttachments}
         onClose={() => setShowImportDialog(false)}
-        onImported={({ attachment, contractSignedAt, sourceProposalId, contractualTermMonths, kwhContratado }) => {
+        onImported={({ attachment, contractSignedAt, sourceProposalId, contractualTermMonths, kwhContratado, contractorName, contractorDocument, contractorEmail, contractorPhone, contractorAddress, contractorCity, contractorState }) => {
           const nextAttachments = [
             ...contractAttachments.filter((item) => item.origin !== 'importacao_contrato'),
             attachment,
@@ -1187,6 +1173,13 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             contract_attachments: nextAttachments,
             kwh_contratado: kwhContratado,
             kwh_mes_contratado: kwhContratado,
+            name: contractorName,
+            document: contractorDocument,
+            email: contractorEmail,
+            phone: contractorPhone,
+            address: contractorAddress,
+            city: contractorCity,
+            state: contractorState,
           } as Partial<PortfolioClientRow>)
           setShowImportDialog(false)
         }}
