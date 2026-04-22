@@ -340,6 +340,16 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
   const image = att.url && isImage(att.mimeType, att.fileName)
   const sizeLabel = att.sizeBytes != null ? `${(att.sizeBytes / 1024).toFixed(1)} KB` : null
   const icon = pdf ? '📄' : image ? '🖼️' : '📎'
+  const shouldOpenPdfInNewTab = Boolean(pdf && att.url)
+
+  function handlePreviewClick() {
+    if (!att.url) return
+    if (shouldOpenPdfInNewTab) {
+      window.open(att.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setShowPreview(true)
+  }
 
   return (
     <>
@@ -355,9 +365,9 @@ function AttachmentItem({ att, onRemove, editMode }: AttachmentItemProps) {
         </span>
         {sizeLabel && <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{sizeLabel}</span>}
         {previewable && (
-          <button type="button" onClick={() => setShowPreview(true)}
+          <button type="button" onClick={handlePreviewClick}
             style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
-            👁️ Visualizar
+            {shouldOpenPdfInNewTab ? '🔎 Abrir PDF' : '👁️ Visualizar'}
           </button>
         )}
         {att.url && (
