@@ -121,16 +121,42 @@ export async function createProposal(sql, ownerUserId, data) {
   return rows[0] ?? null
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
- * Fetch a single non-deleted proposal by its UUID.
+ * Fetch a single non-deleted proposal by its UUID or proposal_code.
+ *
+ * When `id` is a well-formed UUID the lookup is performed on `p.id`;
+ * otherwise it falls back to `p.proposal_code` (e.g. "SLRV-124324").
+ * This prevents a PostgreSQL "invalid input syntax for type uuid" error
+ * when callers pass a human-readable code stored in source_proposal_id.
  */
 export async function getProposalById(sql, id) {
+  if (!id) return null
+
+  if (UUID_REGEX.test(id)) {
+    const rows = await sql`
+      SELECT p.*, up.primary_role AS owner_role
+      FROM proposals p
+      LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id
+      WHERE p.id = ${id}::uuid
+        AND p.deleted_at IS NULL
+      LIMIT 1
+    `
+    return rows[0] ?? null
+  }
+
+  // Non-UUID input: treat as proposal_code (e.g. "SLRV-124324").
+  // proposal_code values are generated to be unique, but the schema has no
+  // UNIQUE constraint, so ORDER BY created_at DESC ensures a deterministic
+  // result if duplicates ever exist.
   const rows = await sql`
     SELECT p.*, up.primary_role AS owner_role
     FROM proposals p
     LEFT JOIN app_user_profiles up ON up.stack_user_id = p.owner_user_id
-    WHERE p.id = ${id}
+    WHERE p.proposal_code = ${id}
       AND p.deleted_at IS NULL
+    ORDER BY p.created_at DESC
     LIMIT 1
   `
   return rows[0] ?? null

@@ -119,6 +119,7 @@ import {
   handleProjectPvData,
   handleProjectFromPlan,
 } from './projects/handler.js'
+import { handleProjectFinance } from './project-finance/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1301,6 +1302,17 @@ export default async function handler(req, res) {
         const sj = (s, b) => sendJson(res, s, b)
         const planId = decodeURIComponent(fromPlanMatch[1])
         await handleProjectFromPlan(req, res, { method, planId, readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // GET|PUT /api/projects/:id/finance
+    {
+      const financeMatch = pathname.match(/^\/api\/projects\/([^/]+)\/finance$/)
+      if (financeMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectFinance(req, res, { method, projectId: financeMatch[1], readJsonBody, sendJson: sj })
         return
       }
     }
