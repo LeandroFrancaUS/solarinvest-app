@@ -56,6 +56,12 @@ import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
 import { ImportarContratoDialog } from '../components/carteira/contrato/ImportarContratoDialog'
+import { ProposalOriginField } from '../components/carteira/contrato/ProposalOriginField'
+import { ProposalOriginSearchDialog } from '../components/carteira/contrato/ProposalOriginSearchDialog'
+import { ProposalOriginPreview } from '../components/carteira/contrato/ProposalOriginPreview'
+import { createProposalOriginLink, validateProposalOriginLink } from '../lib/proposals/proposalOriginLink'
+import type { SavedProposalRecord } from '../lib/proposals/types'
+import { downloadSavedProposal, findSavedProposalByExactCode, getSavedProposalRecord } from '../services/proposalRecordsService'
 
 interface Props {
   onBack: () => void
@@ -839,6 +845,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [showImportDialog, setShowImportDialog] = useState(false)
+  const [showProposalSearchDialog, setShowProposalSearchDialog] = useState(false)
+  const [previewRecord, setPreviewRecord] = useState<SavedProposalRecord | null>(null)
   // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
   const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
     // If DB has an explicit attachments array (even empty), use it — avoids clobbering a
@@ -866,6 +874,13 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
+    source_proposal_record_id: client.source_proposal_record_id ?? '',
+    source_proposal_code: client.source_proposal_code ?? '',
+    source_proposal_client_name: client.source_proposal_client_name ?? '',
+    source_proposal_created_at: client.source_proposal_created_at ?? '',
+    source_proposal_type: client.source_proposal_type ?? '',
+    source_proposal_preview_url: client.source_proposal_preview_url ?? '',
+    source_proposal_download_url: client.source_proposal_download_url ?? '',
     contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
     buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
@@ -879,6 +894,13 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
+    source_proposal_record_id: client.source_proposal_record_id ?? '',
+    source_proposal_code: client.source_proposal_code ?? '',
+    source_proposal_client_name: client.source_proposal_client_name ?? '',
+    source_proposal_created_at: client.source_proposal_created_at ?? '',
+    source_proposal_type: client.source_proposal_type ?? '',
+    source_proposal_preview_url: client.source_proposal_preview_url ?? '',
+    source_proposal_download_url: client.source_proposal_download_url ?? '',
     contract_signed_at: client.contract_signed_at?.slice(0, 10) ?? '',
     contractual_term_months: client.contractual_term_months != null ? String(client.contractual_term_months) : '',
     buyout_eligible: buildBuyoutEligibleDefault(client.contract_type ?? 'leasing', client.buyout_eligible),
@@ -892,12 +914,31 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     setSaving(true)
     setSaveError(null)
     try {
+      const linkValidation = validateProposalOriginLink(
+        form.source_proposal_record_id && form.source_proposal_code
+          ? {
+            proposalOriginRecordId: form.source_proposal_record_id,
+            proposalOriginCode: form.source_proposal_code,
+          }
+          : null,
+      )
+      if (!linkValidation.valid) {
+        throw new Error(`Vínculo da proposta de origem inválido: ${linkValidation.reason}`)
+      }
+
       const savedContractId = await patchPortfolioContract(client.id, {
         ...form,
         id: client.contract_id ?? undefined,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         contract_signed_at: form.contract_signed_at || null,
-        source_proposal_id: form.source_proposal_id || null,
+        source_proposal_id: form.source_proposal_record_id || form.source_proposal_id || null,
+        source_proposal_record_id: form.source_proposal_record_id || null,
+        source_proposal_code: form.source_proposal_code || null,
+        source_proposal_client_name: form.source_proposal_client_name || null,
+        source_proposal_created_at: form.source_proposal_created_at || null,
+        source_proposal_type: form.source_proposal_type || null,
+        source_proposal_preview_url: form.source_proposal_preview_url || null,
+        source_proposal_download_url: form.source_proposal_download_url || null,
         notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
         consultant_name: form.consultant_name || null,
@@ -906,7 +947,14 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       onSaved({
         contract_type: form.contract_type,
         contract_status: form.contract_status,
-        source_proposal_id: form.source_proposal_id || null,
+        source_proposal_id: form.source_proposal_record_id || form.source_proposal_id || null,
+        source_proposal_record_id: form.source_proposal_record_id || null,
+        source_proposal_code: form.source_proposal_code || null,
+        source_proposal_client_name: form.source_proposal_client_name || null,
+        source_proposal_created_at: form.source_proposal_created_at || null,
+        source_proposal_type: form.source_proposal_type || null,
+        source_proposal_preview_url: form.source_proposal_preview_url || null,
+        source_proposal_download_url: form.source_proposal_download_url || null,
         contract_signed_at: form.contract_signed_at || null,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         buyout_eligible: form.buyout_eligible,
@@ -929,6 +977,32 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       setSaving(false)
     }
   }
+
+  useEffect(() => {
+    const code = (form.source_proposal_code || form.source_proposal_id || '').trim()
+    if (!code || form.source_proposal_record_id) return
+
+    let active = true
+    void findSavedProposalByExactCode(code).then((match) => {
+      if (!active || !match) return
+      const link = createProposalOriginLink(match)
+      setForm((prev) => ({
+        ...prev,
+        source_proposal_id: prev.source_proposal_id || code,
+        source_proposal_record_id: link.proposalOriginRecordId,
+        source_proposal_code: link.proposalOriginCode,
+        source_proposal_client_name: link.proposalOriginClientName ?? '',
+        source_proposal_created_at: link.proposalOriginCreatedAt ?? '',
+        source_proposal_type: link.proposalOriginType ?? '',
+        source_proposal_preview_url: link.proposalOriginPreviewUrl ?? '',
+        source_proposal_download_url: link.proposalOriginDownloadUrl ?? '',
+      }))
+    }).catch(() => { /* no-op */ })
+
+    return () => {
+      active = false
+    }
+  }, [form.source_proposal_code, form.source_proposal_id, form.source_proposal_record_id])
 
   const isVenda = form.contract_type === 'sale'
   const inputStyle: React.CSSProperties = {
@@ -964,7 +1038,56 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           </label>
           <label className="pf-label" style={labelSty}>
             ID da Proposta de Origem
-            <input type="text" value={form.source_proposal_id} onChange={(e) => setForm((f) => ({ ...f, source_proposal_id: e.target.value }))} disabled={!editMode} style={inputStyle} />
+            <div style={{ marginTop: 6 }}>
+              <ProposalOriginField
+                editMode={editMode}
+                displayCode={form.source_proposal_code || null}
+                legacyCode={form.source_proposal_id}
+                onOpenSearch={() => setShowProposalSearchDialog(true)}
+                onClear={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    source_proposal_id: '',
+                    source_proposal_record_id: '',
+                    source_proposal_code: '',
+                    source_proposal_client_name: '',
+                    source_proposal_created_at: '',
+                    source_proposal_type: '',
+                    source_proposal_preview_url: '',
+                    source_proposal_download_url: '',
+                  }))
+                  console.info('[audit][proposal-origin] link_removed', { clientId: client.id, contractId: client.contract_id ?? null })
+                }}
+                onPreview={() => {
+                  const recordId = form.source_proposal_record_id
+                  if (!recordId) return
+                  void getSavedProposalRecord(recordId).then((record) => {
+                    if (!record) return
+                    setPreviewRecord(record)
+                    console.info('[audit][proposal-origin] preview_opened', { clientId: client.id, proposalId: recordId })
+                  })
+                }}
+                onDownload={() => {
+                  const record: SavedProposalRecord = {
+                    id: form.source_proposal_record_id || form.source_proposal_id,
+                    code: form.source_proposal_code || form.source_proposal_id || 'proposta',
+                    clientName: form.source_proposal_client_name || null,
+                    createdAt: form.source_proposal_created_at || null,
+                    proposalType: form.source_proposal_type || null,
+                    previewUrl: form.source_proposal_preview_url || null,
+                    fileUrl: form.source_proposal_download_url || null,
+                  }
+                  void downloadSavedProposal(record)
+                  console.info('[audit][proposal-origin] download_triggered', { clientId: client.id, proposalId: record.id })
+                }}
+                onLegacyChange={(value) => setForm((f) => ({
+                  ...f,
+                  source_proposal_id: value,
+                  source_proposal_code: value,
+                  source_proposal_record_id: '',
+                }))}
+              />
+            </div>
           </label>
           <div style={gridSty}>
             <label className="pf-label" style={labelSty}>
@@ -1146,6 +1269,36 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
           onCancel={() => setShowSavePrompt(false)}
         />
       )}
+      <ProposalOriginSearchDialog
+        open={showProposalSearchDialog}
+        onClose={() => setShowProposalSearchDialog(false)}
+        onSelect={(record) => {
+          const link = createProposalOriginLink(record)
+          setForm((prev) => ({
+            ...prev,
+            source_proposal_id: link.proposalOriginRecordId,
+            source_proposal_record_id: link.proposalOriginRecordId,
+            source_proposal_code: link.proposalOriginCode,
+            source_proposal_client_name: link.proposalOriginClientName ?? '',
+            source_proposal_created_at: link.proposalOriginCreatedAt ?? '',
+            source_proposal_type: link.proposalOriginType ?? '',
+            source_proposal_preview_url: link.proposalOriginPreviewUrl ?? '',
+            source_proposal_download_url: link.proposalOriginDownloadUrl ?? '',
+          }))
+          console.info('[audit][proposal-origin] link_created', {
+            clientId: client.id,
+            contractId: client.contract_id ?? null,
+            proposalId: link.proposalOriginRecordId,
+            code: link.proposalOriginCode,
+          })
+        }}
+      />
+      <ProposalOriginPreview
+        open={Boolean(previewRecord)}
+        record={previewRecord}
+        onClose={() => setPreviewRecord(null)}
+        onDownload={(record) => { void downloadSavedProposal(record) }}
+      />
       <ImportarContratoDialog
         open={showImportDialog}
         client={client}
@@ -1162,6 +1315,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             contract_status: 'active',
             contract_signed_at: contractSignedAt ? contractSignedAt.slice(0, 10) : prev.contract_signed_at,
             source_proposal_id: sourceProposalId ?? prev.source_proposal_id,
+            source_proposal_code: sourceProposalId ?? prev.source_proposal_code,
+            source_proposal_record_id: sourceProposalId ? '' : prev.source_proposal_record_id,
             contractual_term_months:
               contractualTermMonths != null ? String(contractualTermMonths) : prev.contractual_term_months,
           }))
@@ -1169,6 +1324,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             contract_status: 'active',
             contract_signed_at: contractSignedAt ? contractSignedAt.slice(0, 10) : null,
             source_proposal_id: sourceProposalId,
+            source_proposal_code: sourceProposalId,
             contractual_term_months: contractualTermMonths,
             contract_attachments: nextAttachments,
             kwh_contratado: kwhContratado,
