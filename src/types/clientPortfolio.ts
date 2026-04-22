@@ -80,6 +80,13 @@ export interface PortfolioClientRow {
   contract_type?: ContractType | null
   contract_status?: ContractStatus | null
   source_proposal_id?: string | null
+  source_proposal_record_id?: string | null
+  source_proposal_code?: string | null
+  source_proposal_client_name?: string | null
+  source_proposal_created_at?: string | null
+  source_proposal_type?: string | null
+  source_proposal_preview_url?: string | null
+  source_proposal_download_url?: string | null
   contract_signed_at?: string | null
   contract_start_date?: string | null
   billing_start_date?: string | null
