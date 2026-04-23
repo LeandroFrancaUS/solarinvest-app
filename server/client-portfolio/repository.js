@@ -112,6 +112,12 @@ function enrichPortfolioClientRow(row) {
   row.contract_attachments = Array.isArray(rawAttachments) ? rawAttachments : null
 
   // Expose plano fields from energy profile when available
+  // Single source for contractual term in UI/API:
+  // prioritize client_contracts.contractual_term_months and mirror into
+  // prazo_meses so all tabs/components read the same value.
+  if (row.contractual_term_months != null) {
+    row.prazo_meses = row.contractual_term_months
+  }
   row.kwh_mes_contratado = row.kwh_contratado ?? null
 
   return row
