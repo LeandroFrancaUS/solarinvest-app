@@ -458,12 +458,6 @@ export function deriveProjectFinanceCosts(
         : LEASING_PREMISE_DEFAULTS.custo_manutencao
     result.custo_manutencao = manutencaoEffective
 
-    if (receita_esperada != null && receita_esperada >= 0) {
-      result.receita_esperada = receita_esperada
-    } else if (mensalidade_base != null && mensalidade_base > 0 && prazo_meses != null && prazo_meses > 0) {
-      result.receita_esperada = mensalidade_base * prazo_meses
-    }
-
     // Seguro: use calcSeguroLeasing when constants match defaults; otherwise
     // apply the two-tier formula inline with the provided custom constants.
     if (capexBase > 0) {
@@ -483,14 +477,29 @@ export function deriveProjectFinanceCosts(
     if (mensalidade_base != null && mensalidade_base > 0) {
       result.custo_comissao = mensalidade_base
 
-      // Total impostos over contract term
-      if (prazo_meses != null && prazo_meses > 0) {
-        const taxResult = computeTaxes({
-          modo: 'leasing',
-          mensalidade: mensalidade_base,
-          aliquota: impostos_leasing_percent / 100,
-        })
-        result.custo_impostos = taxResult.valorImposto * prazo_meses
+      // Impostos / Taxas (R$) = annual tax on mensalidade_base.
+      // Monthly tax = impostos_percent × mensalidade_base; annual = monthly × 12.
+      const taxResult = computeTaxes({
+        modo: 'leasing',
+        mensalidade: mensalidade_base,
+        aliquota: impostos_leasing_percent / 100,
+      })
+      result.custo_impostos = taxResult.valorImposto * 12
+
+      // Receita total esperada = Receita total do contrato from the AF engine.
+      // Matches "Retorno e Rentabilidade — Leasing: Receita total do contrato".
+      // Formula: Σ mensalidade_base × (1 + reajuste)^floor(i/12) for i in [0, prazo).
+      // This is the gross sum of all projected mensalidades — no fator_liquido applied.
+      if (receita_esperada != null && receita_esperada >= 0) {
+        result.receita_esperada = receita_esperada
+      } else if (prazo_meses != null && prazo_meses > 0) {
+        const reajusteDecimal = reajusteEffective / 100
+        let receitaTotal = 0
+        for (let i = 0; i < prazo_meses; i++) {
+          const ano = Math.floor(i / 12)
+          receitaTotal += mensalidade_base * Math.pow(1 + reajusteDecimal, ano)
+        }
+        result.receita_esperada = receitaTotal
       }
     }
   } else {

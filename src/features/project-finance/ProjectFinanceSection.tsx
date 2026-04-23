@@ -71,11 +71,10 @@ export function ProjectFinanceSection({
   //      compute it themselves)
   //   3. `client_energy_profile.mensalidade` returned by the server (the value
   //      seeded by the closed-deal pipeline)
-  // The third source is what unlocks CAC, impostos and receita_esperada for
-  // projects that were created via "Negócio fechado" but whose financial
-  // profile has not yet been edited.
+  //   4. auto-computed effective value from the engine (consumo × tarifa × (1−desconto))
+  //      This handles projects with a tarifa_kwh but no saved mensalidade.
   const resolvedMensalidadeBase =
-    form.mensalidade_base ?? mensalidadeFromContract ?? contractMensalidadeBase ?? null
+    form.mensalidade_base ?? mensalidadeFromContract ?? contractMensalidadeBase ?? effective.mensalidade_base ?? null
 
   // Build derive params from available project data and vendasConfig AF params.
   // useMemo produces a stable object reference (not recreated every render)

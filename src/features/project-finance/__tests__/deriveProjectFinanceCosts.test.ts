@@ -158,21 +158,27 @@ describe('deriveProjectFinanceCosts', () => {
     })
   })
 
-  describe('leasing: custo_impostos over contract term', () => {
-    it('computes total impostos for leasing when mensalidade and prazo are provided', () => {
+  describe('leasing: custo_impostos = annual tax on mensalidade_base (monthly × 12)', () => {
+    it('computes annual impostos for leasing (impostos_pct × mensalidade_base × 12)', () => {
       const mensalidade = 1000
       const prazo = 60
       const aliquota = 4 / 100
-      const expectedImpostoPerMonth = mensalidade * aliquota
+      const expectedAnnual = mensalidade * aliquota * 12
       const result = deriveProjectFinanceCosts(
         { mensalidade_base: mensalidade, prazo_meses: prazo },
         'leasing',
       )
-      expect(result.custo_impostos).toBeCloseTo(expectedImpostoPerMonth * prazo, 2)
+      // Must equal the ANNUAL tax value (monthly × 12)
+      expect(result.custo_impostos).toBeCloseTo(expectedAnnual, 2)
     })
 
-    it('skips custo_impostos when prazo is missing', () => {
+    it('computes custo_impostos even when prazo is missing (annual, no prazo needed)', () => {
       const result = deriveProjectFinanceCosts({ mensalidade_base: 1000 }, 'leasing')
+      expect(result.custo_impostos).toBeCloseTo(1000 * (4 / 100) * 12, 2)
+    })
+
+    it('skips custo_impostos when mensalidade_base is null', () => {
+      const result = deriveProjectFinanceCosts({ mensalidade_base: null, prazo_meses: 60 }, 'leasing')
       expect(result.custo_impostos).toBeUndefined()
     })
   })
@@ -267,15 +273,20 @@ describe('deriveProjectFinanceCosts', () => {
 
     it('cascades mensalidade_base into CAC, impostos and receita_esperada', () => {
       // Smallest scenario: only mensalidade_base + prazo_meses. The engine
-      // must derive CAC (= mensalidade), receita_esperada (= mens × prazo),
-      // and total impostos over the contract term.
+      // must derive CAC (= mensalidade), receita_esperada (= reajuste-aware gross sum),
+      // and annual impostos on the mensalidade_base.
+      const mensalidade = 800
+      const prazo = 60
       const result = deriveProjectFinanceCosts(
-        { mensalidade_base: 800, prazo_meses: 60 },
+        { mensalidade_base: mensalidade, prazo_meses: prazo },
         'leasing',
       )
-      expect(result.mensalidade_base).toBe(800)
-      expect(result.custo_comissao).toBe(800)
-      expect(result.receita_esperada).toBe(800 * 60)
+      expect(result.mensalidade_base).toBe(mensalidade)
+      expect(result.custo_comissao).toBe(mensalidade)
+      // receita_esperada = Σ mensalidade × (1 + reajuste)^floor(i/12) — gross, no fator_liquido
+      // With default reajuste=4%, the total is > mensalidade × prazo (flat)
+      expect(typeof result.receita_esperada).toBe('number')
+      expect((result.receita_esperada ?? 0)).toBeGreaterThan(mensalidade * prazo)
       expect(typeof result.custo_impostos).toBe('number')
       expect((result.custo_impostos ?? 0)).toBeGreaterThan(0)
     })
