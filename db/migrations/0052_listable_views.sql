@@ -39,7 +39,7 @@ WHERE c.deleted_at IS NULL
     (
       nullif(trim(coalesce(c.client_name, '')), '') IS NOT NULL
       AND lower(trim(coalesce(c.client_name, ''))) NOT IN
-          ('0', 'null', 'undefined', '[object object]', '-', '—')
+          ('0', 'null', 'undefined', '[object object]', '-', u&'\2014')
     )
     OR c.cpf_normalized IS NOT NULL
     OR c.cnpj_normalized IS NOT NULL

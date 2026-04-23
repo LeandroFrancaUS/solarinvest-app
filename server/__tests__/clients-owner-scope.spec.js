@@ -21,10 +21,11 @@ import { describe, it, expect } from 'vitest'
 // All helpers below are extracted inline from repository.js / handler.js to
 // avoid transitive server-only dependencies (DB drivers, env vars, etc.).
 
-// Placeholder name blocklist — mirrors listClients() in repository.js and the
-// vw_clients_listable view (migration 0052).
+// Placeholder name blocklist — mirrors handler.js CLIENT_PLACEHOLDER_NAMES,
+// validators.js PLACEHOLDER_NAME_BLOCKLIST, and vw_clients_listable (migration 0052).
+// Ordering matches handler.js for ease of cross-reference.
 const CLIENT_PLACEHOLDER_NAMES = new Set([
-  '0', 'null', 'undefined', '[object object]', '-', '\u2014',
+  '[object object]', '0', 'null', 'undefined', '-', '\u2014',
 ])
 
 function hasListableAnchor(row) {
@@ -47,11 +48,13 @@ function hasListableAnchor(row) {
 // Mirrors listClients() owner-filter injection logic (repository.js).
 function buildOwnerConditions({ actorUserId = null, actorRole = null, createdByUserId = null } = {}) {
   // Must match the updated baseConditions + conditions arrays in repository.js.
+  // The listable-anchor condition is represented as a single string here; the
+  // actual SQL expression lives in CLIENT_LISTABLE_ANCHOR in repository.js.
   const conditions = [
     'c.deleted_at IS NULL',
     "coalesce(c.identity_status, '') <> 'merged'",
-    // Listable anchor guard (abbreviated for condition-check tests)
-    'c.cpf_normalized IS NOT NULL OR c.client_email IS NOT NULL OR ...',
+    // Listable anchor guard: client must have valid name, CPF/CNPJ, email, or phone.
+    '(valid_name OR c.cpf_normalized IS NOT NULL OR valid_email OR valid_phone)',
     'c.merged_into_client_id IS NULL',
   ]
   const params = []

@@ -69,8 +69,10 @@ function normalizeCep(raw) {
 }
 
 // Placeholder values that must never be stored as a client name.
-// Matches the same blocklist used in the proposals validator and the
-// vw_clients_listable view (migration 0052).
+// Keep this list in sync with:
+//   • server/proposals/validators.js  → PLACEHOLDER_NAME_BLOCKLIST
+//   • server/clients/repository.js    → CLIENT_LISTABLE_ANCHOR SQL condition
+//   • db/migrations/0052_listable_views.sql → vw_clients_listable
 const CLIENT_PLACEHOLDER_NAMES = new Set([
   '[object object]', '0', 'null', 'undefined', '-', '\u2014',
 ])

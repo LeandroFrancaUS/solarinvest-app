@@ -88,6 +88,11 @@ function pickAllowedFields(body) {
 }
 
 // Placeholder values that must never appear as a client_name on any record.
+// Placeholder values that must never be stored as a client_name.
+// Keep this list in sync with:
+//   • server/clients/handler.js        → CLIENT_PLACEHOLDER_NAMES
+//   • server/clients/repository.js     → CLIENT_LISTABLE_ANCHOR SQL condition
+//   • db/migrations/0052_listable_views.sql → vw_clients_listable
 const PLACEHOLDER_NAME_BLOCKLIST = ['[object object]', '0', 'null', 'undefined', '-', '\u2014']
 
 /**
