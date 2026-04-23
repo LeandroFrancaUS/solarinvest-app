@@ -3816,7 +3816,7 @@ function ClientesPanel({
       const consultorId = registro.dados.consultorId ?? ''
       // Fall back to the consultant name stored on the client record itself (consultor_nome in metadata)
       // so the correct name shows immediately while allConsultores is still loading from the API.
-      const consultorLabel = consultorById.get(consultorId)?.name ?? registro.dados.consultorNome?.trim() || 'Sem consultor'
+      const consultorLabel = (consultorById.get(consultorId)?.name ?? registro.dados.consultorNome?.trim()) || 'Sem consultor'
       const matchOwner = isPrivilegedUser
         ? consultorLabel.toLowerCase().includes(normalizedSearchTerm)
         : false
@@ -4064,7 +4064,7 @@ function ClientesPanel({
                       const consultorCadastrado = consultorById.get(registro.dados.consultorId ?? '')
                       // Fall back to the name stored in client metadata while the consultants list loads
                       const storedNome = registro.dados.consultorNome?.trim() || ''
-                      const consultorResponsavel = consultorCadastrado?.name ?? storedNome || 'Sem consultor'
+                      const consultorResponsavel = (consultorCadastrado?.name ?? storedNome) || 'Sem consultor'
                       // Short display: apelido when available, otherwise first word of full name (Issue 4)
                       const consultorApelido = consultorCadastrado
                         ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
