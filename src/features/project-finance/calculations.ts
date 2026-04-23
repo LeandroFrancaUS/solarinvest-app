@@ -38,6 +38,8 @@ import type { ProjectPvData } from '../../domain/projects/types'
 
 /** Sum all cost fields, treating nulls as 0. Returns null if ALL are null. */
 export function computeCustoTotal(form: ProjectFinanceFormState): number | null {
+  // custo_impostos is an operational expense (NOT CAPEX) for leasing and is
+  // therefore excluded from the project investment total.
   const fields: (number | null | undefined)[] = [
     form.custo_equipamentos,
     form.custo_instalacao,
@@ -46,7 +48,6 @@ export function computeCustoTotal(form: ProjectFinanceFormState): number | null 
     form.custo_frete_logistica,
     form.custo_seguro,
     form.custo_comissao,
-    form.custo_impostos,
     form.custo_diversos,
   ]
   const anyNonNull = fields.some((v) => v != null)
@@ -350,7 +351,8 @@ export const LEASING_PREMISE_DEFAULTS = {
  * Leasing-specific (only populated when mensalidade_base is provided):
  *   custo_comissao = mensalidade_base  (CAC = first monthly payment)
  *   custo_seguro   = calcSeguroLeasing(capex_base)
- *   custo_impostos = impostos_leasing_percent × mensalidade × prazo
+ *   custo_impostos = impostos_leasing_percent × Σ(mensalidade × (1+reajuste)^⌊i/12⌋)
+ *                    Operational expense — NOT included in custo_total (CAPEX).
  *
  * Returns only fields that could be derived; any field whose inputs are
  * missing is simply absent from the returned object.
@@ -477,29 +479,29 @@ export function deriveProjectFinanceCosts(
     if (mensalidade_base != null && mensalidade_base > 0) {
       result.custo_comissao = mensalidade_base
 
-      // Impostos / Taxas (R$) = annual tax on mensalidade_base.
-      // Monthly tax = impostos_percent × mensalidade_base; annual = monthly × 12.
-      const taxResult = computeTaxes({
-        modo: 'leasing',
-        mensalidade: mensalidade_base,
-        aliquota: impostos_leasing_percent / 100,
-      })
-      result.custo_impostos = taxResult.valorImposto * 12
-
-      // Receita total esperada = Receita total do contrato from the AF engine.
-      // Matches "Retorno e Rentabilidade — Leasing: Receita total do contrato".
-      // Formula: Σ mensalidade_base × (1 + reajuste)^floor(i/12) for i in [0, prazo).
-      // This is the gross sum of all projected mensalidades — no fator_liquido applied.
-      if (receita_esperada != null && receita_esperada >= 0) {
-        result.receita_esperada = receita_esperada
-      } else if (prazo_meses != null && prazo_meses > 0) {
+      // Reajuste-aware gross sum over the full contract term.
+      // Used for both receita_esperada and the impostos total.
+      // Formula: Σ mensalidade × (1 + reajuste)^floor(i/12)  for i in [0, prazo).
+      if (prazo_meses != null && prazo_meses > 0) {
         const reajusteDecimal = reajusteEffective / 100
         let receitaTotal = 0
         for (let i = 0; i < prazo_meses; i++) {
-          const ano = Math.floor(i / 12)
-          receitaTotal += mensalidade_base * Math.pow(1 + reajusteDecimal, ano)
+          receitaTotal += mensalidade_base * Math.pow(1 + reajusteDecimal, Math.floor(i / 12))
         }
-        result.receita_esperada = receitaTotal
+
+        // Impostos / Taxas (R$) = operational expense, NOT CAPEX.
+        // Total = impostos_pct × Σ(mensalidade reajustada) over the full term.
+        result.custo_impostos = receitaTotal * (impostos_leasing_percent / 100)
+
+        // Receita total esperada = Receita total do contrato from the AF engine.
+        // Matches "Retorno e Rentabilidade — Leasing: Receita total do contrato".
+        if (!(receita_esperada != null && receita_esperada >= 0)) {
+          result.receita_esperada = receitaTotal
+        }
+      }
+
+      if (receita_esperada != null && receita_esperada >= 0) {
+        result.receita_esperada = receita_esperada
       }
     }
   } else {

@@ -3,7 +3,7 @@
 // Verifies that the same formulas as App.tsx's Análise Financeira are used.
 
 import { describe, it, expect } from 'vitest'
-import { deriveProjectFinanceCosts, LEASING_PREMISE_DEFAULTS } from '../calculations'
+import { deriveProjectFinanceCosts, LEASING_PREMISE_DEFAULTS, computeCustoTotal } from '../calculations'
 import {
   CREA_GO_RS,
   CREA_DF_RS,
@@ -158,28 +158,49 @@ describe('deriveProjectFinanceCosts', () => {
     })
   })
 
-  describe('leasing: custo_impostos = annual tax on mensalidade_base (monthly × 12)', () => {
-    it('computes annual impostos for leasing (impostos_pct × mensalidade_base × 12)', () => {
+  describe('leasing: custo_impostos = reajuste-aware total over full term (operational, not CAPEX)', () => {
+    it('computes total impostos as impostos_pct × reajuste-aware gross sum', () => {
       const mensalidade = 1000
       const prazo = 60
+      const reajuste = 4 // default
       const aliquota = 4 / 100
-      const expectedAnnual = mensalidade * aliquota * 12
+      // Expected: aliquota × Σ mensalidade × (1 + reajuste/100)^floor(i/12) for i=0..prazo-1
+      let expectedGross = 0
+      for (let i = 0; i < prazo; i++) {
+        expectedGross += mensalidade * Math.pow(1 + reajuste / 100, Math.floor(i / 12))
+      }
+      const expected = expectedGross * aliquota
       const result = deriveProjectFinanceCosts(
         { mensalidade_base: mensalidade, prazo_meses: prazo },
         'leasing',
       )
-      // Must equal the ANNUAL tax value (monthly × 12)
-      expect(result.custo_impostos).toBeCloseTo(expectedAnnual, 2)
+      expect(result.custo_impostos).toBeCloseTo(expected, 2)
     })
 
-    it('computes custo_impostos even when prazo is missing (annual, no prazo needed)', () => {
+    it('skips custo_impostos when prazo is missing', () => {
       const result = deriveProjectFinanceCosts({ mensalidade_base: 1000 }, 'leasing')
-      expect(result.custo_impostos).toBeCloseTo(1000 * (4 / 100) * 12, 2)
+      expect(result.custo_impostos).toBeUndefined()
     })
 
     it('skips custo_impostos when mensalidade_base is null', () => {
       const result = deriveProjectFinanceCosts({ mensalidade_base: null, prazo_meses: 60 }, 'leasing')
       expect(result.custo_impostos).toBeUndefined()
+    })
+
+    it('custo_impostos is NOT included in computeCustoTotal (operational, not CAPEX)', () => {
+      // Build a minimal form with only custo_impostos set — custo_total must be null
+      const form = {
+        custo_equipamentos: null,
+        custo_instalacao: null,
+        custo_engenharia: null,
+        custo_homologacao: null,
+        custo_frete_logistica: null,
+        custo_seguro: null,
+        custo_comissao: null,
+        custo_impostos: 5000,
+        custo_diversos: null,
+      } as Parameters<typeof computeCustoTotal>[0]
+      expect(computeCustoTotal(form)).toBeNull()
     })
   })
 
