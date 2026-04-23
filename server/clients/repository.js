@@ -383,7 +383,28 @@ export async function listClients(sql, filter = {}) {
   const safeSortExpr = sortColumnMap[safeSort] ?? 'c.updated_at'
   const safeSortDir = allowedSortDir.includes(sortDir.toUpperCase()) ? sortDir.toUpperCase() : 'DESC'
 
-  const baseConditions = ['c.deleted_at IS NULL']
+  // Listable anchor guard: a client is shown only when it has at least one
+  // valid identity anchor (non-placeholder name, OR CPF/CNPJ, OR valid email,
+  // OR valid phone with >= 10 digits).  This hides garbage rows that were
+  // auto-created with placeholder data and no real contact information.
+  const CLIENT_LISTABLE_ANCHOR = `(
+    (
+      nullif(trim(coalesce(c.client_name, '')), '') is not null
+      and lower(trim(coalesce(c.client_name, ''))) not in ('0','null','undefined','[object object]','-','\u2014')
+    )
+    or c.cpf_normalized is not null
+    or c.cnpj_normalized is not null
+    or (c.client_email is not null and position('@' in c.client_email) > 0)
+    or length(regexp_replace(coalesce(c.client_phone, ''), '\\D', '', 'g')) >= 10
+  )`
+
+  const baseConditions = [
+    'c.deleted_at IS NULL',
+    // Defense-in-depth: some merged rows may carry identity_status='merged'
+    // without merged_into_client_id being set (or vice-versa).  Filter both.
+    "coalesce(c.identity_status, '') <> 'merged'",
+    CLIENT_LISTABLE_ANCHOR,
+  ]
   const conditions = [...baseConditions, 'c.merged_into_client_id IS NULL']
   const params = []
 

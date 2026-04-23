@@ -183,7 +183,22 @@ export async function listProposals(sql, filter = {}) {
   const params = []
 
   // Only functional filters - RLS handles ownership/role access control.
-  const conditions = ['p.deleted_at IS NULL']
+  // Exclude pure garbage draft rows — auto-saved placeholders that were never
+  // filled in and have no client reference, no proposal_code, no contact data,
+  // no consumption, and no capex.  A record needs at least ONE meaningful field
+  // to appear in the main list.
+  const EMPTY_DRAFT_EXCLUSION = `NOT (
+    coalesce(p.status, '') = 'draft'
+    AND p.proposal_code IS NULL
+    AND p.client_id IS NULL
+    AND nullif(trim(coalesce(p.client_name, '')), '') IS NULL
+    AND nullif(trim(coalesce(p.client_document, '')), '') IS NULL
+    AND nullif(trim(coalesce(p.client_email, '')), '') IS NULL
+    AND nullif(trim(coalesce(p.client_phone, '')), '') IS NULL
+    AND coalesce(p.consumption_kwh_month, 0) = 0
+    AND p.capex_total IS NULL
+  )`
+  const conditions = ['p.deleted_at IS NULL', EMPTY_DRAFT_EXCLUSION]
 
   if (filter.proposal_type) {
     params.push(filter.proposal_type)

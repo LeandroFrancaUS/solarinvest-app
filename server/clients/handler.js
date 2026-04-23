@@ -68,6 +68,46 @@ function normalizeCep(raw) {
   return digits ? digits : null
 }
 
+// Placeholder values that must never be stored as a client name.
+// Keep this list in sync with:
+//   • server/proposals/validators.js  → PLACEHOLDER_NAME_BLOCKLIST
+//   • server/clients/repository.js    → CLIENT_LISTABLE_ANCHOR SQL condition
+//   • db/migrations/0052_listable_views.sql → vw_clients_listable
+const CLIENT_PLACEHOLDER_NAMES = new Set([
+  '[object object]', '0', 'null', 'undefined', '-', '\u2014',
+])
+
+/**
+ * Validate writable client fields from a POST/PUT body.
+ * Returns { ok: true } or { ok: false, field, message }.
+ */
+function validateClientWriteFields(body) {
+  const rawName = firstDefined(body?.client_name, body?.name)
+  if (rawName != null) {
+    const nameLower = String(rawName).trim().toLowerCase()
+    if (CLIENT_PLACEHOLDER_NAMES.has(nameLower)) {
+      return { ok: false, field: 'name', message: 'Field name contains an invalid placeholder value' }
+    }
+  }
+
+  const rawEmail = firstDefined(body?.client_email, body?.email)
+  if (rawEmail != null && String(rawEmail).trim() !== '') {
+    if (!String(rawEmail).includes('@')) {
+      return { ok: false, field: 'email', message: 'Field email must contain @' }
+    }
+  }
+
+  const rawPhone = firstDefined(body?.client_phone, body?.phone)
+  if (rawPhone != null && String(rawPhone).trim() !== '') {
+    const digits = String(rawPhone).replace(/\D/g, '')
+    if (digits.length > 0 && digits.length < 10) {
+      return { ok: false, field: 'phone', message: 'Field phone must have at least 10 digits' }
+    }
+  }
+
+  return { ok: true }
+}
+
 function toClientWritePayload(body) {
   const accepted = {}
   const assign = (field, ...sources) => {
@@ -234,6 +274,11 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
 
   if (!body.name || typeof body.name !== 'string') {
     return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
+  }
+
+  const writeValidation = validateClientWriteFields(body)
+  if (!writeValidation.ok) {
+    return sendError(sendJson, 422, 'VALIDATION_ERROR', writeValidation.message)
   }
 
   const offlineOriginId = body.offline_origin_id ?? null
@@ -425,6 +470,11 @@ export async function handleClientsRequest(req, res, ctx) {
     try { body = await readJsonBody(req) } catch { return sendError(sendJson, 400, 'VALIDATION_ERROR', 'Invalid JSON') }
     const hasName = firstDefined(body?.client_name, body?.name)
     if (!hasName) return sendError(sendJson, 422, 'VALIDATION_ERROR', 'Field name is required')
+
+    const writeValidation = validateClientWriteFields(body)
+    if (!writeValidation.ok) {
+      return sendError(sendJson, 422, 'VALIDATION_ERROR', writeValidation.message)
+    }
 
     try {
       logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId })
