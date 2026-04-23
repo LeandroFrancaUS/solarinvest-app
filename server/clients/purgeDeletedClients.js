@@ -2,11 +2,14 @@
 //
 // Service: automatic purge of soft-deleted clients after the retention window.
 //
-// Business rules:
+// Business rules (migration 0053):
 //   - Only targets rows where deleted_at IS NOT NULL
-//   - Only targets rows deleted more than `retentionDays` days ago
-//   - Clients with operational links (proposals) are preserved in soft-delete
-//   - Clients without links are permanently removed (hard delete)
+//   - Uses purge_after <= NOW() as the primary eligibility filter when the
+//     column exists (migration 0053).  Falls back to the legacy
+//     deleted_at + retentionDays calculation for rows without purge_after.
+//   - Clients with is_high_value_protected = true are always skipped.
+//   - Clients with any operational links are preserved in soft-delete state.
+//   - Clients without links are permanently removed (hard delete).
 //
 // IMPORTANT: This module uses db.sql (no RLS context) because purge is a
 // system-level maintenance routine that must operate across all owners.
@@ -19,17 +22,23 @@ const DEFAULT_LIMIT = 500
  * Tables that represent operational links to a client.
  * A client with any matching row in these tables is preserved in soft-delete.
  *
- * Only tables with non-cascade, non-null FK behaviour (i.e. whose rows would
- * survive the client's physical deletion) are considered operational links.
- * Tables with ON DELETE CASCADE / ON DELETE SET NULL are excluded because
- * their rows are automatically cleaned up by PostgreSQL on hard delete.
+ * Includes both:
+ *   - Tables with FK RESTRICT behaviour (proposals) that would block a hard
+ *     delete at the DB level.
+ *   - Tables with ON DELETE CASCADE that carry valuable business data which
+ *     would be permanently lost on a hard delete (energy profile, lifecycle,
+ *     contracts, billing, project status, notes).
  *
- * Confirmed from migrations:
- *   - proposals (migration 0011): client_id BIGINT REFERENCES clients(id)
- *     — no ON DELETE action → defaults to NO ACTION (restricts deletion)
+ * Checking all of them before hard-deleting ensures maximum data safety.
  */
 const LINK_TABLES = [
-  { table: 'proposals', column: 'client_id' },
+  { table: 'proposals',              column: 'client_id' },
+  { table: 'client_energy_profile',  column: 'client_id' },
+  { table: 'client_lifecycle',       column: 'client_id' },
+  { table: 'client_contracts',       column: 'client_id' },
+  { table: 'client_billing_profile', column: 'client_id' },
+  { table: 'client_project_status',  column: 'client_id' },
+  { table: 'client_notes',           column: 'client_id' },
 ]
 
 // Allowlist of permitted table and column name characters (alphanumeric + underscore).
@@ -55,7 +64,7 @@ function quoteIdentifier(name) {
  * Returns true when the client has at least one operational link in any of
  * the configured LINK_TABLES.
  *
- * Uses `db.sql` (service-level, no RLS) so that all owners' data is visible.
+ * Uses `sql` (service-level, no RLS) so that all owners' data is visible.
  *
  * @param {Function} sql      - neon sql tagged-template (service-level, no RLS)
  * @param {number}   clientId - numeric client PK
@@ -73,11 +82,14 @@ export async function clientHasLinks(sql, clientId) {
 }
 
 /**
- * Purge soft-deleted clients that have exceeded the retention window.
+ * Purge soft-deleted clients that have exceeded their retention window.
+ *
+ * Uses the purge_after column (migration 0053) when available, with a
+ * graceful fallback to the legacy retentionDays-based calculation.
  *
  * @param {object} db                          - database client from getDatabaseClient()
  * @param {object} [options]
- * @param {number} [options.retentionDays=7]   - days to wait before purging
+ * @param {number} [options.retentionDays=7]   - days to wait before purging (legacy fallback)
  * @param {boolean}[options.dryRun=false]      - when true, scan but do not delete
  * @param {number} [options.limit=500]         - max candidates to process per run
  * @returns {Promise<{
@@ -85,6 +97,7 @@ export async function clientHasLinks(sql, clientId) {
  *   scanned: number,
  *   hardDeleted: number,
  *   keptSoftDeletedDueToLinks: number,
+ *   keptSoftDeletedDueToProtection: number,
  *   durationMs: number,
  *   errors: string[],
  * }>}
@@ -110,30 +123,59 @@ export async function purgeDeletedClients(db, options = {}) {
     scanned: 0,
     hardDeleted: 0,
     keptSoftDeletedDueToLinks: 0,
+    keptSoftDeletedDueToProtection: 0,
     durationMs: 0,
     errors: [],
   }
 
   // ── 1. Select candidates ──────────────────────────────────────────────────
-  // Uses parameterised interval arithmetic so retentionDays is never
-  // interpolated directly into the SQL string.
+  // Primary: use purge_after <= NOW() when the column exists (migration 0053).
+  // Fallback: use the legacy retentionDays interval calculation.
+  // Both strategies are parameterised; retentionDays is never interpolated
+  // directly into the SQL string.
   let candidates
   try {
     candidates = await sql(
-      `SELECT id
+      `SELECT id, COALESCE(is_high_value_protected, false) AS is_high_value_protected
        FROM clients
        WHERE deleted_at IS NOT NULL
-         AND deleted_at < NOW() - ($1 || ' days')::INTERVAL
+         AND (
+           (purge_after IS NOT NULL AND purge_after <= NOW())
+           OR (purge_after IS NULL AND deleted_at < NOW() - ($1 || ' days')::INTERVAL)
+         )
        ORDER BY deleted_at ASC
        LIMIT $2`,
       [String(retentionDays), limit],
     )
-  } catch (err) {
-    const msg = `[purge][clients] failed to fetch candidates: ${err?.message}`
-    console.error(msg)
-    summary.errors.push(msg)
-    summary.durationMs = Date.now() - startMs
-    return summary
+  } catch (schemaErr) {
+    const schemaMsg = schemaErr?.message ?? ''
+    if (schemaMsg.includes('purge_after') || schemaMsg.includes('is_high_value_protected')) {
+      // Migration 0053 not yet applied — fall back to legacy retention query.
+      console.warn('[purge][clients] purge_after column missing — using legacy retentionDays filter')
+      try {
+        candidates = await sql(
+          `SELECT id, false AS is_high_value_protected
+           FROM clients
+           WHERE deleted_at IS NOT NULL
+             AND deleted_at < NOW() - ($1 || ' days')::INTERVAL
+           ORDER BY deleted_at ASC
+           LIMIT $2`,
+          [String(retentionDays), limit],
+        )
+      } catch (fallbackErr) {
+        const msg = `[purge][clients] failed to fetch candidates (legacy fallback): ${fallbackErr?.message}`
+        console.error(msg)
+        summary.errors.push(msg)
+        summary.durationMs = Date.now() - startMs
+        return summary
+      }
+    } else {
+      const msg = `[purge][clients] failed to fetch candidates: ${schemaErr?.message}`
+      console.error(msg)
+      summary.errors.push(msg)
+      summary.durationMs = Date.now() - startMs
+      return summary
+    }
   }
 
   summary.scanned = candidates.length
@@ -142,8 +184,16 @@ export async function purgeDeletedClients(db, options = {}) {
   // ── 2. Process each candidate ─────────────────────────────────────────────
   for (const row of candidates) {
     const clientId = row.id
+    const isProtected = Boolean(row.is_high_value_protected)
 
     try {
+      // Safety rule: never purge a client marked as high-value protected.
+      if (isProtected) {
+        summary.keptSoftDeletedDueToProtection++
+        console.info('[purge][clients] client-protected', { clientId })
+        continue
+      }
+
       const hasLinks = await clientHasLinks(sql, clientId)
 
       if (hasLinks) {
@@ -158,14 +208,17 @@ export async function purgeDeletedClients(db, options = {}) {
         continue
       }
 
-      // Defensive delete: re-checks deleted_at and age inside the WHERE clause
-      // to guard against race conditions (another request could restore the
-      // client between the SELECT and this DELETE).
+      // Defensive delete: re-checks deleted_at, purge_after, and protection flag
+      // inside the WHERE clause to guard against race conditions.
       const deleted = await sql(
         `DELETE FROM clients
          WHERE id = $1
            AND deleted_at IS NOT NULL
-           AND deleted_at < NOW() - ($2 || ' days')::INTERVAL
+           AND COALESCE(is_high_value_protected, false) = false
+           AND (
+             (purge_after IS NOT NULL AND purge_after <= NOW())
+             OR (purge_after IS NULL AND deleted_at < NOW() - ($2 || ' days')::INTERVAL)
+           )
          RETURNING id`,
         [clientId, String(retentionDays)],
       )
@@ -174,13 +227,37 @@ export async function purgeDeletedClients(db, options = {}) {
         summary.hardDeleted++
         console.info('[purge][clients] client-hard-deleted', { clientId })
       } else {
-        // The row disappeared or was restored between SELECT and DELETE — skip.
+        // The row disappeared, was restored, or was protected between SELECT
+        // and DELETE — skip silently.
         console.info('[purge][clients] client-skipped-no-match', { clientId })
       }
     } catch (err) {
-      const msg = `[purge][clients] error processing clientId=${clientId}: ${err?.message}`
-      console.error(msg)
-      summary.errors.push(msg)
+      // Handle legacy DELETE (without purge_after column) by falling back.
+      const errMsg = err?.message ?? ''
+      if (errMsg.includes('purge_after') || errMsg.includes('is_high_value_protected')) {
+        try {
+          const deleted = await sql(
+            `DELETE FROM clients
+             WHERE id = $1
+               AND deleted_at IS NOT NULL
+               AND deleted_at < NOW() - ($2 || ' days')::INTERVAL
+             RETURNING id`,
+            [clientId, String(retentionDays)],
+          )
+          if (deleted.length > 0) {
+            summary.hardDeleted++
+            console.info('[purge][clients] client-hard-deleted (legacy)', { clientId })
+          }
+        } catch (legacyErr) {
+          const msg = `[purge][clients] error processing clientId=${clientId}: ${legacyErr?.message}`
+          console.error(msg)
+          summary.errors.push(msg)
+        }
+      } else {
+        const msg = `[purge][clients] error processing clientId=${clientId}: ${err?.message}`
+        console.error(msg)
+        summary.errors.push(msg)
+      }
     }
   }
 

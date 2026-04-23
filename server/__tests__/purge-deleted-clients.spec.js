@@ -55,22 +55,54 @@ function sendJson(res, status, body) {
 }
 
 // ---------------------------------------------------------------------------
+// Number of tables checked by clientHasLinks (LINK_TABLES length).
+// Update this constant whenever LINK_TABLES changes in purgeDeletedClients.js.
+// ---------------------------------------------------------------------------
+const NUM_LINK_TABLES = 7
+
+/**
+ * Returns an array of NUM_LINK_TABLES empty arrays — one per link-table check
+ * made by clientHasLinks() via Promise.all.
+ */
+function noLinks() {
+  return Array.from({ length: NUM_LINK_TABLES }, () => [])
+}
+
+/**
+ * Returns an array of NUM_LINK_TABLES entries where the first entry has a
+ * row and the rest are empty, simulating a match on the first table.
+ */
+function hasLinkOnFirst() {
+  return [[{ 1: 1 }], ...Array.from({ length: NUM_LINK_TABLES - 1 }, () => [])]
+}
+
+// ---------------------------------------------------------------------------
 // clientHasLinks
 // ---------------------------------------------------------------------------
 
 describe('clientHasLinks()', () => {
-  it('returns false when no linked proposals exist', async () => {
-    const sql = makeSql([
-      [], // proposals check → empty
-    ])
+  it('returns false when no linked rows exist in any table', async () => {
+    const sql = makeSql(noLinks())
     const result = await clientHasLinks(sql, 42)
     expect(result).toBe(false)
+    expect(sql).toHaveBeenCalledTimes(NUM_LINK_TABLES)
   })
 
-  it('returns true when a linked proposal exists', async () => {
-    const sql = makeSql([
-      [{ 1: 1 }], // proposals check → row found
-    ])
+  it('returns true when the first table has a linked row', async () => {
+    const sql = makeSql(hasLinkOnFirst())
+    const result = await clientHasLinks(sql, 42)
+    expect(result).toBe(true)
+    // Promise.all fires all queries simultaneously regardless of results
+    expect(sql).toHaveBeenCalledTimes(NUM_LINK_TABLES)
+  })
+
+  it('returns true when a later table (not the first) has a linked row', async () => {
+    // Put a match in the last position
+    const responses = [
+      ...Array.from({ length: NUM_LINK_TABLES - 1 }, () => []),
+      [{ 1: 1 }], // last table has a row
+    ]
+    const sql = makeSql(responses)
     const result = await clientHasLinks(sql, 42)
     expect(result).toBe(true)
   })
@@ -81,12 +113,12 @@ describe('clientHasLinks()', () => {
 // ---------------------------------------------------------------------------
 
 describe('purgeDeletedClients()', () => {
-  // ── Case 1: client deleted > 7 days ago, no proposals → hard deleted ───────
+  // ── Case 1: client deleted > 7 days ago, no links → hard deleted ───────────
   it('hard-deletes a client with no operational links', async () => {
     const db = makeDb([
-      [{ id: 10 }],   // candidates SELECT
-      [],              // clientHasLinks → proposals empty
-      [{ id: 10 }],   // DELETE RETURNING id
+      [{ id: 10, is_high_value_protected: false }], // candidates SELECT
+      ...noLinks(),                                  // clientHasLinks → all empty
+      [{ id: 10 }],                                  // DELETE RETURNING id
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
@@ -94,15 +126,15 @@ describe('purgeDeletedClients()', () => {
     expect(result.scanned).toBe(1)
     expect(result.hardDeleted).toBe(1)
     expect(result.keptSoftDeletedDueToLinks).toBe(0)
+    expect(result.keptSoftDeletedDueToProtection).toBe(0)
     expect(result.errors).toHaveLength(0)
   })
 
-  // ── Case 2: client deleted > 7 days ago, has proposals → preserved ─────────
+  // ── Case 2: client has proposals → preserved ───────────────────────────────
   it('preserves a client that has operational links (proposals)', async () => {
     const db = makeDb([
-      [{ id: 20 }],      // candidates SELECT
-      [{ 1: 1 }],        // clientHasLinks → proposals found
-      // DELETE should NOT be called
+      [{ id: 20, is_high_value_protected: false }], // candidates SELECT
+      ...hasLinkOnFirst(),                           // first table (proposals) has a row
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
@@ -110,30 +142,27 @@ describe('purgeDeletedClients()', () => {
     expect(result.scanned).toBe(1)
     expect(result.hardDeleted).toBe(0)
     expect(result.keptSoftDeletedDueToLinks).toBe(1)
+    expect(result.keptSoftDeletedDueToProtection).toBe(0)
     expect(result.errors).toHaveLength(0)
-    // Verify DELETE was never called (sql was called only twice)
-    expect(db.sql).toHaveBeenCalledTimes(2)
+    // candidates SELECT + NUM_LINK_TABLES link checks (no DELETE)
+    expect(db.sql).toHaveBeenCalledTimes(1 + NUM_LINK_TABLES)
   })
 
   // ── Case 3: client deleted < 7 days ago → not returned by SELECT ───────────
-  // The INTERVAL filter in the SELECT ensures recent deletions are never candidates.
   it('does not process clients deleted less than retentionDays ago', async () => {
-    // candidates SELECT returns empty (recent deletion excluded by DB query)
     const db = makeDb([
-      [], // candidates SELECT → empty
+      [], // candidates SELECT → empty (recent deletion excluded by DB query)
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
 
     expect(result.scanned).toBe(0)
     expect(result.hardDeleted).toBe(0)
-    expect(result.keptSoftDeletedDueToLinks).toBe(0)
     // Only the initial SELECT was called
     expect(db.sql).toHaveBeenCalledTimes(1)
   })
 
   // ── Case 4: non-deleted client (deleted_at IS NULL) → not returned ─────────
-  // Same as Case 3 — the WHERE clause ensures non-deleted rows are excluded.
   it('does not process clients with no deleted_at (not soft-deleted)', async () => {
     const db = makeDb([
       [], // candidates SELECT returns empty (NULL deleted_at excluded)
@@ -146,17 +175,34 @@ describe('purgeDeletedClients()', () => {
     expect(db.sql).toHaveBeenCalledTimes(1)
   })
 
-  // ── Case 5: multiple owners — purge is global (no owner filter) ────────────
-  // Validates that the candidates SELECT has no owner constraint.
-  // The test verifies the actual SQL string passed to sql() does NOT contain
-  // owner_user_id so the purge is cross-owner by design.
+  // ── Case 5: is_high_value_protected = true → skipped without link check ────
+  it('skips a protected client without performing any link check', async () => {
+    const db = makeDb([
+      [{ id: 99, is_high_value_protected: true }], // candidate is protected
+      // No link checks or DELETE should be performed
+    ])
+
+    const result = await purgeDeletedClients(db, { retentionDays: 7 })
+
+    expect(result.scanned).toBe(1)
+    expect(result.hardDeleted).toBe(0)
+    expect(result.keptSoftDeletedDueToProtection).toBe(1)
+    expect(result.keptSoftDeletedDueToLinks).toBe(0)
+    // Only candidates SELECT — no link check called
+    expect(db.sql).toHaveBeenCalledTimes(1)
+  })
+
+  // ── Case 6: multiple owners — purge is global (no owner filter) ────────────
   it('finds candidates across all owners (no owner_user_id filter)', async () => {
     const db = makeDb([
-      [{ id: 30 }, { id: 31 }], // two candidates from different owners
-      [],                        // client 30 — no proposals
-      [{ id: 30 }],              // client 30 DELETE
-      [],                        // client 31 — no proposals
-      [{ id: 31 }],              // client 31 DELETE
+      [
+        { id: 30, is_high_value_protected: false },
+        { id: 31, is_high_value_protected: false },
+      ],           // two candidates from different owners
+      ...noLinks(), // client 30 — no links
+      [{ id: 30 }], // client 30 DELETE
+      ...noLinks(), // client 31 — no links
+      [{ id: 31 }], // client 31 DELETE
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
@@ -170,29 +216,27 @@ describe('purgeDeletedClients()', () => {
     expect(firstCall[0]).not.toMatch(/current_user/)
   })
 
-  // ── Case 6: dryRun mode — reports without deleting ────────────────────────
+  // ── Case 7: dryRun mode — reports without deleting ────────────────────────
   it('does not execute DELETE in dryRun mode', async () => {
     const db = makeDb([
-      [{ id: 50 }], // candidates SELECT
-      [],           // clientHasLinks → no proposals
+      [{ id: 50, is_high_value_protected: false }], // candidates SELECT
+      ...noLinks(),                                  // clientHasLinks → no links
       // DELETE must NOT be called
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7, dryRun: true })
 
     expect(result.hardDeleted).toBe(1)
-    // sql called only twice: SELECT candidates + clientHasLinks
-    expect(db.sql).toHaveBeenCalledTimes(2)
+    // candidates SELECT + NUM_LINK_TABLES link checks (no DELETE)
+    expect(db.sql).toHaveBeenCalledTimes(1 + NUM_LINK_TABLES)
   })
 
-  // ── Case 7: defensive WHERE in DELETE — race condition guard ───────────────
-  // If the defensive DELETE returns 0 rows (client was restored between SELECT
-  // and DELETE), hardDeleted is not incremented.
+  // ── Case 8: defensive WHERE in DELETE — race condition guard ───────────────
   it('does not increment hardDeleted when defensive DELETE matches 0 rows', async () => {
     const db = makeDb([
-      [{ id: 60 }], // candidates SELECT
-      [],           // clientHasLinks → no proposals
-      [],           // DELETE RETURNING id → 0 rows (client was restored)
+      [{ id: 60, is_high_value_protected: false }], // candidates SELECT
+      ...noLinks(),                                  // clientHasLinks → no links
+      [],                                            // DELETE RETURNING id → 0 rows (client was restored)
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
@@ -201,13 +245,19 @@ describe('purgeDeletedClients()', () => {
     expect(result.errors).toHaveLength(0)
   })
 
-  // ── Case 8: error during link check → recorded in errors, continues ────────
+  // ── Case 9: error during link check → recorded in errors, continues ────────
   it('records errors per-client and continues processing remaining candidates', async () => {
     const db = makeDb([
-      [{ id: 70 }, { id: 71 }],  // candidates SELECT
-      new Error('DB timeout'),    // clientHasLinks for client 70 throws
-      [],                          // client 71 — no proposals
-      [{ id: 71 }],                // client 71 DELETE
+      [
+        { id: 70, is_high_value_protected: false },
+        { id: 71, is_high_value_protected: false },
+      ],                                             // candidates SELECT
+      new Error('DB timeout'),                       // clientHasLinks for client 70, table 1 throws
+      // Promise.all fires all NUM_LINK_TABLES queries simultaneously; the
+      // remaining tables for client 70 consume the next slots in the mock.
+      ...Array.from({ length: NUM_LINK_TABLES - 1 }, () => []),
+      ...noLinks(),                                  // client 71 — no links
+      [{ id: 71 }],                                  // client 71 DELETE
     ])
 
     const result = await purgeDeletedClients(db, { retentionDays: 7 })
@@ -218,7 +268,7 @@ describe('purgeDeletedClients()', () => {
     expect(result.hardDeleted).toBe(1) // client 71 still processed
   })
 
-  // ── Case 9: candidates fetch failure → returns error summary ──────────────
+  // ── Case 10: candidates fetch failure → returns error summary ─────────────
   it('returns error summary when candidates SELECT fails', async () => {
     const db = makeDb([
       new Error('connection refused'), // candidates SELECT throws
@@ -230,6 +280,30 @@ describe('purgeDeletedClients()', () => {
     expect(result.hardDeleted).toBe(0)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toContain('candidates')
+  })
+
+  // ── Case 11: mix of protected and unprotected candidates ─────────────────
+  it('handles a mix of protected, linked, and purgeable clients', async () => {
+    const db = makeDb([
+      [
+        { id: 80, is_high_value_protected: true },  // protected → skip
+        { id: 81, is_high_value_protected: false }, // has links → preserve
+        { id: 82, is_high_value_protected: false }, // no links → delete
+      ],
+      // client 81 link check (has a link on the first table)
+      ...hasLinkOnFirst(),
+      // client 82 link check (no links)
+      ...noLinks(),
+      [{ id: 82 }], // client 82 DELETE
+    ])
+
+    const result = await purgeDeletedClients(db, { retentionDays: 7 })
+
+    expect(result.scanned).toBe(3)
+    expect(result.keptSoftDeletedDueToProtection).toBe(1)
+    expect(result.keptSoftDeletedDueToLinks).toBe(1)
+    expect(result.hardDeleted).toBe(1)
+    expect(result.errors).toHaveLength(0)
   })
 })
 
