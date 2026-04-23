@@ -3,7 +3,7 @@
 // Verifies that the same formulas as App.tsx's Análise Financeira are used.
 
 import { describe, it, expect } from 'vitest'
-import { deriveProjectFinanceCosts } from '../calculations'
+import { deriveProjectFinanceCosts, LEASING_PREMISE_DEFAULTS } from '../calculations'
 import {
   CREA_GO_RS,
   CREA_DF_RS,
@@ -188,6 +188,58 @@ describe('deriveProjectFinanceCosts', () => {
       expect(result.custo_comissao).toBe(mensalidade)
       expect(typeof result.custo_seguro).toBe('number')
       expect((result.custo_seguro ?? 0)).toBeGreaterThan(0)
+      expect(typeof result.custo_impostos).toBe('number')
+      expect((result.custo_impostos ?? 0)).toBeGreaterThan(0)
+    })
+  })
+
+  describe('LEASING_PREMISE_DEFAULTS — auto-fill of empty leasing premises', () => {
+    it('applies LEASING_PREMISE_DEFAULTS when caller omits the premise inputs', () => {
+      // Caller passes none of reajuste / inadimplencia / opex / manutencao.
+      // The engine must still emit all four with the AF-screen defaults so
+      // "Preencher campos vazios" produces useful values out of the box.
+      const result = deriveProjectFinanceCosts({ consumo_kwh_mes: 400 }, 'leasing')
+      expect(result.reajuste_anual_pct).toBe(LEASING_PREMISE_DEFAULTS.reajuste_anual_pct)
+      expect(result.inadimplencia_pct).toBe(LEASING_PREMISE_DEFAULTS.inadimplencia_pct)
+      expect(result.opex_pct).toBe(LEASING_PREMISE_DEFAULTS.custo_operacional_pct)
+      expect(result.custo_manutencao).toBe(LEASING_PREMISE_DEFAULTS.custo_manutencao)
+    })
+
+    it('honours explicit caller values over LEASING_PREMISE_DEFAULTS', () => {
+      const result = deriveProjectFinanceCosts(
+        {
+          reajuste_anual_pct: 7,
+          inadimplencia_pct: 5,
+          custo_operacional_pct: 8,
+          custo_manutencao: 120,
+        },
+        'leasing',
+      )
+      expect(result.reajuste_anual_pct).toBe(7)
+      expect(result.inadimplencia_pct).toBe(5)
+      expect(result.opex_pct).toBe(8)
+      expect(result.custo_manutencao).toBe(120)
+    })
+
+    it('does not emit leasing premise defaults for venda contracts', () => {
+      const result = deriveProjectFinanceCosts({ consumo_kwh_mes: 400 }, 'venda')
+      expect(result.reajuste_anual_pct).toBeUndefined()
+      expect(result.inadimplencia_pct).toBeUndefined()
+      expect(result.opex_pct).toBeUndefined()
+      expect(result.custo_manutencao).toBeUndefined()
+    })
+
+    it('cascades mensalidade_base into CAC, impostos and receita_esperada', () => {
+      // Smallest scenario: only mensalidade_base + prazo_meses. The engine
+      // must derive CAC (= mensalidade), receita_esperada (= mens × prazo),
+      // and total impostos over the contract term.
+      const result = deriveProjectFinanceCosts(
+        { mensalidade_base: 800, prazo_meses: 60 },
+        'leasing',
+      )
+      expect(result.mensalidade_base).toBe(800)
+      expect(result.custo_comissao).toBe(800)
+      expect(result.receita_esperada).toBe(800 * 60)
       expect(typeof result.custo_impostos).toBe('number')
       expect((result.custo_impostos ?? 0)).toBeGreaterThan(0)
     })

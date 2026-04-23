@@ -153,6 +153,7 @@ beforeEach(() => {
     profile: null,
     contract_type: 'leasing',
     contract_term_months: null,
+    mensalidade_base: null,
     project_id: 'proj-001',
   })
   vi.mocked(saveProjectFinance).mockResolvedValue(

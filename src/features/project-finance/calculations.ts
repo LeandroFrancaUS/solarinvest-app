@@ -239,6 +239,30 @@ export function computeSummaryKPIs(
 // ─── Engine-driven cost derivation ───────────────────────────────────────────
 
 /**
+ * Default leasing premises used by the AF (Análise Financeira) screen.
+ *
+ * These match the initial state values in `App.tsx` (search for
+ * `setAfImpostosLeasing`, `setAfInadimplencia`, `setAfCustoOperacional`):
+ *   afImpostosLeasing  = 4   → handled by deriveParams.impostos_leasing_percent
+ *   afInadimplencia    = 2
+ *   afCustoOperacional = 3
+ *
+ * `reajuste_anual_pct = 4` mirrors the default tarifa-reajuste used in
+ * the proposal forms (`App.tsx`, e.g. `reajusteAnualPct: '3'..'4'`).
+ *
+ * They are applied by `deriveProjectFinanceCosts` whenever the corresponding
+ * `ProjectFinanceDeriveParams` field is null/undefined — so calling
+ * "Preencher campos vazios" on a fresh leasing project produces sane
+ * non-zero starting values instead of writing 0% everywhere.
+ */
+export const LEASING_PREMISE_DEFAULTS = {
+  reajuste_anual_pct: 4,
+  inadimplencia_pct: 2,
+  custo_operacional_pct: 3,
+  custo_manutencao: 0,
+} as const
+
+/**
  * Auto-computes project cost-breakdown fields using the SAME formulas as the
  * Análise Financeira screen (App.tsx).  Intended for pre-filling the
  * Gestão Financeira form when a project has pvData but no saved profile.
@@ -317,18 +341,35 @@ export function deriveProjectFinanceCosts(
     if (mensalidade_base != null && mensalidade_base > 0) {
       result.mensalidade_base = mensalidade_base
     }
-    if (reajuste_anual_pct != null && reajuste_anual_pct >= 0) {
-      result.reajuste_anual_pct = reajuste_anual_pct
-    }
-    if (inadimplencia_pct != null && inadimplencia_pct >= 0) {
-      result.inadimplencia_pct = inadimplencia_pct
-    }
-    if (custo_operacional_pct != null && custo_operacional_pct >= 0) {
-      result.opex_pct = custo_operacional_pct
-    }
-    if (custo_manutencao != null && custo_manutencao >= 0) {
-      result.custo_manutencao = custo_manutencao
-    }
+
+    // ── Apply LEASING_PREMISE_DEFAULTS when the caller did not supply a value.
+    //    The AF screen (App.tsx) treats null / not-yet-typed inputs as their
+    //    default (4 / 2 / 3 / 0), so the Financeiro tool matches that to keep
+    //    "Preencher campos vazios" useful out of the box.
+    const reajusteEffective =
+      reajuste_anual_pct != null && reajuste_anual_pct >= 0
+        ? reajuste_anual_pct
+        : LEASING_PREMISE_DEFAULTS.reajuste_anual_pct
+    result.reajuste_anual_pct = reajusteEffective
+
+    const inadimplenciaEffective =
+      inadimplencia_pct != null && inadimplencia_pct >= 0
+        ? inadimplencia_pct
+        : LEASING_PREMISE_DEFAULTS.inadimplencia_pct
+    result.inadimplencia_pct = inadimplenciaEffective
+
+    const opexEffective =
+      custo_operacional_pct != null && custo_operacional_pct >= 0
+        ? custo_operacional_pct
+        : LEASING_PREMISE_DEFAULTS.custo_operacional_pct
+    result.opex_pct = opexEffective
+
+    const manutencaoEffective =
+      custo_manutencao != null && custo_manutencao >= 0
+        ? custo_manutencao
+        : LEASING_PREMISE_DEFAULTS.custo_manutencao
+    result.custo_manutencao = manutencaoEffective
+
     if (receita_esperada != null && receita_esperada >= 0) {
       result.receita_esperada = receita_esperada
     } else if (mensalidade_base != null && mensalidade_base > 0 && prazo_meses != null && prazo_meses > 0) {

@@ -135,6 +135,14 @@ export interface ProjectFinanceGetResponse {
   contract_type: ProjectFinanceContractType
   /** Contractual term in months, sourced from client_contracts. Readonly. */
   contract_term_months: number | null
+  /**
+   * Base monthly fee from the leasing pipeline (`client_energy_profile.mensalidade`),
+   * or null when no leasing data has been seeded for the project's client.
+   * Used as the default seed for `deriveProjectFinanceCosts.mensalidade_base`
+   * so the AF engine can derive CAC, impostos and receita_esperada on
+   * "Preencher campos vazios" / "Recalcular tudo".
+   */
+  mensalidade_base: number | null
   project_id: string
 }
 

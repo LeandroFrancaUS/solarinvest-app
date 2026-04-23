@@ -64,6 +64,12 @@ interface UseProjectFinanceReturn {
   contractType: ProjectFinanceContractType
   /** Contract term in months from client_contracts. Readonly. */
   contractTermMonths: number | null
+  /**
+   * Base monthly fee sourced from `client_energy_profile.mensalidade` for the
+   * project's client (populated by the closed-deal pipeline). Readonly. Null
+   * when no leasing data is yet seeded.
+   */
+  contractMensalidadeBase: number | null
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
@@ -96,6 +102,7 @@ export function useProjectFinance(
   const [profile, setProfile] = useState<ProjectFinanceProfile | null>(null)
   const [contractType, setContractType] = useState<ProjectFinanceContractType>('leasing')
   const [contractTermMonths, setContractTermMonths] = useState<number | null>(null)
+  const [contractMensalidadeBase, setContractMensalidadeBase] = useState<number | null>(null)
   const [form, setForm] = useState<ProjectFinanceFormState>({})
   const [savedForm, setSavedForm] = useState<ProjectFinanceFormState>({})
   const [overrides, setOverrides] = useState<ProjectFinanceOverrides>({})
@@ -116,6 +123,7 @@ export function useProjectFinance(
       const res = await fetchProjectFinance(projectId)
       setContractType(res.contract_type)
       setContractTermMonths(res.contract_term_months ?? null)
+      setContractMensalidadeBase(res.mensalidade_base ?? null)
       setProfile(res.profile)
       const fs = profileToFormState(res.profile)
       setForm(fs)
@@ -268,6 +276,7 @@ export function useProjectFinance(
     form,
     contractType,
     contractTermMonths,
+    contractMensalidadeBase,
     calculated,
     effective,
     overrides,
