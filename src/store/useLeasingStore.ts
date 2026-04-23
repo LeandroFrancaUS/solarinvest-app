@@ -249,7 +249,7 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
     (incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente) &&
       ucGeradoraTitular,
   )
-  return {
+  const merged: LeasingState = {
     ...base,
     ...incoming,
     dadosTecnicos: { ...base.dadosTecnicos, ...(incoming.dadosTecnicos ?? {}) },
@@ -279,6 +279,18 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       corresponsavel,
     },
   }
+  // Reconcile energiaContratadaKwhMes: root wins when nonzero; otherwise use nested value.
+  // This ensures the two copies never diverge after loading from sessionStorage.
+  const rootEnergy = merged.energiaContratadaKwhMes
+  const nestedEnergy = merged.dadosTecnicos.energiaContratadaKwhMes
+  const resolvedEnergy = rootEnergy > 0 ? rootEnergy : nestedEnergy
+  if (resolvedEnergy !== rootEnergy) {
+    merged.energiaContratadaKwhMes = resolvedEnergy
+  }
+  if (resolvedEnergy !== nestedEnergy) {
+    merged.dadosTecnicos = { ...merged.dadosTecnicos, energiaContratadaKwhMes: resolvedEnergy }
+  }
+  return merged
 }
 
 const loadStoredState = (): LeasingState => {
@@ -401,11 +413,24 @@ export const leasingActions = {
   update(partial: Partial<LeasingState>) {
     setState((draft) => {
       Object.assign(draft, partial)
+      // Keep energiaContratadaKwhMes in sync between root and dadosTecnicos.
+      // When the root field is explicitly set, mirror it down; when only dadosTecnicos is
+      // updated via updateDadosTecnicos(), the root is mirrored up there.
+      if ('energiaContratadaKwhMes' in partial && typeof partial.energiaContratadaKwhMes === 'number') {
+        draft.dadosTecnicos = {
+          ...draft.dadosTecnicos,
+          energiaContratadaKwhMes: partial.energiaContratadaKwhMes,
+        }
+      }
     })
   },
   updateDadosTecnicos(partial: Partial<LeasingDadosTecnicos>) {
     setState((draft) => {
       draft.dadosTecnicos = { ...draft.dadosTecnicos, ...partial }
+      // Mirror energiaContratadaKwhMes up to the root field when updated in dadosTecnicos.
+      if ('energiaContratadaKwhMes' in partial && typeof partial.energiaContratadaKwhMes === 'number') {
+        draft.energiaContratadaKwhMes = partial.energiaContratadaKwhMes
+      }
     })
   },
   updateProjecao(partial: Partial<LeasingProjecao>) {
