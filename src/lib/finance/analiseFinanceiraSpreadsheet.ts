@@ -12,6 +12,7 @@ import {
   computeDiscountedPayback,
   toMonthlyRate,
 } from './investmentMetrics'
+import { computeTaxes } from '../../domain/finance/taxation'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -220,7 +221,15 @@ function calcularAnaliseVenda(
   const margemAlvoFrac = toDecimalPercent(margemAlvo)
 
 
-  const impostos_rs = valor_contrato_rs * toDecimalPercent(input.impostos_percent)
+  // Imposto incide sobre o valor do contrato excluindo custo do kit e frete.
+  const taxResultVenda = computeTaxes({
+    modo: 'venda',
+    totalAntesImposto: valor_contrato_rs,
+    custoKit: input.custo_kit_rs,
+    frete: input.frete_rs,
+    aliquota: toDecimalPercent(input.impostos_percent),
+  })
+  const impostos_rs = taxResultVenda.valorImposto
   const custo_fixo_rateado_rs =
     valor_contrato_rs * toDecimalPercent(input.custo_fixo_rateado_percent)
 
@@ -358,8 +367,12 @@ function calcularAnaliseLeasing(
   )
 
   const receita_bruta_rs = input.mensalidades_previstas_rs.reduce((sum, v) => sum + v, 0)
-  // Taxes applied on gross mensalidades revenue (impostos_percent × total bruto)
-  const impostos_rs_leasing = receita_bruta_rs * impostosDecimal
+  // Imposto incide somente sobre as mensalidades (leasing): usa computeTaxes por período.
+  const impostos_rs_leasing = computeTaxes({
+    modo: 'leasing',
+    mensalidade: receita_bruta_rs,
+    aliquota: impostosDecimal,
+  }).valorImposto
 
   const receita_liquida_rs = projecao_mensalidades_rs.reduce((sum, v) => sum + v, 0)
   const lucro_rs = receita_liquida_rs - custo_total_rs
