@@ -87,6 +87,9 @@ function pickAllowedFields(body) {
   return { valid: true, data }
 }
 
+// Placeholder values that must never appear as a client_name on any record.
+const PLACEHOLDER_NAME_BLOCKLIST = ['[object object]', '0', 'null', 'undefined', '-', '\u2014']
+
 /**
  * Validates a proposal create request body.
  * Returns { valid: true, data: {...} } or { valid: false, error: '...' }
@@ -105,6 +108,15 @@ export function validateCreateProposal(body) {
 
   if (!body.payload_json || typeof body.payload_json !== 'object' || Array.isArray(body.payload_json)) {
     return { valid: false, error: "Field 'payload_json' is required and must be a JSON object" }
+  }
+
+  // Reject placeholder/garbage client_name values that indicate the form was
+  // never properly filled in (e.g. serialized JS objects or literal zeros).
+  if (body.client_name != null) {
+    const nameLower = String(body.client_name).trim().toLowerCase()
+    if (PLACEHOLDER_NAME_BLOCKLIST.includes(nameLower)) {
+      return { valid: false, error: "Field 'client_name' contains an invalid placeholder value" }
+    }
   }
 
   const result = pickAllowedFields(body)
