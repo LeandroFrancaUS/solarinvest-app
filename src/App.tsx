@@ -17154,18 +17154,35 @@ export default function App() {
       if (!confirmado) return
 
       try {
+        // The canonical ClienteDados type does not yet include razaoSocial,
+        // cnpj/cpf split fields, telefoneSecundario, or address parts (bairro,
+        // numero, complemento). Read them defensively in case the underlying
+        // record carries them as extras (snapshot cliente sub-object,
+        // imported records, future model extensions).
+        const dadosExtras = registro.dados as unknown as Record<string, unknown>
+        const readStr = (key: string): string | undefined => {
+          const v = dadosExtras[key]
+          return typeof v === 'string' && v.trim() !== '' ? v : undefined
+        }
         const result = await convertClientToClosedDeal({
           clientId: Number(serverIdCandidate),
           proposalId: registro.propostaSnapshot?.currentBudgetId ?? null,
           clienteDados: {
             nome: registro.dados.nome,
+            razaoSocial: readStr('razaoSocial'),
             documento: registro.dados.documento,
+            cpf: readStr('cpf'),
+            cnpj: readStr('cnpj'),
             email: registro.dados.email,
             telefone: registro.dados.telefone,
+            telefoneSecundario: readStr('telefoneSecundario'),
             cep: registro.dados.cep,
             cidade: registro.dados.cidade,
             uf: registro.dados.uf,
             endereco: registro.dados.endereco,
+            bairro: readStr('bairro'),
+            numero: readStr('numero'),
+            complemento: readStr('complemento'),
             distribuidora: registro.dados.distribuidora,
             uc: registro.dados.uc,
             indicacaoNome: registro.dados.indicacaoNome,

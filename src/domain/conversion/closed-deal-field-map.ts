@@ -83,6 +83,13 @@ export const PORTFOLIO_PLAN_FEED: FieldMapEntry[] = [
 /**
  * Fields distributed to client_usina_config via PUT /api/clients/:id (patchPortfolioUsina).
  * Server uses COALESCE-style logic — preserves existing values.
+ *
+ * NOTE on missing destinations:
+ *   - bairro / numero / complemento / telefone_secundario columns exist on
+ *     public.clients (migration 0039) but the PATCH /profile and PUT /clients/:id
+ *     handlers do not yet UPDATE them (see server/client-portfolio/repository.js
+ *     `updatePortfolioClientProfile`). Adding entries here is harmless but a
+ *     no-op until the server-side UPDATE statements are extended.
  */
 export const PORTFOLIO_USINA_FEED: FieldMapEntry[] = [
   { resolvedKey: 'potenciaInstaladaKwp', destKey: 'system_kwp' },
@@ -92,6 +99,8 @@ export const PORTFOLIO_USINA_FEED: FieldMapEntry[] = [
   { resolvedKey: 'geracaoEstimadaKwhMes', destKey: 'geracao_estimada_kwh' },
   { resolvedKey: 'tipoInstalacao',       destKey: 'tipo_instalacao' },
   { resolvedKey: 'valorMercado',         destKey: 'valordemercado' },
+  { resolvedKey: 'modeloModulo',         destKey: 'modelo_modulo' },
+  { resolvedKey: 'modeloInversor',       destKey: 'modelo_inversor' },
 ]
 
 // ─── Gestão Financeira (Project Finance) field map ─────────────────────────────
@@ -99,6 +108,26 @@ export const PORTFOLIO_USINA_FEED: FieldMapEntry[] = [
 /**
  * Fields distributed to project_financial_profiles (ProjectFinanceFormState).
  * Seeded once when a project is created from the contract.
+ *
+ * NOTE — minimum-inputs gap (Financeiro engine):
+ *   The spec also asks for `tipo_rede`, `tipo_instalacao`, `distribuidora`,
+ *   `potencia_modulo_wp`, `numero_modulos`, `area_utilizada_m2`,
+ *   `tarifa_cheia`, `uc_geradora`, `uc_beneficiaria`, `consultant_id`,
+ *   `client_name`, `client_document` to be seeded into the project finance
+ *   profile so the Financeiro tab can compute without further input.
+ *
+ *   Those columns do NOT exist on `project_financial_profiles`
+ *   (see migrations 0047/0048 and `ProjectFinanceProfile` in
+ *   src/features/project-finance/types.ts). They live on the linked
+ *   `projects` row (`client_id`) and on the linked `client_*` tables
+ *   (`distribuidora`, `tipo_rede`, `uc_*`, …) which the Financeiro engine
+ *   already joins to. Adding more keys here would be silently dropped by
+ *   the server. A schema migration is required to push them through this
+ *   feed; tracked as out-of-scope per the implementation plan.
+ *
+ *   `potencia_modulo_wp` is forwarded via `technical_params_json`
+ *   (handled by `buildProjectFinanceForm` in the orchestrator), not via
+ *   this map.
  */
 export const PROJECT_FINANCE_FEED: FieldMapEntry[] = [
   { resolvedKey: 'consumoKwhMes',         destKey: 'consumo_kwh_mes' },
@@ -108,6 +137,9 @@ export const PROJECT_FINANCE_FEED: FieldMapEntry[] = [
   { resolvedKey: 'mensalidadeBase',       destKey: 'mensalidade_base' },
   { resolvedKey: 'desconto',              destKey: 'desconto_percentual' },
   { resolvedKey: 'valorMercado',          destKey: 'valor_venda' },
+  // NOTE: client_id is added by the orchestrator (buildProjectFinanceForm),
+  // not via this feed map, because ClosedDealResolvedPayload.clientId is a
+  // string (uniform encoding) while ProjectFinanceProfile.client_id is a number.
 ]
 
 // ─── Utility: build destination payload from field map ─────────────────────────
