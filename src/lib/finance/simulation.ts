@@ -10,15 +10,27 @@ export type Simulacao = {
   nome?: string
   createdAt: number
   updatedAt: number
+  /** Contractual discount as a percentage (0–100). E.g. 20 = 20 % off the full tariff. */
   desconto_pct: number
+  /** SolarInvest investment (CAPEX) in R$. */
   capex_solarinvest: number
+  /**
+   * Contract duration in **years**.
+   * Note: all other stores / DB columns use months. Use monthsFromYears() to convert.
+   */
   anos_contrato: number
+  /** Annual energy inflation as a percentage (0–100). E.g. 6 = 6 %/year. */
   inflacao_energetica_pct: number
+  /** Annual IPCA inflation as a percentage (0–100). */
   inflacao_ipca_pct: number
+  /** Full (undiscounted) tariff at month 1, in R$/kWh. */
   tarifa_cheia_r_kwh_m1: number
+  /** Contracted energy / consumption in kWh/month. */
   kc_kwh_mes: number
   perfil_consumo: PerfilConsumo
+  /** TUSD non-compensable percentage (0–100). */
   tusd_pct: number
+  /** Insurance percentage applied annually on the asset value (0–100). */
   seguro_pct: number
   tipo_sistema?: TipoSistema
   obs?: string

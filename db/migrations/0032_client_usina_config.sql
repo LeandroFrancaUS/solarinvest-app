@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.client_usina_config (
   modelo_inversor       TEXT,
   tipo_instalacao       TEXT,
   area_instalacao_m2    NUMERIC,
+  -- Monthly generation estimate in kWh/month.
+  -- Note: the column name omits "_mes" for brevity, but the value is always per-month.
   geracao_estimada_kwh  NUMERIC,
   created_at            TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ  NOT NULL DEFAULT now()

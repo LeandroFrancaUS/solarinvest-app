@@ -1,10 +1,15 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { isCrashRecovery } from './crashRecovery'
+import { VALOR_MERCADO_MULTIPLICADOR } from '../lib/finance/simulation'
+import { getWithTtl, setWithTtl, removeWithTtl } from './localStorageWithTtl'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
+  /** Monthly generation estimate in kWh/month. */
   geracaoEstimadakWhMes: number
+  /** Monthly contracted energy in kWh/month. Mirrors LeasingState.energiaContratadaKwhMes — kept in sync by leasingActions. */
   energiaContratadaKwhMes: number
+  /** Module power in Wp ("placa" = módulo). */
   potenciaPlacaWp: number
   numeroModulos: number
   tipoInstalacao: string
@@ -85,14 +90,35 @@ export type LeasingContratoDados = {
 }
 
 export type LeasingState = {
+  /** Contract term in months (e.g. 240 = 20 years). */
   prazoContratualMeses: number
+  /**
+   * Contracted monthly energy in kWh/month.
+   * Root-level convenience copy — must stay in sync with dadosTecnicos.energiaContratadaKwhMes.
+   * Always update via leasingActions.syncEnergiaContratada() or leasingActions.update() which
+   * automatically mirrors the value into dadosTecnicos.
+   */
   energiaContratadaKwhMes: number
+  /** Initial tariff in R$/kWh (full tariff at month 1, before discount). */
   tarifaInicial: number
+  /**
+   * Contractual discount as a percentage (0–100).
+   * Example: 20 means 20 % off the full tariff.
+   * Consumers must divide by 100 before applying as a fraction.
+   */
   descontoContratual: number
+  /** Annual energy inflation as a decimal fraction (e.g. 0.06 = 6 % per year). */
   inflacaoEnergiaAa: number
+  /** SolarInvest investment (CAPEX) in R$. */
   investimentoSolarinvest: number
   dataInicioOperacao: string
   responsavelSolarinvest: string
+  /**
+   * Estimated market value of the installed system in R$.
+   * Automatically derived as `investimentoSolarinvest * VALOR_MERCADO_MULTIPLICADOR` (1.29)
+   * whenever `investimentoSolarinvest` is updated via `leasingActions.update()`.
+   * To override manually, call `leasingActions.setValorDeMercadoEstimado()` after the capex update.
+   */
   valorDeMercadoEstimado: number
   dadosTecnicos: LeasingDadosTecnicos
   projecao: LeasingProjecao
@@ -103,10 +129,13 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 
-const STORAGE_KEY = 'solarinvest:leasing-form:v1'
+const STORAGE_KEY = 'solarinvest:leasing-form:v2'
 
-const canUseSessionStorage = (): boolean =>
-  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+/** Drafts expire after 24 hours of inactivity. */
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1_000
+
+const canUseLocalStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 
 const createInitialState = (): LeasingState => ({
   prazoContratualMeses: 0,
@@ -226,7 +255,7 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
     (incoming.contrato?.ucGeradoraTitularDiferente ?? base.contrato.ucGeradoraTitularDiferente) &&
       ucGeradoraTitular,
   )
-  return {
+  const merged: LeasingState = {
     ...base,
     ...incoming,
     dadosTecnicos: { ...base.dadosTecnicos, ...(incoming.dadosTecnicos ?? {}) },
@@ -256,18 +285,31 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       corresponsavel,
     },
   }
+  // Reconcile energiaContratadaKwhMes: root wins when explicitly set (non-null/non-undefined);
+  // otherwise fall back to the nested value. This ensures the two copies never diverge after
+  // loading from localStorage. Zero is a valid value and must not be treated as "not set".
+  const rootEnergy = merged.energiaContratadaKwhMes
+  const nestedEnergy = merged.dadosTecnicos.energiaContratadaKwhMes
+  // incoming.energiaContratadaKwhMes being present signals an intentional root value
+  const resolvedEnergy = incoming?.energiaContratadaKwhMes != null ? rootEnergy : nestedEnergy
+  if (resolvedEnergy !== rootEnergy) {
+    merged.energiaContratadaKwhMes = resolvedEnergy
+  }
+  if (resolvedEnergy !== nestedEnergy) {
+    merged.dadosTecnicos = { ...merged.dadosTecnicos, energiaContratadaKwhMes: resolvedEnergy }
+  }
+  return merged
 }
 
 const loadStoredState = (): LeasingState => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return createInitialState()
   }
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) {
+    const parsed = getWithTtl<Partial<LeasingState>>(STORAGE_KEY)
+    if (!parsed) {
       return createInitialState()
     }
-    const parsed = JSON.parse(raw) as Partial<LeasingState>
     return mergeState(parsed)
   } catch (error) {
     console.warn('[useLeasingStore] failed to load stored state', error)
@@ -292,7 +334,7 @@ const cloneState = (input: LeasingState): LeasingState => ({
 })
 
 const persistState = (next: LeasingState) => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return
   }
   try {
@@ -301,7 +343,7 @@ const persistState = (next: LeasingState) => {
     payload.contrato.ucGeradoraTitularDiferente = Boolean(
       payload.contrato.ucGeradoraTitularDiferente && payload.contrato.ucGeradoraTitular,
     )
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    setWithTtl(STORAGE_KEY, payload, DRAFT_TTL_MS)
   } catch (error) {
     console.warn('[useLeasingStore] failed to persist state', error)
   }
@@ -370,19 +412,45 @@ export const useLeasingValorDeMercadoEstimado = (): number =>
 export const leasingActions = {
   reset() {
     state = createInitialState()
-    if (canUseSessionStorage()) {
-      window.sessionStorage.removeItem(STORAGE_KEY)
+    if (canUseLocalStorage()) {
+      removeWithTtl(STORAGE_KEY)
     }
     notify()
   },
   update(partial: Partial<LeasingState>) {
     setState((draft) => {
       Object.assign(draft, partial)
+      // Keep energiaContratadaKwhMes in sync between root and dadosTecnicos.
+      // When the root field is explicitly set, mirror it down; when only dadosTecnicos is
+      // updated via updateDadosTecnicos(), the root is mirrored up there.
+      if ('energiaContratadaKwhMes' in partial && typeof partial.energiaContratadaKwhMes === 'number') {
+        draft.dadosTecnicos = {
+          ...draft.dadosTecnicos,
+          energiaContratadaKwhMes: partial.energiaContratadaKwhMes,
+        }
+      }
+      // Auto-derive valorDeMercadoEstimado when investimentoSolarinvest changes and the caller
+      // did NOT supply an explicit valorDeMercadoEstimado override.
+      if (
+        'investimentoSolarinvest' in partial &&
+        !('valorDeMercadoEstimado' in partial)
+      ) {
+        // Use the new capex value; if it is not a valid number, fall back to current state to
+        // avoid resetting an existing estimate to zero.
+        const capex = typeof partial.investimentoSolarinvest === 'number'
+          ? partial.investimentoSolarinvest
+          : draft.investimentoSolarinvest
+        draft.valorDeMercadoEstimado = capex * VALOR_MERCADO_MULTIPLICADOR
+      }
     })
   },
   updateDadosTecnicos(partial: Partial<LeasingDadosTecnicos>) {
     setState((draft) => {
       draft.dadosTecnicos = { ...draft.dadosTecnicos, ...partial }
+      // Mirror energiaContratadaKwhMes up to the root field when updated in dadosTecnicos.
+      if ('energiaContratadaKwhMes' in partial && typeof partial.energiaContratadaKwhMes === 'number') {
+        draft.energiaContratadaKwhMes = partial.energiaContratadaKwhMes
+      }
     })
   },
   updateProjecao(partial: Partial<LeasingProjecao>) {

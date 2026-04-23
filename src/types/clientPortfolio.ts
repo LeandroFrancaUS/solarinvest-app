@@ -14,7 +14,17 @@ export interface PortfolioClientRow {
   document: string | null
   document_type: string | null
   consumption_kwh_month: number | null
+  /**
+   * System power in kWp — sourced from `clients.system_kwp` (top-level canonical column).
+   * Written at proposal creation. Prefer this field for display and downstream logic.
+   * @see potencia_kwp for the satellite copy stored in client_energy_profile.
+   */
   system_kwp: number | null
+  /**
+   * Contract term in months — sourced from `clients.term_months`.
+   * Written at proposal creation. Middle priority in the chain:
+   * contractual_term_months (client_contracts) > term_months > prazo_meses (energy_profile).
+   */
   term_months: number | null
   distribuidora: string | null
   uc: string | null
@@ -42,8 +52,18 @@ export interface PortfolioClientRow {
   tarifa_atual?: number | null
   desconto_percentual?: number | null
   mensalidade?: number | null
+  /**
+   * Contract term in months — sourced from `client_energy_profile.prazo_meses`.
+   * @see term_months (from clients table) and contractual_term_months (from client_contracts).
+   * Priority for display: contractual_term_months > term_months > prazo_meses.
+   */
   prazo_meses?: number | null
   kwh_contratado?: number | null
+  /**
+   * System power in kWp — sourced from `client_energy_profile.potencia_kwp` (satellite copy).
+   * Populated by the energy profile import/auto-fill flow.
+   * Use `system_kwp` (from clients table) as the primary source; this is a secondary copy.
+   */
   potencia_kwp?: number | null
   tipo_rede?: string | null
   marca_inversor?: string | null
@@ -91,6 +111,11 @@ export interface PortfolioClientRow {
   contract_start_date?: string | null
   billing_start_date?: string | null
   expected_billing_end_date?: string | null
+  /**
+   * Contract term in months — sourced from `client_contracts.contractual_term_months`.
+   * This is the highest-priority source for the effective contract term.
+   * Priority chain: contractual_term_months > term_months (clients) > prazo_meses (energy_profile).
+   */
   contractual_term_months?: number | null
   buyout_eligible?: boolean | null
   buyout_status?: string | null
@@ -120,6 +145,10 @@ export interface PortfolioClientRow {
   modelo_inversor?: string | null
   tipo_instalacao?: string | null
   area_instalacao_m2?: number | null
+  /**
+   * Monthly generation estimate in kWh/month (sourced from client_usina_config.geracao_estimada_kwh).
+   * The DB column name omits "_mes" but the value is always monthly, not annual.
+   */
   geracao_estimada_kwh?: number | null
   /** Valor atual de mercado do sistema fotovoltaico (sourced from client_usina_config.valordemercado) */
   valordemercado?: number | null
@@ -260,4 +289,23 @@ export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatusType, string> 
   vence_hoje: 'Vence Hoje',
   vencida: 'Vencida',
   paga: 'Paga',
+}
+
+/**
+ * Returns the effective system power in kWp for a portfolio client row.
+ * system_kwp (clients table) takes priority over potencia_kwp (energy_profile).
+ */
+export function resolveSystemKwp(row: Pick<PortfolioClientRow, 'system_kwp' | 'potencia_kwp'>): number | null {
+  return row.system_kwp ?? row.potencia_kwp ?? null
+}
+
+/**
+ * Returns the effective contract term in months for a portfolio client row,
+ * applying the canonical priority chain:
+ *   contractual_term_months (client_contracts) > term_months (clients) > prazo_meses (energy_profile)
+ *
+ * Returns null when none of the sources has a value.
+ */
+export function resolveTermMonths(row: Pick<PortfolioClientRow, 'contractual_term_months' | 'term_months' | 'prazo_meses'>): number | null {
+  return row.contractual_term_months ?? row.term_months ?? row.prazo_meses ?? null
 }
