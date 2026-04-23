@@ -1039,7 +1039,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <ProposalOriginField
                 editMode={editMode}
                 displayCode={form.source_proposal_code || null}
-                legacyCode={form.source_proposal_id}
+                isClickableCode={Boolean(form.source_proposal_record_id)}
+                legacyCode={form.source_proposal_code}
                 onOpenSearch={() => setShowProposalSearchDialog(true)}
                 onClear={() => {
                   setForm((prev) => ({
