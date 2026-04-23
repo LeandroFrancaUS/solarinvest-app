@@ -9,6 +9,7 @@
 // No React, no side effects — safe to call from anywhere.
 
 import { calcularKpis } from '../../lib/finance/analiseFinanceiraSpreadsheet'
+import { computeTaxes } from '../../domain/finance/taxation'
 import type {
   ProjectFinanceFormState,
   ProjectFinanceSummaryKPIs,
@@ -96,12 +97,16 @@ export function computeProjectKPIs(
 
     if (!mensalidade || mensalidade <= 0 || prazo <= 0) return nullKPIs
 
-    // fator_liquido mirrors analiseFinanceiraSpreadsheet.calcularAnaliseLeasing:
-    // 1 − impostos − inadimplência − custo_operacional
-    const impostos = impostosPercent / 100
+    // Imposto incide somente sobre a mensalidade (leasing) — usa computeTaxes.
+    const taxResult = computeTaxes({
+      modo: 'leasing',
+      mensalidade,
+      aliquota: impostosPercent / 100,
+    })
+    const impostosFrac = mensalidade > 0 ? taxResult.valorImposto / mensalidade : 0
     const inadimplencia = (form.inadimplencia_pct ?? 0) / 100
     const opex = (form.opex_pct ?? 0) / 100
-    const fatorLiquido = Math.max(0, 1 - impostos - inadimplencia - opex)
+    const fatorLiquido = Math.max(0, 1 - impostosFrac - inadimplencia - opex)
     const mensalidadeLiquida = mensalidade * fatorLiquido
 
     // fluxos = net inflows only (without t0) — calcularKpis prepends −capex
@@ -125,7 +130,17 @@ export function computeProjectKPIs(
   const receita = form.receita_esperada ?? form.valor_venda ?? null
   if (!receita || receita <= 0) return nullKPIs
 
-  const impostosRs = receita * (impostosPercent / 100)
+  // Imposto incide sobre o valor do contrato excluindo custo do kit e frete (venda).
+  const custoKit = form.custo_equipamentos ?? 0
+  const frete = form.custo_frete_logistica ?? 0
+  const taxResult = computeTaxes({
+    modo: 'venda',
+    totalAntesImposto: receita,
+    custoKit,
+    frete,
+    aliquota: impostosPercent / 100,
+  })
+  const impostosRs = taxResult.valorImposto
   const lucroBruto = receita - capex
   const lucroLiquido = lucroBruto - impostosRs
 
