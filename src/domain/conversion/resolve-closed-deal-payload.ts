@@ -199,10 +199,10 @@ export function resolveClosedDealPayload(
   const mapped = mapProposalDataToPortfolioFields(snapshot, clienteDados)
 
   // ── 2. Determine contract type ──────────────────────────────────────────────
-  const contractType: ClosedDealContractType =
-    (mapped.contract.contract_type === 'sale' || snapshot.activeTab === 'venda')
-      ? 'VENDA'
-      : 'LEASING'
+  // Priority: mapped contract type (from snapshot/leasing detection) → activeTab fallback.
+  // 'sale' in the mapping corresponds to VENDA; everything else defaults to LEASING.
+  const isVenda = mapped.contract.contract_type === 'sale' || snapshot.activeTab === 'venda'
+  const contractType: ClosedDealContractType = isVenda ? 'VENDA' : 'LEASING'
 
   // ── 3. Resolve consultant ──────────────────────────────────────────────────
   const rawConsultantId = toStr(clienteDados.consultorId)
@@ -300,16 +300,22 @@ export function resolveClosedDealPayload(
     documentType,
 
     telefone,
-    telefoneSecundario: null, // not present in current ClienteDados model
+    // telefoneSecundario is not present in the current ClienteDados model.
+    // When the data model is extended to include a secondary phone field,
+    // it should be sourced from clienteDados.telefoneSecundario or snapshot.
+    telefoneSecundario: null,
     email,
 
     cidade,
     uf,
     cep,
     endereco,
-    bairro: null,   // not present in current ClienteDados model
-    numero: null,   // not present in current ClienteDados model
-    complemento: null, // not present in current ClienteDados model
+    // bairro, numero, complemento are not present in the current ClienteDados model.
+    // When the address model is extended, these should be sourced from
+    // clienteDados or address sub-objects in the snapshot.
+    bairro: null,
+    numero: null,
+    complemento: null,
 
     distribuidora,
     ucGeradora,

@@ -37,6 +37,7 @@
 import {
   resolveClosedDealPayload,
   type ClosedDealResolvedPayload,
+  type ClosedDealContractType,
   type ResolveClosedDealPayloadInput,
 } from '../../domain/conversion/resolve-closed-deal-payload'
 import {
@@ -84,6 +85,16 @@ export interface ConversionResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Map the canonical LEASING/VENDA enum to the DB contract_type string. */
+function toDbContractType(contractType: ClosedDealContractType | null): 'leasing' | 'sale' {
+  return contractType === 'VENDA' ? 'sale' : 'leasing'
+}
+
+/** Map the canonical LEASING/VENDA enum to the project finance contract_type string. */
+function toProjectFinanceContractType(contractType: ClosedDealContractType | null): 'leasing' | 'venda' {
+  return contractType === 'VENDA' ? 'venda' : 'leasing'
+}
+
 function toStep(
   step: string,
   ok: boolean,
@@ -102,8 +113,7 @@ function buildProjectFinanceForm(
   const base = buildDestPayload(resolved, PROJECT_FINANCE_FEED) as Partial<ProjectFinanceFormState>
   return {
     ...base,
-    contract_type:
-      resolved.contractType === 'VENDA' ? 'venda' : 'leasing',
+    contract_type: toProjectFinanceContractType(resolved.contractType),
     snapshot_source: 'closed_deal_conversion',
   }
 }
@@ -222,7 +232,7 @@ export async function convertClientToClosedDeal(
   try {
     const contractPatch = buildDestPayload(resolved, PORTFOLIO_CONTRACT_FEED)
     // contract_type is always required (defaults to leasing)
-    const contractType = resolved.contractType === 'VENDA' ? 'sale' : 'leasing'
+    const contractType = toDbContractType(resolved.contractType)
     contractId = await patchPortfolioContract(clientIdNum, {
       ...contractPatch,
       contract_type: contractType,
