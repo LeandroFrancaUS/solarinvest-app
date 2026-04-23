@@ -246,6 +246,11 @@ export async function resolveProjectContractType(sql, projectId) {
  * (the column populated by the closed-deal conversion pipeline). It is the
  * input the AF engine needs to derive CAC / impostos / receita_esperada
  * for leasing projects on "Preencher campos vazios" / "Recalcular tudo".
+ *
+ * `tarifa_kwh` is sourced from `client_energy_profile.tarifa_atual` and is
+ * returned so the frontend AF engine can auto-compute `mensalidade_base` as
+ * `consumo_kwh × tarifa_kwh × (1 − desconto/100)` (mensalidade bruta),
+ * matching the formula used in the Análise Financeira screen.
  */
 export async function resolveProjectContract(sql, projectId) {
   const rows = await sql`
@@ -253,7 +258,8 @@ export async function resolveProjectContract(sql, projectId) {
       p.project_type,
       cc.contract_type,
       cc.contractual_term_months,
-      cep.mensalidade AS mensalidade_base
+      cep.mensalidade        AS mensalidade_base,
+      cep.tarifa_atual       AS tarifa_kwh
     FROM projects p
     LEFT JOIN client_contracts cc ON cc.id = p.contract_id
     LEFT JOIN client_energy_profile cep ON cep.client_id = p.client_id
@@ -267,6 +273,7 @@ export async function resolveProjectContract(sql, projectId) {
     contract_type: resolveContractType(row.contract_type, row.project_type),
     contract_term_months: row.contractual_term_months != null ? Number(row.contractual_term_months) : null,
     mensalidade_base: row.mensalidade_base != null ? Number(row.mensalidade_base) : null,
+    tarifa_kwh: row.tarifa_kwh != null ? Number(row.tarifa_kwh) : null,
   }
 }
 

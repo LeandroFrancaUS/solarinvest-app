@@ -400,13 +400,18 @@ export function ProjectFinanceLeasingForm({
       {/* ── Leasing — Receitas e Premissas ───────────────────── */}
       <SectionTitle title="Receitas e Premissas (Leasing)" />
       <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-mensalidade"
           label="Mensalidade base"
+          field="mensalidade_base"
+          effectiveValue={calculated.mensalidade_base}
+          isOverridden={'mensalidade_base' in overrides}
+          overrideValue={overrides.mensalidade_base ?? null}
           unit="R$/mês"
-          value={form.mensalidade_base}
-          onChange={(v) => setField('mensalidade_base', v ?? undefined)}
           step={0.01}
+          format={fmtCurrency}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
         <FieldNumber
           id="pf-leasing-desconto"

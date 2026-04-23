@@ -95,13 +95,13 @@ export function computeProjectKPIs(
   contractTermMonths: number,
   pvData: ProjectPvData | null,
   technicalParams?: ProjectFinanceTechnicalParams,
-): ProjectFinanceComputed {
+): Omit<ProjectFinanceComputed, 'mensalidade_base'> {
   const taxaDesconto = technicalParams?.taxa_desconto_aa_pct ?? null
   const impostosPercent = technicalParams?.impostos_percent ?? 0
 
   const capex = computeCustoTotal(form)
 
-  const nullKPIs: ProjectFinanceComputed = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
+  const nullKPIs: Omit<ProjectFinanceComputed, 'mensalidade_base'> = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
 
   if (capex == null || capex <= 0) return nullKPIs
 
@@ -192,8 +192,35 @@ export function applyOverrides(
 }
 
 /**
+ * Computes the auto-calculated `mensalidade_base` for leasing using the same
+ * formula as the Análise Financeira "Mensalidade bruta":
+ *   mensalidade_base = consumo_kwh × tarifa_kwh × (1 − desconto / 100)
+ *
+ * Returns null when any required input (consumo, tarifa) is unavailable.
+ * The discount defaults to 0 when not supplied — so the raw monthly energy
+ * cost is returned when the discount is unknown.
+ */
+export function computeMensalidadeBaseAuto(
+  pvData: ProjectPvData | null,
+  form: ProjectFinanceFormState,
+  technicalParams?: ProjectFinanceTechnicalParams,
+): number | null {
+  const consumo = pvData?.consumo_kwh_mes ?? null
+  const tarifa = technicalParams?.tarifa_kwh ?? null
+  if (consumo == null || consumo <= 0 || tarifa == null || tarifa <= 0) return null
+  const desconto = form.desconto_percentual ?? 0
+  return consumo * tarifa * (1 - desconto / 100)
+}
+
+/**
  * Main orchestrator — maps inputs → calculated → effective.
  * System sizing values come from pvData (Usina Fotovoltaica), not the form.
+ *
+ * mensalidade_base is auto-computed via the AF engine formula
+ * (consumo × tarifa × (1 − desconto/100)) and added to the calculated/effective
+ * objects. The effective value respects any manual override stored in overrides.
+ * KPI computation uses the effective mensalidade_base so that overriding it
+ * propagates correctly to payback, ROI, TIR, and VPL.
  */
 export function computeProjectFinancialState(
   form: ProjectFinanceFormState,
@@ -203,8 +230,49 @@ export function computeProjectFinancialState(
   overrides: ProjectFinanceOverrides = {},
   technicalParams?: ProjectFinanceTechnicalParams,
 ): { calculated: ProjectFinanceComputed; effective: ProjectFinanceComputed } {
-  const calculated = computeProjectKPIs(form, contractType, contractTermMonths, pvData, technicalParams)
-  const effective = applyOverrides(calculated, overrides)
+  // Step 1: compute auto mensalidade_base from tariff engine formula
+  const mensalidadeBaseAuto = contractType === 'leasing'
+    ? computeMensalidadeBaseAuto(pvData, form, technicalParams)
+    : null
+
+  // Step 2: determine effective mensalidade_base (override wins over auto)
+  const effectiveMensalidadeBase: number | null =
+    'mensalidade_base' in overrides && overrides.mensalidade_base != null
+      ? overrides.mensalidade_base
+      : mensalidadeBaseAuto
+
+  // Step 3: inject effective mensalidade_base into form so KPI engine sees it
+  // (form.mensalidade_base may be null or stale; we always use the effective value)
+  const resolvedMensalidade = effectiveMensalidadeBase ?? form.mensalidade_base ?? null
+  const formForKpis: ProjectFinanceFormState = { ...form }
+  if (resolvedMensalidade != null) {
+    formForKpis.mensalidade_base = resolvedMensalidade
+  }
+
+  // Step 4: compute remaining KPIs
+  const kpis = computeProjectKPIs(formForKpis, contractType, contractTermMonths, pvData, technicalParams)
+
+  // Step 5: assemble calculated (auto values only) and effective (overrides applied)
+  const calculated: ProjectFinanceComputed = { mensalidade_base: mensalidadeBaseAuto, ...kpis }
+
+  // Apply overrides to KPI fields (mensalidade_base override was already handled above).
+  // Build effective by starting from calculated and applying any KPI overrides explicitly.
+  const effective: ProjectFinanceComputed = {
+    mensalidade_base: effectiveMensalidadeBase,
+    payback_meses: 'payback_meses' in overrides && overrides.payback_meses != null
+      ? overrides.payback_meses
+      : kpis.payback_meses,
+    roi_pct: 'roi_pct' in overrides && overrides.roi_pct != null
+      ? overrides.roi_pct
+      : kpis.roi_pct,
+    tir_pct: 'tir_pct' in overrides && overrides.tir_pct != null
+      ? overrides.tir_pct
+      : kpis.tir_pct,
+    vpl: 'vpl' in overrides && overrides.vpl != null
+      ? overrides.vpl
+      : kpis.vpl,
+  }
+
   return { calculated, effective }
 }
 
