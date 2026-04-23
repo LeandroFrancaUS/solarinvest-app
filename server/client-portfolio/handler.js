@@ -15,6 +15,7 @@ import {
   upsertClientContract,
   upsertClientProjectStatus,
   upsertClientBillingProfile,
+  updateClientContractualTermByClientId,
   getBillingInstallmentsJson,
   getClientNotes,
   addClientNote,
@@ -272,6 +273,21 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
       sendJson(404, { error: { code: 'CONTRACT_NOT_FOUND', message: 'Contrato não encontrado para este cliente.' } })
       return
     }
+
+    // Keep "prazo" synchronized between Contrato and Plano sources.
+    // Whenever contractual_term_months is updated in client_contracts, mirror it to
+    // client_energy_profile.prazo_meses for the same client.
+    const hasContractTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'contractual_term_months')
+    if (hasContractTerm) {
+      const rawTerm = body?.contractual_term_months
+      const normalizedTerm = rawTerm === undefined || rawTerm === null || rawTerm === ''
+        ? null
+        : Math.trunc(Number(rawTerm))
+      if (normalizedTerm == null || Number.isFinite(normalizedTerm)) {
+        await upsertClientEnergyProfile(sql, clientId, { prazo_meses: normalizedTerm })
+      }
+    }
+
     sendJson(200, { data: result })
   } catch (err) {
     console.error('[portfolio] contract patch error', err)
@@ -479,6 +495,14 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
     })
 
     const result = await upsertClientEnergyProfile(sql, clientId, profile)
+
+    // Keep "prazo" synchronized between Plano and Contrato sources.
+    // IMPORTANT: update existing contract rows in-place (by client_id) so we
+    // don't create a new contract row and break project.contract_id linkage.
+    const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
+    if (hasPlanTerm) {
+      await updateClientContractualTermByClientId(sql, clientId, profile.prazo_meses)
+    }
 
     console.info('[portfolio][plan] success', {
       clientId,

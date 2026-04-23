@@ -112,6 +112,12 @@ function enrichPortfolioClientRow(row) {
   row.contract_attachments = Array.isArray(rawAttachments) ? rawAttachments : null
 
   // Expose plano fields from energy profile when available
+  // Single source for contractual term in UI/API:
+  // prioritize client_contracts.contractual_term_months and mirror into
+  // prazo_meses so all tabs/components read the same value.
+  if (row.contractual_term_months != null) {
+    row.prazo_meses = row.contractual_term_months
+  }
   row.kwh_mes_contratado = row.kwh_contratado ?? null
 
   return row
@@ -789,6 +795,28 @@ export async function upsertClientContract(sql, clientId, fields) {
     }
   })()
   return rows[0] ?? null
+}
+
+/**
+ * Mirrors contractual term to all contract rows of a client without creating
+ * a new contract row.
+ *
+ * Why:
+ * - PATCH /plan must not call INSERT semantics on client_contracts.
+ * - Financial Management headers resolve term by projects.contract_id, so we
+ *   need to update existing linked contracts in-place.
+ */
+export async function updateClientContractualTermByClientId(sql, clientId, contractualTermMonths) {
+  const now = new Date().toISOString()
+  const rows = await sql`
+    UPDATE public.client_contracts
+    SET
+      contractual_term_months = ${contractualTermMonths ?? null},
+      updated_at = ${now}
+    WHERE client_id = ${clientId}
+    RETURNING id
+  `
+  return rows.length
 }
 
 /**

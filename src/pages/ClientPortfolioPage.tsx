@@ -954,6 +954,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         source_proposal_download_url: form.source_proposal_download_url || null,
         contract_signed_at: form.contract_signed_at || null,
         contractual_term_months: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
+        prazo_meses: form.contractual_term_months !== '' ? Number(form.contractual_term_months) : null,
         buyout_eligible: form.buyout_eligible,
         contract_notes: form.contract_notes || null,
         consultant_id: form.consultant_id || null,
@@ -1305,6 +1306,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             source_proposal_id: sourceProposalId,
             source_proposal_code: sourceProposalId,
             contractual_term_months: contractualTermMonths,
+            prazo_meses: contractualTermMonths,
             contract_attachments: nextAttachments,
             kwh_contratado: kwhContratado,
             kwh_mes_contratado: kwhContratado,
@@ -2226,6 +2228,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  const prazoUnificado = client.contractual_term_months ?? client.prazo_meses ?? null
 
   // Note: potencia_kwp, tipo_rede, marca_inversor, indicacao removed from this form.
   // These fields now live exclusively in project_pv_data (UsinaTab / Usina section).
@@ -2236,7 +2239,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
-    prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
+    prazo_meses: prazoUnificado != null ? String(prazoUnificado) : '',
   })
 
   const resetForm = () => setForm({
@@ -2244,7 +2247,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
     tarifa_atual: client.tarifa_atual != null ? String(client.tarifa_atual) : '',
-    prazo_meses: client.prazo_meses != null ? String(client.prazo_meses) : '',
+    prazo_meses: prazoUnificado != null ? String(prazoUnificado) : '',
   })
 
   async function handleSave() {
@@ -2266,6 +2269,7 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         desconto_percentual: form.desconto_percentual ? Number(form.desconto_percentual) : null,
         tarifa_atual: form.tarifa_atual ? Number(form.tarifa_atual) : null,
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
+        contractual_term_months: form.prazo_meses ? Number(form.prazo_meses) : null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
     } catch (err: unknown) {
