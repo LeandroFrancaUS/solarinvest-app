@@ -2,7 +2,7 @@
 // Section component for the Financeiro tab of a project detail page.
 // Shows a compact summary and provides an expand/edit toggle.
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useProjectFinance } from './useProjectFinance'
 import { useVendasConfigStore } from '../../store/useVendasConfigStore'
 import { ProjectFinanceSummary } from './ProjectFinanceSummary'
@@ -64,7 +64,9 @@ export function ProjectFinanceSection({
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   // Build derive params from available project data and vendasConfig AF params.
-  const buildDeriveParams = useCallback(() => ({
+  // useMemo produces a stable object reference (not recreated every render)
+  // so it can safely appear in useEffect dependency arrays.
+  const deriveParams = useMemo(() => ({
     consumo_kwh_mes: pvData?.consumo_kwh_mes ?? null,
     potencia_sistema_kwp: pvData?.potencia_sistema_kwp ?? null,
     uf: stateUf,
@@ -85,9 +87,9 @@ export function ProjectFinanceSection({
   // When the profile loads as empty AND pvData is available, auto-derive costs.
   useEffect(() => {
     if (!isLoading && profile === null && pvData?.consumo_kwh_mes) {
-      deriveFromEngine(buildDeriveParams(), false)
+      deriveFromEngine(deriveParams, false)
     }
-  }, [isLoading, profile, pvData, deriveFromEngine, buildDeriveParams])
+  }, [isLoading, profile, pvData, deriveFromEngine, deriveParams])
 
   const handleEdit = useCallback(() => {
     setIsExpanded(true)
@@ -112,8 +114,8 @@ export function ProjectFinanceSection({
   }, [save])
 
   const handleDeriveFromEngine = useCallback((force: boolean) => {
-    deriveFromEngine(buildDeriveParams(), force)
-  }, [deriveFromEngine, buildDeriveParams])
+    deriveFromEngine(deriveParams, force)
+  }, [deriveFromEngine, deriveParams])
 
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
   const hasProfile = profile !== null

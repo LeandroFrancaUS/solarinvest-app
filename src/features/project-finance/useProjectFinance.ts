@@ -230,13 +230,18 @@ export function useProjectFinance(
     (deriveParams: ProjectFinanceDeriveParams, force = false) => {
       const derived = deriveProjectFinanceCosts(deriveParams, contractType)
       setForm((prev) => {
-        const next = { ...prev }
-        for (const [k, v] of Object.entries(derived) as [keyof typeof derived, unknown][]) {
-          if (force || prev[k as keyof ProjectFinanceFormState] == null) {
-            ;(next as Record<string, unknown>)[k] = v
+        // Build the next state by assigning only the derived keys.
+        // We work with a typed partial and use Object.assign for type safety.
+        const patch: ProjectFinanceFormState = {}
+        for (const key of Object.keys(derived) as Array<keyof typeof derived>) {
+          const v = derived[key]
+          if (v !== undefined && (force || prev[key] == null)) {
+            // Each key in `derived` is a valid key of ProjectFinanceFormState.
+            // Object.assign keeps TypeScript happy without unsafe casts.
+            Object.assign(patch, { [key]: v })
           }
         }
-        return next
+        return { ...prev, ...patch }
       })
     },
     [contractType],

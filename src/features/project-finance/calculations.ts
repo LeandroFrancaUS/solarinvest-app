@@ -308,19 +308,19 @@ export function deriveProjectFinanceCosts(
     (result.custo_homologacao ?? 0)
 
   if (contractType === 'leasing') {
-    // Seguro: calcSeguroLeasing with configurable constants
+    // Seguro: use calcSeguroLeasing when constants match defaults; otherwise
+    // apply the two-tier formula inline with the provided custom constants.
     if (capexBase > 0) {
-      // Apply the two-tier formula using the (possibly overridden) constants
-      const seguro = capexBase < seguro_limiar_rs
-        ? capexBase * (seguro_faixa_baixa_percent / 100)
-        : Math.max(seguro_piso_rs, capexBase * (seguro_faixa_alta_percent / 100))
-      // Use calcSeguroLeasing when constants are defaults, else apply inline
       const isDefaultConstants =
         seguro_limiar_rs === SEGURO_LIMIAR_RS &&
         seguro_faixa_baixa_percent === SEGURO_FAIXA_BAIXA_PERCENT &&
         seguro_faixa_alta_percent === SEGURO_FAIXA_ALTA_PERCENT &&
         seguro_piso_rs === SEGURO_PISO_RS
-      result.custo_seguro = isDefaultConstants ? calcSeguroLeasing(capexBase) : seguro
+      result.custo_seguro = isDefaultConstants
+        ? calcSeguroLeasing(capexBase)
+        : capexBase < seguro_limiar_rs
+          ? capexBase * (seguro_faixa_baixa_percent / 100)
+          : Math.max(seguro_piso_rs, capexBase * (seguro_faixa_alta_percent / 100))
     }
 
     // CAC = first monthly payment (comissao for leasing)
