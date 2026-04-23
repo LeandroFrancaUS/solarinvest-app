@@ -5,7 +5,6 @@ interface ProposalOriginFieldProps {
   onOpenSearch: () => void
   onClear: () => void
   onPreview: () => void
-  onDownload: () => void
   onLegacyChange?: (value: string) => void
 }
 
@@ -16,7 +15,6 @@ export function ProposalOriginField({
   onOpenSearch,
   onClear,
   onPreview,
-  onDownload,
   onLegacyChange,
 }: ProposalOriginFieldProps) {
   if (!displayCode) {
@@ -50,8 +48,6 @@ export function ProposalOriginField({
         {displayCode}
       </button>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <button type="button" className="pf-btn pf-btn-edit" onClick={onPreview}>Preview</button>
-        <button type="button" className="pf-btn pf-btn-save" onClick={onDownload}>Baixar</button>
         {editMode ? <button type="button" className="pf-btn pf-btn-edit" onClick={onOpenSearch}>Trocar</button> : null}
         {editMode ? <button type="button" className="pf-btn pf-btn-cancel" onClick={onClear}>Remover</button> : null}
       </div>

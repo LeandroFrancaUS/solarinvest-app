@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ProposalOriginResultList } from './ProposalOriginResultList'
-import { ProposalOriginPreview } from './ProposalOriginPreview'
-import { downloadSavedProposal, searchSavedProposals } from '../../../services/proposalRecordsService'
+import { openSavedProposalPreview, searchSavedProposals } from '../../../services/proposalRecordsService'
 import type { SavedProposalRecord } from '../../../lib/proposals/types'
 
 interface ProposalOriginSearchDialogProps {
@@ -14,7 +13,6 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<SavedProposalRecord[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedPreview, setSelectedPreview] = useState<SavedProposalRecord | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -32,7 +30,6 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
   if (!open) return null
 
   return (
-    <>
       <div
         role="dialog"
         aria-modal="true"
@@ -61,27 +58,14 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
             <ProposalOriginResultList
               loading={loading}
               items={items}
-              onPreview={(item) => setSelectedPreview(item)}
+              onPreview={(item) => { openSavedProposalPreview(item) }}
               onSelect={(item) => {
                 onSelect(item)
                 onClose()
               }}
-              onDownload={(item) => { void downloadSavedProposal(item) }}
             />
           </div>
         </div>
       </div>
-      <ProposalOriginPreview
-        open={Boolean(selectedPreview)}
-        record={selectedPreview}
-        onClose={() => setSelectedPreview(null)}
-        onSelect={(item) => {
-          onSelect(item)
-          setSelectedPreview(null)
-          onClose()
-        }}
-        onDownload={(item) => { void downloadSavedProposal(item) }}
-      />
-    </>
   )
 }
