@@ -798,6 +798,28 @@ export async function upsertClientContract(sql, clientId, fields) {
 }
 
 /**
+ * Mirrors contractual term to all contract rows of a client without creating
+ * a new contract row.
+ *
+ * Why:
+ * - PATCH /plan must not call INSERT semantics on client_contracts.
+ * - Financial Management headers resolve term by projects.contract_id, so we
+ *   need to update existing linked contracts in-place.
+ */
+export async function updateClientContractualTermByClientId(sql, clientId, contractualTermMonths) {
+  const now = new Date().toISOString()
+  const rows = await sql`
+    UPDATE public.client_contracts
+    SET
+      contractual_term_months = ${contractualTermMonths ?? null},
+      updated_at = ${now}
+    WHERE client_id = ${clientId}
+    RETURNING id
+  `
+  return rows.length
+}
+
+/**
  * Upsert client_project_status (one row per client).
  * Includes engineer_id, installer_id, and ART fields (migration 0040).
  * ART validation: art_number requires engineer_id to be set.
