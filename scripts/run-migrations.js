@@ -7,9 +7,37 @@ import { getNeonDatabaseConfig } from '../server/database/neonConfig.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Stable advisory-lock key used to prevent concurrent migration runs.
+// Value chosen to be unique within this application and fit in a Postgres
+// bigint (< 2^63-1).  Change with caution: all deploy targets must use the
+// same key, and it must not conflict with other advisory locks in the system.
+const MIGRATION_ADVISORY_LOCK_KEY = 7890123456
+
 function resolveConnectionString() {
   const { directConnectionString, connectionString } = getNeonDatabaseConfig()
   return directConnectionString || connectionString || ''
+}
+
+/**
+ * Acquire a Postgres session-level advisory lock.
+ * Uses pg_try_advisory_lock so the call is non-blocking.
+ * Exits the process with code 2 when another migration process is already running.
+ *
+ * The lock is automatically released when the pg Client session ends.
+ */
+async function acquireAdvisoryLock(client) {
+  const res = await client.query(
+    'SELECT pg_try_advisory_lock($1) AS acquired',
+    [MIGRATION_ADVISORY_LOCK_KEY],
+  )
+  if (!res.rows[0]?.acquired) {
+    console.error(
+      '[migrations] Could not acquire advisory lock — another migration process is already running.',
+      'Exiting to prevent concurrent schema changes.',
+    )
+    process.exit(2)
+  }
+  console.log('[migrations] Advisory lock acquired.')
 }
 
 // Ensure the migration tracking table exists.
@@ -73,6 +101,10 @@ async function run() {
   const client = new Client({ connectionString: databaseUrl })
   try {
     await client.connect()
+
+    // Prevent concurrent migration runs across multiple deploy instances.
+    await acquireAdvisoryLock(client)
+
     await ensureMigrationsTable(client)
     const applied = await loadAppliedMigrations(client)
 

@@ -278,60 +278,207 @@ export async function updateClient(sql, clientId, data, options = {}) {
 }
 
 
+// Retention-policy constants kept in sync with purgeDeletedClients.js
+const RETENTION_STANDARD_DAYS = 7
+const RETENTION_BUSINESS_DAYS = 60
+
+// Lifecycle statuses that classify a client as "business closed" (converted).
+const BUSINESS_LIFECYCLE_STATUSES = ['contracted', 'active', 'implementation', 'billing']
+
 /**
- * Soft-delete a client by setting deleted_at.
+ * Returns true when a column-name error from Postgres mentions one of the new
+ * retention-policy columns introduced in migration 0053.
+ */
+function isRetentionColumnError(message) {
+  return [
+    'deletion_policy',
+    'deletion_retention_days',
+    'deleted_by_user_id',
+    'purge_after',
+    'is_high_value_protected',
+  ].some((col) => message.includes(col))
+}
+
+/**
+ * Soft-delete a client by setting deleted_at and computing the retention-policy
+ * columns (deletion_policy, deletion_retention_days, purge_after,
+ * is_high_value_protected, deleted_by_user_id) based on the client's lifecycle
+ * status at the time of deletion.
+ *
+ * Business rules (migration 0053):
+ *   - Converted clients (is_converted_customer = true OR lifecycle_status IN
+ *     ('contracted','active','implementation','billing')): 60-day retention,
+ *     is_high_value_protected = true.
+ *   - All other clients: 7-day standard retention.
  *
  * Defense-in-depth: when actorRole is 'role_comercial', an additional
  * WHERE owner_user_id = actorUserId clause is injected at the application
  * layer so comercial users cannot delete records they do not own even on
  * connections where BYPASSRLS is set on the DB role.
  *
+ * Schema-compatibility fallback chain:
+ *   1. Full query: updated_by_user_id + all retention columns (current schema)
+ *   2. No updated_by_user_id, with retention columns (migration 0011 absent)
+ *   3. Legacy: no retention columns + no updated_by_user_id (pre-migration 0053)
+ *
  * @param {Function} sql         - user-scoped sql handle
  * @param {string}   clientId    - UUID of the client
  * @param {string}   actorUserId - requester's Stack Auth user ID
  * @param {string}   [actorRole] - canonical role ('role_comercial', etc.)
+ * @param {string}   [reason]    - optional human-readable deletion reason
  */
-export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null) {
+export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null, reason = null) {
   const scopeByOwner = actorRole === 'role_comercial' && Boolean(actorUserId)
 
-  // Run the soft-delete.  When includeUpdatedBy is false (schema-compat retry),
-  // the param list shifts so every placeholder maps to the correct position.
-  const runDelete = async (includeUpdatedBy) => {
-    if (includeUpdatedBy) {
-      // $1=id, $2=updated_by_user_id, $3=owner (when scopeByOwner)
-      const ownerClause = scopeByOwner ? 'AND owner_user_id = $3' : ''
-      const params = [clientId, actorUserId, ...(scopeByOwner ? [actorUserId] : [])]
-      return sql(
-        `UPDATE clients
-         SET deleted_at = now(), updated_at = now(), updated_by_user_id = $2
-         WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
-         RETURNING id`,
-        params,
+  // Lifecycle statuses that classify a client as "business closed" (converted).
+  // Passed as a query parameter (ANY($n::text[])) so the values are never
+  // interpolated into the SQL string.
+  const businessStatuses = BUSINESS_LIFECYCLE_STATUSES
+
+  // ── Mode: full (updated_by_user_id + retention columns) ─────────────────────
+  // Parameters:
+  //   $1 = clientId
+  //   $2 = actorUserId        (updated_by_user_id, deleted_by_user_id)
+  //   $3 = reason
+  //   $4 = businessStatuses   (text[] — lifecycle statuses for business check)
+  //   $5 = retentionBusiness  (integer — days for converted clients)
+  //   $6 = retentionStandard  (integer — days for standard clients)
+  //   $7 = actorUserId        (owner filter, only when scopeByOwner)
+  const buildFullQuery = () => {
+    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $7' : ''
+    const params = [
+      clientId,
+      actorUserId,
+      reason ?? null,
+      businessStatuses,
+      RETENTION_BUSINESS_DAYS,
+      RETENTION_STANDARD_DAYS,
+      ...(scopeByOwner ? [actorUserId] : []),
+    ]
+    const query = `
+      WITH lc AS (
+        SELECT EXISTS (
+          SELECT 1 FROM client_lifecycle
+          WHERE client_id = $1::bigint
+            AND (
+              is_converted_customer = true
+              OR lifecycle_status = ANY($4::text[])
+            )
+        ) AS is_business
       )
-    } else {
-      // Retry without updated_by_user_id (column absent on older schemas).
-      // $1=id, $2=owner (when scopeByOwner)
-      const ownerClause = scopeByOwner ? 'AND owner_user_id = $2' : ''
-      const params = [clientId, ...(scopeByOwner ? [actorUserId] : [])]
-      return sql(
-        `UPDATE clients
-         SET deleted_at = now(), updated_at = now()
-         WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
-         RETURNING id`,
-        params,
+      UPDATE clients c
+      SET
+        deleted_at               = now(),
+        updated_at               = now(),
+        updated_by_user_id       = $2,
+        deleted_by_user_id       = $2,
+        deletion_reason          = $3,
+        deletion_policy          = CASE WHEN lc.is_business THEN 'business_closed' ELSE 'standard' END,
+        deletion_retention_days  = CASE WHEN lc.is_business THEN $5 ELSE $6 END,
+        purge_after              = CASE WHEN lc.is_business
+                                        THEN now() + ($5 || ' days')::INTERVAL
+                                        ELSE now() + ($6 || ' days')::INTERVAL
+                                   END,
+        is_high_value_protected  = CASE WHEN lc.is_business THEN true ELSE is_high_value_protected END
+      FROM lc
+      WHERE c.id = $1 AND c.deleted_at IS NULL ${ownerClause}
+      RETURNING c.id`
+    return { query, params }
+  }
+
+  // ── Mode: no-updated-by (retention columns, no updated_by_user_id) ──────────
+  // Same parameter layout as full mode — $2 is used only for deleted_by_user_id.
+  const buildNoUpdatedByQuery = () => {
+    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $7' : ''
+    const params = [
+      clientId,
+      actorUserId,
+      reason ?? null,
+      businessStatuses,
+      RETENTION_BUSINESS_DAYS,
+      RETENTION_STANDARD_DAYS,
+      ...(scopeByOwner ? [actorUserId] : []),
+    ]
+    const query = `
+      WITH lc AS (
+        SELECT EXISTS (
+          SELECT 1 FROM client_lifecycle
+          WHERE client_id = $1::bigint
+            AND (
+              is_converted_customer = true
+              OR lifecycle_status = ANY($4::text[])
+            )
+        ) AS is_business
       )
-    }
+      UPDATE clients c
+      SET
+        deleted_at               = now(),
+        updated_at               = now(),
+        deleted_by_user_id       = $2,
+        deletion_reason          = $3,
+        deletion_policy          = CASE WHEN lc.is_business THEN 'business_closed' ELSE 'standard' END,
+        deletion_retention_days  = CASE WHEN lc.is_business THEN $5 ELSE $6 END,
+        purge_after              = CASE WHEN lc.is_business
+                                        THEN now() + ($5 || ' days')::INTERVAL
+                                        ELSE now() + ($6 || ' days')::INTERVAL
+                                   END,
+        is_high_value_protected  = CASE WHEN lc.is_business THEN true ELSE is_high_value_protected END
+      FROM lc
+      WHERE c.id = $1 AND c.deleted_at IS NULL ${ownerClause}
+      RETURNING c.id`
+    return { query, params }
+  }
+
+  // ── Mode: legacy (no retention columns, no updated_by_user_id) ──────────────
+  // Preserves original behaviour for databases that have not yet run migration 0053.
+  // $1 = clientId, $2 = owner (when scopeByOwner)
+  const buildLegacyQuery = () => {
+    const ownerClause = scopeByOwner ? 'AND owner_user_id = $2' : ''
+    const params = [clientId, ...(scopeByOwner ? [actorUserId] : [])]
+    const query = `UPDATE clients
+      SET deleted_at = now(), updated_at = now()
+      WHERE id = $1 AND deleted_at IS NULL ${ownerClause}
+      RETURNING id`
+    return { query, params }
+  }
+
+  const runMode = async (mode) => {
+    const { query, params } =
+      mode === 'full'          ? buildFullQuery() :
+      mode === 'no-updated-by' ? buildNoUpdatedByQuery() :
+      buildLegacyQuery()
+    return sql(query, params)
   }
 
   try {
-    const rows = await runDelete(true)
+    const rows = await runMode('full')
     return rows[0] ?? null
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (!message.includes('updated_by_user_id')) throw error
-    // Retry without updated_by_user_id for older schemas that lack the column.
-    const rows = await runDelete(false)
-    return rows[0] ?? null
+
+    if (message.includes('updated_by_user_id')) {
+      // Schema missing updated_by_user_id — retry without it.
+      try {
+        const rows = await runMode('no-updated-by')
+        return rows[0] ?? null
+      } catch (err2) {
+        const msg2 = err2 instanceof Error ? err2.message : String(err2)
+        if (isRetentionColumnError(msg2)) {
+          // Migration 0053 also not applied — fall all the way back to legacy.
+          const rows = await runMode('legacy')
+          return rows[0] ?? null
+        }
+        throw err2
+      }
+    }
+
+    if (isRetentionColumnError(message)) {
+      // Migration 0053 not applied — use legacy query.
+      const rows = await runMode('legacy')
+      return rows[0] ?? null
+    }
+
+    throw error
   }
 }
 

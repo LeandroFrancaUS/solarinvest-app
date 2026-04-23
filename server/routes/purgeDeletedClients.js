@@ -53,7 +53,8 @@ function assertCronAuthorized(req) {
  *     retentionDays: 7,
  *     scanned: 21,
  *     hardDeleted: 8,
- *     keptSoftDeletedDueToLinks: 13,
+ *     keptSoftDeletedDueToLinks: 11,
+ *     keptSoftDeletedDueToProtection: 2,
  *     durationMs: 120,
  *     errors: []
  *   }
@@ -96,6 +97,7 @@ export async function handlePurgeDeletedClientsRequest(req, res, { sendJson, req
       scanned: result.scanned,
       hardDeleted: result.hardDeleted,
       keptSoftDeletedDueToLinks: result.keptSoftDeletedDueToLinks,
+      keptSoftDeletedDueToProtection: result.keptSoftDeletedDueToProtection,
       durationMs: result.durationMs,
       dryRun,
     })
