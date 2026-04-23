@@ -120,6 +120,10 @@ export interface PortfolioClientRow {
   modelo_inversor?: string | null
   tipo_instalacao?: string | null
   area_instalacao_m2?: number | null
+  /**
+   * Monthly generation estimate in kWh/month (sourced from client_usina_config.geracao_estimada_kwh).
+   * The DB column name omits "_mes" but the value is always monthly, not annual.
+   */
   geracao_estimada_kwh?: number | null
   /** Valor atual de mercado do sistema fotovoltaico (sourced from client_usina_config.valordemercado) */
   valordemercado?: number | null

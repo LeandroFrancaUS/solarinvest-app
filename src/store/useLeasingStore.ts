@@ -3,8 +3,11 @@ import { isCrashRecovery } from './crashRecovery'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
+  /** Monthly generation estimate in kWh/month. */
   geracaoEstimadakWhMes: number
+  /** Monthly contracted energy in kWh/month. Mirrors LeasingState.energiaContratadaKwhMes — kept in sync by leasingActions. */
   energiaContratadaKwhMes: number
+  /** Module power in Wp ("placa" = módulo). */
   potenciaPlacaWp: number
   numeroModulos: number
   tipoInstalacao: string
@@ -85,14 +88,34 @@ export type LeasingContratoDados = {
 }
 
 export type LeasingState = {
+  /** Contract term in months (e.g. 240 = 20 years). */
   prazoContratualMeses: number
+  /**
+   * Contracted monthly energy in kWh/month.
+   * Root-level convenience copy — must stay in sync with dadosTecnicos.energiaContratadaKwhMes.
+   * Always update via leasingActions.syncEnergiaContratada() or leasingActions.update() which
+   * automatically mirrors the value into dadosTecnicos.
+   */
   energiaContratadaKwhMes: number
+  /** Initial tariff in R$/kWh (full tariff at month 1, before discount). */
   tarifaInicial: number
+  /**
+   * Contractual discount as a percentage (0–100).
+   * Example: 20 means 20 % off the full tariff.
+   * Consumers must divide by 100 before applying as a fraction.
+   */
   descontoContratual: number
+  /** Annual energy inflation as a decimal fraction (e.g. 0.06 = 6 % per year). */
   inflacaoEnergiaAa: number
+  /** SolarInvest investment (CAPEX) in R$. */
   investimentoSolarinvest: number
   dataInicioOperacao: string
   responsavelSolarinvest: string
+  /**
+   * Estimated market value of the installed system in R$.
+   * Should be kept in sync with investimentoSolarinvest * VALOR_MERCADO_MULTIPLICADOR (1.29).
+   * Call leasingActions.setValorDeMercadoEstimado() when updating investimentoSolarinvest.
+   */
   valorDeMercadoEstimado: number
   dadosTecnicos: LeasingDadosTecnicos
   projecao: LeasingProjecao
