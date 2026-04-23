@@ -303,7 +303,6 @@ import {
 import { BulkImportPreviewModal } from './components/clients/BulkImportPreviewModal'
 import { BackupActionModal } from './components/clients/BackupActionModal'
 import type { BackupDestino } from './components/clients/BackupActionModal'
-import { getFilteredClients } from './lib/clients/clientFilter'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
 import {
@@ -3752,46 +3751,39 @@ function ClientesPanel({
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
-  // selectedOwner stores the consultant's stack_user_id or 'all'.
+  // selectedOwner stores the registered consultant id (consultants.id) or 'all'.
   // Using the ID (not the display name) ensures filter correctness even when
   // two consultants share a name or when the name changes.
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
+  const consultorById = useMemo(() => {
+    const map = new Map<string, ConsultantEntry>()
+    allConsultores.forEach((entry) => {
+      if (!entry?.id) return
+      map.set(String(entry.id), entry)
+    })
+    return map
+  }, [allConsultores])
 
-  // Build the dropdown options list: full ConsultantEntry objects sorted by name.
-  // Only shown to privileged users.
+  // Build the dropdown options list using only registered consultants
+  // from Gestão de Usuários/Consultores.
   const ownerOptions = useMemo(() => {
     if (!isPrivilegedUser) return []
-    if (allConsultores.length > 0) {
-      return [...allConsultores].sort((a, b) =>
-        (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
-      )
-    }
-    // Fallback: derive consultant entries from loaded registros when the API
-    // list is unavailable.  Deduplicates by createdByUserId and uses
-    // ownerName/ownerEmail as the display label.
-    const seen = new Map<string, ConsultantEntry>()
-    for (const r of registros) {
-      if (r.deletedAt != null) continue
-      const id = r.createdByUserId ?? r.ownerUserId
-      if (!id || seen.has(id)) continue
-      seen.set(id, {
-        id,
-        name: r.ownerName ?? r.ownerEmail ?? id,
-        email: r.ownerEmail ?? null,
-      })
-    }
-    return [...seen.values()].sort((a, b) =>
+    return [...allConsultores].sort((a, b) =>
       (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
     )
-  }, [isPrivilegedUser, allConsultores, registros])
+  }, [isPrivilegedUser, allConsultores])
 
   // Single source of truth for the visible client list:
-  //   1. getFilteredClients removes deleted records and applies the consultant filter.
+  //   1. Removes deleted records and applies the consultant filter.
   //   2. Text search is applied on top of the already-filtered result.
   const registrosFiltrados = useMemo(() => {
-    const byConsultor = getFilteredClients(registros, selectedOwner)
+    const activeClients = registros.filter((registro) => registro.deletedAt == null)
+    const byConsultor =
+      selectedOwner === 'all'
+        ? activeClients
+        : activeClients.filter((registro) => (registro.dados.consultorId ?? '') === selectedOwner)
 
     if (!normalizedSearchTerm) return byConsultor
 
@@ -3817,10 +3809,11 @@ function ClientesPanel({
           : false
       const matchEndereco = dados.endereco?.toLowerCase().includes(normalizedSearchTerm) ?? false
       const matchDistribuidora = dados.distribuidora?.toLowerCase().includes(normalizedSearchTerm) ?? false
-      // Allow searching by consultant name/email for privileged views
+      // Allow searching by consultant display name for privileged views
+      const consultorId = registro.dados.consultorId ?? ''
+      const consultorLabel = consultorById.get(consultorId)?.name ?? 'Sem consultor'
       const matchOwner = isPrivilegedUser
-        ? ((registro.ownerName?.toLowerCase().includes(normalizedSearchTerm) ?? false) ||
-          (registro.ownerEmail?.toLowerCase().includes(normalizedSearchTerm) ?? false))
+        ? consultorLabel.toLowerCase().includes(normalizedSearchTerm)
         : false
       return (
         matchNome ||
@@ -3836,7 +3829,7 @@ function ClientesPanel({
         matchOwner
       )
     })
-  }, [isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
+  }, [consultorById, isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
 
   // Active records (non-deleted) — used for total count, independent of search/owner filter
   const totalAtivos = useMemo(
@@ -3855,9 +3848,10 @@ function ClientesPanel({
     return new Set(
       registros
         .filter((r) => r.deletedAt == null)
-        .map((r) => r.createdByUserId ?? r.ownerName ?? r.ownerEmail ?? 'desconhecido'),
+        .map((r) => r.dados.consultorId ?? '')
+        .filter((consultorId) => consultorById.has(consultorId)),
     ).size
-  }, [isPrivilegedUser, registros])
+  }, [consultorById, isPrivilegedUser, registros])
 
   return (
     <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
@@ -4055,9 +4049,8 @@ function ClientesPanel({
                       const safeAddress = sanitizeClientShowcaseValue(dados.endereco)
                       const safeEmail = sanitizeClientShowcaseValue(dados.email)
                       const safeUc = sanitizeClientShowcaseValue(dados.uc)
-                      const consultorResponsavelRaw = sanitizeClientShowcaseValue(registro.dados.consultorNome)
-                      const consultorResponsavel =
-                        consultorResponsavelRaw !== '-' ? consultorResponsavelRaw : 'Sem consultor'
+                      const consultorCadastrado = consultorById.get(registro.dados.consultorId ?? '')
+                      const consultorResponsavel = consultorCadastrado?.name ?? 'Sem consultor'
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id

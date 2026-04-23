@@ -275,6 +275,13 @@ export interface ConsultantEntry {
   email: string | null
 }
 
+type ConsultantsListApiRow = {
+  id: string | number
+  full_name?: string | null
+  apelido?: string | null
+  email?: string | null
+}
+
 /**
  * List all registered consultant profiles.
  * Only accessible to privileged users (admin, office, financeiro).
@@ -297,8 +304,19 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
     headers: { 'Content-Type': 'application/json', ...authHeader },
   })
   if (!res.ok) return []
-  const body = (await res.json()) as { consultants: ConsultantEntry[] }
-  return Array.isArray(body.consultants) ? body.consultants : []
+  const body = (await res.json()) as { consultants?: ConsultantsListApiRow[] }
+  if (!Array.isArray(body.consultants)) return []
+  return body.consultants
+    .map((row) => {
+      const preferredName = row.full_name?.trim() || row.apelido?.trim() || row.email?.trim() || ''
+      if (!preferredName) return null
+      return {
+        id: String(row.id),
+        name: preferredName,
+        email: row.email ?? null,
+      }
+    })
+    .filter((entry): entry is ConsultantEntry => Boolean(entry))
 }
 
 // ─── Bulk Import ─────────────────────────────────────────────────────────────
