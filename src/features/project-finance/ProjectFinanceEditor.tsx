@@ -169,6 +169,11 @@ interface Props {
   isSaving: boolean
   isDirty: boolean
   error: string | null
+  /**
+   * When true, the "Preencher com motor" button is shown.
+   * Only enabled when pvData has enough data to derive costs.
+   */
+  canDeriveFromEngine?: boolean
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
   setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
@@ -176,6 +181,11 @@ interface Props {
   restoreAll: () => void
   onSave: () => void
   onCancel: () => void
+  /**
+   * Called when the user clicks "Preencher com motor".
+   * force=false fills only null fields; force=true overwrites all.
+   */
+  onDeriveFromEngine?: (force: boolean) => void
 }
 
 export function ProjectFinanceEditor({
@@ -189,6 +199,7 @@ export function ProjectFinanceEditor({
   isSaving,
   isDirty,
   error,
+  canDeriveFromEngine = false,
   setField,
   setTechnicalParam,
   setOverride,
@@ -196,11 +207,49 @@ export function ProjectFinanceEditor({
   restoreAll,
   onSave,
   onCancel,
+  onDeriveFromEngine,
 }: Props) {
   const hasOverrides = Object.keys(overrides).length > 0
 
   return (
     <div>
+      {/* Engine auto-fill toolbar */}
+      {canDeriveFromEngine && onDeriveFromEngine ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 4px',
+            borderBottom: '1px solid var(--border)',
+            marginBottom: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            🔄 Motor de Análise Financeira:
+          </span>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => onDeriveFromEngine(false)}
+            title="Preenche apenas campos ainda vazios com valores calculados pelo motor da Análise Financeira"
+            style={{ fontSize: 12, padding: '3px 10px' }}
+          >
+            Preencher campos vazios
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => onDeriveFromEngine(true)}
+            title="Recalcula e substitui todos os campos de custo com valores do motor da Análise Financeira"
+            style={{ fontSize: 12, padding: '3px 10px', color: 'var(--ds-warning, #f59e0b)' }}
+          >
+            Recalcular tudo
+          </button>
+        </div>
+      ) : null}
+
       <div style={{ padding: '0 4px' }}>
         {contractType === 'leasing' ? (
           <ProjectFinanceLeasingForm

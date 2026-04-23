@@ -2,8 +2,9 @@
 // Section component for the Financeiro tab of a project detail page.
 // Shows a compact summary and provides an expand/edit toggle.
 
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useProjectFinance } from './useProjectFinance'
+import { useVendasConfigStore } from '../../store/useVendasConfigStore'
 import { ProjectFinanceSummary } from './ProjectFinanceSummary'
 import { ProjectFinanceEditor } from './ProjectFinanceEditor'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -15,9 +16,26 @@ interface Props {
    * Used as source-of-truth for consumo, potência, geração (readonly in finance).
    */
   pvData?: ProjectPvData | null
+  /**
+   * State abbreviation from the project (e.g. 'DF', 'GO', 'SP').
+   * Used to resolve CREA cost when auto-deriving costs from the AF engine.
+   */
+  stateUf?: string | null
+  /**
+   * Leasing base monthly fee from the client's contract.
+   * When provided, it is used to auto-derive the CAC (comissão) field for leasing.
+   */
+  mensalidadeFromContract?: number | null
 }
 
-export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
+export function ProjectFinanceSection({
+  projectId,
+  pvData = null,
+  stateUf = null,
+  mensalidadeFromContract = null,
+}: Props) {
+  const vendasConfig = useVendasConfigStore((s) => s.config)
+
   const {
     profile,
     form,
@@ -39,10 +57,37 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
     restoreAll,
     save,
     reset,
+    deriveFromEngine,
   } = useProjectFinance(projectId, pvData)
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Build derive params from available project data and vendasConfig AF params.
+  const buildDeriveParams = useCallback(() => ({
+    consumo_kwh_mes: pvData?.consumo_kwh_mes ?? null,
+    potencia_sistema_kwp: pvData?.potencia_sistema_kwp ?? null,
+    uf: stateUf,
+    mensalidade_base: mensalidadeFromContract,
+    prazo_meses: contractTermMonths,
+    crea_go_rs: vendasConfig.af_crea_go_rs,
+    crea_df_rs: vendasConfig.af_crea_df_rs,
+    projeto_faixas: vendasConfig.af_projeto_faixas,
+    seguro_limiar_rs: vendasConfig.af_seguro_limiar_rs,
+    seguro_faixa_baixa_percent: vendasConfig.af_seguro_faixa_baixa_percent,
+    seguro_faixa_alta_percent: vendasConfig.af_seguro_faixa_alta_percent,
+    seguro_piso_rs: vendasConfig.af_seguro_piso_rs,
+    comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+    // impostos_leasing_percent and impostos_venda_percent use their own defaults (4% / 6%)
+    // as these are not stored in vendasConfig but handled per-contract in the AF screen.
+  }), [pvData, stateUf, mensalidadeFromContract, contractTermMonths, vendasConfig])
+
+  // When the profile loads as empty AND pvData is available, auto-derive costs.
+  useEffect(() => {
+    if (!isLoading && profile === null && pvData?.consumo_kwh_mes) {
+      deriveFromEngine(buildDeriveParams(), false)
+    }
+  }, [isLoading, profile, pvData, deriveFromEngine, buildDeriveParams])
 
   const handleEdit = useCallback(() => {
     setIsExpanded(true)
@@ -66,8 +111,13 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
     })
   }, [save])
 
+  const handleDeriveFromEngine = useCallback((force: boolean) => {
+    deriveFromEngine(buildDeriveParams(), force)
+  }, [deriveFromEngine, buildDeriveParams])
+
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
   const hasProfile = profile !== null
+  const canDerive = Boolean(pvData?.consumo_kwh_mes || pvData?.potencia_sistema_kwp)
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isLoading && !profile) {
@@ -152,6 +202,7 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
             isSaving={isSaving}
             isDirty={isDirty}
             error={error}
+            canDeriveFromEngine={canDerive}
             setField={setField}
             setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
@@ -159,6 +210,7 @@ export function ProjectFinanceSection({ projectId, pvData = null }: Props) {
             restoreAll={restoreAll}
             onSave={handleSave}
             onCancel={handleCancel}
+            onDeriveFromEngine={handleDeriveFromEngine}
           />
         ) : null}
       </div>

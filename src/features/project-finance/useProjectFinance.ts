@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchProjectFinance, saveProjectFinance } from './api'
-import { computeSummaryKPIs, computeProjectFinancialState } from './calculations'
+import { computeSummaryKPIs, computeProjectFinancialState, deriveProjectFinanceCosts } from './calculations'
 import type {
   ProjectFinanceProfile,
   ProjectFinanceFormState,
@@ -20,6 +20,7 @@ import type {
   ProjectFinanceOverrides,
   OverridableField,
   ProjectFinanceTechnicalParams,
+  ProjectFinanceDeriveParams,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
 
@@ -80,6 +81,12 @@ interface UseProjectFinanceReturn {
   restoreAll: () => void
   save: () => Promise<void>
   reset: () => void
+  /**
+   * Pre-fills cost fields using the AF engine given pvData + optional params.
+   * By default, only fills NULL fields (force=false); pass force=true to
+   * overwrite existing values with engine-derived ones.
+   */
+  deriveFromEngine: (deriveParams: ProjectFinanceDeriveParams, force?: boolean) => void
 }
 
 export function useProjectFinance(
@@ -214,6 +221,27 @@ export function useProjectFinance(
     setError(null)
   }, [savedForm, savedOverrides])
 
+  /**
+   * Derives cost fields from the AF engine and merges them into the form.
+   * Only NULL form fields are filled when force=false (default).
+   * Pass force=true to overwrite existing values with engine-derived ones.
+   */
+  const deriveFromEngine = useCallback(
+    (deriveParams: ProjectFinanceDeriveParams, force = false) => {
+      const derived = deriveProjectFinanceCosts(deriveParams, contractType)
+      setForm((prev) => {
+        const next = { ...prev }
+        for (const [k, v] of Object.entries(derived) as [keyof typeof derived, unknown][]) {
+          if (force || prev[k as keyof ProjectFinanceFormState] == null) {
+            ;(next as Record<string, unknown>)[k] = v
+          }
+        }
+        return next
+      })
+    },
+    [contractType],
+  )
+
   const summaryForm: ProjectFinanceFormState = { ...form }
   if (effective.payback_meses != null) summaryForm.payback_meses = effective.payback_meses
   if (effective.roi_pct != null) summaryForm.roi_pct = effective.roi_pct
@@ -241,6 +269,7 @@ export function useProjectFinance(
     restoreAll,
     save,
     reset,
+    deriveFromEngine,
   }
 }
 

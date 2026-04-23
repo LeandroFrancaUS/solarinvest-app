@@ -3,12 +3,24 @@
 // Uses the same engine functions as the Análise Financeira:
 //   - calcularKpis (from analiseFinanceiraSpreadsheet) for KPI computation
 //   - impostos_percent applied to fator_liquido, matching AnaliseFinanceiraInput
+//   - deriveProjectFinanceCosts for auto-populating cost breakdown fields
 //
 // System sizing values (potência, geração, consumo) come from the project's
 // Usina Fotovoltaica (ProjectPvData) — NOT from the financial form itself.
 // No React, no side effects — safe to call from anywhere.
 
-import { calcularKpis } from '../../lib/finance/analiseFinanceiraSpreadsheet'
+import {
+  calcularKpis,
+  resolveCustoProjetoPorFaixa,
+  calcSeguroLeasing,
+  SEGURO_LIMIAR_RS,
+  SEGURO_FAIXA_BAIXA_PERCENT,
+  SEGURO_FAIXA_ALTA_PERCENT,
+  SEGURO_PISO_RS,
+  CREA_GO_RS,
+  CREA_DF_RS,
+  PROJETO_FAIXAS,
+} from '../../lib/finance/analiseFinanceiraSpreadsheet'
 import { computeTaxes } from '../../domain/finance/taxation'
 import type {
   ProjectFinanceFormState,
@@ -17,6 +29,7 @@ import type {
   ProjectFinanceComputed,
   ProjectFinanceOverrides,
   ProjectFinanceTechnicalParams,
+  ProjectFinanceDeriveParams,
   OverridableField,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -220,4 +233,116 @@ export function computeSummaryKPIs(
     status: form.status ?? 'draft',
     updated_at: updatedAt ?? null,
   }
+}
+
+// ─── Engine-driven cost derivation ───────────────────────────────────────────
+
+/**
+ * Auto-computes project cost-breakdown fields using the SAME formulas as the
+ * Análise Financeira screen (App.tsx).  Intended for pre-filling the
+ * Gestão Financeira form when a project has pvData but no saved profile.
+ *
+ * Auto-pricing formulas (same as App.tsx reactive effect):
+ *   custo_equipamentos    = round(1500 + 9.5  × consumo)
+ *   custo_frete_logistica = round(300  + 0.52 × consumo)
+ *
+ * Engine functions from analiseFinanceiraSpreadsheet:
+ *   custo_engenharia  = resolveCustoProjetoPorFaixa(kwp, faixas)
+ *   custo_homologacao = CREA by UF
+ *
+ * Leasing-specific (only populated when mensalidade_base is provided):
+ *   custo_comissao = mensalidade_base  (CAC = first monthly payment)
+ *   custo_seguro   = calcSeguroLeasing(capex_base)
+ *   custo_impostos = impostos_leasing_percent × mensalidade × prazo
+ *
+ * Returns only fields that could be derived; any field whose inputs are
+ * missing is simply absent from the returned object.
+ */
+export function deriveProjectFinanceCosts(
+  params: ProjectFinanceDeriveParams,
+  contractType: ProjectFinanceContractType,
+): Partial<ProjectFinanceFormState> {
+  const {
+    consumo_kwh_mes,
+    potencia_sistema_kwp,
+    uf,
+    mensalidade_base,
+    prazo_meses,
+    crea_go_rs = CREA_GO_RS,
+    crea_df_rs = CREA_DF_RS,
+    projeto_faixas = PROJETO_FAIXAS,
+    seguro_limiar_rs = SEGURO_LIMIAR_RS,
+    seguro_faixa_baixa_percent = SEGURO_FAIXA_BAIXA_PERCENT,
+    seguro_faixa_alta_percent = SEGURO_FAIXA_ALTA_PERCENT,
+    seguro_piso_rs = SEGURO_PISO_RS,
+    impostos_leasing_percent = 4,
+    impostos_venda_percent = 6,
+    comissao_minima_percent = 5,
+  } = params
+
+  const result: Partial<ProjectFinanceFormState> = {}
+
+  const consumo = consumo_kwh_mes != null && consumo_kwh_mes > 0 ? consumo_kwh_mes : null
+  const kwp = potencia_sistema_kwp != null && potencia_sistema_kwp > 0 ? potencia_sistema_kwp : null
+  const resolvedUf = uf === 'DF' ? 'DF' : 'GO'
+
+  // ── Auto-pricing: kit and freight (same formulas as App.tsx) ──────────────
+  if (consumo != null) {
+    result.custo_equipamentos = Math.round(1500 + 9.5 * consumo)
+    result.custo_frete_logistica = Math.round(300 + 0.52 * consumo)
+  }
+
+  // ── Engineering cost: by kWp faixa ────────────────────────────────────────
+  if (kwp != null) {
+    result.custo_engenharia = resolveCustoProjetoPorFaixa(kwp, projeto_faixas)
+  }
+
+  // ── CREA: by UF ───────────────────────────────────────────────────────────
+  result.custo_homologacao = resolvedUf === 'DF' ? crea_df_rs : crea_go_rs
+
+  // ── CAPEX base (for seguro calculation) ───────────────────────────────────
+  const capexBase =
+    (result.custo_equipamentos ?? 0) +
+    (result.custo_frete_logistica ?? 0) +
+    (result.custo_engenharia ?? 0) +
+    (result.custo_homologacao ?? 0)
+
+  if (contractType === 'leasing') {
+    // Seguro: calcSeguroLeasing with configurable constants
+    if (capexBase > 0) {
+      // Apply the two-tier formula using the (possibly overridden) constants
+      const seguro = capexBase < seguro_limiar_rs
+        ? capexBase * (seguro_faixa_baixa_percent / 100)
+        : Math.max(seguro_piso_rs, capexBase * (seguro_faixa_alta_percent / 100))
+      // Use calcSeguroLeasing when constants are defaults, else apply inline
+      const isDefaultConstants =
+        seguro_limiar_rs === SEGURO_LIMIAR_RS &&
+        seguro_faixa_baixa_percent === SEGURO_FAIXA_BAIXA_PERCENT &&
+        seguro_faixa_alta_percent === SEGURO_FAIXA_ALTA_PERCENT &&
+        seguro_piso_rs === SEGURO_PISO_RS
+      result.custo_seguro = isDefaultConstants ? calcSeguroLeasing(capexBase) : seguro
+    }
+
+    // CAC = first monthly payment (comissao for leasing)
+    if (mensalidade_base != null && mensalidade_base > 0) {
+      result.custo_comissao = mensalidade_base
+
+      // Total impostos over contract term
+      if (prazo_meses != null && prazo_meses > 0) {
+        const taxResult = computeTaxes({
+          modo: 'leasing',
+          mensalidade: mensalidade_base,
+          aliquota: impostos_leasing_percent / 100,
+        })
+        result.custo_impostos = taxResult.valorImposto * prazo_meses
+      }
+    }
+  } else {
+    // Venda: comissao as a % of the capex base (informational estimate)
+    if (capexBase > 0) {
+      result.custo_comissao = Math.round(capexBase * (comissao_minima_percent / 100))
+    }
+  }
+
+  return result
 }
