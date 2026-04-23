@@ -499,13 +499,11 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
     // Keep "prazo" synchronized between Plano and Contrato sources.
     // IMPORTANT: update existing contract rows in-place (by client_id) so we
     // don't create a new contract row and break project.contract_id linkage.
-    const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
-    if (hasPlanTerm) {
-      await updateClientContractualTermByClientId(sql, clientId, profile.prazo_meses)
     // Whenever prazo_meses is updated in client_energy_profile, mirror it to
     // client_contracts.contractual_term_months for the same client.
     const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
     if (hasPlanTerm) {
+      await updateClientContractualTermByClientId(sql, clientId, profile.prazo_meses)
       await upsertClientContract(sql, clientId, {
         contractual_term_months: profile.prazo_meses,
       })
