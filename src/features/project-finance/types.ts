@@ -137,3 +137,45 @@ export interface ProjectFinanceGetResponse {
   contract_term_months: number | null
   project_id: string
 }
+
+// ─── Engine-derive params ─────────────────────────────────────────────────────
+
+/**
+ * Parameters needed to auto-derive cost fields from the AF engine.
+ * All inputs are optional — missing ones simply leave the corresponding
+ * form field unset so the user can fill them manually.
+ */
+export interface ProjectFinanceDeriveParams {
+  /** Monthly consumption in kWh from the Usina Fotovoltaica. */
+  consumo_kwh_mes?: number | null
+  /** Installed system capacity in kWp from the Usina Fotovoltaica. */
+  potencia_sistema_kwp?: number | null
+  /** State abbreviation from the project (e.g. 'DF', 'GO'). Used for CREA. */
+  uf?: string | null
+  /** Leasing base monthly fee from the contract. Used to derive CAC and seguro. */
+  mensalidade_base?: number | null
+  /** Contractual term in months. Used to compute total tax cost for leasing. */
+  prazo_meses?: number | null
+
+  // ── AF engine parameter overrides (default to vendasConfig / constants) ──
+  /** CREA cost for GO. */
+  crea_go_rs?: number
+  /** CREA cost for DF. */
+  crea_df_rs?: number
+  /** Engineering cost faixas (by kWp). */
+  projeto_faixas?: Array<{ max_kwp: number; valor_rs: number }>
+  /** Insurance threshold (R$) for the two-tier formula. */
+  seguro_limiar_rs?: number
+  /** Insurance rate below threshold (%). */
+  seguro_faixa_baixa_percent?: number
+  /** Insurance rate above threshold (%). */
+  seguro_faixa_alta_percent?: number
+  /** Minimum insurance value (R$). */
+  seguro_piso_rs?: number
+  /** Tax rate on leasing revenue (%). */
+  impostos_leasing_percent?: number
+  /** Tax rate on sale revenue (%). */
+  impostos_venda_percent?: number
+  /** Minimum commission percentage for venda. */
+  comissao_minima_percent?: number
+}

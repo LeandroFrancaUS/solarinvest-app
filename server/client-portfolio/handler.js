@@ -502,6 +502,13 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
     const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
     if (hasPlanTerm) {
       await updateClientContractualTermByClientId(sql, clientId, profile.prazo_meses)
+    // Whenever prazo_meses is updated in client_energy_profile, mirror it to
+    // client_contracts.contractual_term_months for the same client.
+    const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
+    if (hasPlanTerm) {
+      await upsertClientContract(sql, clientId, {
+        contractual_term_months: profile.prazo_meses,
+      })
     }
 
     console.info('[portfolio][plan] success', {
