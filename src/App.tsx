@@ -1247,7 +1247,19 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         : 'nenhum'
   const resolvedModalidade: TabKey =
     ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
-  const resolvedKwhContratado = row.consumption_kwh_month ?? null
+  const parsePositiveConsumption = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+    if (typeof value === 'string') {
+      const parsed = toNumberFlexible(value)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+    return null
+  }
+  const resolvedKwhContratado = (
+    parsePositiveConsumption(row.consumption_kwh_month)
+    ?? parsePositiveConsumption(lp?.kwh_contratado)
+    ?? parsePositiveConsumption(ep?.kwh_contratado)
+  )
   const resolvedTarifaAtual = lp?.tarifa_atual ?? ep?.tarifa_atual ?? null
   const resolvedDesconto = lp?.desconto_percentual ?? ep?.desconto_percentual ?? null
   const resolvedUcsBeneficiarias = Array.isArray(lp?.ucs_beneficiarias) ? lp.ucs_beneficiarias : []
@@ -3986,7 +3998,7 @@ function ClientesPanel({
                       <th>Cliente</th>
                       <th className="col-nowrap">CPF/CNPJ</th>
                       <th className="col-nowrap">Cidade/UF</th>
-                      <th className="col-nowrap">Consumo</th>
+                      <th className="col-nowrap clients-table-consumo-col">Consumo (kWh/mês)</th>
                       <th className="col-md col-nowrap">Telefone</th>
                       <th className="col-xl col-nowrap">Endereço</th>
                       {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
@@ -4007,7 +4019,7 @@ function ClientesPanel({
                       const consumoKwh = typeof consumoRaw === 'number' ? consumoRaw : null
                       const consumoLabel =
                         typeof consumoKwh === 'number' && Number.isFinite(consumoKwh)
-                          ? `${formatNumberBR(consumoKwh)} kWh/mês`
+                          ? formatNumberBR(consumoKwh)
                           : '-'
                       const renderSummaryValue = (value: string) =>
                         value === '-' ? (
@@ -4094,7 +4106,7 @@ function ClientesPanel({
                             </td>
                             <td data-label="CPF/CNPJ">{renderSummaryValue(documentoCliente)}</td>
                             <td data-label="Cidade/UF">{renderSummaryValue(cidadeUf)}</td>
-                            <td data-label="Consumo">{renderSummaryValue(consumoLabel)}</td>
+                            <td className="clients-table-consumo-col" data-label="Consumo">{renderSummaryValue(consumoLabel)}</td>
                             <td className="col-md" data-label="Telefone">
                               {safePhone !== '-' ? (
                                 whatsappHref ? (
