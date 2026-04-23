@@ -3,6 +3,7 @@ import { isCrashRecovery } from './crashRecovery'
 import type { TipoSistema } from '../lib/finance/roi'
 import type { Outputs as ComposicaoCalculo } from '../lib/venda/calcComposicaoUFV'
 import { useSafeStore } from '../lib/react/safeStore'
+import { getWithTtl, setWithTtl, removeWithTtl } from './localStorageWithTtl'
 
 export type ModoVenda = 'direta' | 'leasing'
 
@@ -123,10 +124,13 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 
-const STORAGE_KEY = 'solarinvest:venda-form:v1'
+const STORAGE_KEY = 'solarinvest:venda-form:v2'
 
-const canUseSessionStorage = (): boolean =>
-  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+/** Drafts expire after 24 hours of inactivity. */
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1_000
+
+const canUseLocalStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 
 const createInitialState = (): VendaState => ({
   cliente: {
@@ -261,15 +265,14 @@ const mergeState = (incoming: Partial<VendaState> | null): VendaState => {
 }
 
 const loadStoredState = (): VendaState => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return createInitialState()
   }
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) {
+    const parsed = getWithTtl<Partial<VendaState>>(STORAGE_KEY)
+    if (!parsed) {
       return createInitialState()
     }
-    const parsed = JSON.parse(raw) as Partial<VendaState>
     return mergeState(parsed)
   } catch (error) {
     console.warn('[useVendaStore] failed to load stored state', error)
@@ -278,11 +281,11 @@ const loadStoredState = (): VendaState => {
 }
 
 const persistState = (next: VendaState) => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return
   }
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    setWithTtl(STORAGE_KEY, next, DRAFT_TTL_MS)
   } catch (error) {
     console.warn('[useVendaStore] failed to persist state', error)
   }
@@ -335,8 +338,8 @@ export const vendaStore = {
   setState,
   reset: () => {
     state = createInitialState()
-    if (canUseSessionStorage()) {
-      window.sessionStorage.removeItem(STORAGE_KEY)
+    if (canUseLocalStorage()) {
+      removeWithTtl(STORAGE_KEY)
     }
     notify()
   },

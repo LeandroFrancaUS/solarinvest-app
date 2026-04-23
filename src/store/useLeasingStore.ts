@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { isCrashRecovery } from './crashRecovery'
 import { VALOR_MERCADO_MULTIPLICADOR } from '../lib/finance/simulation'
+import { getWithTtl, setWithTtl, removeWithTtl } from './localStorageWithTtl'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
@@ -128,10 +129,13 @@ type Listener = () => void
 
 const listeners = new Set<Listener>()
 
-const STORAGE_KEY = 'solarinvest:leasing-form:v1'
+const STORAGE_KEY = 'solarinvest:leasing-form:v2'
 
-const canUseSessionStorage = (): boolean =>
-  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+/** Drafts expire after 24 hours of inactivity. */
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1_000
+
+const canUseLocalStorage = (): boolean =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
 
 const createInitialState = (): LeasingState => ({
   prazoContratualMeses: 0,
@@ -282,7 +286,7 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
     },
   }
   // Reconcile energiaContratadaKwhMes: root wins when nonzero; otherwise use nested value.
-  // This ensures the two copies never diverge after loading from sessionStorage.
+  // This ensures the two copies never diverge after loading from localStorage.
   const rootEnergy = merged.energiaContratadaKwhMes
   const nestedEnergy = merged.dadosTecnicos.energiaContratadaKwhMes
   const resolvedEnergy = rootEnergy > 0 ? rootEnergy : nestedEnergy
@@ -296,15 +300,14 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
 }
 
 const loadStoredState = (): LeasingState => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return createInitialState()
   }
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) {
+    const parsed = getWithTtl<Partial<LeasingState>>(STORAGE_KEY)
+    if (!parsed) {
       return createInitialState()
     }
-    const parsed = JSON.parse(raw) as Partial<LeasingState>
     return mergeState(parsed)
   } catch (error) {
     console.warn('[useLeasingStore] failed to load stored state', error)
@@ -329,7 +332,7 @@ const cloneState = (input: LeasingState): LeasingState => ({
 })
 
 const persistState = (next: LeasingState) => {
-  if (!canUseSessionStorage()) {
+  if (!canUseLocalStorage()) {
     return
   }
   try {
@@ -338,7 +341,7 @@ const persistState = (next: LeasingState) => {
     payload.contrato.ucGeradoraTitularDiferente = Boolean(
       payload.contrato.ucGeradoraTitularDiferente && payload.contrato.ucGeradoraTitular,
     )
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+    setWithTtl(STORAGE_KEY, payload, DRAFT_TTL_MS)
   } catch (error) {
     console.warn('[useLeasingStore] failed to persist state', error)
   }
@@ -407,8 +410,8 @@ export const useLeasingValorDeMercadoEstimado = (): number =>
 export const leasingActions = {
   reset() {
     state = createInitialState()
-    if (canUseSessionStorage()) {
-      window.sessionStorage.removeItem(STORAGE_KEY)
+    if (canUseLocalStorage()) {
+      removeWithTtl(STORAGE_KEY)
     }
     notify()
   },
