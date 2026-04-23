@@ -200,10 +200,20 @@ describe('calcSeguroLeasing', () => {
 describe('preco_minimo_saudavel_rs', () => {
   it('calculates healthy minimum price', () => {
     const result = calcularAnaliseFinanceira(baseInput)
-    // den = 1 - 0.08 - 0.05 - 0.10 - 0.03 = 0.74
-    // custo_variavel_total first
     expect(result.preco_minimo_saudavel_rs).toBeDefined()
     expect(result.preco_minimo_saudavel_rs!).toBeGreaterThan(0)
+  })
+
+  it('at preco_minimo_saudavel_rs the engine reports exactly lucro_minimo margin', () => {
+    // Find the saudavel price first, then use it as the contract value.
+    // At that price the engine should confirm margem_liquida_final ≈ lucro_minimo.
+    const base = calcularAnaliseFinanceira(baseInput)
+    const saudavel = base.preco_minimo_saudavel_rs!
+    const result = calcularAnaliseFinanceira({
+      ...baseInput,
+      valor_contrato_rs: saudavel,
+    })
+    expect(result.margem_liquida_final_percent!).toBeCloseTo(baseInput.lucro_minimo_percent, 1)
   })
 
   it('throws DENOMINADOR_PRECO_MINIMO_INVALIDO when denominator <= 0', () => {
@@ -448,18 +458,42 @@ describe('calcPrecoIdeal', () => {
   const CFR = 5
   const CM = 5
 
-  it('returns CV/(1-impostos-custo_fixo-margem_alvo-comissao_minima)', () => {
+  it('returns (CV - kitFreteSavings)/(1-impostos-custo_fixo-margem_alvo-comissao_minima)', () => {
     const m = 25
+    // Without kit/frete (defaults 0): numerator = CV, same as old formula
     const p = calcPrecoIdeal(CV, IMP, CFR, m, CM)
     expect(p).toBeCloseTo(CV / (1 - 0.08 - 0.05 - 0.25 - 0.05), 4)
   })
 
-  it('achieves exact target final margin after minimum commission', () => {
+  it('achieves exact target final margin after minimum commission (kit=frete=0)', () => {
     const m = 22
     const p = calcPrecoIdeal(CV, IMP, CFR, m, CM)
     const a = 1 - IMP / 100 - CFR / 100
     const lucroFinal = p * a - CV - p * (CM / 100)
     expect(lucroFinal / p).toBeCloseTo(0.22, 4)
+  })
+
+  it('achieves exact target margin when kit+frete are provided', () => {
+    const kit = 12000
+    const frete = 1000
+    const m = 20
+    const p = calcPrecoIdeal(CV, IMP, CFR, m, CM, kit, frete)
+    // Verify the price truly achieves 20% net margin after min commission
+    const tax = (p - kit - frete) * (IMP / 100)
+    const fixo = p * (CFR / 100)
+    const comissao = p * (CM / 100)
+    const lucroFinal = p - CV - tax - fixo - comissao
+    expect(lucroFinal / p).toBeCloseTo(0.20, 4)
+    // New price is lower than the (incorrect) all-on-price formula
+    const pOld = CV / (1 - IMP/100 - CFR/100 - m/100 - CM/100)
+    expect(p).toBeLessThan(pOld)
+  })
+
+  it('price is lower than without kit+frete exclusion when kit>0', () => {
+    const m = 22
+    const pNoExclusion = calcPrecoIdeal(CV, IMP, CFR, m, CM)
+    const pWithExclusion = calcPrecoIdeal(CV, IMP, CFR, m, CM, 10000, 500)
+    expect(pWithExclusion).toBeLessThan(pNoExclusion)
   })
 
   it('preco_ideal_rs appears in engine output when margem_liquida_alvo_percent set', () => {

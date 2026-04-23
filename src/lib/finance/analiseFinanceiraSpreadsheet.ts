@@ -87,10 +87,17 @@ export function calcComissaoDinamica(
 
 /**
  * Calcula o preço de venda que atinge exatamente a margem líquida alvo final
- * (após aplicar a comissão mínima).
+ * (após aplicar a comissão mínima), levando em conta que o imposto NÃO incide
+ * sobre custo_kit_rs + frete_rs.
  *
- * Fórmula:
- *   P = CV / (1 - impostos - custo_fixo - margem_alvo - comissao_minima)
+ * Derivação (imposto apenas sobre a parcela tributável):
+ *   Tax  = (P − kit − frete) × α
+ *   P    = CV + Tax + P×β + P×γ + P×μ
+ *   P × (1 − α − β − γ − μ) = CV − (kit + frete) × α
+ *   P    = (CV − (kit + frete) × α) / (1 − α − β − γ − μ)
+ *
+ * Quando custo_kit_rs e frete_rs são omitidos (padrão 0), a fórmula reduz-se
+ * ao caso anterior P = CV / den — compatibilidade retroativa garantida.
  */
 export function calcPrecoIdeal(
   custo_variavel_total: number,
@@ -98,16 +105,20 @@ export function calcPrecoIdeal(
   custo_fixo_rateado_percent: number,
   margem_alvo_percent: number,
   comissao_minima_percent: number,
+  custo_kit_rs = 0,
+  frete_rs = 0,
 ): number {
+  const alpha = impostos_percent / 100
   const den =
     1 -
-    impostos_percent / 100 -
+    alpha -
     custo_fixo_rateado_percent / 100 -
     margem_alvo_percent / 100 -
     comissao_minima_percent / 100
 
   if (den <= 0) throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
-  return custo_variavel_total / den
+  const kitFreteTaxSavings = (custo_kit_rs + frete_rs) * alpha
+  return (custo_variavel_total - kitFreteTaxSavings) / den
 }
 
 // ─── Core calculation phases ──────────────────────────────────────────────────
@@ -265,6 +276,11 @@ function calcularAnaliseVenda(
     status_venda = 'SEM_COMISSAO'
   }
 
+  // Tax savings from kit+frete exclusion — used to adjust all price recommendation numerators.
+  // Derivation: P × (1 − α − …) = CV − (kit + frete) × α
+  const kitFreteTaxSavings =
+    (input.custo_kit_rs + input.frete_rs) * toDecimalPercent(input.impostos_percent)
+
   // Preço Mín. Aceitável: covers margin but leaves NO room for commission
   const denAceitavel =
     1 -
@@ -274,7 +290,7 @@ function calcularAnaliseVenda(
 
   let preco_minimo_aceitavel_rs: number | undefined
   if (denAceitavel > 0) {
-    preco_minimo_aceitavel_rs = custo_variavel_total_rs / denAceitavel
+    preco_minimo_aceitavel_rs = (custo_variavel_total_rs - kitFreteTaxSavings) / denAceitavel
   }
 
   // Preço Mín. Saudável: margin + minimum commission (3%)
@@ -289,7 +305,7 @@ function calcularAnaliseVenda(
     throw new AnaliseFinanceiraError('DENOMINADOR_PRECO_MINIMO_INVALIDO')
   }
 
-  const preco_minimo_saudavel_rs = custo_variavel_total_rs / den
+  const preco_minimo_saudavel_rs = (custo_variavel_total_rs - kitFreteTaxSavings) / den
   const desconto_maximo_percent =
     valor_contrato_rs > 0
       ? (1 - preco_minimo_saudavel_rs / valor_contrato_rs) * 100
@@ -311,6 +327,8 @@ function calcularAnaliseVenda(
         input.custo_fixo_rateado_percent,
         input.margem_liquida_alvo_percent,
         input.comissao_minima_percent,
+        input.custo_kit_rs,
+        input.frete_rs,
       )
     } catch {
       preco_ideal_rs = undefined
