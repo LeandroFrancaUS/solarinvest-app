@@ -3859,6 +3859,8 @@ function ClientesPanel({
           consultorById.has(r.dados.consultorId ?? '') ||
           Boolean(r.dados.consultorNome?.trim()),
         )
+        // Use ID when available for accurate deduplication; fall back to name for clients
+        // whose consultant hasn't loaded into the map yet.
         .map((r) => r.dados.consultorId || r.dados.consultorNome || ''),
     ).size
   }, [consultorById, isPrivilegedUser, registros])
@@ -4066,7 +4068,7 @@ function ClientesPanel({
                       // Short display: apelido when available, otherwise first word of full name (Issue 4)
                       const consultorApelido = consultorCadastrado
                         ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
-                        : (storedNome.split(' ')[0] || storedNome || 'Sem consultor')
+                        : (storedNome.split(' ')[0] || 'Sem consultor')
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
