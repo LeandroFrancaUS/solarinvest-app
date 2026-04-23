@@ -3598,6 +3598,12 @@ type ClientesPanelProps = {
    * Each entry has `id` (stack_user_id) for filtering and `name` for display.
    */
   allConsultores?: ConsultantEntry[]
+  /**
+   * Active consultants from the picker API (available to all authenticated users).
+   * Used as a fallback lookup source when allConsultores is not yet loaded or
+   * does not contain the consultant referenced in a client's metadata.
+   */
+  formConsultores?: ConsultantPickerEntry[]
 }
 
 type ClienteContratoPayload = {
@@ -3751,6 +3757,7 @@ function ClientesPanel({
   isPrivilegedUser = false,
   canExportarCarteira = false,
   allConsultores = [],
+  formConsultores = [],
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
@@ -3762,12 +3769,26 @@ function ClientesPanel({
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const consultorById = useMemo(() => {
     const map = new Map<string, ConsultantEntry>()
+    // Seed with formConsultores first (lower priority — active consultants only,
+    // available to all authenticated users including those without privileged role).
+    // This ensures consultant names appear even before allConsultores loads from
+    // the API and when client metadata has a stale consultor_nome value.
+    formConsultores.forEach((entry) => {
+      if (!entry?.id) return
+      map.set(String(entry.id), {
+        id: String(entry.id),
+        name: consultorDisplayName(entry),
+        email: entry.email ?? null,
+        apelido: entry.apelido?.trim() ?? null,
+      })
+    })
+    // allConsultores (all consultants, privileged users only) overwrites — higher priority.
     allConsultores.forEach((entry) => {
       if (!entry?.id) return
       map.set(String(entry.id), entry)
     })
     return map
-  }, [allConsultores])
+  }, [allConsultores, formConsultores])
 
   // Build the dropdown options list using only registered consultants
   // from Gestão de Usuários/Consultores.
@@ -4065,10 +4086,13 @@ function ClientesPanel({
                       // Fall back to the name stored in client metadata while the consultants list loads
                       const storedNome = registro.dados.consultorNome?.trim() || ''
                       const consultorResponsavel = (consultorCadastrado?.name ?? storedNome) || 'Sem consultor'
-                      // Short display: apelido when available, otherwise first word of full name (Issue 4)
+                      // Short display: apelido when available, otherwise first word of full name (Issue 4).
+                      // For the fallback path (no registered consultant found), storedNome is already
+                      // the display name produced by consultorDisplayName() — do NOT split it, as splitting
+                      // "Sem consultor" would yield the misleading "Sem" label.
                       const consultorApelido = consultorCadastrado
                         ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
-                        : (storedNome.split(' ')[0] || 'Sem consultor')
+                        : (storedNome || 'Sem consultor')
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -29269,6 +29293,7 @@ export default function App() {
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
       canExportarCarteira={isAdmin || isOffice}
       allConsultores={allConsultores}
+      formConsultores={formConsultores}
     />
   )
 
