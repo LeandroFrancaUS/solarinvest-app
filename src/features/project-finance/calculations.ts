@@ -241,12 +241,14 @@ export function computeProjectFinancialState(
       ? overrides.mensalidade_base
       : mensalidadeBaseAuto
 
-  // Step 3: inject effective mensalidade_base into form so KPI engine sees it
-  // (form.mensalidade_base may be null or stale; we always use the effective value)
-  const resolvedMensalidade = effectiveMensalidadeBase ?? form.mensalidade_base ?? null
+  // Step 3: inject effective mensalidade_base into form so KPI engine sees it.
+  // Fall back to the existing form value when no effective value is available
+  // (e.g. tarifa_kwh not yet loaded), so the KPI computation never silently
+  // ignores a value that was already manually saved on the profile.
+  const mensalidadeForKpis = effectiveMensalidadeBase ?? form.mensalidade_base ?? null
   const formForKpis: ProjectFinanceFormState = { ...form }
-  if (resolvedMensalidade != null) {
-    formForKpis.mensalidade_base = resolvedMensalidade
+  if (mensalidadeForKpis != null) {
+    formForKpis.mensalidade_base = mensalidadeForKpis
   }
 
   // Step 4: compute remaining KPIs

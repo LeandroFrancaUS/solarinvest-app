@@ -133,7 +133,10 @@ export function useProjectFinance(
       // Backward-compat migration: if the profile has a mensalidade_base saved
       // but it is NOT already tracked as an override, treat it as a manual
       // override so that the existing value is preserved and shown as "Manual".
-      // The user can click "↺ Auto" to switch to the engine-computed value.
+      // The `in` check distinguishes between two cases:
+      //   - key absent: field was never explicitly overridden (needs migration)
+      //   - key present (even with null): user deliberately restored to Auto
+      // The user can click "↺ Auto" at any time to switch to engine-computed.
       let ov: ProjectFinanceOverrides = res.profile?.override_payload_json ?? {}
       if (
         res.profile?.mensalidade_base != null &&
