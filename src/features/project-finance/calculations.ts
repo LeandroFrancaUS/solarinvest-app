@@ -269,6 +269,11 @@ export function deriveProjectFinanceCosts(
     uf,
     mensalidade_base,
     prazo_meses,
+    reajuste_anual_pct,
+    inadimplencia_pct,
+    custo_operacional_pct,
+    custo_manutencao,
+    receita_esperada,
     crea_go_rs = CREA_GO_RS,
     crea_df_rs = CREA_DF_RS,
     projeto_faixas = PROJETO_FAIXAS,
@@ -309,6 +314,27 @@ export function deriveProjectFinanceCosts(
     (result.custo_homologacao ?? 0)
 
   if (contractType === 'leasing') {
+    if (mensalidade_base != null && mensalidade_base > 0) {
+      result.mensalidade_base = mensalidade_base
+    }
+    if (reajuste_anual_pct != null && reajuste_anual_pct >= 0) {
+      result.reajuste_anual_pct = reajuste_anual_pct
+    }
+    if (inadimplencia_pct != null && inadimplencia_pct >= 0) {
+      result.inadimplencia_pct = inadimplencia_pct
+    }
+    if (custo_operacional_pct != null && custo_operacional_pct >= 0) {
+      result.opex_pct = custo_operacional_pct
+    }
+    if (custo_manutencao != null && custo_manutencao >= 0) {
+      result.custo_manutencao = custo_manutencao
+    }
+    if (receita_esperada != null && receita_esperada >= 0) {
+      result.receita_esperada = receita_esperada
+    } else if (mensalidade_base != null && mensalidade_base > 0 && prazo_meses != null && prazo_meses > 0) {
+      result.receita_esperada = mensalidade_base * prazo_meses
+    }
+
     // Seguro: use calcSeguroLeasing when constants match defaults; otherwise
     // apply the two-tier formula inline with the provided custom constants.
     if (capexBase > 0) {

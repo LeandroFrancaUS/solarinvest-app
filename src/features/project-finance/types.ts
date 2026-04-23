@@ -156,6 +156,20 @@ export interface ProjectFinanceDeriveParams {
   mensalidade_base?: number | null
   /** Contractual term in months. Used to compute total tax cost for leasing. */
   prazo_meses?: number | null
+  /** Tax rate from Análise Financeira (%). */
+  impostos_percent?: number | null
+  /** Annual discount rate for NPV from Análise Financeira (% a.a.). */
+  taxa_desconto_aa_pct?: number | null
+  /** Leasing default annual adjustment from Análise Financeira (% a.a.). */
+  reajuste_anual_pct?: number | null
+  /** Leasing default delinquency rate from Análise Financeira (%). */
+  inadimplencia_pct?: number | null
+  /** Leasing operating cost from Análise Financeira (%). */
+  custo_operacional_pct?: number | null
+  /** Leasing maintenance cost from Análise Financeira (R$). */
+  custo_manutencao?: number | null
+  /** Expected total revenue from Análise Financeira (R$). */
+  receita_esperada?: number | null
 
   // ── AF engine parameter overrides (default to vendasConfig / constants) ──
   /** CREA cost for GO. */

@@ -80,9 +80,30 @@ export function ProjectFinanceSection({
     seguro_faixa_alta_percent: vendasConfig.af_seguro_faixa_alta_percent,
     seguro_piso_rs: vendasConfig.af_seguro_piso_rs,
     comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+    impostos_percent: technicalParams.impostos_percent ?? (contractType === 'leasing' ? 4 : 6),
+    taxa_desconto_aa_pct: technicalParams.taxa_desconto_aa_pct ?? null,
+    reajuste_anual_pct: form.reajuste_anual_pct ?? 0,
+    inadimplencia_pct: form.inadimplencia_pct ?? 0,
+    custo_operacional_pct: form.opex_pct ?? 0,
+    custo_manutencao: form.custo_manutencao ?? 0,
+    receita_esperada: form.receita_esperada ?? null,
     // impostos_leasing_percent and impostos_venda_percent use their own defaults (4% / 6%)
     // as these are not stored in vendasConfig but handled per-contract in the AF screen.
-  }), [pvData, stateUf, mensalidadeFromContract, contractTermMonths, vendasConfig])
+  }), [
+    pvData,
+    stateUf,
+    mensalidadeFromContract,
+    contractTermMonths,
+    vendasConfig,
+    technicalParams.impostos_percent,
+    technicalParams.taxa_desconto_aa_pct,
+    contractType,
+    form.reajuste_anual_pct,
+    form.inadimplencia_pct,
+    form.opex_pct,
+    form.custo_manutencao,
+    form.receita_esperada,
+  ])
 
   // When the profile loads as empty AND pvData is available, auto-derive costs.
   useEffect(() => {

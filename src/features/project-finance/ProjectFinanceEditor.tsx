@@ -258,9 +258,7 @@ export function ProjectFinanceEditor({
             pvData={pvData}
             calculated={calculated}
             overrides={overrides}
-            technicalParams={technicalParams}
             setField={setField}
-            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
           />
@@ -271,9 +269,7 @@ export function ProjectFinanceEditor({
             pvData={pvData}
             calculated={calculated}
             overrides={overrides}
-            technicalParams={technicalParams}
             setField={setField}
-            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
           />
