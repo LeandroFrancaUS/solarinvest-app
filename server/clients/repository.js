@@ -330,32 +330,42 @@ function isRetentionColumnError(message) {
 export async function softDeleteClient(sql, clientId, actorUserId, actorRole = null, reason = null) {
   const scopeByOwner = actorRole === 'role_comercial' && Boolean(actorUserId)
 
-  // CTE to determine if this is a converted/business client in a single round-trip.
-  // Embedded as a SQL literal — the lifecycle status values and column names are
-  // hard-coded constants, never derived from user input.
-  const lifecycleCte = `
-    WITH lc AS (
-      SELECT EXISTS (
-        SELECT 1 FROM client_lifecycle
-        WHERE client_id = $1::bigint
-          AND (
-            is_converted_customer = true
-            OR lifecycle_status IN ('${BUSINESS_LIFECYCLE_STATUSES.join("','")}')
-          )
-      ) AS is_business
-    )`
+  // Lifecycle statuses that classify a client as "business closed" (converted).
+  // Passed as a query parameter (ANY($n::text[])) so the values are never
+  // interpolated into the SQL string.
+  const businessStatuses = BUSINESS_LIFECYCLE_STATUSES
 
   // ── Mode: full (updated_by_user_id + retention columns) ─────────────────────
-  // $1 = clientId, $2 = actorUserId, $3 = reason, $4 = owner (when scopeByOwner)
+  // Parameters:
+  //   $1 = clientId
+  //   $2 = actorUserId        (updated_by_user_id, deleted_by_user_id)
+  //   $3 = reason
+  //   $4 = businessStatuses   (text[] — lifecycle statuses for business check)
+  //   $5 = retentionBusiness  (integer — days for converted clients)
+  //   $6 = retentionStandard  (integer — days for standard clients)
+  //   $7 = actorUserId        (owner filter, only when scopeByOwner)
   const buildFullQuery = () => {
-    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $4' : ''
+    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $7' : ''
     const params = [
       clientId,
       actorUserId,
       reason ?? null,
+      businessStatuses,
+      RETENTION_BUSINESS_DAYS,
+      RETENTION_STANDARD_DAYS,
       ...(scopeByOwner ? [actorUserId] : []),
     ]
-    const query = `${lifecycleCte}
+    const query = `
+      WITH lc AS (
+        SELECT EXISTS (
+          SELECT 1 FROM client_lifecycle
+          WHERE client_id = $1::bigint
+            AND (
+              is_converted_customer = true
+              OR lifecycle_status = ANY($4::text[])
+            )
+        ) AS is_business
+      )
       UPDATE clients c
       SET
         deleted_at               = now(),
@@ -364,10 +374,10 @@ export async function softDeleteClient(sql, clientId, actorUserId, actorRole = n
         deleted_by_user_id       = $2,
         deletion_reason          = $3,
         deletion_policy          = CASE WHEN lc.is_business THEN 'business_closed' ELSE 'standard' END,
-        deletion_retention_days  = CASE WHEN lc.is_business THEN ${RETENTION_BUSINESS_DAYS} ELSE ${RETENTION_STANDARD_DAYS} END,
+        deletion_retention_days  = CASE WHEN lc.is_business THEN $5 ELSE $6 END,
         purge_after              = CASE WHEN lc.is_business
-                                        THEN now() + INTERVAL '${RETENTION_BUSINESS_DAYS} days'
-                                        ELSE now() + INTERVAL '${RETENTION_STANDARD_DAYS} days'
+                                        THEN now() + ($5 || ' days')::INTERVAL
+                                        ELSE now() + ($6 || ' days')::INTERVAL
                                    END,
         is_high_value_protected  = CASE WHEN lc.is_business THEN true ELSE is_high_value_protected END
       FROM lc
@@ -377,17 +387,29 @@ export async function softDeleteClient(sql, clientId, actorUserId, actorRole = n
   }
 
   // ── Mode: no-updated-by (retention columns, no updated_by_user_id) ──────────
-  // $1 = clientId, $2 = actorUserId (for deleted_by_user_id), $3 = reason
-  // $4 = owner (when scopeByOwner)
+  // Same parameter layout as full mode — $2 is used only for deleted_by_user_id.
   const buildNoUpdatedByQuery = () => {
-    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $4' : ''
+    const ownerClause = scopeByOwner ? 'AND c.owner_user_id = $7' : ''
     const params = [
       clientId,
       actorUserId,
       reason ?? null,
+      businessStatuses,
+      RETENTION_BUSINESS_DAYS,
+      RETENTION_STANDARD_DAYS,
       ...(scopeByOwner ? [actorUserId] : []),
     ]
-    const query = `${lifecycleCte}
+    const query = `
+      WITH lc AS (
+        SELECT EXISTS (
+          SELECT 1 FROM client_lifecycle
+          WHERE client_id = $1::bigint
+            AND (
+              is_converted_customer = true
+              OR lifecycle_status = ANY($4::text[])
+            )
+        ) AS is_business
+      )
       UPDATE clients c
       SET
         deleted_at               = now(),
@@ -395,10 +417,10 @@ export async function softDeleteClient(sql, clientId, actorUserId, actorRole = n
         deleted_by_user_id       = $2,
         deletion_reason          = $3,
         deletion_policy          = CASE WHEN lc.is_business THEN 'business_closed' ELSE 'standard' END,
-        deletion_retention_days  = CASE WHEN lc.is_business THEN ${RETENTION_BUSINESS_DAYS} ELSE ${RETENTION_STANDARD_DAYS} END,
+        deletion_retention_days  = CASE WHEN lc.is_business THEN $5 ELSE $6 END,
         purge_after              = CASE WHEN lc.is_business
-                                        THEN now() + INTERVAL '${RETENTION_BUSINESS_DAYS} days'
-                                        ELSE now() + INTERVAL '${RETENTION_STANDARD_DAYS} days'
+                                        THEN now() + ($5 || ' days')::INTERVAL
+                                        ELSE now() + ($6 || ' days')::INTERVAL
                                    END,
         is_high_value_protected  = CASE WHEN lc.is_business THEN true ELSE is_high_value_protected END
       FROM lc

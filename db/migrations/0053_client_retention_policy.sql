@@ -31,6 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_clients_purge_after
 -- Backfill purge_after for rows that were soft-deleted before this migration.
 -- Standard 7-day window is applied; rows already beyond the window will have
 -- purge_after in the past and become candidates on the next cron run.
+-- NOTE: The 7-day value mirrors RETENTION_STANDARD_DAYS in
+-- server/clients/repository.js. If the application constant changes in the
+-- future, a new migration should be created to update existing rows accordingly.
 UPDATE public.clients
 SET
   deletion_policy         = 'standard',

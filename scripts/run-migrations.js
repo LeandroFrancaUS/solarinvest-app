@@ -8,7 +8,9 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Stable advisory-lock key used to prevent concurrent migration runs.
-// Must be a value that fits in a Postgres bigint (< 2^63-1).
+// Value chosen to be unique within this application and fit in a Postgres
+// bigint (< 2^63-1).  Change with caution: all deploy targets must use the
+// same key, and it must not conflict with other advisory locks in the system.
 const MIGRATION_ADVISORY_LOCK_KEY = 7890123456
 
 function resolveConnectionString() {

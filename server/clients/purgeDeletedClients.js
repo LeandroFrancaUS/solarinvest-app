@@ -22,14 +22,23 @@ const DEFAULT_LIMIT = 500
  * Tables that represent operational links to a client.
  * A client with any matching row in these tables is preserved in soft-delete.
  *
- * Includes both:
- *   - Tables with FK RESTRICT behaviour (proposals) that would block a hard
- *     delete at the DB level.
- *   - Tables with ON DELETE CASCADE that carry valuable business data which
- *     would be permanently lost on a hard delete (energy profile, lifecycle,
- *     contracts, billing, project status, notes).
+ * Two categories:
+ *   1. FK RESTRICT tables (proposals): a hard delete would fail at the DB level
+ *      if rows exist, so we check first and skip rather than letting the DELETE
+ *      throw an error.
+ *   2. ON DELETE CASCADE tables (all others): the DB would silently remove
+ *      these rows on a hard delete, but the data they carry (contracts, billing
+ *      configuration, project status, notes, energy profile, lifecycle) is
+ *      meaningful business data that must not be discarded without explicit
+ *      intent.  Checking them here prevents accidental data loss even though
+ *      no FK constraint would be violated.
  *
- * Checking all of them before hard-deleting ensures maximum data safety.
+ * This "maximum-safety" approach means a converted client (which always has a
+ * client_lifecycle row) will not be auto-purged.  That is intentional: if a
+ * client has progressed through the portfolio lifecycle, their record must be
+ * cleaned up manually before automatic purge can proceed.  Use
+ * is_high_value_protected = true for clients that should be permanently
+ * excluded from auto-purge.
  */
 const LINK_TABLES = [
   { table: 'proposals',              column: 'client_id' },
