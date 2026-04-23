@@ -90,6 +90,7 @@ import {
 } from './routes/personnelImport.js'
 import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
+import { handlePurgeOldProposalsRequest } from './routes/purgeOldProposals.js'
 import {
   handlePortfolioListRequest,
   handlePortfolioGetRequest,
@@ -891,6 +892,16 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
       await handlePurgeDeletedClientsRequest(req, res, { sendJson, requestUrl })
+      return
+    }
+
+    // ── Cron: hard-delete proposals older than 30 days ────────────────────────
+    // GET /api/internal/purge-old-proposals — Vercel cron endpoint
+    // Protected by Authorization: Bearer <CRON_SECRET>
+    if (pathname === '/api/internal/purge-old-proposals') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+      await handlePurgeOldProposalsRequest(req, res, { sendJson, requestUrl })
       return
     }
 
