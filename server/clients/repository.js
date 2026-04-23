@@ -112,7 +112,16 @@ export async function createClient(sql, data) {
     origin = 'online',
     offline_origin_id = null,
     metadata = null,
+    // Canonical consultant FK (BIGINT). Only use positive integers.
+    consultant_id = null,
   } = data
+
+  // Normalize consultant_id to a positive integer or null.
+  const resolvedConsultantId = (
+    consultant_id !== undefined && consultant_id !== null && consultant_id !== ''
+    && !isNaN(parseInt(String(consultant_id), 10))
+    && parseInt(String(consultant_id), 10) > 0
+  ) ? parseInt(String(consultant_id), 10) : null
 
   const resolvedOwner = owner_user_id ?? created_by_user_id
   const queryText = `
@@ -122,14 +131,14 @@ export async function createClient(sql, data) {
       client_phone, client_email, client_city, client_state, client_address, client_cep, uc_geradora, uc_beneficiaria, system_kwp, term_months, consumption_kwh_month, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
-      metadata, created_at, updated_at
+      metadata, consultant_id, created_at, updated_at
     ) VALUES (
       $1, $2, $3, $4,
       $5, $6, $7,
       $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
       $20, $21, $22, $23,
       $24, $25, $26,
-      $27::jsonb, now(), now()
+      $27::jsonb, $28, now(), now()
     )
     RETURNING *
   `
@@ -161,6 +170,7 @@ export async function createClient(sql, data) {
     origin,
     offline_origin_id,
     metadata ? JSON.stringify(metadata) : null,
+    resolvedConsultantId,
   ]
   console.info('[clients][create] sql', { queryText, params })
   const rows = await sql(queryText, params)
@@ -207,6 +217,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     document_type,
     identity_status,
     metadata,
+    // Canonical consultant FK (BIGINT). Only update when an explicit positive integer is provided.
+    // Passing null/undefined/0 is treated as "no change" to avoid accidentally clearing the column.
+    consultant_id = undefined,
   } = data
 
   // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
@@ -214,7 +227,14 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
 
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $23' : ''
+  // Normalize consultant_id: accept only positive integers; treat anything else as "no change".
+  const resolvedConsultantId = (
+    consultant_id !== undefined && consultant_id !== null && consultant_id !== ''
+    && !isNaN(parseInt(String(consultant_id), 10))
+    && parseInt(String(consultant_id), 10) > 0
+  ) ? parseInt(String(consultant_id), 10) : null
+
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $24' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -237,6 +257,7 @@ export async function updateClient(sql, clientId, data, options = {}) {
     document_type ?? null,
     identity_status ?? null,
     metadata ? JSON.stringify(metadata) : null,
+    resolvedConsultantId,
     clientId,
     ...(scopeByOwner ? [actorUserId] : []),
   ]
@@ -267,8 +288,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
                             THEN COALESCE(metadata, '{}'::jsonb) || $21::jsonb
                             ELSE metadata
                           END,
+       consultant_id    = COALESCE($22, consultant_id),
        updated_at       = now()
-     WHERE id = $22
+     WHERE id = $23
        AND deleted_at IS NULL
        ${ownerClause}
      RETURNING *`

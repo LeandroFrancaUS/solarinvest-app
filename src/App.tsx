@@ -1287,7 +1287,23 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
     indicacaoNome: hasIndicacao ? indicacaoNome : '',
-    consultorId: (meta.consultor_id as string | undefined) ?? '',
+    // consultant_id: resolve canonical FK first, then fall back to legacy metadata.consultor_id.
+    // Never use created_by_user_id or owner_user_id as a substitute.
+    consultorId: (() => {
+      const canonical = row.consultant_id != null && row.consultant_id !== '' ? String(row.consultant_id).trim() : ''
+      if (canonical) {
+        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'canonical', consultantId: canonical })
+        return canonical
+      }
+      const legacyId = (meta.consultor_id as string | number | undefined)
+      if (legacyId != null && legacyId !== '') {
+        const legacyStr = String(legacyId).trim()
+        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'legacy-metadata', consultantId: legacyStr })
+        return legacyStr
+      }
+      console.debug('[consultant][hydrate]', { clientId: row.id, source: 'none', canonicalNull: row.consultant_id, legacyMetadata: meta.consultor_id })
+      return ''
+    })(),
     consultorNome: (meta.consultor_nome as string | undefined) ?? '',
     herdeiros: (() => {
       if (!Array.isArray(meta.herdeiros)) return ['']
@@ -16322,6 +16338,10 @@ export default function App() {
         ...(dados?.consultorId?.trim() ? { consultor_id: dados.consultorId.trim() } : {}),
         ...(dados?.consultorNome?.trim() ? { consultor_nome: dados.consultorNome.trim() } : {}),
       },
+      // Persist consultant_id as a canonical top-level field (clients.consultant_id column).
+      // Only set when a consultant is explicitly present — never send null to avoid accidentally
+      // clearing an existing value on the server (the server uses COALESCE to preserve it).
+      ...(dados?.consultorId?.trim() ? { consultant_id: dados.consultorId.trim() } : {}),
     }
     const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot ?? null)
     const resolvedSystemKwp = resolveSystemKwpFromSnapshot(snapshot ?? null)
@@ -16489,6 +16509,16 @@ export default function App() {
         ? { valordemercado: custoFinalProjetadoCanonico }
         : {}),
     }
+
+    // Debug log for consultant persistence tracing.
+    console.info('[consultant][save-client]', {
+      clientId: clienteEmEdicaoId ?? null,
+      existingConsultantId: clienteEmEdicaoId
+        ? (clientesSalvos.find((r) => r.id === clienteEmEdicaoId)?.dados.consultorId ?? null)
+        : null,
+      selectedConsultantId: dadosClonados.consultorId || null,
+      payloadConsultantId: (upsertPayload as { consultant_id?: string | null }).consultant_id ?? null,
+    })
 
     // Neon DB save FIRST so data is durable before the local cache is updated.
     let syncedToBackend = false
