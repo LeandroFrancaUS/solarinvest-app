@@ -4055,7 +4055,9 @@ function ClientesPanel({
                       const safeAddress = sanitizeClientShowcaseValue(dados.endereco)
                       const safeEmail = sanitizeClientShowcaseValue(dados.email)
                       const safeUc = sanitizeClientShowcaseValue(dados.uc)
-                      const safeOwnerName = sanitizeClientShowcaseValue(registro.ownerName)
+                      const consultorResponsavelRaw = sanitizeClientShowcaseValue(registro.dados.consultorNome)
+                      const consultorResponsavel =
+                        consultorResponsavelRaw !== '-' ? consultorResponsavelRaw : 'Sem consultor'
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -4085,8 +4087,8 @@ function ClientesPanel({
                           ? { key: 'client_phone', label: 'Telefone', value: dados.telefone, href: whatsappHref }
                           : null,
                         enderecoCompleto ? { key: 'client_address', label: 'Endereço', value: enderecoCompleto } : null,
-                        isPrivilegedUser && registro.ownerName
-                          ? { key: 'consultor', label: 'Consultor', value: registro.ownerName, title: registro.ownerEmail ?? undefined }
+                        isPrivilegedUser
+                          ? { key: 'consultor', label: 'Consultor', value: consultorResponsavel }
                           : null,
                       ].filter(
                         (
@@ -4129,16 +4131,9 @@ function ClientesPanel({
                             <td className="col-xl" data-label="Endereço">{renderSummaryValue(safeAddress)}</td>
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
-                                {safeOwnerName !== '-' ? (
-                                  <span
-                                    className="clients-table-owner"
-                                    title={registro.ownerEmail ?? registro.ownerName}
-                                  >
-                                    {safeOwnerName}
-                                  </span>
-                                ) : (
-                                  <span className="clients-empty-value">-</span>
-                                )}
+                                <span className="clients-table-owner" title={consultorResponsavel}>
+                                  {consultorResponsavel}
+                                </span>
                               </td>
                             ) : null}
                             <td data-label="Ações">
@@ -16223,6 +16218,8 @@ export default function App() {
         ...(dados?.diaVencimento?.trim() ? { dia_vencimento: dados.diaVencimento.trim() } : {}),
         ...(dados?.temIndicacao != null ? { tem_indicacao: dados.temIndicacao } : {}),
         ...(dados?.indicacaoNome?.trim() ? { indicacao_nome: dados.indicacaoNome.trim() } : {}),
+        ...(dados?.consultorId?.trim() ? { consultor_id: dados.consultorId.trim() } : {}),
+        ...(dados?.consultorNome?.trim() ? { consultor_nome: dados.consultorNome.trim() } : {}),
       },
     }
     const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot ?? null)
