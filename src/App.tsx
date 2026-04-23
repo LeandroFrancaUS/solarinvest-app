@@ -4052,6 +4052,10 @@ function ClientesPanel({
                       const safeUc = sanitizeClientShowcaseValue(dados.uc)
                       const consultorCadastrado = consultorById.get(registro.dados.consultorId ?? '')
                       const consultorResponsavel = consultorCadastrado?.name ?? 'Sem consultor'
+                      // Short display: apelido when available, otherwise first word of full name (Issue 4)
+                      const consultorApelido = consultorCadastrado
+                        ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
+                        : 'Sem consultor'
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -4126,7 +4130,7 @@ function ClientesPanel({
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
                                 <span className="clients-table-owner" title={consultorResponsavel}>
-                                  {consultorResponsavel}
+                                  {consultorApelido}
                                 </span>
                               </td>
                             ) : null}
@@ -6537,6 +6541,9 @@ export default function App() {
   const clienteRef = useRef(cliente)
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
+  /** Stores the logged-in user's linked consultant entry once resolved by fetchConsultantsForPicker.
+   *  Used to auto-assign the consultant when a new client form is started (Issue 2). */
+  const myConsultorDefaultRef = useRef<{ id: string; nome: string } | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -13219,10 +13226,12 @@ export default function App() {
               (me.email && c.email && c.email.toLowerCase() === me.email.toLowerCase()),
           )
           if (myConsultor) {
+            // Prefer the logged-in user's own name as the default consultant display name (Issue 2)
+            const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
+            // Store for reuse when iniciarNovaProposta resets the form
+            myConsultorDefaultRef.current = { id: String(myConsultor.id), nome: defaultNome }
             const current = clienteRef.current ?? cliente
             if (!current.consultorId) {
-              // Prefer the logged-in user's own name as the default consultant display name (section 2)
-              const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
               updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: defaultNome })
             }
           }
@@ -20377,6 +20386,17 @@ export default function App() {
 
       const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
       aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
+
+      // Re-apply the logged-in user's consultant as default — the snapshot reset clears
+      // consultorId to '' (from CLIENTE_INICIAL).  myConsultorDefaultRef was populated
+      // when the user's consultant was resolved in fetchConsultantsForPicker (Issue 2).
+      if (myConsultorDefaultRef.current) {
+        updateClienteSync({
+          consultorId: myConsultorDefaultRef.current.id,
+          consultorNome: myConsultorDefaultRef.current.nome,
+        })
+      }
+
       scheduleMarkStateAsSaved()
       
       if (import.meta.env.DEV) console.debug('[Nova Proposta] Reset complete')
@@ -20417,6 +20437,7 @@ export default function App() {
     setMultiUcRows,
     limparOrcamentoAtivo,
     setClienteSync,
+    updateClienteSync,
     setCurrentBudgetId,
   ])
 
