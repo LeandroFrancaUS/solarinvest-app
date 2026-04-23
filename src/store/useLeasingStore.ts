@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
 import { isCrashRecovery } from './crashRecovery'
+import { VALOR_MERCADO_MULTIPLICADOR } from '../lib/finance/simulation'
 
 export type LeasingDadosTecnicos = {
   potenciaInstaladaKwp: number
@@ -113,8 +114,9 @@ export type LeasingState = {
   responsavelSolarinvest: string
   /**
    * Estimated market value of the installed system in R$.
-   * Should be kept in sync with investimentoSolarinvest * VALOR_MERCADO_MULTIPLICADOR (1.29).
-   * Call leasingActions.setValorDeMercadoEstimado() when updating investimentoSolarinvest.
+   * Automatically derived as `investimentoSolarinvest * VALOR_MERCADO_MULTIPLICADOR` (1.29)
+   * whenever `investimentoSolarinvest` is updated via `leasingActions.update()`.
+   * To override manually, call `leasingActions.setValorDeMercadoEstimado()` after the capex update.
    */
   valorDeMercadoEstimado: number
   dadosTecnicos: LeasingDadosTecnicos
@@ -421,6 +423,15 @@ export const leasingActions = {
           ...draft.dadosTecnicos,
           energiaContratadaKwhMes: partial.energiaContratadaKwhMes,
         }
+      }
+      // Auto-derive valorDeMercadoEstimado when investimentoSolarinvest changes and the caller
+      // did NOT supply an explicit valorDeMercadoEstimado override.
+      if (
+        'investimentoSolarinvest' in partial &&
+        !('valorDeMercadoEstimado' in partial)
+      ) {
+        const capex = typeof partial.investimentoSolarinvest === 'number' ? partial.investimentoSolarinvest : 0
+        draft.valorDeMercadoEstimado = capex * VALOR_MERCADO_MULTIPLICADOR
       }
     })
   },
