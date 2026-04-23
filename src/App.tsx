@@ -4055,7 +4055,9 @@ function ClientesPanel({
                       const safeAddress = sanitizeClientShowcaseValue(dados.endereco)
                       const safeEmail = sanitizeClientShowcaseValue(dados.email)
                       const safeUc = sanitizeClientShowcaseValue(dados.uc)
-                      const safeOwnerName = sanitizeClientShowcaseValue(registro.ownerName)
+                      const consultorResponsavelRaw = sanitizeClientShowcaseValue(registro.dados.consultorNome)
+                      const consultorResponsavel =
+                        consultorResponsavelRaw !== '-' ? consultorResponsavelRaw : 'Sem consultor'
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -4085,8 +4087,8 @@ function ClientesPanel({
                           ? { key: 'client_phone', label: 'Telefone', value: dados.telefone, href: whatsappHref }
                           : null,
                         enderecoCompleto ? { key: 'client_address', label: 'Endereço', value: enderecoCompleto } : null,
-                        isPrivilegedUser && registro.ownerName
-                          ? { key: 'consultor', label: 'Consultor', value: registro.ownerName, title: registro.ownerEmail ?? undefined }
+                        isPrivilegedUser
+                          ? { key: 'consultor', label: 'Consultor', value: consultorResponsavel }
                           : null,
                       ].filter(
                         (
@@ -4129,16 +4131,9 @@ function ClientesPanel({
                             <td className="col-xl" data-label="Endereço">{renderSummaryValue(safeAddress)}</td>
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
-                                {safeOwnerName !== '-' ? (
-                                  <span
-                                    className="clients-table-owner"
-                                    title={registro.ownerEmail ?? registro.ownerName}
-                                  >
-                                    {safeOwnerName}
-                                  </span>
-                                ) : (
-                                  <span className="clients-empty-value">-</span>
-                                )}
+                                <span className="clients-table-owner" title={consultorResponsavel}>
+                                  {consultorResponsavel}
+                                </span>
                               </td>
                             ) : null}
                             <td data-label="Ações">
@@ -6529,6 +6524,7 @@ export default function App() {
   const proposalServerAutoSaveInFlightRef = useRef(false)
   const clientServerAutoSaveInFlightRef = useRef(false)
   const clientLastPayloadSignatureRef = useRef<string | null>(null)
+  const consultantBackfillRanRef = useRef(false)
   const isHydratingRef = useRef(false)
   const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
@@ -13247,6 +13243,105 @@ export default function App() {
   }, [user, authSyncKey])
 
   useEffect(() => {
+    if (consultantBackfillRanRef.current) return
+    if (meAuthState !== 'authenticated') return
+    if (formConsultores.length === 0) return
+    if (clientesSalvos.length === 0) return
+
+    const normalizeConsultorNome = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase()
+
+    const findConsultorByName = (target: string) =>
+      formConsultores.find((entry) => normalizeConsultorNome(consultorDisplayName(entry)) === target)
+
+    const kim = findConsultorByName('kim')
+    const claudio = findConsultorByName('claudio')
+    const laieny = findConsultorByName('laieny')
+
+    const resolveConsultorTarget = (nomeAtual: string) => {
+      const normalized = normalizeConsultorNome(nomeAtual)
+      if (normalized === 'administrador') {
+        return kim
+          ? { consultorId: String(kim.id), consultorNome: consultorDisplayName(kim) }
+          : { consultorId: '', consultorNome: 'Sem consultor' }
+      }
+      if (normalized === 'claudio') {
+        return claudio
+          ? { consultorId: String(claudio.id), consultorNome: consultorDisplayName(claudio) }
+          : { consultorId: '', consultorNome: 'Sem consultor' }
+      }
+      if (normalized === 'laieny') {
+        return laieny
+          ? { consultorId: String(laieny.id), consultorNome: consultorDisplayName(laieny) }
+          : { consultorId: '', consultorNome: 'Sem consultor' }
+      }
+      return { consultorId: '', consultorNome: 'Sem consultor' }
+    }
+
+    consultantBackfillRanRef.current = true
+    let cancelado = false
+
+    const executarBackfill = async () => {
+      const atualizacoes: Array<{ localId: string; consultorId: string; consultorNome: string }> = []
+      for (const registro of clientesSalvos) {
+        const serverId = clientServerIdMapRef.current[registro.id] ?? registro.id
+        if (!serverId) continue
+
+        const currentNome = (registro.dados.consultorNome ?? '').trim()
+        const currentId = (registro.dados.consultorId ?? '').trim()
+        const alvo = resolveConsultorTarget(currentNome)
+        if (currentNome === alvo.consultorNome && currentId === alvo.consultorId) {
+          continue
+        }
+
+        try {
+          await updateClientById(serverId, {
+            metadata: {
+              consultor_id: alvo.consultorId || null,
+              consultor_nome: alvo.consultorNome,
+            },
+          })
+          atualizacoes.push({ localId: registro.id, consultorId: alvo.consultorId, consultorNome: alvo.consultorNome })
+        } catch (error) {
+          console.warn('[clients][consultor-backfill] falha ao atualizar cliente', {
+            clientId: serverId,
+            message: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
+      if (cancelado || atualizacoes.length === 0) return
+
+      const patchById = new Map(atualizacoes.map((item) => [item.localId, item]))
+      setClientesSalvos((prev) =>
+        prev.map((registro) => {
+          const patch = patchById.get(registro.id)
+          if (!patch) return registro
+          return {
+            ...registro,
+            dados: {
+              ...registro.dados,
+              consultorId: patch.consultorId,
+              consultorNome: patch.consultorNome,
+            },
+          }
+        }),
+      )
+      adicionarNotificacao(`Consultor atualizado em ${atualizacoes.length} cliente(s).`, 'info')
+    }
+
+    void executarBackfill()
+
+    return () => {
+      cancelado = true
+    }
+  }, [adicionarNotificacao, clientesSalvos, formConsultores, meAuthState])
+
+  useEffect(() => {
     return () => {
       if (typeof window === 'undefined') {
         return
@@ -16223,6 +16318,8 @@ export default function App() {
         ...(dados?.diaVencimento?.trim() ? { dia_vencimento: dados.diaVencimento.trim() } : {}),
         ...(dados?.temIndicacao != null ? { tem_indicacao: dados.temIndicacao } : {}),
         ...(dados?.indicacaoNome?.trim() ? { indicacao_nome: dados.indicacaoNome.trim() } : {}),
+        ...(dados?.consultorId?.trim() ? { consultor_id: dados.consultorId.trim() } : {}),
+        ...(dados?.consultorNome?.trim() ? { consultor_nome: dados.consultorNome.trim() } : {}),
       },
     }
     const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot ?? null)
