@@ -44,6 +44,7 @@ export function computeCustoTotal(form: ProjectFinanceFormState): number | null 
     form.custo_engenharia,
     form.custo_homologacao,
     form.custo_frete_logistica,
+    form.custo_seguro,
     form.custo_comissao,
     form.custo_impostos,
     form.custo_diversos,
