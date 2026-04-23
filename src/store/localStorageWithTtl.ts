@@ -52,8 +52,14 @@ export function getWithTtl<T>(key: string): T | null {
     const raw = window.localStorage.getItem(key)
     if (!raw) return null
     const envelope = JSON.parse(raw) as Partial<StorageEnvelope<T>>
-    if (envelope._v !== WRAPPER_VERSION || typeof envelope._savedAt !== 'number' || typeof envelope._ttlMs !== 'number') {
-      // Legacy format (e.g. old sessionStorage snapshot without envelope) — discard
+    if (
+      envelope._v !== WRAPPER_VERSION ||
+      typeof envelope._savedAt !== 'number' ||
+      typeof envelope._ttlMs !== 'number' ||
+      !('data' in envelope)
+    ) {
+      // Malformed or legacy format (e.g. old sessionStorage snapshot without envelope) — discard
+      window.localStorage.removeItem(key)
       return null
     }
     const ageMs = Date.now() - envelope._savedAt

@@ -285,11 +285,13 @@ const mergeState = (incoming: Partial<LeasingState> | null): LeasingState => {
       corresponsavel,
     },
   }
-  // Reconcile energiaContratadaKwhMes: root wins when nonzero; otherwise use nested value.
-  // This ensures the two copies never diverge after loading from localStorage.
+  // Reconcile energiaContratadaKwhMes: root wins when explicitly set (non-null/non-undefined);
+  // otherwise fall back to the nested value. This ensures the two copies never diverge after
+  // loading from localStorage. Zero is a valid value and must not be treated as "not set".
   const rootEnergy = merged.energiaContratadaKwhMes
   const nestedEnergy = merged.dadosTecnicos.energiaContratadaKwhMes
-  const resolvedEnergy = rootEnergy > 0 ? rootEnergy : nestedEnergy
+  // incoming.energiaContratadaKwhMes being present signals an intentional root value
+  const resolvedEnergy = incoming?.energiaContratadaKwhMes != null ? rootEnergy : nestedEnergy
   if (resolvedEnergy !== rootEnergy) {
     merged.energiaContratadaKwhMes = resolvedEnergy
   }
@@ -433,7 +435,11 @@ export const leasingActions = {
         'investimentoSolarinvest' in partial &&
         !('valorDeMercadoEstimado' in partial)
       ) {
-        const capex = typeof partial.investimentoSolarinvest === 'number' ? partial.investimentoSolarinvest : 0
+        // Use the new capex value; if it is not a valid number, fall back to current state to
+        // avoid resetting an existing estimate to zero.
+        const capex = typeof partial.investimentoSolarinvest === 'number'
+          ? partial.investimentoSolarinvest
+          : draft.investimentoSolarinvest
         draft.valorDeMercadoEstimado = capex * VALOR_MERCADO_MULTIPLICADOR
       }
     })
