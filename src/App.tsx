@@ -317,7 +317,8 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
-import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
+import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
+import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
@@ -17147,7 +17148,37 @@ export default function App() {
       if (!confirmado) return
 
       try {
-        await exportClientToPortfolio(Number(serverIdCandidate))
+        const result = await convertClientToClosedDeal({
+          clientId: Number(serverIdCandidate),
+          proposalId: registro.propostaSnapshot?.currentBudgetId ?? null,
+          clienteDados: {
+            nome: registro.dados.nome,
+            documento: registro.dados.documento,
+            email: registro.dados.email,
+            telefone: registro.dados.telefone,
+            cep: registro.dados.cep,
+            cidade: registro.dados.cidade,
+            uf: registro.dados.uf,
+            endereco: registro.dados.endereco,
+            distribuidora: registro.dados.distribuidora,
+            uc: registro.dados.uc,
+            indicacaoNome: registro.dados.indicacaoNome,
+            temIndicacao: registro.dados.temIndicacao,
+            diaVencimento: registro.dados.diaVencimento,
+            consultorId: registro.dados.consultorId,
+            ownerUserId: registro.ownerUserId,
+            createdByUserId: registro.createdByUserId,
+          },
+          snapshot: registro.propostaSnapshot ?? {},
+          consultants: formConsultores,
+          ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
+        })
+
+        if (!result.ok) {
+          window.alert(`Não foi possível ativar ${nomeCliente} na Carteira. Tente novamente.`)
+          return
+        }
+
         adicionarNotificacao(`${nomeCliente} ativado na Carteira de Clientes com sucesso!`, 'success')
         const refreshed = await carregarClientesPrioritarios({ silent: true })
         setClientesSalvos(refreshed)
@@ -17156,7 +17187,7 @@ export default function App() {
         window.alert(`Não foi possível ativar ${nomeCliente} na Carteira. Tente novamente.`)
       }
     },
-    [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos],
+    [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos, formConsultores],
   )
 
   const parseOrcamentosSalvos = useCallback(
