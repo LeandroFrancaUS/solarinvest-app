@@ -700,7 +700,11 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
       <UsinaSection projectId={projectId} />
 
       {/* ── Section 3: Financeiro ── */}
-      <ProjectFinanceSection projectId={projectId} pvData={pvData} />
+      <ProjectFinanceSection
+        projectId={projectId}
+        pvData={pvData}
+        stateUf={project?.state_snapshot ?? null}
+      />
     </div>
   )
 }
