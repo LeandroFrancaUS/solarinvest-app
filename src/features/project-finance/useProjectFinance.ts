@@ -64,6 +64,7 @@ interface UseProjectFinanceReturn {
   contractType: ProjectFinanceContractType
   /** Contract term in months from client_contracts. Readonly. */
   contractTermMonths: number | null
+  financeHeader: { mensalidade_base: number | null; desconto_percentual: number | null } | null
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
@@ -97,6 +98,7 @@ export function useProjectFinance(
   const [contractType, setContractType] = useState<ProjectFinanceContractType>('leasing')
   const [contractTermMonths, setContractTermMonths] = useState<number | null>(null)
   const [form, setForm] = useState<ProjectFinanceFormState>({})
+  const [financeHeader, setFinanceHeader] = useState<{ mensalidade_base: number | null; desconto_percentual: number | null } | null>(null)
   const [savedForm, setSavedForm] = useState<ProjectFinanceFormState>({})
   const [overrides, setOverrides] = useState<ProjectFinanceOverrides>({})
   const [savedOverrides, setSavedOverrides] = useState<ProjectFinanceOverrides>({})
@@ -116,6 +118,7 @@ export function useProjectFinance(
       const res = await fetchProjectFinance(projectId)
       setContractType(res.contract_type)
       setContractTermMonths(res.contract_term_months ?? null)
+      setFinanceHeader(res.finance_header ?? null)
       setProfile(res.profile)
       const fs = profileToFormState(res.profile)
       setForm(fs)
@@ -229,6 +232,14 @@ export function useProjectFinance(
   const deriveFromEngine = useCallback(
     (deriveParams: ProjectFinanceDeriveParams, force = false) => {
       const derived = deriveProjectFinanceCosts(deriveParams, contractType)
+      const derivedTechnical: ProjectFinanceTechnicalParams = {}
+      if (deriveParams.impostos_percent != null && deriveParams.impostos_percent >= 0) {
+        derivedTechnical.impostos_percent = deriveParams.impostos_percent
+      }
+      if (deriveParams.taxa_desconto_aa_pct != null && deriveParams.taxa_desconto_aa_pct >= 0) {
+        derivedTechnical.taxa_desconto_aa_pct = deriveParams.taxa_desconto_aa_pct
+      }
+
       setForm((prev) => {
         // Build the next state by assigning only the derived keys.
         // We work with a typed partial and use Object.assign for type safety.
@@ -243,6 +254,9 @@ export function useProjectFinance(
         }
         return { ...prev, ...patch }
       })
+      if (Object.keys(derivedTechnical).length > 0) {
+        setTechnicalParams((prev) => ({ ...(prev ?? {}), ...derivedTechnical }))
+      }
     },
     [contractType],
   )
@@ -257,6 +271,7 @@ export function useProjectFinance(
     form,
     contractType,
     contractTermMonths,
+    financeHeader,
     calculated,
     effective,
     overrides,
@@ -277,4 +292,3 @@ export function useProjectFinance(
     deriveFromEngine,
   }
 }
-

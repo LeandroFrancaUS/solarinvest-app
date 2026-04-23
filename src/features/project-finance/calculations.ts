@@ -266,9 +266,18 @@ export function deriveProjectFinanceCosts(
   const {
     consumo_kwh_mes,
     potencia_sistema_kwp,
+    numero_modulos,
+    potencia_modulo_wp,
     uf,
     mensalidade_base,
+    desconto_percentual,
     prazo_meses,
+    reajuste_anual_pct,
+    inadimplencia_pct,
+    custo_operacional_pct,
+    custo_manutencao,
+    receita_esperada,
+    impostos_percent,
     crea_go_rs = CREA_GO_RS,
     crea_df_rs = CREA_DF_RS,
     projeto_faixas = PROJETO_FAIXAS,
@@ -286,6 +295,18 @@ export function deriveProjectFinanceCosts(
   const consumo = consumo_kwh_mes != null && consumo_kwh_mes > 0 ? consumo_kwh_mes : null
   const kwp = potencia_sistema_kwp != null && potencia_sistema_kwp > 0 ? potencia_sistema_kwp : null
   const resolvedUf = uf === 'DF' ? 'DF' : 'GO'
+  const moduloWp = potencia_modulo_wp != null && potencia_modulo_wp > 0 ? potencia_modulo_wp : 550
+  const numeroModulosEstimado =
+    numero_modulos != null && numero_modulos > 0
+      ? Math.ceil(numero_modulos)
+      : kwp != null
+        ? Math.max(1, Math.ceil((kwp * 1000) / moduloWp))
+        : null
+  const impostosPercentResolved = impostos_percent != null && impostos_percent >= 0
+    ? impostos_percent
+    : contractType === 'leasing'
+      ? impostos_leasing_percent
+      : impostos_venda_percent
 
   // ── Auto-pricing: kit and freight (same formulas as App.tsx) ──────────────
   if (consumo != null) {
@@ -296,6 +317,9 @@ export function deriveProjectFinanceCosts(
   // ── Engineering cost: by kWp faixa ────────────────────────────────────────
   if (kwp != null) {
     result.custo_engenharia = resolveCustoProjetoPorFaixa(kwp, projeto_faixas)
+  }
+  if (numeroModulosEstimado != null) {
+    result.custo_instalacao = numeroModulosEstimado * 70
   }
 
   // ── CREA: by UF ───────────────────────────────────────────────────────────
@@ -309,6 +333,30 @@ export function deriveProjectFinanceCosts(
     (result.custo_homologacao ?? 0)
 
   if (contractType === 'leasing') {
+    if (mensalidade_base != null && mensalidade_base > 0) {
+      result.mensalidade_base = mensalidade_base
+    }
+    if (desconto_percentual != null && desconto_percentual >= 0) {
+      result.desconto_percentual = desconto_percentual
+    }
+    if (reajuste_anual_pct != null && reajuste_anual_pct >= 0) {
+      result.reajuste_anual_pct = reajuste_anual_pct
+    }
+    if (inadimplencia_pct != null && inadimplencia_pct >= 0) {
+      result.inadimplencia_pct = inadimplencia_pct
+    }
+    if (custo_operacional_pct != null && custo_operacional_pct >= 0) {
+      result.opex_pct = custo_operacional_pct
+    }
+    if (custo_manutencao != null && custo_manutencao >= 0) {
+      result.custo_manutencao = custo_manutencao
+    }
+    if (receita_esperada != null && receita_esperada >= 0) {
+      result.receita_esperada = receita_esperada
+    } else if (mensalidade_base != null && mensalidade_base > 0 && prazo_meses != null && prazo_meses > 0) {
+      result.receita_esperada = mensalidade_base * prazo_meses
+    }
+
     // Seguro: use calcSeguroLeasing when constants match defaults; otherwise
     // apply the two-tier formula inline with the provided custom constants.
     if (capexBase > 0) {
@@ -333,7 +381,7 @@ export function deriveProjectFinanceCosts(
         const taxResult = computeTaxes({
           modo: 'leasing',
           mensalidade: mensalidade_base,
-          aliquota: impostos_leasing_percent / 100,
+          aliquota: impostosPercentResolved / 100,
         })
         result.custo_impostos = taxResult.valorImposto * prazo_meses
       }
@@ -342,6 +390,14 @@ export function deriveProjectFinanceCosts(
     // Venda: comissao as a % of the capex base (informational estimate)
     if (capexBase > 0) {
       result.custo_comissao = Math.round(capexBase * (comissao_minima_percent / 100))
+      const taxResult = computeTaxes({
+        modo: 'venda',
+        totalAntesImposto: capexBase,
+        custoKit: result.custo_equipamentos ?? 0,
+        frete: result.custo_frete_logistica ?? 0,
+        aliquota: impostosPercentResolved / 100,
+      })
+      result.custo_impostos = taxResult.valorImposto
     }
   }
 

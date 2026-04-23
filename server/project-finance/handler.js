@@ -100,6 +100,7 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
           profile,
           contract_type: resolvedContractType ?? project.project_type ?? 'leasing',
           contract_term_months: contract?.contract_term_months ?? null,
+          finance_header: contract?.finance_header ?? null,
           project_id: projectId,
         },
       })
@@ -146,10 +147,12 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
       // If contract_type is not provided in body, resolve from contract/project.
       let contract_type = body.contract_type
       let contract_term_months = null
+      let finance_header = null
       if (!contract_type) {
         const contract = await resolveProjectContract(sql, projectId)
         contract_type = contract?.contract_type ?? project.project_type ?? 'leasing'
         contract_term_months = contract?.contract_term_months ?? null
+        finance_header = contract?.finance_header ?? null
       }
 
       // Backend always ignores manual changes to contract_type and
@@ -175,6 +178,7 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
         data: profile,
         contract_type,
         contract_term_months,
+        finance_header,
         project_id: projectId,
       })
     } catch (err) {

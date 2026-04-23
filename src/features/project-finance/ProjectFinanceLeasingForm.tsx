@@ -10,7 +10,6 @@ import type {
   ProjectFinanceFormState,
   ProjectFinanceComputed,
   ProjectFinanceOverrides,
-  ProjectFinanceTechnicalParams,
   OverridableField,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -295,9 +294,7 @@ interface Props {
   pvData: ProjectPvData | null
   calculated: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
-  technicalParams: ProjectFinanceTechnicalParams
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
-  setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
   restoreAuto: (field: OverridableField) => void
 }
@@ -308,9 +305,7 @@ export function ProjectFinanceLeasingForm({
   pvData,
   calculated,
   overrides,
-  technicalParams,
   setField,
-  setTechnicalParam,
   setOverride,
   restoreAuto,
 }: Props) {
@@ -442,8 +437,8 @@ export function ProjectFinanceLeasingForm({
         />
         <FieldNumber
           id="pf-leasing-opex"
-          label="OpEx operacional"
-          unit="% a.a."
+          label="Custo operacional"
+          unit="%"
           value={form.opex_pct}
           onChange={(v) => setField('opex_pct', v ?? undefined)}
           step={0.01}
@@ -473,31 +468,6 @@ export function ProjectFinanceLeasingForm({
           onChange={(v) => setField('receita_esperada', v ?? undefined)}
           step={0.01}
           hint="(contrato completo)"
-        />
-      </div>
-
-      {/* ── Parâmetros de Cálculo ────────────────────────────── */}
-      <SectionTitle title="Parâmetros de Cálculo (motor = Análise Financeira)" />
-      <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
-          id="pf-leasing-impostos"
-          label="Alíquota de impostos sobre receita"
-          unit="%"
-          value={technicalParams.impostos_percent ?? 0}
-          onChange={(v) => setTechnicalParam('impostos_percent', v ?? undefined)}
-          step={0.1}
-          min={0}
-          hint="Aplicada sobre as mensalidades, igual ao campo Impostos da Análise Financeira"
-        />
-        <FieldNumber
-          id="pf-leasing-taxa-desconto"
-          label="Taxa de desconto (VPL)"
-          unit="% a.a."
-          value={technicalParams.taxa_desconto_aa_pct ?? null}
-          onChange={(v) => setTechnicalParam('taxa_desconto_aa_pct', v ?? undefined)}
-          step={0.1}
-          min={0}
-          hint="Usada para calcular o VPL (NPV). Deixe vazio para omitir o VPL."
         />
       </div>
 

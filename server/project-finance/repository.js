@@ -246,18 +246,42 @@ export async function resolveProjectContract(sql, projectId) {
     SELECT
       p.project_type,
       cc.contract_type,
-      cc.contractual_term_months
+      cc.contractual_term_months,
+      ep.mensalidade                  AS energy_mensalidade,
+      ep.desconto_percentual          AS energy_desconto_percentual,
+      ep.prazo_meses                  AS energy_prazo_meses,
+      cb.valor_mensalidade            AS billing_valor_mensalidade
     FROM projects p
     LEFT JOIN client_contracts cc ON cc.id = p.contract_id
+    LEFT JOIN client_energy_profile ep ON ep.client_id = p.client_id
+    LEFT JOIN client_billing_profile cb ON cb.client_id = p.client_id
     WHERE p.id = ${String(projectId)}::uuid
       AND p.deleted_at IS NULL
     LIMIT 1
   `
   const row = rows[0]
   if (!row) return null
+  const contractTerm =
+    row.contractual_term_months != null
+      ? Number(row.contractual_term_months)
+      : row.energy_prazo_meses != null
+        ? Number(row.energy_prazo_meses)
+        : null
+  const mensalidadeBase =
+    row.energy_mensalidade != null
+      ? Number(row.energy_mensalidade)
+      : row.billing_valor_mensalidade != null
+        ? Number(row.billing_valor_mensalidade)
+        : null
+  const descontoPercentual =
+    row.energy_desconto_percentual != null ? Number(row.energy_desconto_percentual) : null
   return {
     contract_type: resolveContractType(row.contract_type, row.project_type),
-    contract_term_months: row.contractual_term_months != null ? Number(row.contractual_term_months) : null,
+    contract_term_months: contractTerm,
+    finance_header: {
+      mensalidade_base: mensalidadeBase,
+      desconto_percentual: descontoPercentual,
+    },
   }
 }
 

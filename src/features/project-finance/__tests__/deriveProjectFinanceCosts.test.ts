@@ -60,6 +60,18 @@ describe('deriveProjectFinanceCosts', () => {
     })
   })
 
+  describe('instalação automática (AF)', () => {
+    it('computes custo_instalacao from numero_modulos × 70', () => {
+      const result = deriveProjectFinanceCosts({ numero_modulos: 24 }, 'leasing')
+      expect(result.custo_instalacao).toBe(24 * 70)
+    })
+
+    it('estimates modulo count from kWp when numero_modulos is absent', () => {
+      const result = deriveProjectFinanceCosts({ potencia_sistema_kwp: 9.9, potencia_modulo_wp: 550 }, 'leasing')
+      expect(result.custo_instalacao).toBe(Math.ceil((9.9 * 1000) / 550) * 70)
+    })
+  })
+
   describe('CREA by UF', () => {
     it('uses CREA_GO_RS for non-DF states', () => {
       const result = deriveProjectFinanceCosts({ uf: 'GO' }, 'leasing')
@@ -138,6 +150,14 @@ describe('deriveProjectFinanceCosts', () => {
     it('skips custo_impostos when prazo is missing', () => {
       const result = deriveProjectFinanceCosts({ mensalidade_base: 1000 }, 'leasing')
       expect(result.custo_impostos).toBeUndefined()
+    })
+
+    it('uses impostos_percent when provided', () => {
+      const result = deriveProjectFinanceCosts(
+        { mensalidade_base: 1000, prazo_meses: 60, impostos_percent: 8 },
+        'leasing',
+      )
+      expect(result.custo_impostos).toBeCloseTo(1000 * 0.08 * 60, 2)
     })
   })
 

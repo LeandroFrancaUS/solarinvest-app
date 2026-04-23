@@ -135,6 +135,10 @@ export interface ProjectFinanceGetResponse {
   contract_type: ProjectFinanceContractType
   /** Contractual term in months, sourced from client_contracts. Readonly. */
   contract_term_months: number | null
+  finance_header: {
+    mensalidade_base: number | null
+    desconto_percentual: number | null
+  } | null
   project_id: string
 }
 
@@ -150,12 +154,32 @@ export interface ProjectFinanceDeriveParams {
   consumo_kwh_mes?: number | null
   /** Installed system capacity in kWp from the Usina Fotovoltaica. */
   potencia_sistema_kwp?: number | null
+  /** Module count from Usina Fotovoltaica. */
+  numero_modulos?: number | null
+  /** PV module nominal power from Usina Fotovoltaica. */
+  potencia_modulo_wp?: number | null
   /** State abbreviation from the project (e.g. 'DF', 'GO'). Used for CREA. */
   uf?: string | null
   /** Leasing base monthly fee from the contract. Used to derive CAC and seguro. */
   mensalidade_base?: number | null
+  /** Leasing discount from contract/profile header (%). */
+  desconto_percentual?: number | null
   /** Contractual term in months. Used to compute total tax cost for leasing. */
   prazo_meses?: number | null
+  /** Tax rate from Análise Financeira (%). */
+  impostos_percent?: number | null
+  /** Annual discount rate for NPV from Análise Financeira (% a.a.). */
+  taxa_desconto_aa_pct?: number | null
+  /** Leasing default annual adjustment from Análise Financeira (% a.a.). */
+  reajuste_anual_pct?: number | null
+  /** Leasing default delinquency rate from Análise Financeira (%). */
+  inadimplencia_pct?: number | null
+  /** Leasing operating cost from Análise Financeira (%). */
+  custo_operacional_pct?: number | null
+  /** Leasing maintenance cost from Análise Financeira (R$). */
+  custo_manutencao?: number | null
+  /** Expected total revenue from Análise Financeira (R$). */
+  receita_esperada?: number | null
 
   // ── AF engine parameter overrides (default to vendasConfig / constants) ──
   /** CREA cost for GO. */
