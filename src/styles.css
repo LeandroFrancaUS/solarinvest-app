@@ -5993,6 +5993,11 @@ i:hover {
   word-break: normal;
 }
 
+.clients-table th.clients-table-consumo-col,
+.clients-table td.clients-table-consumo-col {
+  text-align: center;
+}
+
 .clients-table td,
 .clients-table td *:not(button) {
   user-select: text;

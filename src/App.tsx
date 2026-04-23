@@ -3998,7 +3998,7 @@ function ClientesPanel({
                       <th>Cliente</th>
                       <th className="col-nowrap">CPF/CNPJ</th>
                       <th className="col-nowrap">Cidade/UF</th>
-                      <th className="col-nowrap">Consumo (kWh/mês)</th>
+                      <th className="col-nowrap clients-table-consumo-col">Consumo (kWh/mês)</th>
                       <th className="col-md col-nowrap">Telefone</th>
                       <th className="col-xl col-nowrap">Endereço</th>
                       {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
@@ -4106,7 +4106,7 @@ function ClientesPanel({
                             </td>
                             <td data-label="CPF/CNPJ">{renderSummaryValue(documentoCliente)}</td>
                             <td data-label="Cidade/UF">{renderSummaryValue(cidadeUf)}</td>
-                            <td data-label="Consumo">{renderSummaryValue(consumoLabel)}</td>
+                            <td className="clients-table-consumo-col" data-label="Consumo">{renderSummaryValue(consumoLabel)}</td>
                             <td className="col-md" data-label="Telefone">
                               {safePhone !== '-' ? (
                                 whatsappHref ? (
