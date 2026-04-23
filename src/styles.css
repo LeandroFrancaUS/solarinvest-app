@@ -5760,6 +5760,23 @@ i:hover {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.budget-search-panels--budget {
+  justify-items: stretch;
+}
+
+.budget-search-panel--records {
+  width: 100%;
+}
+
+.budget-search-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(100%, 760px);
+  margin-top: 8px;
+  margin-bottom: 6px;
+}
+
 .clients-panel p {
   margin: 0;
   color: var(--ds-text-secondary);
@@ -5914,6 +5931,7 @@ i:hover {
   border: 1px solid var(--ds-border);
   background: var(--ds-surface);
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 .budget-search-table tr.is-selected {

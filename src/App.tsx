@@ -27409,66 +27409,66 @@ export default function App() {
           Voltar
         </button>
       </div>
-      <div className="budget-search-panels">
-        <section className="budget-search-panel">
-          <div className="budget-search-header">
-            <h4>Consulta rápida</h4>
-            <p>Busque pelo cliente, código interno, CPF/CNPJ ou unidade consumidora.</p>
-          </div>
-          <Field
-            label={labelWithTooltip(
-              'Buscar orçamentos',
-              'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
-            )}
-            hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
-          >
-            <input
-              id="budget-search-input"
-              type="search"
-              value={orcamentoSearchTerm}
-              onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
-              placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
-              autoFocus
-            />
-          </Field>
-          {(isAdmin || isOffice || isFinanceiro) ? (
-            <div className="owner-filter-row">
-              <label htmlFor="propostas-owner-filter">Criador/consultor</label>
-              <select
-                id="propostas-owner-filter"
-                value={selectedProposalOwner}
-                onChange={(event) => setSelectedProposalOwner(event.target.value)}
-              >
-                <option value="all">Todos os consultores</option>
-                {proposalOwnerOptions.map((owner) => (
-                  <option key={owner} value={owner}>
-                    {owner}
-                  </option>
-                ))}
-              </select>
+      <div className="budget-search-panels budget-search-panels--single budget-search-panels--budget">
+        <section className="budget-search-panel budget-search-panel--records">
+          <div className="budget-search-quick">
+            <div className="budget-search-header">
+              <h4>Consulta rápida</h4>
+              <p>Busque pelo cliente, código interno, CPF/CNPJ ou unidade consumidora.</p>
             </div>
-          ) : null}
-          <div className="budget-search-summary">
-            <span>
-              {totalOrcamentos === 0
-                ? 'Nenhum orçamento salvo até o momento.'
-                : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
-            </span>
-            {(orcamentoSearchTerm || selectedProposalOwner !== 'all') ? (
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setOrcamentoSearchTerm('')
-                  setSelectedProposalOwner('all')
-                }}
-              >
-                Limpar filtros
-              </button>
+            <Field
+              label={labelWithTooltip(
+                'Buscar orçamentos',
+                'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
+              )}
+              hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
+            >
+              <input
+                id="budget-search-input"
+                type="search"
+                value={orcamentoSearchTerm}
+                onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
+                placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
+                autoFocus
+              />
+            </Field>
+            {(isAdmin || isOffice || isFinanceiro) ? (
+              <div className="owner-filter-row">
+                <label htmlFor="propostas-owner-filter">Criador/consultor</label>
+                <select
+                  id="propostas-owner-filter"
+                  value={selectedProposalOwner}
+                  onChange={(event) => setSelectedProposalOwner(event.target.value)}
+                >
+                  <option value="all">Todos os consultores</option>
+                  {proposalOwnerOptions.map((owner) => (
+                    <option key={owner} value={owner}>
+                      {owner}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ) : null}
+            <div className="budget-search-summary">
+              <span>
+                {totalOrcamentos === 0
+                  ? 'Nenhum orçamento salvo até o momento.'
+                  : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
+              </span>
+              {(orcamentoSearchTerm || selectedProposalOwner !== 'all') ? (
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => {
+                    setOrcamentoSearchTerm('')
+                    setSelectedProposalOwner('all')
+                  }}
+                >
+                  Limpar filtros
+                </button>
+              ) : null}
+            </div>
           </div>
-        </section>
-        <section className="budget-search-panel">
           <div className="budget-search-header">
             <h4>Registros salvos</h4>
           </div>
