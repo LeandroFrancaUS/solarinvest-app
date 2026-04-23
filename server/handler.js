@@ -1116,6 +1116,14 @@ export default async function handler(req, res) {
       return
     }
 
+    // POST /api/clients/consultor-backfill — normalize consultant metadata across all clients
+    if (pathname === '/api/clients/consultor-backfill' && method === 'POST') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
+      await handleClientsRequestV2(req, res, clientsCtx)
+      return
+    }
+
     // GET /api/clients — list with filters
     // POST /api/clients — create client
     if (pathname === '/api/clients') {

@@ -252,6 +252,13 @@ export async function deleteClientById(id: string): Promise<void> {
   })
 }
 
+export async function runConsultorBackfillSweep(): Promise<{ updatedCount: number }> {
+  const result = await apiFetch<{ data?: { updatedCount?: number } }>('/consultor-backfill', {
+    method: 'POST',
+  })
+  return { updatedCount: result.data?.updatedCount ?? 0 }
+}
+
 /**
  * List clients with optional filters. The server enforces RBAC:
  *   admin/financeiro → all clients
@@ -273,6 +280,13 @@ export interface ConsultantEntry {
   id: string
   name: string
   email: string | null
+}
+
+type ConsultantsListApiRow = {
+  id: string | number
+  full_name?: string | null
+  apelido?: string | null
+  email?: string | null
 }
 
 /**
@@ -297,8 +311,19 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
     headers: { 'Content-Type': 'application/json', ...authHeader },
   })
   if (!res.ok) return []
-  const body = (await res.json()) as { consultants: ConsultantEntry[] }
-  return Array.isArray(body.consultants) ? body.consultants : []
+  const body = (await res.json()) as { consultants?: ConsultantsListApiRow[] }
+  if (!Array.isArray(body.consultants)) return []
+  return body.consultants
+    .map((row) => {
+      const preferredName = row.full_name?.trim() || row.apelido?.trim() || row.email?.trim() || ''
+      if (!preferredName) return null
+      return {
+        id: String(row.id),
+        name: preferredName,
+        email: row.email ?? null,
+      }
+    })
+    .filter((entry): entry is ConsultantEntry => Boolean(entry))
 }
 
 // ─── Bulk Import ─────────────────────────────────────────────────────────────

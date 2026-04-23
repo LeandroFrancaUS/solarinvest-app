@@ -277,6 +277,78 @@ export async function updateClient(sql, clientId, data, options = {}) {
   return rows[0] ?? null
 }
 
+/**
+ * Sweeps all active clients and normalizes consultant metadata according to
+ * business mapping rules:
+ *   - "Administrador" -> consultant "Kim"
+ *   - "claudio"       -> consultant "Claudio"
+ *   - "Laieny"        -> consultant "Laieny"
+ *   - any other value -> "Sem consultor" (consultant_id = NULL)
+ *
+ * The canonical consultant name is sourced from the consultants table when the
+ * mapped consultant exists; otherwise falls back to "Sem consultor".
+ *
+ * Returns { updatedCount }.
+ */
+export async function backfillClientConsultorNames(sql) {
+  const rows = await sql`
+    WITH targets AS (
+      SELECT
+        MAX(CASE WHEN lower(coalesce(full_name, '')) = 'kim' OR lower(coalesce(apelido, '')) = 'kim' THEN id END) AS kim_id,
+        MAX(CASE WHEN lower(coalesce(full_name, '')) = 'claudio' OR lower(coalesce(apelido, '')) = 'claudio' THEN id END) AS claudio_id,
+        MAX(CASE WHEN lower(coalesce(full_name, '')) = 'laieny' OR lower(coalesce(apelido, '')) = 'laieny' THEN id END) AS laieny_id
+      FROM public.consultants
+      WHERE is_active = true
+    ),
+    resolved AS (
+      SELECT
+        c.id,
+        CASE
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' THEN t.kim_id
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'claudio' THEN t.claudio_id
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' THEN t.laieny_id
+          ELSE NULL
+        END AS next_consultant_id,
+        CASE
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' AND t.kim_id IS NOT NULL
+            THEN COALESCE(k.full_name, k.apelido, 'Kim')
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'claudio' AND t.claudio_id IS NOT NULL
+            THEN COALESCE(cl.full_name, cl.apelido, 'Claudio')
+          WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' AND t.laieny_id IS NOT NULL
+            THEN COALESCE(l.full_name, l.apelido, 'Laieny')
+          ELSE 'Sem consultor'
+        END AS next_consultor_nome
+      FROM clients c
+      CROSS JOIN targets t
+      LEFT JOIN public.consultants k ON k.id = t.kim_id
+      LEFT JOIN public.consultants cl ON cl.id = t.claudio_id
+      LEFT JOIN public.consultants l ON l.id = t.laieny_id
+      WHERE c.deleted_at IS NULL
+    ),
+    updated AS (
+      UPDATE clients c
+      SET
+        consultant_id = r.next_consultant_id,
+        metadata = COALESCE(c.metadata, '{}'::jsonb) || jsonb_build_object(
+          'consultor_id', COALESCE(r.next_consultant_id::text, ''),
+          'consultor_nome', r.next_consultor_nome
+        ),
+        updated_at = now()
+      FROM resolved r
+      WHERE c.id = r.id
+        AND (
+          COALESCE(c.consultant_id, -1) IS DISTINCT FROM COALESCE(r.next_consultant_id, -1)
+          OR COALESCE(c.metadata ->> 'consultor_nome', '') IS DISTINCT FROM COALESCE(r.next_consultor_nome, '')
+          OR COALESCE(c.metadata ->> 'consultor_id', '') IS DISTINCT FROM COALESCE(r.next_consultant_id::text, '')
+        )
+      RETURNING c.id
+    )
+    SELECT COUNT(*)::int AS updated_count FROM updated
+  `
+
+  return { updatedCount: rows[0]?.updated_count ?? 0 }
+}
+
 
 // Retention-policy constants kept in sync with purgeDeletedClients.js
 const RETENTION_STANDARD_DAYS = 7
