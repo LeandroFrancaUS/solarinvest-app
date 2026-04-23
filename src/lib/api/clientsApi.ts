@@ -280,6 +280,8 @@ export interface ConsultantEntry {
   id: string
   name: string
   email: string | null
+  /** Short display nickname (apelido). Defaults to first word of full_name when not explicitly set. */
+  apelido?: string | null
 }
 
 type ConsultantsListApiRow = {
@@ -321,6 +323,7 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
         id: String(row.id),
         name: preferredName,
         email: row.email ?? null,
+        apelido: row.apelido?.trim() ?? null,
       }
     })
     .filter((entry): entry is ConsultantEntry => Boolean(entry))
