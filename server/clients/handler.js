@@ -162,14 +162,10 @@ function toClientWritePayload(body) {
   }
 
   // Canonical consultant FK (clients.consultant_id — BIGINT FK to consultants).
-  // Only accept a non-empty string/number; never send null (server uses COALESCE to preserve
-  // the existing value, so omitting the field is safer than sending null).
+  // Pass the raw value through; repository.js handles normalization and validation.
   const rawConsultantId = firstDefined(body.consultant_id)
   if (rawConsultantId !== undefined && rawConsultantId !== null && rawConsultantId !== '') {
-    const parsed = parseInt(String(rawConsultantId).trim(), 10)
-    if (!isNaN(parsed) && parsed > 0) {
-      accepted.consultant_id = parsed
-    }
+    accepted.consultant_id = rawConsultantId
   }
 
   // Expose usina fields separately so the handler can persist them in client_usina_config

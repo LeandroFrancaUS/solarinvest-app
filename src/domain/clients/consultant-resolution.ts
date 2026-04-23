@@ -149,7 +149,9 @@ export function resolveClientConsultant({
   const canonicalId = normalizeConsultantId(client?.consultant_id)
   if (canonicalId) {
     const consultant = consultantsById.get(canonicalId)
-    console.debug('[consultant][resolve] source=canonical', { clientId: (client as { id?: unknown })?.id, consultantId: canonicalId })
+    if (import.meta.env?.DEV) {
+      console.debug('[consultant][resolve] source=canonical', { clientId: (client as { id?: unknown })?.id, consultantId: canonicalId })
+    }
     return {
       consultantId: canonicalId,
       consultantNickname: deriveConsultantNickname(consultant ?? null),
@@ -163,7 +165,9 @@ export function resolveClientConsultant({
   if (legacyId) {
     const consultant = consultantsById.get(legacyId)
     const legacyNome = (meta.consultor_nome as string | undefined)?.trim() ?? null
-    console.debug('[consultant][resolve] source=legacy-metadata', { clientId: (client as { id?: unknown })?.id, consultantId: legacyId })
+    if (import.meta.env?.DEV) {
+      console.debug('[consultant][resolve] source=legacy-metadata', { clientId: (client as { id?: unknown })?.id, consultantId: legacyId })
+    }
     return {
       consultantId: legacyId,
       consultantNickname: deriveConsultantNickname(consultant ?? null) ?? legacyNome,
@@ -176,7 +180,9 @@ export function resolveClientConsultant({
   if (isNewClient && currentUser) {
     const matched = resolveDefaultConsultantForUser(currentUser, consultants)
     if (matched) {
-      console.debug('[consultant][resolve] source=user-match-default', { userId: currentUser.id })
+      if (import.meta.env?.DEV) {
+        console.debug('[consultant][resolve] source=user-match-default', { userId: currentUser.id })
+      }
       return {
         consultantId: String(matched.id),
         consultantNickname: deriveConsultantNickname(matched),
@@ -187,7 +193,9 @@ export function resolveClientConsultant({
   }
 
   // ── Priority 4: none ──────────────────────────────────────────────────────
-  console.debug('[consultant][resolve] source=none', { clientId: (client as { id?: unknown })?.id })
+  if (import.meta.env?.DEV) {
+    console.debug('[consultant][resolve] source=none', { clientId: (client as { id?: unknown })?.id })
+  }
   return { consultantId: null, consultantNickname: null, consultantFullName: null, source: 'none' }
 }
 
