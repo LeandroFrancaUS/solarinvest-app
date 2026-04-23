@@ -86,9 +86,9 @@ const baseLeasing: AnaliseFinanceiraInput = {
 //   material_ca = 20.000 × 12 % = 2.400
 //   crea (GO) = 104
 //   placa = 13 módulos × 18 = 234   (potência: 800/120≈6.67kWp → 6667/550=13 módulos)
-//   projeto = 400                   (≤6kWp → R$ 400; 13 × 550 = 7150 W = 7.15 kWp → R$ 500)
+//   projeto = 500                   (13 × 550 = 7.150 W = 7.15 kWp; faixa >6 ≤10 kWp → R$ 500)
 // Note: consumo=800, irr=5, pr=0.8, dias=30 → fator=120 → potencia=800/120=6.667kWp
-//       módulos = ceil(6666.7/550) = ceil(12.12) = 13 → potencia_sistema = 7.15 kWp → R$ 500
+//       módulos = ceil(6666.7/550) = ceil(12.12) = 13 → potencia_sistema = 7.15 kWp → faixa R$ 500
 // custo_variavel_total = 20000 + 2400 + 104 + 234 + 500 = 23.238
 //
 // investimento_total = 23.238 + 1.200 + 139 = 24.577
@@ -444,7 +444,7 @@ describe('Auditoria Leasing — Sanidade com impostos = 0%', () => {
     expect(result.impostos_rs_leasing).toBeCloseTo(0, 6)
   })
 
-  it('receita_liquida com impostos > receita_liquida sem impostos', () => {
+  it('receita_liquida sem impostos > receita_liquida com impostos', () => {
     const sem_impostos = calcularAnaliseFinanceira({ ...baseLeasing, impostos_percent: 0 })
     const com_impostos = calcularAnaliseFinanceira({ ...baseLeasing, impostos_percent: 4 })
     expect(sem_impostos.receita_liquida_rs ?? 0).toBeGreaterThan(com_impostos.receita_liquida_rs ?? 0)
