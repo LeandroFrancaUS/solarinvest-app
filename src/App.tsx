@@ -4129,7 +4129,7 @@ function ClientesPanel({
                             <td className="col-xl" data-label="Endereço">{renderSummaryValue(safeAddress)}</td>
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
-                                <span className="clients-table-owner" title={consultorResponsavel}>
+                                <span className="clients-table-owner" title={consultorResponsavel} aria-label={consultorResponsavel}>
                                   {consultorApelido}
                                 </span>
                               </td>
@@ -20390,8 +20390,11 @@ export default function App() {
       // Re-apply the logged-in user's consultant as default — the snapshot reset clears
       // consultorId to '' (from CLIENTE_INICIAL).  myConsultorDefaultRef was populated
       // when the user's consultant was resolved in fetchConsultantsForPicker (Issue 2).
-      if (myConsultorDefaultRef.current) {
-        updateClienteSync({
+      // Use setClienteSync with the current ref value to avoid depending on the
+      // unstable updateClienteSync (which re-creates on every cliente change).
+      if (myConsultorDefaultRef.current && clienteRef.current) {
+        setClienteSync({
+          ...clienteRef.current,
           consultorId: myConsultorDefaultRef.current.id,
           consultorNome: myConsultorDefaultRef.current.nome,
         })
@@ -20437,7 +20440,6 @@ export default function App() {
     setMultiUcRows,
     limparOrcamentoAtivo,
     setClienteSync,
-    updateClienteSync,
     setCurrentBudgetId,
   ])
 
