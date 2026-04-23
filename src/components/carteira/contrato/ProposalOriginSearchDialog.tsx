@@ -34,7 +34,7 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
         role="dialog"
         aria-modal="true"
         aria-label="Buscar proposta original"
-        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', zIndex: 1000, display: 'grid', placeItems: 'center' }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center' }}
       >
         <button type="button" aria-label="Fechar busca" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'transparent', border: 'none', padding: 0 }} />
         <div style={{ position: 'relative', width: 'min(820px, calc(100vw - 48px))', maxHeight: '88vh', overflow: 'auto', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: 12, padding: 16 }}>
@@ -53,7 +53,7 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por código, nome, CPF/CNPJ, telefone..."
-              style={{ width: '100%', boxSizing: 'border-box', padding: 10 }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}
             />
             <ProposalOriginResultList
               loading={loading}
