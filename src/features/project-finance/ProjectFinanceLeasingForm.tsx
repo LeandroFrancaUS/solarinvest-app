@@ -372,14 +372,6 @@ export function ProjectFinanceLeasingForm({
           step={0.01}
         />
         <FieldNumber
-          id="pf-leasing-impostos"
-          label="Impostos / Taxas"
-          unit="R$"
-          value={form.custo_impostos}
-          onChange={(v) => setField('custo_impostos', v ?? undefined)}
-          step={0.01}
-        />
-        <FieldNumber
           id="pf-leasing-diversos"
           label="Custos diversos"
           unit="R$"
@@ -400,13 +392,18 @@ export function ProjectFinanceLeasingForm({
       {/* ── Leasing — Receitas e Premissas ───────────────────── */}
       <SectionTitle title="Receitas e Premissas (Leasing)" />
       <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldNumber
+        <FieldWithOverride
           id="pf-leasing-mensalidade"
           label="Mensalidade base"
+          field="mensalidade_base"
+          effectiveValue={calculated.mensalidade_base}
+          isOverridden={'mensalidade_base' in overrides}
+          overrideValue={overrides.mensalidade_base ?? null}
           unit="R$/mês"
-          value={form.mensalidade_base}
-          onChange={(v) => setField('mensalidade_base', v ?? undefined)}
           step={0.01}
+          format={fmtCurrency}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
         />
         <FieldNumber
           id="pf-leasing-desconto"
@@ -459,6 +456,15 @@ export function ProjectFinanceLeasingForm({
           value={form.custo_manutencao}
           onChange={(v) => setField('custo_manutencao', v ?? undefined)}
           step={0.01}
+        />
+        <FieldNumber
+          id="pf-leasing-impostos"
+          label="Impostos / Taxas (total contrato)"
+          unit="R$"
+          value={form.custo_impostos}
+          onChange={(v) => setField('custo_impostos', v ?? undefined)}
+          step={0.01}
+          hint="(despesa operacional)"
         />
         <FieldNumber
           id="pf-leasing-receita"

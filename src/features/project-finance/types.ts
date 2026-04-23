@@ -12,6 +12,7 @@ export type ProjectFinanceStatus = 'draft' | 'active' | 'archived'
  * those values come read-only from the Usina Fotovoltaica (ProjectPvData).
  */
 export type OverridableField =
+  | 'mensalidade_base'
   | 'payback_meses'
   | 'roi_pct'
   | 'tir_pct'
@@ -33,12 +34,22 @@ export interface ProjectFinanceTechnicalParams {
    * the project finance form uses the exact same calculation methodology.
    */
   impostos_percent?: number
+  /**
+   * Electricity tariff (R$/kWh) from `client_energy_profile.tarifa_atual`.
+   * Used together with `consumo_kwh_mes` (from pvData) and
+   * `desconto_percentual` (from form) to auto-compute `mensalidade_base`
+   * via the same formula as the Análise Financeira screen:
+   *   mensalidade_base = consumo × tarifa × (1 − desconto/100)
+   */
+  tarifa_kwh?: number
 }
 
 // ─── Auto-computed result from the shared engine ─────────────────────────────
 
 /** KPI fields computed by the shared engine. Overrideable via manual entry. */
 export interface ProjectFinanceComputed {
+  /** Leasing: consumo × tarifa × (1 − desconto/100). Null when tarifa is unavailable. */
+  mensalidade_base: number | null
   payback_meses: number | null
   roi_pct: number | null
   tir_pct: number | null
@@ -135,6 +146,21 @@ export interface ProjectFinanceGetResponse {
   contract_type: ProjectFinanceContractType
   /** Contractual term in months, sourced from client_contracts. Readonly. */
   contract_term_months: number | null
+  /**
+   * Base monthly fee from the leasing pipeline (`client_energy_profile.mensalidade`),
+   * or null when no leasing data has been seeded for the project's client.
+   * Used as the default seed for `deriveProjectFinanceCosts.mensalidade_base`
+   * so the AF engine can derive CAC, impostos and receita_esperada on
+   * "Preencher campos vazios" / "Recalcular tudo".
+   */
+  mensalidade_base: number | null
+  /**
+   * Electricity tariff (R$/kWh) from `client_energy_profile.tarifa_atual`.
+   * Used by the frontend engine to auto-compute `mensalidade_base` via:
+   *   mensalidade_base = consumo_kwh × tarifa_kwh × (1 − desconto/100)
+   * matching the "Mensalidade bruta" formula in the Análise Financeira.
+   */
+  tarifa_kwh: number | null
   project_id: string
 }
 
@@ -150,6 +176,10 @@ export interface ProjectFinanceDeriveParams {
   consumo_kwh_mes?: number | null
   /** Installed system capacity in kWp from the Usina Fotovoltaica. */
   potencia_sistema_kwp?: number | null
+  /** Number of PV modules from the Usina Fotovoltaica. Used to derive custo_instalacao. */
+  numero_modulos?: number | null
+  /** Module power in Wp from the Usina Fotovoltaica. Used to derive numero_modulos when not supplied. */
+  potencia_modulo_wp?: number | null
   /** State abbreviation from the project (e.g. 'DF', 'GO'). Used for CREA. */
   uf?: string | null
   /** Leasing base monthly fee from the contract. Used to derive CAC and seguro. */

@@ -49,15 +49,25 @@ import {
   PROJECT_FINANCE_FEED,
 } from '../../domain/conversion/closed-deal-field-map'
 import {
+  mergeResolvedIntoDependentRecord,
+  type FieldPolicy,
+  type MergePolicy,
+} from '../../domain/conversion/merge-resolved-into-record'
+import {
   exportClientToPortfolio,
+  fetchPortfolioClient,
   patchPortfolioProfile,
   patchPortfolioContract,
   patchPortfolioPlan,
   patchPortfolioUsina,
 } from '../clientPortfolioApi'
 import { createProjectFromContract } from '../projectsApi'
-import { saveProjectFinance } from '../../features/project-finance/api'
-import type { ProjectFinanceFormState } from '../../features/project-finance/types'
+import { fetchProjectFinance, saveProjectFinance } from '../../features/project-finance/api'
+import type {
+  ProjectFinanceFormState,
+  ProjectFinanceTechnicalParams,
+} from '../../features/project-finance/types'
+import type { PortfolioClientRow } from '../../types/clientPortfolio'
 
 // ─── Input / Output types ─────────────────────────────────────────────────────
 
@@ -85,14 +95,24 @@ export interface ConversionResult {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Map the canonical LEASING/VENDA enum to the DB contract_type string. */
-function toDbContractType(contractType: ClosedDealContractType | null): 'leasing' | 'sale' {
-  return contractType === 'VENDA' ? 'sale' : 'leasing'
+/** Map the canonical LEASING/VENDA enum to the DB contract_type string.
+ *  Returns null when the contract type is unknown — callers must treat
+ *  null as a fatal error and abort, not silently default. */
+function toDbContractType(
+  contractType: ClosedDealContractType | null,
+): 'leasing' | 'sale' | null {
+  if (contractType === 'VENDA') return 'sale'
+  if (contractType === 'LEASING') return 'leasing'
+  return null
 }
 
 /** Map the canonical LEASING/VENDA enum to the project finance contract_type string. */
-function toProjectFinanceContractType(contractType: ClosedDealContractType | null): 'leasing' | 'venda' {
-  return contractType === 'VENDA' ? 'venda' : 'leasing'
+function toProjectFinanceContractType(
+  contractType: ClosedDealContractType | null,
+): 'leasing' | 'venda' | null {
+  if (contractType === 'VENDA') return 'venda'
+  if (contractType === 'LEASING') return 'leasing'
+  return null
 }
 
 function toStep(
@@ -107,15 +127,81 @@ function nonempty(obj: Record<string, unknown>): boolean {
   return Object.keys(obj).length > 0
 }
 
+/** Extract the subset of a portfolio row that maps to the given destination keys.
+ *  Used to feed the defensive merge with the current persisted values. */
+function extractExistingForKeys(
+  row: PortfolioClientRow | null,
+  destKeys: string[],
+): Record<string, unknown> {
+  if (!row) return {}
+  const existing: Record<string, unknown> = {}
+  // PortfolioClientRow exposes most flat columns under their DB names already.
+  // Read by name; missing keys simply remain undefined → treated as "empty" by
+  // the merge helper.
+  const source = row as unknown as Record<string, unknown>
+  for (const key of destKeys) {
+    if (key in source) existing[key] = source[key]
+  }
+  return existing
+}
+
+/** Build the seed payload for project_financial_profiles.
+ *
+ *  Adds two pieces that the field map cannot express:
+ *    1. `client_id` (number) — the resolved payload encodes it as a string;
+ *       coerce here so the API gets the right type.
+ *    2. `technical_params_json.potencia_modulo_wp` — `potencia_modulo_wp` is
+ *       not a top-level column on `project_financial_profiles` but the engine
+ *       reads it from `technical_params_json`; seeding it here makes the
+ *       Financeiro tab compute without further input.
+ */
 function buildProjectFinanceForm(
   resolved: ClosedDealResolvedPayload,
+  existing: ProjectFinanceFormState | null,
 ): ProjectFinanceFormState {
   const base = buildDestPayload(resolved, PROJECT_FINANCE_FEED) as Partial<ProjectFinanceFormState>
-  return {
-    ...base,
-    contract_type: toProjectFinanceContractType(resolved.contractType),
+
+  // Defensive merge: only seed fields that are still empty on the existing profile.
+  const existingRecord = (existing ?? {}) as Record<string, unknown>
+  const filtered = mergeResolvedIntoDependentRecord(
+    existingRecord,
+    base as Record<string, unknown>,
+    'fillIfEmpty',
+  ) as Partial<ProjectFinanceFormState>
+
+  // client_id: resolved payload encodes it as string; profile column is number.
+  const clientIdNum = Number(resolved.clientId)
+  if (
+    Number.isFinite(clientIdNum) &&
+    clientIdNum > 0 &&
+    (existing?.client_id == null)
+  ) {
+    filtered.client_id = clientIdNum
+  }
+
+  // technical_params_json: seed potencia_modulo_wp when the engine has nothing.
+  const existingTech = existing?.technical_params_json ?? null
+  if (resolved.potenciaModuloWp != null && existingTech?.potencia_modulo_wp == null) {
+    const techParams: ProjectFinanceTechnicalParams = {
+      ...(existingTech ?? {}),
+      potencia_modulo_wp: resolved.potenciaModuloWp,
+    }
+    filtered.technical_params_json = techParams
+  }
+
+  const form: ProjectFinanceFormState = {
+    ...filtered,
     snapshot_source: 'closed_deal_conversion',
   }
+
+  // contract_type is required on the form; only set when known (caller already
+  // aborted in the null case before we reach this point, but stay defensive).
+  const projectContractType = toProjectFinanceContractType(resolved.contractType)
+  if (projectContractType !== null && existing?.contract_type == null) {
+    form.contract_type = projectContractType
+  }
+
+  return form
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
@@ -164,15 +250,40 @@ export async function convertClientToClosedDeal(
     return { ok: false, resolved, steps, error: `Exportação para carteira falhou: ${msg}` }
   }
 
+  // ── Step 2b: Fetch existing dependent record so the client-side merge can
+  //            preserve manual edits (server-side COALESCE is the second line
+  //            of defence; we filter here to avoid even sending the keys).
+  let existingPortfolio: PortfolioClientRow | null = null
+  try {
+    existingPortfolio = await fetchPortfolioClient(clientIdNum)
+  } catch (err) {
+    // Non-fatal: defensive merge degrades to "fill all fields" and the
+    // server-side COALESCE still preserves whatever is already there.
+    console.warn('[closed-deal][portfolio-upsert] could not fetch existing portfolio — falling back to server-side COALESCE only', {
+      clientId: clientIdNum,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
   // ── Step 3: Hydrate profile (clients table — name, email, phone, address, etc.) ─
   try {
-    const profilePatch = buildDestPayload(resolved, PORTFOLIO_PROFILE_FEED)
+    const profileRaw = buildDestPayload(resolved, PORTFOLIO_PROFILE_FEED)
+    const profileExisting = extractExistingForKeys(
+      existingPortfolio,
+      PORTFOLIO_PROFILE_FEED.map((f) => f.destKey),
+    )
+    const profilePatch = mergeResolvedIntoDependentRecord(
+      profileExisting,
+      profileRaw,
+      'fillIfEmpty',
+    )
     if (nonempty(profilePatch)) {
       await patchPortfolioProfile(clientIdNum, profilePatch)
       steps.push(toStep('portfolio-profile', true, { fields: Object.keys(profilePatch) }))
       console.info('[closed-deal][portfolio-upsert] profile', {
         clientId: clientIdNum,
         fields: Object.keys(profilePatch),
+        preserved: Object.keys(profileRaw).filter((k) => !(k in profilePatch)),
       })
     } else {
       steps.push(toStep('portfolio-profile', true, { skipped: true }))
@@ -186,11 +297,23 @@ export async function convertClientToClosedDeal(
 
   // ── Step 4: Hydrate usina config ──────────────────────────────────────────────
   try {
-    const usinaPatch = buildDestPayload(resolved, PORTFOLIO_USINA_FEED)
+    const usinaRaw = buildDestPayload(resolved, PORTFOLIO_USINA_FEED)
+    const usinaExisting = extractExistingForKeys(
+      existingPortfolio,
+      PORTFOLIO_USINA_FEED.map((f) => f.destKey),
+    )
+    const usinaPatch = mergeResolvedIntoDependentRecord(
+      usinaExisting,
+      usinaRaw,
+      'fillIfEmpty',
+    )
     if (nonempty(usinaPatch)) {
       // patchPortfolioUsina also accepts an energyProfile sub-object for potencia_kwp
       const usinaPayload: Record<string, unknown> = { ...usinaPatch }
-      if (resolved.potenciaInstaladaKwp != null) {
+      if (
+        resolved.potenciaInstaladaKwp != null &&
+        existingPortfolio?.potencia_kwp == null
+      ) {
         usinaPayload.energyProfile = { potencia_kwp: resolved.potenciaInstaladaKwp }
       }
       await patchPortfolioUsina(clientIdNum, usinaPayload)
@@ -198,6 +321,7 @@ export async function convertClientToClosedDeal(
       console.info('[closed-deal][portfolio-upsert] usina', {
         clientId: clientIdNum,
         fields: Object.keys(usinaPatch),
+        preserved: Object.keys(usinaRaw).filter((k) => !(k in usinaPatch)),
       })
     } else {
       steps.push(toStep('portfolio-usina', true, { skipped: true }))
@@ -210,13 +334,23 @@ export async function convertClientToClosedDeal(
 
   // ── Step 5: Hydrate energy profile (plan fields) ──────────────────────────────
   try {
-    const planPatch = buildDestPayload(resolved, PORTFOLIO_PLAN_FEED)
+    const planRaw = buildDestPayload(resolved, PORTFOLIO_PLAN_FEED)
+    const planExisting = extractExistingForKeys(
+      existingPortfolio,
+      PORTFOLIO_PLAN_FEED.map((f) => f.destKey),
+    )
+    const planPatch = mergeResolvedIntoDependentRecord(
+      planExisting,
+      planRaw,
+      'fillIfEmpty',
+    )
     if (nonempty(planPatch)) {
       await patchPortfolioPlan(clientIdNum, planPatch)
       steps.push(toStep('portfolio-plan', true, { fields: Object.keys(planPatch) }))
       console.info('[closed-deal][portfolio-upsert] plan', {
         clientId: clientIdNum,
         fields: Object.keys(planPatch),
+        preserved: Object.keys(planRaw).filter((k) => !(k in planPatch)),
       })
     } else {
       steps.push(toStep('portfolio-plan', true, { skipped: true }))
@@ -228,11 +362,50 @@ export async function convertClientToClosedDeal(
   }
 
   // ── Step 6: Upsert contract ───────────────────────────────────────────────────
+  // Contract type is required for the project finance engine — refuse to
+  // silently default to leasing when it is unknown.
+  const contractType = toDbContractType(resolved.contractType)
   let contractId: number | null = null
+  if (contractType === null) {
+    const errMsg = 'Tipo de contrato (LEASING/VENDA) não pôde ser determinado a partir da proposta.'
+    steps.push(toStep('portfolio-contract', false, { error: errMsg }))
+    steps.push(toStep('financial-project', false, { skipped: true, error: errMsg }))
+    steps.push(toStep('financial-profile', false, { skipped: true, error: errMsg }))
+    console.error('[closed-deal][portfolio-upsert] contract aborted — unknown contract type', {
+      clientId: clientIdNum,
+      proposalId: resolved.proposalId,
+    })
+    console.info('[closed-deal][done]', {
+      clientId: clientIdNum,
+      proposalId: resolved.proposalId,
+      contractType: null,
+      stepsOk: steps.filter((s) => s.ok).map((s) => s.step),
+      stepsFailed: steps.filter((s) => !s.ok).map((s) => s.step),
+    })
+    return { ok: false, resolved, steps, error: errMsg }
+  }
   try {
-    const contractPatch = buildDestPayload(resolved, PORTFOLIO_CONTRACT_FEED)
-    // contract_type is always required (defaults to leasing)
-    const contractType = toDbContractType(resolved.contractType)
+    const contractRaw = buildDestPayload(resolved, PORTFOLIO_CONTRACT_FEED)
+    // Build a "current" record for the contract from the portfolio row's
+    // contract-related columns to drive defensive merge.
+    const contractExisting = extractExistingForKeys(
+      existingPortfolio,
+      PORTFOLIO_CONTRACT_FEED.map((f) => f.destKey),
+    )
+    // For the contract, never overwrite an existing consultant_id — that is a
+    // manual assignment and must not be downgraded. All other fields use
+    // neverDowngradeToNull (already enforced globally by the merge helper).
+    const perFieldPolicy: FieldPolicy = {}
+    if (contractExisting.consultant_id != null) {
+      perFieldPolicy.consultant_id = 'preserveManual'
+    }
+    const contractPolicy: MergePolicy = 'neverDowngradeToNull'
+    const contractPatch = mergeResolvedIntoDependentRecord(
+      contractExisting,
+      contractRaw,
+      contractPolicy,
+      perFieldPolicy,
+    )
     contractId = await patchPortfolioContract(clientIdNum, {
       ...contractPatch,
       contract_type: contractType,
@@ -243,6 +416,7 @@ export async function convertClientToClosedDeal(
       contractId,
       contractType,
       fields: Object.keys(contractPatch),
+      preserved: Object.keys(contractRaw).filter((k) => !(k in contractPatch)),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -264,7 +438,16 @@ export async function convertClientToClosedDeal(
 
       // ── Step 8: Seed project finance profile ────────────────────────────────
       try {
-        const financeForm = buildProjectFinanceForm(resolved)
+        // Fetch existing profile so the seed only fills empty fields.
+        let existingProfile: ProjectFinanceFormState | null = null
+        try {
+          const fin = await fetchProjectFinance(project.id)
+          existingProfile = (fin?.profile ?? null) as ProjectFinanceFormState | null
+        } catch {
+          // Project is new → no profile yet → fall through with null.
+          existingProfile = null
+        }
+        const financeForm = buildProjectFinanceForm(resolved, existingProfile)
         await saveProjectFinance(project.id, financeForm)
         steps.push(toStep('financial-profile', true, { fields: Object.keys(financeForm) }))
         console.info('[closed-deal][financial-upsert] project-finance seeded', {

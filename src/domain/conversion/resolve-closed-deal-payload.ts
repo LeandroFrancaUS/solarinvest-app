@@ -86,6 +86,8 @@ export interface ClosedDealResolvedPayload {
   numeroModulos: number | null
   potenciaInstaladaKwp: number | null
   areaUtilizadaM2: number | null
+  modeloModulo: string | null
+  modeloInversor: string | null
 
   // ── Commercial ──────────────────────────────────────────────────────────────
   tarifaCheia: number | null
@@ -120,11 +122,26 @@ export interface ClientRegistroForConversion extends ClientForConsultantResoluti
   createdByUserId?: string | null
 }
 
-/** Extended clienteDados that includes consultorId */
+/** Extended clienteDados that includes consultorId and the optional fields
+ *  that callers may have available from extra form sources (e.g. address
+ *  sub-objects, secondary phone, equipment models from the usina form).
+ *
+ *  These fields are optional and resolve to null when not provided —
+ *  the canonical `ClienteDados` model in the proposal form does not yet
+ *  carry all of them, so suppliers vary per call site. */
 export interface ClienteDadosForConversion extends ClienteDadosInput {
   consultorId?: string | null
   ownerUserId?: string | null
   createdByUserId?: string | null
+  /** Secondary phone (clients.telefone_secundario) */
+  telefoneSecundario?: string | null
+  /** Address parts (clients.bairro / numero / complemento) */
+  bairro?: string | null
+  numero?: string | null
+  complemento?: string | null
+  /** Equipment models — typically sourced from the Usina/Venda form */
+  modeloModulo?: string | null
+  modeloInversor?: string | null
 }
 
 export interface ResolveClosedDealPayloadInput {
@@ -228,12 +245,16 @@ export function resolveClosedDealPayload(
   // ── 5. Contact ──────────────────────────────────────────────────────────────
   const telefone = toStr(mapped.clients.client_phone) ?? toStr(clienteDados.telefone)
   const email = toStr(mapped.clients.client_email) ?? toStr(clienteDados.email)
+  const telefoneSecundario = toStr(clienteDados.telefoneSecundario)
 
   // ── 6. Address ──────────────────────────────────────────────────────────────
   const cidade = toStr(mapped.clients.client_city) ?? toStr(clienteDados.cidade)
   const uf = toStr(mapped.clients.client_state) ?? toStr(clienteDados.uf)
   const cep = toStr(mapped.clients.client_cep) ?? toStr(clienteDados.cep)?.replace(/\D/g, '') ?? null
   const endereco = toStr(mapped.clients.client_address) ?? toStr(clienteDados.endereco)
+  const bairro = toStr(clienteDados.bairro)
+  const numero = toStr(clienteDados.numero)
+  const complemento = toStr(clienteDados.complemento)
 
   // ── 7. Energy infrastructure ────────────────────────────────────────────────
   const distribuidora = toStr(mapped.clients.distribuidora) ?? toStr(clienteDados.distribuidora)
@@ -242,6 +263,15 @@ export function resolveClosedDealPayload(
     toStr(mapped.clients.uc_beneficiaria) ??
     toStr(clienteDados.ucBeneficiaria) ??
     (ucBeneficiarias.length > 0 ? toStr(ucBeneficiarias[0]) : null)
+
+  // ── 7b. Equipment models (resolved from usina mapping + leasing inversor) ───
+  const modeloModulo =
+    toStr(mapped.usinaConfig.modelo_modulo) ??
+    toStr(clienteDados.modeloModulo)
+
+  const modeloInversor =
+    toStr(mapped.usinaConfig.modelo_inversor) ??
+    toStr(clienteDados.modeloInversor)
 
   // ── 8. Technical ────────────────────────────────────────────────────────────
   const tipoRede =
@@ -300,22 +330,16 @@ export function resolveClosedDealPayload(
     documentType,
 
     telefone,
-    // telefoneSecundario is not present in the current ClienteDados model.
-    // When the data model is extended to include a secondary phone field,
-    // it should be sourced from clienteDados.telefoneSecundario or snapshot.
-    telefoneSecundario: null,
+    telefoneSecundario,
     email,
 
     cidade,
     uf,
     cep,
     endereco,
-    // bairro, numero, complemento are not present in the current ClienteDados model.
-    // When the address model is extended, these should be sourced from
-    // clienteDados or address sub-objects in the snapshot.
-    bairro: null,
-    numero: null,
-    complemento: null,
+    bairro,
+    numero,
+    complemento,
 
     distribuidora,
     ucGeradora,
@@ -329,6 +353,8 @@ export function resolveClosedDealPayload(
     numeroModulos,
     potenciaInstaladaKwp,
     areaUtilizadaM2,
+    modeloModulo,
+    modeloInversor,
 
     tarifaCheia,
     prazoMeses,

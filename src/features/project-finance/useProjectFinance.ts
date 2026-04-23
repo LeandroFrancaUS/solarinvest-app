@@ -64,6 +64,12 @@ interface UseProjectFinanceReturn {
   contractType: ProjectFinanceContractType
   /** Contract term in months from client_contracts. Readonly. */
   contractTermMonths: number | null
+  /**
+   * Base monthly fee sourced from `client_energy_profile.mensalidade` for the
+   * project's client (populated by the closed-deal pipeline). Readonly. Null
+   * when no leasing data is yet seeded.
+   */
+  contractMensalidadeBase: number | null
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
@@ -96,6 +102,7 @@ export function useProjectFinance(
   const [profile, setProfile] = useState<ProjectFinanceProfile | null>(null)
   const [contractType, setContractType] = useState<ProjectFinanceContractType>('leasing')
   const [contractTermMonths, setContractTermMonths] = useState<number | null>(null)
+  const [contractMensalidadeBase, setContractMensalidadeBase] = useState<number | null>(null)
   const [form, setForm] = useState<ProjectFinanceFormState>({})
   const [savedForm, setSavedForm] = useState<ProjectFinanceFormState>({})
   const [overrides, setOverrides] = useState<ProjectFinanceOverrides>({})
@@ -116,15 +123,39 @@ export function useProjectFinance(
       const res = await fetchProjectFinance(projectId)
       setContractType(res.contract_type)
       setContractTermMonths(res.contract_term_months ?? null)
+      setContractMensalidadeBase(res.mensalidade_base ?? null)
       setProfile(res.profile)
       const fs = profileToFormState(res.profile)
       setForm(fs)
       setSavedForm(fs)
-      const ov: ProjectFinanceOverrides = res.profile?.override_payload_json ?? {}
+
+      // Build overrides from override_payload_json.
+      // Backward-compat migration: if the profile has a mensalidade_base saved
+      // but it is NOT already tracked as an override, treat it as a manual
+      // override so that the existing value is preserved and shown as "Manual".
+      // The `in` check distinguishes between two cases:
+      //   - key absent: field was never explicitly overridden (needs migration)
+      //   - key present (even with null): user deliberately restored to Auto
+      // The user can click "↺ Auto" at any time to switch to engine-computed.
+      let ov: ProjectFinanceOverrides = res.profile?.override_payload_json ?? {}
+      if (
+        res.profile?.mensalidade_base != null &&
+        !('mensalidade_base' in ov)
+      ) {
+        ov = { ...ov, mensalidade_base: res.profile.mensalidade_base }
+      }
       setOverrides(ov)
       setSavedOverrides(ov)
-      const tp: ProjectFinanceTechnicalParams | undefined = res.profile?.technical_params_json ?? undefined
-      setTechnicalParams(tp)
+
+      // Load technical params from profile, always refreshing tarifa_kwh from
+      // the server so that even old profiles (saved before this field existed)
+      // get the correct tariff for auto-computing mensalidade_base.
+      const tp: ProjectFinanceTechnicalParams = res.profile?.technical_params_json ?? {}
+      setTechnicalParams({
+        ...tp,
+        // Server value takes precedence — ensures tarifa is always current
+        ...(res.tarifa_kwh != null ? { tarifa_kwh: res.tarifa_kwh } : {}),
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar financeiro.')
     } finally {
@@ -268,6 +299,7 @@ export function useProjectFinance(
     form,
     contractType,
     contractTermMonths,
+    contractMensalidadeBase,
     calculated,
     effective,
     overrides,

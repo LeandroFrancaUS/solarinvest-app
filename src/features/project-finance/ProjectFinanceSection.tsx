@@ -8,6 +8,7 @@ import { useVendasConfigStore } from '../../store/useVendasConfigStore'
 import { ProjectFinanceSummary } from './ProjectFinanceSummary'
 import { ProjectFinanceEditor } from './ProjectFinanceEditor'
 import type { ProjectPvData } from '../../domain/projects/types'
+import type { ProjectFinanceDeriveParams } from './types'
 
 interface Props {
   projectId: string
@@ -41,6 +42,7 @@ export function ProjectFinanceSection({
     form,
     contractType,
     contractTermMonths,
+    contractMensalidadeBase,
     calculated,
     effective,
     overrides,
@@ -63,36 +65,60 @@ export function ProjectFinanceSection({
   const [isExpanded, setIsExpanded] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  // Mensalidade source priority for the AF engine derivation:
+  //   1. user-typed value already on the form (`form.mensalidade_base`)
+  //   2. value passed by the parent (legacy prop, for callers that already
+  //      compute it themselves)
+  //   3. `client_energy_profile.mensalidade` returned by the server (the value
+  //      seeded by the closed-deal pipeline)
+  //   4. auto-computed effective value from the engine (consumo × tarifa × (1−desconto))
+  //      This handles projects with a tarifa_kwh but no saved mensalidade.
+  const resolvedMensalidadeBase =
+    form.mensalidade_base ?? mensalidadeFromContract ?? contractMensalidadeBase ?? effective.mensalidade_base ?? null
+
   // Build derive params from available project data and vendasConfig AF params.
   // useMemo produces a stable object reference (not recreated every render)
   // so it can safely appear in useEffect dependency arrays.
-  const deriveParams = useMemo(() => ({
-    consumo_kwh_mes: pvData?.consumo_kwh_mes ?? null,
-    potencia_sistema_kwp: pvData?.potencia_sistema_kwp ?? null,
-    uf: stateUf,
-    mensalidade_base: mensalidadeFromContract,
-    prazo_meses: contractTermMonths,
-    crea_go_rs: vendasConfig.af_crea_go_rs,
-    crea_df_rs: vendasConfig.af_crea_df_rs,
-    projeto_faixas: vendasConfig.af_projeto_faixas,
-    seguro_limiar_rs: vendasConfig.af_seguro_limiar_rs,
-    seguro_faixa_baixa_percent: vendasConfig.af_seguro_faixa_baixa_percent,
-    seguro_faixa_alta_percent: vendasConfig.af_seguro_faixa_alta_percent,
-    seguro_piso_rs: vendasConfig.af_seguro_piso_rs,
-    comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
-    impostos_percent: technicalParams.impostos_percent ?? (contractType === 'leasing' ? 4 : 6),
-    taxa_desconto_aa_pct: technicalParams.taxa_desconto_aa_pct ?? null,
-    reajuste_anual_pct: form.reajuste_anual_pct ?? 0,
-    inadimplencia_pct: form.inadimplencia_pct ?? 0,
-    custo_operacional_pct: form.opex_pct ?? 0,
-    custo_manutencao: form.custo_manutencao ?? 0,
-    receita_esperada: form.receita_esperada ?? null,
-    // impostos_leasing_percent and impostos_venda_percent use their own defaults (4% / 6%)
-    // as these are not stored in vendasConfig but handled per-contract in the AF screen.
-  }), [
+  //
+  // Leasing premise inputs (`reajuste_anual_pct`, `inadimplencia_pct`,
+  // `custo_operacional_pct`, `custo_manutencao`) are intentionally OMITTED
+  // when the form has no value (vs. sent as `0`) so that
+  // `deriveProjectFinanceCosts` can apply its `LEASING_PREMISE_DEFAULTS`
+  // (matching the AF screen's 4 / 2 / 3 / 0). Sending `0` would mask the
+  // defaults and write zero everywhere on a fresh project — which is exactly
+  // the bug the auto-fill buttons exhibited.
+  const deriveParams = useMemo(() => {
+    const base: ProjectFinanceDeriveParams = {
+      consumo_kwh_mes: pvData?.consumo_kwh_mes ?? null,
+      potencia_sistema_kwp: pvData?.potencia_sistema_kwp ?? null,
+      numero_modulos: pvData?.numero_modulos ?? null,
+      potencia_modulo_wp: pvData?.potencia_modulo_wp ?? null,
+      uf: stateUf,
+      mensalidade_base: resolvedMensalidadeBase,
+      prazo_meses: contractTermMonths,
+      crea_go_rs: vendasConfig.af_crea_go_rs,
+      crea_df_rs: vendasConfig.af_crea_df_rs,
+      projeto_faixas: vendasConfig.af_projeto_faixas,
+      seguro_limiar_rs: vendasConfig.af_seguro_limiar_rs,
+      seguro_faixa_baixa_percent: vendasConfig.af_seguro_faixa_baixa_percent,
+      seguro_faixa_alta_percent: vendasConfig.af_seguro_faixa_alta_percent,
+      seguro_piso_rs: vendasConfig.af_seguro_piso_rs,
+      comissao_minima_percent: vendasConfig.af_comissao_minima_percent,
+      impostos_percent: technicalParams.impostos_percent ?? (contractType === 'leasing' ? 4 : 6),
+      taxa_desconto_aa_pct: technicalParams.taxa_desconto_aa_pct ?? null,
+      receita_esperada: form.receita_esperada ?? null,
+      // impostos_leasing_percent and impostos_venda_percent use their own defaults (4% / 6%)
+      // as these are not stored in vendasConfig but handled per-contract in the AF screen.
+    }
+    if (form.reajuste_anual_pct != null) base.reajuste_anual_pct = form.reajuste_anual_pct
+    if (form.inadimplencia_pct != null) base.inadimplencia_pct = form.inadimplencia_pct
+    if (form.opex_pct != null) base.custo_operacional_pct = form.opex_pct
+    if (form.custo_manutencao != null) base.custo_manutencao = form.custo_manutencao
+    return base
+  }, [
     pvData,
     stateUf,
-    mensalidadeFromContract,
+    resolvedMensalidadeBase,
     contractTermMonths,
     vendasConfig,
     technicalParams.impostos_percent,
@@ -105,12 +131,19 @@ export function ProjectFinanceSection({
     form.receita_esperada,
   ])
 
-  // When the profile loads as empty AND pvData is available, auto-derive costs.
+  // When the profile loads as empty AND we have any pvData OR a contract
+  // mensalidade to drive a cascade, auto-derive costs once. The "or
+  // mensalidade" branch covers leasing projects where the closed-deal pipeline
+  // has seeded `client_energy_profile.mensalidade` but no pvData yet exists.
   useEffect(() => {
-    if (!isLoading && profile === null && pvData?.consumo_kwh_mes) {
+    if (
+      !isLoading &&
+      profile === null &&
+      (pvData?.consumo_kwh_mes != null || resolvedMensalidadeBase != null)
+    ) {
       deriveFromEngine(deriveParams, false)
     }
-  }, [isLoading, profile, pvData, deriveFromEngine, deriveParams])
+  }, [isLoading, profile, pvData, resolvedMensalidadeBase, deriveFromEngine, deriveParams])
 
   const handleEdit = useCallback(() => {
     setIsExpanded(true)
@@ -140,7 +173,14 @@ export function ProjectFinanceSection({
 
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
   const hasProfile = profile !== null
-  const canDerive = Boolean(pvData?.consumo_kwh_mes || pvData?.potencia_sistema_kwp)
+  const canDerive = Boolean(
+    pvData?.consumo_kwh_mes ||
+      pvData?.potencia_sistema_kwp ||
+      resolvedMensalidadeBase ||
+      // Fall back to leasing-only premise defaults (impostos / inadimp / opex /
+      // reajuste), which the engine can always emit even with no pvData.
+      contractType === 'leasing',
+  )
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isLoading && !profile) {

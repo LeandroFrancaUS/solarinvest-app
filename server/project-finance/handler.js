@@ -100,6 +100,8 @@ export async function handleProjectFinance(req, res, { method, projectId, readJs
           profile,
           contract_type: resolvedContractType ?? project.project_type ?? 'leasing',
           contract_term_months: contract?.contract_term_months ?? null,
+          mensalidade_base: contract?.mensalidade_base ?? null,
+          tarifa_kwh: contract?.tarifa_kwh ?? null,
           project_id: projectId,
         },
       })

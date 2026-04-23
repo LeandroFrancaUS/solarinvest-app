@@ -38,6 +38,8 @@ import type { ProjectPvData } from '../../domain/projects/types'
 
 /** Sum all cost fields, treating nulls as 0. Returns null if ALL are null. */
 export function computeCustoTotal(form: ProjectFinanceFormState): number | null {
+  // custo_impostos is an operational expense (NOT CAPEX) for leasing and is
+  // therefore excluded from the project investment total.
   const fields: (number | null | undefined)[] = [
     form.custo_equipamentos,
     form.custo_instalacao,
@@ -46,7 +48,6 @@ export function computeCustoTotal(form: ProjectFinanceFormState): number | null 
     form.custo_frete_logistica,
     form.custo_seguro,
     form.custo_comissao,
-    form.custo_impostos,
     form.custo_diversos,
   ]
   const anyNonNull = fields.some((v) => v != null)
@@ -95,13 +96,13 @@ export function computeProjectKPIs(
   contractTermMonths: number,
   pvData: ProjectPvData | null,
   technicalParams?: ProjectFinanceTechnicalParams,
-): ProjectFinanceComputed {
+): Omit<ProjectFinanceComputed, 'mensalidade_base'> {
   const taxaDesconto = technicalParams?.taxa_desconto_aa_pct ?? null
   const impostosPercent = technicalParams?.impostos_percent ?? 0
 
   const capex = computeCustoTotal(form)
 
-  const nullKPIs: ProjectFinanceComputed = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
+  const nullKPIs: Omit<ProjectFinanceComputed, 'mensalidade_base'> = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
 
   if (capex == null || capex <= 0) return nullKPIs
 
@@ -192,8 +193,35 @@ export function applyOverrides(
 }
 
 /**
+ * Computes the auto-calculated `mensalidade_base` for leasing using the same
+ * formula as the Análise Financeira "Mensalidade bruta":
+ *   mensalidade_base = consumo_kwh × tarifa_kwh × (1 − desconto / 100)
+ *
+ * Returns null when any required input (consumo, tarifa) is unavailable.
+ * The discount defaults to 0 when not supplied — so the raw monthly energy
+ * cost is returned when the discount is unknown.
+ */
+export function computeMensalidadeBaseAuto(
+  pvData: ProjectPvData | null,
+  form: ProjectFinanceFormState,
+  technicalParams?: ProjectFinanceTechnicalParams,
+): number | null {
+  const consumo = pvData?.consumo_kwh_mes ?? null
+  const tarifa = technicalParams?.tarifa_kwh ?? null
+  if (consumo == null || consumo <= 0 || tarifa == null || tarifa <= 0) return null
+  const desconto = form.desconto_percentual ?? 0
+  return consumo * tarifa * (1 - desconto / 100)
+}
+
+/**
  * Main orchestrator — maps inputs → calculated → effective.
  * System sizing values come from pvData (Usina Fotovoltaica), not the form.
+ *
+ * mensalidade_base is auto-computed via the AF engine formula
+ * (consumo × tarifa × (1 − desconto/100)) and added to the calculated/effective
+ * objects. The effective value respects any manual override stored in overrides.
+ * KPI computation uses the effective mensalidade_base so that overriding it
+ * propagates correctly to payback, ROI, TIR, and VPL.
  */
 export function computeProjectFinancialState(
   form: ProjectFinanceFormState,
@@ -203,8 +231,51 @@ export function computeProjectFinancialState(
   overrides: ProjectFinanceOverrides = {},
   technicalParams?: ProjectFinanceTechnicalParams,
 ): { calculated: ProjectFinanceComputed; effective: ProjectFinanceComputed } {
-  const calculated = computeProjectKPIs(form, contractType, contractTermMonths, pvData, technicalParams)
-  const effective = applyOverrides(calculated, overrides)
+  // Step 1: compute auto mensalidade_base from tariff engine formula
+  const mensalidadeBaseAuto = contractType === 'leasing'
+    ? computeMensalidadeBaseAuto(pvData, form, technicalParams)
+    : null
+
+  // Step 2: determine effective mensalidade_base (override wins over auto)
+  const effectiveMensalidadeBase: number | null =
+    'mensalidade_base' in overrides && overrides.mensalidade_base != null
+      ? overrides.mensalidade_base
+      : mensalidadeBaseAuto
+
+  // Step 3: inject effective mensalidade_base into form so KPI engine sees it.
+  // Fall back to the existing form value when no effective value is available
+  // (e.g. tarifa_kwh not yet loaded), so the KPI computation never silently
+  // ignores a value that was already manually saved on the profile.
+  const mensalidadeForKpis = effectiveMensalidadeBase ?? form.mensalidade_base ?? null
+  const formForKpis: ProjectFinanceFormState = { ...form }
+  if (mensalidadeForKpis != null) {
+    formForKpis.mensalidade_base = mensalidadeForKpis
+  }
+
+  // Step 4: compute remaining KPIs
+  const kpis = computeProjectKPIs(formForKpis, contractType, contractTermMonths, pvData, technicalParams)
+
+  // Step 5: assemble calculated (auto values only) and effective (overrides applied)
+  const calculated: ProjectFinanceComputed = { mensalidade_base: mensalidadeBaseAuto, ...kpis }
+
+  // Apply overrides to KPI fields (mensalidade_base override was already handled above).
+  // Build effective by starting from calculated and applying any KPI overrides explicitly.
+  const effective: ProjectFinanceComputed = {
+    mensalidade_base: effectiveMensalidadeBase,
+    payback_meses: 'payback_meses' in overrides && overrides.payback_meses != null
+      ? overrides.payback_meses
+      : kpis.payback_meses,
+    roi_pct: 'roi_pct' in overrides && overrides.roi_pct != null
+      ? overrides.roi_pct
+      : kpis.roi_pct,
+    tir_pct: 'tir_pct' in overrides && overrides.tir_pct != null
+      ? overrides.tir_pct
+      : kpis.tir_pct,
+    vpl: 'vpl' in overrides && overrides.vpl != null
+      ? overrides.vpl
+      : kpis.vpl,
+  }
+
   return { calculated, effective }
 }
 
@@ -239,6 +310,30 @@ export function computeSummaryKPIs(
 // ─── Engine-driven cost derivation ───────────────────────────────────────────
 
 /**
+ * Default leasing premises used by the AF (Análise Financeira) screen.
+ *
+ * These match the initial state values in `App.tsx` (search for
+ * `setAfImpostosLeasing`, `setAfInadimplencia`, `setAfCustoOperacional`):
+ *   afImpostosLeasing  = 4   → handled by deriveParams.impostos_leasing_percent
+ *   afInadimplencia    = 2
+ *   afCustoOperacional = 3
+ *
+ * `reajuste_anual_pct = 4` mirrors the default tarifa-reajuste used in
+ * the proposal forms (`App.tsx`, e.g. `reajusteAnualPct: '3'..'4'`).
+ *
+ * They are applied by `deriveProjectFinanceCosts` whenever the corresponding
+ * `ProjectFinanceDeriveParams` field is null/undefined — so calling
+ * "Preencher campos vazios" on a fresh leasing project produces sane
+ * non-zero starting values instead of writing 0% everywhere.
+ */
+export const LEASING_PREMISE_DEFAULTS = {
+  reajuste_anual_pct: 4,
+  inadimplencia_pct: 2,
+  custo_operacional_pct: 3,
+  custo_manutencao: 0,
+} as const
+
+/**
  * Auto-computes project cost-breakdown fields using the SAME formulas as the
  * Análise Financeira screen (App.tsx).  Intended for pre-filling the
  * Gestão Financeira form when a project has pvData but no saved profile.
@@ -246,6 +341,8 @@ export function computeSummaryKPIs(
  * Auto-pricing formulas (same as App.tsx reactive effect):
  *   custo_equipamentos    = round(1500 + 9.5  × consumo)
  *   custo_frete_logistica = round(300  + 0.52 × consumo)
+ *   custo_instalacao      = numero_modulos × 70
+ *     (numero_modulos falls back to ceil(kwp × 1000 / modulo_wp) when not provided)
  *
  * Engine functions from analiseFinanceiraSpreadsheet:
  *   custo_engenharia  = resolveCustoProjetoPorFaixa(kwp, faixas)
@@ -254,7 +351,8 @@ export function computeSummaryKPIs(
  * Leasing-specific (only populated when mensalidade_base is provided):
  *   custo_comissao = mensalidade_base  (CAC = first monthly payment)
  *   custo_seguro   = calcSeguroLeasing(capex_base)
- *   custo_impostos = impostos_leasing_percent × mensalidade × prazo
+ *   custo_impostos = impostos_leasing_percent × Σ(mensalidade × (1+reajuste)^⌊i/12⌋)
+ *                    Operational expense — NOT included in custo_total (CAPEX).
  *
  * Returns only fields that could be derived; any field whose inputs are
  * missing is simply absent from the returned object.
@@ -266,6 +364,8 @@ export function deriveProjectFinanceCosts(
   const {
     consumo_kwh_mes,
     potencia_sistema_kwp,
+    numero_modulos,
+    potencia_modulo_wp,
     uf,
     mensalidade_base,
     prazo_meses,
@@ -298,6 +398,19 @@ export function deriveProjectFinanceCosts(
     result.custo_frete_logistica = Math.round(300 + 0.52 * consumo)
   }
 
+  // ── Installation cost: numero_modulos × R$70 (same as App.tsx) ───────────
+  //    Falls back to ceil(kwp × 1000 / modulo_wp) when numero_modulos is not
+  //    directly available from pvData.
+  {
+    let numModulos: number | null = numero_modulos != null && numero_modulos > 0 ? numero_modulos : null
+    if (numModulos == null && kwp != null && potencia_modulo_wp != null && potencia_modulo_wp > 0) {
+      numModulos = Math.ceil((kwp * 1000) / potencia_modulo_wp)
+    }
+    if (numModulos != null) {
+      result.custo_instalacao = numModulos * 70
+    }
+  }
+
   // ── Engineering cost: by kWp faixa ────────────────────────────────────────
   if (kwp != null) {
     result.custo_engenharia = resolveCustoProjetoPorFaixa(kwp, projeto_faixas)
@@ -309,6 +422,7 @@ export function deriveProjectFinanceCosts(
   // ── CAPEX base (for seguro calculation) ───────────────────────────────────
   const capexBase =
     (result.custo_equipamentos ?? 0) +
+    (result.custo_instalacao ?? 0) +
     (result.custo_frete_logistica ?? 0) +
     (result.custo_engenharia ?? 0) +
     (result.custo_homologacao ?? 0)
@@ -317,23 +431,34 @@ export function deriveProjectFinanceCosts(
     if (mensalidade_base != null && mensalidade_base > 0) {
       result.mensalidade_base = mensalidade_base
     }
-    if (reajuste_anual_pct != null && reajuste_anual_pct >= 0) {
-      result.reajuste_anual_pct = reajuste_anual_pct
-    }
-    if (inadimplencia_pct != null && inadimplencia_pct >= 0) {
-      result.inadimplencia_pct = inadimplencia_pct
-    }
-    if (custo_operacional_pct != null && custo_operacional_pct >= 0) {
-      result.opex_pct = custo_operacional_pct
-    }
-    if (custo_manutencao != null && custo_manutencao >= 0) {
-      result.custo_manutencao = custo_manutencao
-    }
-    if (receita_esperada != null && receita_esperada >= 0) {
-      result.receita_esperada = receita_esperada
-    } else if (mensalidade_base != null && mensalidade_base > 0 && prazo_meses != null && prazo_meses > 0) {
-      result.receita_esperada = mensalidade_base * prazo_meses
-    }
+
+    // ── Apply LEASING_PREMISE_DEFAULTS when the caller did not supply a value.
+    //    The AF screen (App.tsx) treats null / not-yet-typed inputs as their
+    //    default (4 / 2 / 3 / 0), so the Financeiro tool matches that to keep
+    //    "Preencher campos vazios" useful out of the box.
+    const reajusteEffective =
+      reajuste_anual_pct != null && reajuste_anual_pct >= 0
+        ? reajuste_anual_pct
+        : LEASING_PREMISE_DEFAULTS.reajuste_anual_pct
+    result.reajuste_anual_pct = reajusteEffective
+
+    const inadimplenciaEffective =
+      inadimplencia_pct != null && inadimplencia_pct >= 0
+        ? inadimplencia_pct
+        : LEASING_PREMISE_DEFAULTS.inadimplencia_pct
+    result.inadimplencia_pct = inadimplenciaEffective
+
+    const opexEffective =
+      custo_operacional_pct != null && custo_operacional_pct >= 0
+        ? custo_operacional_pct
+        : LEASING_PREMISE_DEFAULTS.custo_operacional_pct
+    result.opex_pct = opexEffective
+
+    const manutencaoEffective =
+      custo_manutencao != null && custo_manutencao >= 0
+        ? custo_manutencao
+        : LEASING_PREMISE_DEFAULTS.custo_manutencao
+    result.custo_manutencao = manutencaoEffective
 
     // Seguro: use calcSeguroLeasing when constants match defaults; otherwise
     // apply the two-tier formula inline with the provided custom constants.
@@ -354,14 +479,29 @@ export function deriveProjectFinanceCosts(
     if (mensalidade_base != null && mensalidade_base > 0) {
       result.custo_comissao = mensalidade_base
 
-      // Total impostos over contract term
+      // Reajuste-aware gross sum over the full contract term.
+      // Used for both receita_esperada and the impostos total.
+      // Formula: Σ mensalidade × (1 + reajuste)^floor(i/12)  for i in [0, prazo).
       if (prazo_meses != null && prazo_meses > 0) {
-        const taxResult = computeTaxes({
-          modo: 'leasing',
-          mensalidade: mensalidade_base,
-          aliquota: impostos_leasing_percent / 100,
-        })
-        result.custo_impostos = taxResult.valorImposto * prazo_meses
+        const reajusteDecimal = reajusteEffective / 100
+        let receitaTotal = 0
+        for (let i = 0; i < prazo_meses; i++) {
+          receitaTotal += mensalidade_base * Math.pow(1 + reajusteDecimal, Math.floor(i / 12))
+        }
+
+        // Impostos / Taxas (R$) = operational expense, NOT CAPEX.
+        // Total = impostos_pct × Σ(mensalidade reajustada) over the full term.
+        result.custo_impostos = receitaTotal * (impostos_leasing_percent / 100)
+
+        // Receita total esperada = Receita total do contrato from the AF engine.
+        // Matches "Retorno e Rentabilidade — Leasing: Receita total do contrato".
+        if (!(receita_esperada != null && receita_esperada >= 0)) {
+          result.receita_esperada = receitaTotal
+        }
+      }
+
+      if (receita_esperada != null && receita_esperada >= 0) {
+        result.receita_esperada = receita_esperada
       }
     }
   } else {
