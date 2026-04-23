@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ProposalOriginResultList } from './ProposalOriginResultList'
-import { ProposalOriginPreview } from './ProposalOriginPreview'
-import { downloadSavedProposal, searchSavedProposals } from '../../../services/proposalRecordsService'
+import { openSavedProposalPreview, searchSavedProposals } from '../../../services/proposalRecordsService'
 import type { SavedProposalRecord } from '../../../lib/proposals/types'
 
 interface ProposalOriginSearchDialogProps {
@@ -14,7 +13,6 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<SavedProposalRecord[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedPreview, setSelectedPreview] = useState<SavedProposalRecord | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -32,12 +30,11 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
   if (!open) return null
 
   return (
-    <>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Buscar proposta original"
-        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.7)', zIndex: 1000, display: 'grid', placeItems: 'center' }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center' }}
       >
         <button type="button" aria-label="Fechar busca" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'transparent', border: 'none', padding: 0 }} />
         <div style={{ position: 'relative', width: 'min(820px, calc(100vw - 48px))', maxHeight: '88vh', overflow: 'auto', background: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: 12, padding: 16 }}>
@@ -56,32 +53,19 @@ export function ProposalOriginSearchDialog({ open, onClose, onSelect }: Proposal
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por código, nome, CPF/CNPJ, telefone..."
-              style={{ width: '100%', boxSizing: 'border-box', padding: 10 }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: 10, borderRadius: 10, border: '1px solid #cbd5e1', background: '#ffffff', color: '#0f172a' }}
             />
             <ProposalOriginResultList
               loading={loading}
               items={items}
-              onPreview={(item) => setSelectedPreview(item)}
+              onPreview={(item) => { openSavedProposalPreview(item) }}
               onSelect={(item) => {
                 onSelect(item)
                 onClose()
               }}
-              onDownload={(item) => { void downloadSavedProposal(item) }}
             />
           </div>
         </div>
       </div>
-      <ProposalOriginPreview
-        open={Boolean(selectedPreview)}
-        record={selectedPreview}
-        onClose={() => setSelectedPreview(null)}
-        onSelect={(item) => {
-          onSelect(item)
-          setSelectedPreview(null)
-          onClose()
-        }}
-        onDownload={(item) => { void downloadSavedProposal(item) }}
-      />
-    </>
   )
 }

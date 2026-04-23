@@ -58,10 +58,8 @@ import { ImportarContratoButton } from '../components/carteira/contrato/Importar
 import { ImportarContratoDialog } from '../components/carteira/contrato/ImportarContratoDialog'
 import { ProposalOriginField } from '../components/carteira/contrato/ProposalOriginField'
 import { ProposalOriginSearchDialog } from '../components/carteira/contrato/ProposalOriginSearchDialog'
-import { ProposalOriginPreview } from '../components/carteira/contrato/ProposalOriginPreview'
 import { createProposalOriginLink, validateProposalOriginLink } from '../lib/proposals/proposalOriginLink'
-import type { SavedProposalRecord } from '../lib/proposals/types'
-import { downloadSavedProposal, findSavedProposalByExactCode, getSavedProposalRecord } from '../services/proposalRecordsService'
+import { findSavedProposalByExactCode, getSavedProposalRecord, openSavedProposalPreview } from '../services/proposalRecordsService'
 
 interface Props {
   onBack: () => void
@@ -846,7 +844,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showProposalSearchDialog, setShowProposalSearchDialog] = useState(false)
-  const [previewRecord, setPreviewRecord] = useState<SavedProposalRecord | null>(null)
   // Multiple attachments state — seeded from DB or migrated from legacy single-file fields
   const [contractAttachments, setContractAttachments] = useState<ContractAttachment[]>(() => {
     // If DB has an explicit attachments array (even empty), use it — avoids clobbering a
@@ -1042,7 +1039,8 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <ProposalOriginField
                 editMode={editMode}
                 displayCode={form.source_proposal_code || null}
-                legacyCode={form.source_proposal_id}
+                isClickableCode={Boolean(form.source_proposal_record_id)}
+                legacyCode={form.source_proposal_code}
                 onOpenSearch={() => setShowProposalSearchDialog(true)}
                 onClear={() => {
                   setForm((prev) => ({
@@ -1063,22 +1061,9 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   if (!recordId) return
                   void getSavedProposalRecord(recordId).then((record) => {
                     if (!record) return
-                    setPreviewRecord(record)
+                    openSavedProposalPreview(record)
                     console.info('[audit][proposal-origin] preview_opened', { clientId: client.id, proposalId: recordId })
                   })
-                }}
-                onDownload={() => {
-                  const record: SavedProposalRecord = {
-                    id: form.source_proposal_record_id || form.source_proposal_id,
-                    code: form.source_proposal_code || form.source_proposal_id || 'proposta',
-                    clientName: form.source_proposal_client_name || null,
-                    createdAt: form.source_proposal_created_at || null,
-                    proposalType: form.source_proposal_type || null,
-                    previewUrl: form.source_proposal_preview_url || null,
-                    fileUrl: form.source_proposal_download_url || null,
-                  }
-                  void downloadSavedProposal(record)
-                  console.info('[audit][proposal-origin] download_triggered', { clientId: client.id, proposalId: record.id })
                 }}
                 onLegacyChange={(value) => setForm((f) => ({
                   ...f,
@@ -1292,12 +1277,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             code: link.proposalOriginCode,
           })
         }}
-      />
-      <ProposalOriginPreview
-        open={Boolean(previewRecord)}
-        record={previewRecord}
-        onClose={() => setPreviewRecord(null)}
-        onDownload={(record) => { void downloadSavedProposal(record) }}
       />
       <ImportarContratoDialog
         open={showImportDialog}
