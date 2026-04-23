@@ -17,6 +17,7 @@ import { getProposal } from '../lib/api/proposalsApi'
 import { patchPortfolioUsina } from './clientPortfolioApi'
 import { hydrateClientComputedFields } from '../utils/hydrateClientComputedFields'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
+import { findSavedProposalByExactCode } from './proposalRecordsService'
 
 // ─── In-session dedup set ─────────────────────────────────────────────────────
 // Prevents re-running auto-fill for the same client within a browser session
@@ -44,7 +45,7 @@ export async function runAutoFillForClient(client: PortfolioClientRow): Promise<
   }
 
   // Must have a linked proposal to source data from
-  const proposalId = client.source_proposal_id
+  const proposalId = client.source_proposal_record_id ?? client.source_proposal_id
   if (!proposalId) {
     // Check if there are already-filled fields; if all key usina fields are set, mark done
     const allFilled =
@@ -60,7 +61,13 @@ export async function runAutoFillForClient(client: PortfolioClientRow): Promise<
 
   let payloadJson: Record<string, unknown> | null = null
   try {
-    const proposal = await getProposal(proposalId)
+    let proposal = await getProposal(proposalId)
+    if (!proposal) {
+      const matched = await findSavedProposalByExactCode(proposalId)
+      if (matched) {
+        proposal = await getProposal(matched.id)
+      }
+    }
     payloadJson = proposal?.payload_json ?? null
   } catch (err) {
     console.warn('[auto-fill] failed to fetch proposal', { clientId: client.id, proposalId, err })
