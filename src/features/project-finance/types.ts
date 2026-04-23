@@ -158,6 +158,10 @@ export interface ProjectFinanceDeriveParams {
   consumo_kwh_mes?: number | null
   /** Installed system capacity in kWp from the Usina Fotovoltaica. */
   potencia_sistema_kwp?: number | null
+  /** Number of PV modules from the Usina Fotovoltaica. Used to derive custo_instalacao. */
+  numero_modulos?: number | null
+  /** Module power in Wp from the Usina Fotovoltaica. Used to derive numero_modulos when not supplied. */
+  potencia_modulo_wp?: number | null
   /** State abbreviation from the project (e.g. 'DF', 'GO'). Used for CREA. */
   uf?: string | null
   /** Leasing base monthly fee from the contract. Used to derive CAC and seguro. */

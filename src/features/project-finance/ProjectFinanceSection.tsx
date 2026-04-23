@@ -92,6 +92,8 @@ export function ProjectFinanceSection({
     const base: ProjectFinanceDeriveParams = {
       consumo_kwh_mes: pvData?.consumo_kwh_mes ?? null,
       potencia_sistema_kwp: pvData?.potencia_sistema_kwp ?? null,
+      numero_modulos: pvData?.numero_modulos ?? null,
+      potencia_modulo_wp: pvData?.potencia_modulo_wp ?? null,
       uf: stateUf,
       mensalidade_base: resolvedMensalidadeBase,
       prazo_meses: contractTermMonths,

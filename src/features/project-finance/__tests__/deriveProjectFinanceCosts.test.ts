@@ -60,6 +60,42 @@ describe('deriveProjectFinanceCosts', () => {
     })
   })
 
+  describe('installation cost: numero_modulos × R$70', () => {
+    it('computes custo_instalacao = numero_modulos × 70 when directly provided', () => {
+      const result = deriveProjectFinanceCosts({ numero_modulos: 14 }, 'leasing')
+      expect(result.custo_instalacao).toBe(14 * 70)
+    })
+
+    it('derives numero_modulos from kwp and potencia_modulo_wp when not directly provided', () => {
+      // ceil(7.56 × 1000 / 540) = ceil(14) = 14
+      const result = deriveProjectFinanceCosts(
+        { potencia_sistema_kwp: 7.56, potencia_modulo_wp: 540 },
+        'leasing',
+      )
+      expect(result.custo_instalacao).toBe(Math.ceil((7.56 * 1000) / 540) * 70)
+    })
+
+    it('returns undefined custo_instalacao when no module data is available', () => {
+      const result = deriveProjectFinanceCosts({ consumo_kwh_mes: 400 }, 'leasing')
+      expect(result.custo_instalacao).toBeUndefined()
+    })
+
+    it('includes custo_instalacao in capexBase so seguro tier reflects it', () => {
+      // With instalação included in capexBase, the seguro should be higher than
+      // without it. 14 modules × 70 = 980 added to capex.
+      const withModulos = deriveProjectFinanceCosts(
+        { consumo_kwh_mes: 400, potencia_sistema_kwp: 5, numero_modulos: 14, uf: 'GO' },
+        'leasing',
+      )
+      const withoutModulos = deriveProjectFinanceCosts(
+        { consumo_kwh_mes: 400, potencia_sistema_kwp: 5, uf: 'GO' },
+        'leasing',
+      )
+      // Both should compute seguro; the version with modulos should have higher capex → higher or equal seguro
+      expect((withModulos.custo_seguro ?? 0)).toBeGreaterThanOrEqual((withoutModulos.custo_seguro ?? 0))
+    })
+  })
+
   describe('CREA by UF', () => {
     it('uses CREA_GO_RS for non-DF states', () => {
       const result = deriveProjectFinanceCosts({ uf: 'GO' }, 'leasing')

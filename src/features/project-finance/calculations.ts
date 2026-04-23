@@ -270,6 +270,8 @@ export const LEASING_PREMISE_DEFAULTS = {
  * Auto-pricing formulas (same as App.tsx reactive effect):
  *   custo_equipamentos    = round(1500 + 9.5  × consumo)
  *   custo_frete_logistica = round(300  + 0.52 × consumo)
+ *   custo_instalacao      = numero_modulos × 70
+ *     (numero_modulos falls back to ceil(kwp × 1000 / modulo_wp) when not provided)
  *
  * Engine functions from analiseFinanceiraSpreadsheet:
  *   custo_engenharia  = resolveCustoProjetoPorFaixa(kwp, faixas)
@@ -290,6 +292,8 @@ export function deriveProjectFinanceCosts(
   const {
     consumo_kwh_mes,
     potencia_sistema_kwp,
+    numero_modulos,
+    potencia_modulo_wp,
     uf,
     mensalidade_base,
     prazo_meses,
@@ -322,6 +326,19 @@ export function deriveProjectFinanceCosts(
     result.custo_frete_logistica = Math.round(300 + 0.52 * consumo)
   }
 
+  // ── Installation cost: numero_modulos × R$70 (same as App.tsx) ───────────
+  //    Falls back to ceil(kwp × 1000 / modulo_wp) when numero_modulos is not
+  //    directly available from pvData.
+  {
+    let numModulos: number | null = numero_modulos != null && numero_modulos > 0 ? numero_modulos : null
+    if (numModulos == null && kwp != null && potencia_modulo_wp != null && potencia_modulo_wp > 0) {
+      numModulos = Math.ceil((kwp * 1000) / potencia_modulo_wp)
+    }
+    if (numModulos != null) {
+      result.custo_instalacao = numModulos * 70
+    }
+  }
+
   // ── Engineering cost: by kWp faixa ────────────────────────────────────────
   if (kwp != null) {
     result.custo_engenharia = resolveCustoProjetoPorFaixa(kwp, projeto_faixas)
@@ -333,6 +350,7 @@ export function deriveProjectFinanceCosts(
   // ── CAPEX base (for seguro calculation) ───────────────────────────────────
   const capexBase =
     (result.custo_equipamentos ?? 0) +
+    (result.custo_instalacao ?? 0) +
     (result.custo_frete_logistica ?? 0) +
     (result.custo_engenharia ?? 0) +
     (result.custo_homologacao ?? 0)
