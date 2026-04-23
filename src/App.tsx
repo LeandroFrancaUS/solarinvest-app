@@ -317,7 +317,8 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
-import { setPortfolioTokenProvider, exportClientToPortfolio } from './services/clientPortfolioApi'
+import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
+import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
@@ -1208,6 +1209,8 @@ type CorresponsavelErrors = {
 const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
 const CLIENTS_RECONCILIATION_KEY = 'clients-reconciliation-v1'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
+/** Caches the consultant list so it's available immediately on page reload (avoids "Sem consultor" flash). */
+const CONSULTORES_CACHE_KEY = 'solarinvest-consultores-cache'
 
 type PersistedClientReconciliation = {
   deletedClientKeys: string[]
@@ -1285,7 +1288,23 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     uf: row.state ?? '',
     temIndicacao: hasIndicacao,
     indicacaoNome: hasIndicacao ? indicacaoNome : '',
-    consultorId: (meta.consultor_id as string | undefined) ?? '',
+    // consultant_id: resolve canonical FK first, then fall back to legacy metadata.consultor_id.
+    // Never use created_by_user_id or owner_user_id as a substitute.
+    consultorId: (() => {
+      const canonical = row.consultant_id != null && row.consultant_id !== '' ? String(row.consultant_id).trim() : ''
+      if (canonical) {
+        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'canonical', consultantId: canonical })
+        return canonical
+      }
+      const legacyId = (meta.consultor_id as string | number | undefined)
+      if (legacyId != null && legacyId !== '') {
+        const legacyStr = String(legacyId).trim()
+        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'legacy-metadata', consultantId: legacyStr })
+        return legacyStr
+      }
+      console.debug('[consultant][hydrate]', { clientId: row.id, source: 'none', canonicalNull: row.consultant_id, legacyMetadata: meta.consultor_id })
+      return ''
+    })(),
     consultorNome: (meta.consultor_nome as string | undefined) ?? '',
     herdeiros: (() => {
       if (!Array.isArray(meta.herdeiros)) return ['']
@@ -3601,6 +3620,12 @@ type ClientesPanelProps = {
    * Each entry has `id` (stack_user_id) for filtering and `name` for display.
    */
   allConsultores?: ConsultantEntry[]
+  /**
+   * Active consultants from the picker API (available to all authenticated users).
+   * Used as a fallback lookup source when allConsultores is not yet loaded or
+   * does not contain the consultant referenced in a client's metadata.
+   */
+  formConsultores?: ConsultantPickerEntry[]
 }
 
 type ClienteContratoPayload = {
@@ -3754,6 +3779,7 @@ function ClientesPanel({
   isPrivilegedUser = false,
   canExportarCarteira = false,
   allConsultores = [],
+  formConsultores = [],
 }: ClientesPanelProps) {
   const panelTitleId = useId()
   const [clienteSearchTerm, setClienteSearchTerm] = useState('')
@@ -3765,12 +3791,26 @@ function ClientesPanel({
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const consultorById = useMemo(() => {
     const map = new Map<string, ConsultantEntry>()
+    // Seed with formConsultores first (lower priority — active consultants only,
+    // available to all authenticated users including those without privileged role).
+    // This ensures consultant names appear even before allConsultores loads from
+    // the API and when client metadata has a stale consultor_nome value.
+    formConsultores.forEach((entry) => {
+      if (!entry?.id) return
+      map.set(String(entry.id), {
+        id: String(entry.id),
+        name: consultorDisplayName(entry),
+        email: entry.email ?? null,
+        apelido: entry.apelido?.trim() ?? null,
+      })
+    })
+    // allConsultores (all consultants, privileged users only) overwrites — higher priority.
     allConsultores.forEach((entry) => {
       if (!entry?.id) return
       map.set(String(entry.id), entry)
     })
     return map
-  }, [allConsultores])
+  }, [allConsultores, formConsultores])
 
   // Build the dropdown options list using only registered consultants
   // from Gestão de Usuários/Consultores.
@@ -3817,7 +3857,9 @@ function ClientesPanel({
       const matchDistribuidora = dados.distribuidora?.toLowerCase().includes(normalizedSearchTerm) ?? false
       // Allow searching by consultant display name for privileged views
       const consultorId = registro.dados.consultorId ?? ''
-      const consultorLabel = consultorById.get(consultorId)?.name ?? 'Sem consultor'
+      // Fall back to the consultant name stored on the client record itself (consultor_nome in metadata)
+      // so the correct name shows immediately while allConsultores is still loading from the API.
+      const consultorLabel = (consultorById.get(consultorId)?.name ?? registro.dados.consultorNome?.trim()) || 'Sem consultor'
       const matchOwner = isPrivilegedUser
         ? consultorLabel.toLowerCase().includes(normalizedSearchTerm)
         : false
@@ -3854,8 +3896,15 @@ function ClientesPanel({
     return new Set(
       registros
         .filter((r) => r.deletedAt == null)
-        .map((r) => r.dados.consultorId ?? '')
-        .filter((consultorId) => consultorById.has(consultorId)),
+        // Count a client as having a consultant when either the ID is in the loaded map
+        // OR the stored consultorNome is non-empty (covers the "map loading" window).
+        .filter((r) =>
+          consultorById.has(r.dados.consultorId ?? '') ||
+          Boolean(r.dados.consultorNome?.trim()),
+        )
+        // Use ID when available for accurate deduplication; fall back to name for clients
+        // whose consultant hasn't loaded into the map yet.
+        .map((r) => r.dados.consultorId || r.dados.consultorNome || ''),
     ).size
   }, [consultorById, isPrivilegedUser, registros])
 
@@ -4056,7 +4105,16 @@ function ClientesPanel({
                       const safeEmail = sanitizeClientShowcaseValue(dados.email)
                       const safeUc = sanitizeClientShowcaseValue(dados.uc)
                       const consultorCadastrado = consultorById.get(registro.dados.consultorId ?? '')
-                      const consultorResponsavel = consultorCadastrado?.name ?? 'Sem consultor'
+                      // Fall back to the name stored in client metadata while the consultants list loads
+                      const storedNome = registro.dados.consultorNome?.trim() || ''
+                      const consultorResponsavel = (consultorCadastrado?.name ?? storedNome) || 'Sem consultor'
+                      // Short display: apelido when available, otherwise first word of full name (Issue 4).
+                      // For the fallback path (no registered consultant found), storedNome is already
+                      // the display name produced by consultorDisplayName() — do NOT split it, as splitting
+                      // "Sem consultor" would yield the misleading "Sem" label.
+                      const consultorApelido = consultorCadastrado
+                        ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
+                        : (storedNome || 'Sem consultor')
                       const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
                       const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
                       const isInfoOpen = infoClienteId === registro.id
@@ -4130,8 +4188,8 @@ function ClientesPanel({
                             <td className="col-xl" data-label="Endereço">{renderSummaryValue(safeAddress)}</td>
                             {isPrivilegedUser ? (
                               <td data-label="Consultor">
-                                <span className="clients-table-owner" title={consultorResponsavel}>
-                                  {consultorResponsavel}
+                                <span className="clients-table-owner" title={consultorResponsavel} aria-label={consultorResponsavel}>
+                                  {consultorApelido}
                                 </span>
                               </td>
                             ) : null}
@@ -5575,8 +5633,8 @@ export default function App() {
   const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
   const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
   const [afValorContrato, setAfValorContrato] = useState(0)
-  const [afImpostosVenda, setAfImpostosVenda] = useState(8)
-  const [afImpostosLeasing, setAfImpostosLeasing] = useState(13)
+  const [afImpostosVenda, setAfImpostosVenda] = useState(6)
+  const [afImpostosLeasing, setAfImpostosLeasing] = useState(4)
   const [afInadimplencia, setAfInadimplencia] = useState(2)
   const [afCustoOperacional, setAfCustoOperacional] = useState(3)
   const [afMesesProjecao, setAfMesesProjecao] = useState(60)
@@ -6503,7 +6561,20 @@ export default function App() {
   const [lastSuccessfulApiLoadAt, setLastSuccessfulApiLoadAt] = useState<number | null>(null)
   const [lastDeleteReconciledAt, setLastDeleteReconciledAt] = useState<number | null>(null)
   const [reconciliationReady, setReconciliationReady] = useState(false)
-  const [allConsultores, setAllConsultores] = useState<ConsultantEntry[]>([])
+  const [allConsultores, setAllConsultores] = useState<ConsultantEntry[]>(() => {
+    // Pre-populate from localStorage so consultant names are available immediately on page
+    // refresh / re-login — before the API response arrives (avoids "Sem consultor" flash).
+    if (typeof window === 'undefined') return []
+    try {
+      const raw = window.localStorage.getItem(CONSULTORES_CACHE_KEY)
+      if (!raw) return []
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return []
+      return (parsed as ConsultantEntry[]).filter((e) => e && typeof e.id === 'string')
+    } catch {
+      return []
+    }
+  })
   const [formConsultores, setFormConsultores] = useState<ConsultantPickerEntry[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
@@ -6542,6 +6613,9 @@ export default function App() {
   const clienteRef = useRef(cliente)
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
+  /** Stores the logged-in user's linked consultant entry once resolved by fetchConsultantsForPicker.
+   *  Used to auto-assign the consultant when a new client form is started (Issue 2). */
+  const myConsultorDefaultRef = useRef<{ id: string; nome: string } | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -13186,6 +13260,10 @@ export default function App() {
   useEffect(() => {
     if (!user || !(isAdmin || isOffice || isFinanceiro)) {
       setAllConsultores([])
+      // Clear cache on logout so stale data isn't shown on the next login
+      if (!user) {
+        try { window.localStorage.removeItem(CONSULTORES_CACHE_KEY) } catch {}
+      }
       return
     }
     let cancelado = false
@@ -13193,6 +13271,13 @@ export default function App() {
       .then((entries) => {
         if (!cancelado) {
           setAllConsultores(entries)
+          // Persist to localStorage so the list is available immediately on next page load
+          // (avoids the "Sem consultor" flash while the API response is in-flight).
+          try {
+            window.localStorage.setItem(CONSULTORES_CACHE_KEY, JSON.stringify(entries))
+          } catch {
+            // localStorage quota or security error — non-critical
+          }
         }
       })
       .catch(() => {
@@ -13224,10 +13309,12 @@ export default function App() {
               (me.email && c.email && c.email.toLowerCase() === me.email.toLowerCase()),
           )
           if (myConsultor) {
+            // Prefer the logged-in user's own name as the default consultant display name (Issue 2)
+            const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
+            // Store for reuse when iniciarNovaProposta resets the form
+            myConsultorDefaultRef.current = { id: String(myConsultor.id), nome: defaultNome }
             const current = clienteRef.current ?? cliente
             if (!current.consultorId) {
-              // Prefer the logged-in user's own name as the default consultant display name (section 2)
-              const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
               updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: defaultNome })
             }
           }
@@ -16257,6 +16344,10 @@ export default function App() {
         ...(dados?.consultorId?.trim() ? { consultor_id: dados.consultorId.trim() } : {}),
         ...(dados?.consultorNome?.trim() ? { consultor_nome: dados.consultorNome.trim() } : {}),
       },
+      // Persist consultant_id as a canonical top-level field (clients.consultant_id column).
+      // Only set when a consultant is explicitly present — never send null to avoid accidentally
+      // clearing an existing value on the server (the server uses COALESCE to preserve it).
+      ...(dados?.consultorId?.trim() ? { consultant_id: dados.consultorId.trim() } : {}),
     }
     const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot ?? null)
     const resolvedSystemKwp = resolveSystemKwpFromSnapshot(snapshot ?? null)
@@ -16424,6 +16515,16 @@ export default function App() {
         ? { valordemercado: custoFinalProjetadoCanonico }
         : {}),
     }
+
+    // Debug log for consultant persistence tracing.
+    console.info('[consultant][save-client]', {
+      clientId: clienteEmEdicaoId ?? null,
+      existingConsultantId: clienteEmEdicaoId
+        ? (clientesSalvos.find((r) => r.id === clienteEmEdicaoId)?.dados.consultorId ?? null)
+        : null,
+      selectedConsultantId: dadosClonados.consultorId || null,
+      payloadConsultantId: (upsertPayload as { consultant_id?: string | null }).consultant_id ?? null,
+    })
 
     // Neon DB save FIRST so data is durable before the local cache is updated.
     let syncedToBackend = false
@@ -17053,7 +17154,37 @@ export default function App() {
       if (!confirmado) return
 
       try {
-        await exportClientToPortfolio(Number(serverIdCandidate))
+        const result = await convertClientToClosedDeal({
+          clientId: Number(serverIdCandidate),
+          proposalId: registro.propostaSnapshot?.currentBudgetId ?? null,
+          clienteDados: {
+            nome: registro.dados.nome,
+            documento: registro.dados.documento,
+            email: registro.dados.email,
+            telefone: registro.dados.telefone,
+            cep: registro.dados.cep,
+            cidade: registro.dados.cidade,
+            uf: registro.dados.uf,
+            endereco: registro.dados.endereco,
+            distribuidora: registro.dados.distribuidora,
+            uc: registro.dados.uc,
+            indicacaoNome: registro.dados.indicacaoNome,
+            temIndicacao: registro.dados.temIndicacao,
+            diaVencimento: registro.dados.diaVencimento,
+            consultorId: registro.dados.consultorId,
+            ownerUserId: registro.ownerUserId,
+            createdByUserId: registro.createdByUserId,
+          },
+          snapshot: registro.propostaSnapshot ?? {},
+          consultants: formConsultores,
+          ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
+        })
+
+        if (!result.ok) {
+          window.alert(`Não foi possível ativar ${nomeCliente} na Carteira. Tente novamente.`)
+          return
+        }
+
         adicionarNotificacao(`${nomeCliente} ativado na Carteira de Clientes com sucesso!`, 'success')
         const refreshed = await carregarClientesPrioritarios({ silent: true })
         setClientesSalvos(refreshed)
@@ -17062,7 +17193,7 @@ export default function App() {
         window.alert(`Não foi possível ativar ${nomeCliente} na Carteira. Tente novamente.`)
       }
     },
-    [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos],
+    [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos, formConsultores],
   )
 
   const parseOrcamentosSalvos = useCallback(
@@ -20384,6 +20515,20 @@ export default function App() {
 
       const snapshotVazio = buildEmptySnapshotForNewProposal(activeTabRef.current, novoBudgetId)
       aplicarSnapshot(snapshotVazio, { budgetIdOverride: novoBudgetId, allowEmpty: true })
+
+      // Re-apply the logged-in user's consultant as default — the snapshot reset clears
+      // consultorId to '' (from CLIENTE_INICIAL).  myConsultorDefaultRef was populated
+      // when the user's consultant was resolved in fetchConsultantsForPicker (Issue 2).
+      // Use setClienteSync with the current ref value to avoid depending on the
+      // unstable updateClienteSync (which re-creates on every cliente change).
+      if (myConsultorDefaultRef.current && clienteRef.current) {
+        setClienteSync({
+          ...clienteRef.current,
+          consultorId: myConsultorDefaultRef.current.id,
+          consultorNome: myConsultorDefaultRef.current.nome,
+        })
+      }
+
       scheduleMarkStateAsSaved()
       
       if (import.meta.env.DEV) console.debug('[Nova Proposta] Reset complete')
@@ -29216,6 +29361,7 @@ export default function App() {
       isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
       canExportarCarteira={isAdmin || isOffice}
       allConsultores={allConsultores}
+      formConsultores={formConsultores}
     />
   )
 

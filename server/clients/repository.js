@@ -112,7 +112,16 @@ export async function createClient(sql, data) {
     origin = 'online',
     offline_origin_id = null,
     metadata = null,
+    // Canonical consultant FK (BIGINT). Only use positive integers.
+    consultant_id = null,
   } = data
+
+  // Normalize consultant_id to a positive integer or null.
+  const resolvedConsultantId = (
+    consultant_id !== undefined && consultant_id !== null && consultant_id !== ''
+    && !isNaN(parseInt(String(consultant_id), 10))
+    && parseInt(String(consultant_id), 10) > 0
+  ) ? parseInt(String(consultant_id), 10) : null
 
   const resolvedOwner = owner_user_id ?? created_by_user_id
   const queryText = `
@@ -122,14 +131,14 @@ export async function createClient(sql, data) {
       client_phone, client_email, client_city, client_state, client_address, client_cep, uc_geradora, uc_beneficiaria, system_kwp, term_months, consumption_kwh_month, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
-      metadata, created_at, updated_at
+      metadata, consultant_id, created_at, updated_at
     ) VALUES (
       $1, $2, $3, $4,
       $5, $6, $7,
       $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
       $20, $21, $22, $23,
       $24, $25, $26,
-      $27::jsonb, now(), now()
+      $27::jsonb, $28, now(), now()
     )
     RETURNING *
   `
@@ -161,6 +170,7 @@ export async function createClient(sql, data) {
     origin,
     offline_origin_id,
     metadata ? JSON.stringify(metadata) : null,
+    resolvedConsultantId,
   ]
   console.info('[clients][create] sql', { queryText, params })
   const rows = await sql(queryText, params)
@@ -207,6 +217,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     document_type,
     identity_status,
     metadata,
+    // Canonical consultant FK (BIGINT). Only update when an explicit positive integer is provided.
+    // Passing null/undefined/0 is treated as "no change" to avoid accidentally clearing the column.
+    consultant_id = undefined,
   } = data
 
   // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
@@ -214,7 +227,14 @@ export async function updateClient(sql, clientId, data, options = {}) {
   // an extra parameterized predicate when scoping is required.
   const scopeByOwner = role === 'role_comercial' && Boolean(actorUserId)
 
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $23' : ''
+  // Normalize consultant_id: accept only positive integers; treat anything else as "no change".
+  const resolvedConsultantId = (
+    consultant_id !== undefined && consultant_id !== null && consultant_id !== ''
+    && !isNaN(parseInt(String(consultant_id), 10))
+    && parseInt(String(consultant_id), 10) > 0
+  ) ? parseInt(String(consultant_id), 10) : null
+
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $24' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -237,6 +257,7 @@ export async function updateClient(sql, clientId, data, options = {}) {
     document_type ?? null,
     identity_status ?? null,
     metadata ? JSON.stringify(metadata) : null,
+    resolvedConsultantId,
     clientId,
     ...(scopeByOwner ? [actorUserId] : []),
   ]
@@ -267,8 +288,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
                             THEN COALESCE(metadata, '{}'::jsonb) || $21::jsonb
                             ELSE metadata
                           END,
+       consultant_id    = COALESCE($22, consultant_id),
        updated_at       = now()
-     WHERE id = $22
+     WHERE id = $23
        AND deleted_at IS NULL
        ${ownerClause}
      RETURNING *`
@@ -278,15 +300,17 @@ export async function updateClient(sql, clientId, data, options = {}) {
 }
 
 /**
- * Sweeps all active clients and normalizes consultant metadata according to
- * business mapping rules:
+ * Sweeps clients that carry one of the 3 known LEGACY display names and maps them
+ * to the correct canonical consultant_id:
  *   - "Administrador" -> consultant "Kim"
  *   - "claudio"       -> consultant "Claudio"
  *   - "Laieny"        -> consultant "Laieny"
- *   - any other value -> "Sem consultor" (consultant_id = NULL)
  *
- * The canonical consultant name is sourced from the consultants table when the
- * mapped consultant exists; otherwise falls back to "Sem consultor".
+ * IMPORTANT: The sweep is intentionally scoped to ONLY clients whose
+ * metadata.consultor_nome is one of these 3 legacy values.  Clients with any
+ * other consultor_nome (including clients already correctly migrated to a real
+ * consultant name like 'Kim') are left completely untouched.  This prevents the
+ * sweep from accidentally writing consultant_id = NULL on properly-saved clients.
  *
  * Returns { updatedCount }.
  */
@@ -307,7 +331,6 @@ export async function backfillClientConsultorNames(sql) {
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' THEN t.kim_id
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'claudio' THEN t.claudio_id
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' THEN t.laieny_id
-          ELSE NULL
         END AS next_consultant_id,
         CASE
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' AND t.kim_id IS NOT NULL
@@ -316,7 +339,6 @@ export async function backfillClientConsultorNames(sql) {
             THEN COALESCE(cl.full_name, cl.apelido, 'Claudio')
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' AND t.laieny_id IS NOT NULL
             THEN COALESCE(l.full_name, l.apelido, 'Laieny')
-          ELSE 'Sem consultor'
         END AS next_consultor_nome
       FROM clients c
       CROSS JOIN targets t
@@ -324,6 +346,11 @@ export async function backfillClientConsultorNames(sql) {
       LEFT JOIN public.consultants cl ON cl.id = t.claudio_id
       LEFT JOIN public.consultants l ON l.id = t.laieny_id
       WHERE c.deleted_at IS NULL
+        -- Only process clients that still carry one of the 3 legacy wrong display
+        -- names.  Clients with any other consultor_nome (correctly-named or already
+        -- migrated) are excluded entirely so this sweep can never overwrite a valid
+        -- consultant_id with NULL.
+        AND lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) IN ('administrador', 'claudio', 'laieny')
     ),
     updated AS (
       UPDATE clients c

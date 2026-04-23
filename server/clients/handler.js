@@ -161,6 +161,13 @@ function toClientWritePayload(body) {
     }
   }
 
+  // Canonical consultant FK (clients.consultant_id — BIGINT FK to consultants).
+  // Pass the raw value through; repository.js handles normalization and validation.
+  const rawConsultantId = firstDefined(body.consultant_id)
+  if (rawConsultantId !== undefined && rawConsultantId !== null && rawConsultantId !== '') {
+    accepted.consultant_id = rawConsultantId
+  }
+
   // Expose usina fields separately so the handler can persist them in client_usina_config
   accepted._usinaConfig = Object.keys(usinaFields).length > 0 ? usinaFields : null
 

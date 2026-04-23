@@ -45,7 +45,9 @@ describe('calcularComposicaoUFV', () => {
     expect(resultado.comissao_liquida_valor).toBeCloseTo(494.75, 1)
     expect(resultado.venda_total).toBeCloseTo(9895, 0)
     expect(resultado.venda_liquida).toBeCloseTo(9395, 0)
-    expect(resultado.impostos_regime_valor).toBeCloseTo(resultado.venda_total * 0.02, 1)
+    // Imposto não incide sobre o kit (valor_total_orcamento = 1000):
+    // base = venda_total - 1000; alíquota 2% (ISS único override)
+    expect(resultado.impostos_regime_valor).toBeCloseTo((resultado.venda_total - 1000) * 0.02, 1)
     expect(resultado.imposto_retido_valor).toBe(0)
     expect(resultado.desconto_requer_aprovacao).toBe(true)
     expect(resultado.preco_minimo_aplicado).toBe(false)

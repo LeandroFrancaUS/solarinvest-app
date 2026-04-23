@@ -91,6 +91,12 @@ export interface ClientRow {
   portfolio_exported_at?: string | null
   /** User ID who activated the client in the portfolio. */
   portfolio_exported_by_user_id?: string | null
+  /**
+   * Canonical consultant FK (clients.consultant_id — BIGINT, returned as number or string).
+   * This is the authoritative source for which consultant is responsible for this client.
+   * Takes priority over metadata.consultor_id when resolving the consultant on the frontend.
+   */
+  consultant_id?: number | string | null
 }
 
 export interface ClientListFilters {
@@ -131,6 +137,13 @@ export interface UpsertClientInput {
   term_months?: number | null
   metadata?: Record<string, unknown>
   energyProfile?: Partial<ClientEnergyProfile>
+  /**
+   * Canonical consultant FK (clients.consultant_id — BIGINT).
+   * Pass as string; the server will cast to BIGINT.
+   * A null value here does NOT clear an existing consultant_id — the server uses
+   * COALESCE so only an explicit string value updates the column.
+   */
+  consultant_id?: string | null
   /** Valor atual de mercado do sistema fotovoltaico (persisted to client_usina_config.valordemercado) */
   valordemercado?: number | null
 }
@@ -155,6 +168,13 @@ export interface UpdateClientInput {
   term_months?: number | null
   metadata?: Record<string, unknown>
   energyProfile?: Partial<ClientEnergyProfile>
+  /**
+   * Canonical consultant FK (clients.consultant_id — BIGINT).
+   * Pass as string; the server will cast to BIGINT.
+   * A null value here does NOT clear an existing consultant_id — the server uses
+   * COALESCE so only an explicit string value updates the column.
+   */
+  consultant_id?: string | null
   /** Valor atual de mercado do sistema fotovoltaico (persisted to client_usina_config.valordemercado) */
   valordemercado?: number | null
 }
@@ -280,6 +300,8 @@ export interface ConsultantEntry {
   id: string
   name: string
   email: string | null
+  /** Short display nickname (apelido). Defaults to first word of full_name when not explicitly set. */
+  apelido?: string | null
 }
 
 type ConsultantsListApiRow = {
@@ -321,6 +343,7 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
         id: String(row.id),
         name: preferredName,
         email: row.email ?? null,
+        apelido: row.apelido?.trim() ?? null,
       }
     })
     .filter((entry): entry is ConsultantEntry => Boolean(entry))

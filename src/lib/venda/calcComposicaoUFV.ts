@@ -2,6 +2,8 @@
 // Cálculo de CAPEX, Venda, Comissão, Impostos (retidos e por regime)
 // Suporta flag para incluir impostos no CAPEX
 
+import { computeTaxes } from '../../domain/finance/taxation'
+
 // =========================
 // Tipos & Defaults
 // =========================
@@ -52,6 +54,9 @@ export interface Inputs {
   regime: RegimeTributario;
   imposto_retido_aliquota: number; // %
   impostosRegime?: Partial<ImpostosRegimeConfig>;
+
+  // Frete (excluído da base tributável na modalidade venda)
+  frete?: number | null;
 
   // Flag: somar impostos ao CAPEX
   incluirImpostosNoCAPEX: boolean;
@@ -265,16 +270,30 @@ export function calcularComposicaoUFV(i: Inputs): Outputs {
     }
   }
 
-  const imposto_retido_valor = venda_total * pct(i.imposto_retido_aliquota);
+  const imposto_retido_valor = computeTaxes({
+    modo: 'venda',
+    totalAntesImposto: venda_total,
+    custoKit: nz(i.valor_total_orcamento ?? 0),
+    frete: nz(i.frete ?? 0),
+    aliquota: pct(i.imposto_retido_aliquota),
+  }).valorImposto;
   const tabelaRegime = mergeImpostosRegime(DEFAULT_IMPOSTOS_REGIME, i.impostosRegime);
   const componentes: RegimeComponent[] = tabelaRegime[i.regime];
 
   let impostos_regime_valor = 0;
   const regime_breakdown: Array<{ nome: string; aliquota: number; valor: number }> = [];
+  const custoKitUFV = nz(i.valor_total_orcamento ?? 0);
+  const freteUFV = nz(i.frete ?? 0);
 
   for (const comp of componentes) {
     const aliq = Math.max(nz(comp.aliquota_percent), 0);
-    const valor = venda_total * (aliq / 100);
+    const valor = computeTaxes({
+      modo: 'venda',
+      totalAntesImposto: venda_total,
+      custoKit: custoKitUFV,
+      frete: freteUFV,
+      aliquota: aliq / 100,
+    }).valorImposto;
     impostos_regime_valor += valor;
     regime_breakdown.push({ nome: comp.nome, aliquota: aliq, valor });
   }
