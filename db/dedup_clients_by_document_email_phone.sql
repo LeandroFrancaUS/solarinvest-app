@@ -919,6 +919,9 @@ SET
   expected_last_billing_date = COALESCE(bp_canon.expected_last_billing_date,bp_dup.expected_last_billing_date),
   recurrence_type            = COALESCE(bp_canon.recurrence_type,           bp_dup.recurrence_type),
   payment_status             = CASE
+                                 -- Conservative rule: worst status wins. If either record shows
+                                 -- delinquency (overdue/written_off), the merged canonical inherits
+                                 -- it — hiding a negative history would misrepresent credit risk.
                                  WHEN bp_canon.payment_status IN ('overdue','written_off') THEN bp_canon.payment_status
                                  WHEN bp_dup.payment_status   IN ('overdue','written_off') THEN bp_dup.payment_status
                                  WHEN bp_canon.payment_status = 'current'                 THEN bp_canon.payment_status
@@ -1095,6 +1098,8 @@ SET
   notes                 = CASE
                             WHEN ps_canon.notes IS NULL THEN ps_dup.notes
                             WHEN ps_dup.notes IS NULL   THEN ps_canon.notes
+                            -- Separator matches dedup_clients_by_name.sql convention.
+                            -- To split programmatically, search for '\n---\n'.
                             ELSE ps_canon.notes || E'\n---\n' || ps_dup.notes
                           END,
   updated_at            = now()
@@ -1298,6 +1303,11 @@ ORDER BY combined.merge_rule, c.id;
 --   AND sem referência ativa em proposals, client_contracts ou client_lifecycle
 --   AND in_portfolio = false
 --   AND sem documento válido (cpf_normalized / cnpj_normalized são ambos NULL)
+--
+-- Rationale dos intervalos de retenção:
+--   • 30 dias para mesclados: tempo suficiente para detectar erros de merge e reverter.
+--   • 90 dias para soft-deleted: cobre ciclo de faturamento trimestral e auditorias recentes.
+--   Para política diferente, ajustar os INTERVAL abaixo nas queries G2/G3/G4.
 --
 -- Registros com documento válido são preservados por padrão para rastreabilidade.
 -- Se quiser arquivar em vez de deletar: substituir DELETE por

@@ -105,6 +105,8 @@ SELECT
     WHEN lower(btrim(client_name)) IN (
       '0','null','undefined','[object object]','nan','n/a','na','-','—','__','??'
     ) THEN NULL
+    -- Latin/extended-Latin alphabet check. Consistent with dedup_clients_by_name.sql.
+    -- Non-Latin scripts (Cyrillic, CJK, etc.) are not currently used in this system.
     WHEN NOT (client_name ~* '[A-Za-zÀ-ÖØ-öø-ÿ]') THEN NULL
     ELSE regexp_replace(lower(btrim(client_name)), '\s+', ' ', 'g')
   END AS name_norm,
@@ -127,6 +129,8 @@ SELECT
     WHEN lower(btrim(client_phone)) IN (
       'null','undefined','[object object]','0','-','—','n/a','na'
     ) THEN NULL
+    -- Minimum 10 digits: Brazil landline = 10 digits (DDD + 8), mobile = 11 digits (DDD + 9).
+    -- Adjust threshold if international clients are added.
     WHEN length(regexp_replace(btrim(client_phone), '\D', '', 'g')) < 10 THEN NULL
     ELSE regexp_replace(client_phone, '\D', '', 'g')
   END AS phone_digits,
