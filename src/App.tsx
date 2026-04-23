@@ -1538,8 +1538,13 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
   } as unknown as PrintableProposalProps
   const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
   const ownerUserId = row.owner_user_id
+  // Prefer proposal_code (e.g. "SLRINVST-LSE-12345678") as the local id so
+  // it follows the established naming convention.  Fall back to the server
+  // UUID only when no code was stored — this can happen for legacy rows that
+  // were created before proposal_code was consistently populated.
+  const proposalId = row.proposal_code ?? row.id
   return {
-    id: row.proposal_code ?? row.id,
+    id: proposalId,
     criadoEm: row.created_at,
     clienteId: undefined,
     clienteNome: row.client_name ?? snapshot?.cliente?.nome ?? '',
@@ -16821,6 +16826,7 @@ export default function App() {
                 proposal_type: proposalType,
                 payload_json: proposalPayload.payload_json ?? {},
                 ...proposalPayload,
+                proposal_code: budgetId,
               } satisfies CreateProposalInput)
           updateProposalServerIdMap(budgetId, proposalRow.id)
         }
@@ -17668,6 +17674,7 @@ export default function App() {
               ? await updateProposal(knownServerId, proposalPayload)
               : await createProposal({
                   proposal_type: proposalType,
+                  proposal_code: budgetId,
                   payload_json: proposalPayload.payload_json ?? {},
                   ...(proposalPayload.client_name ? { client_name: proposalPayload.client_name } : {}),
                   ...(proposalPayload.client_document ? { client_document: proposalPayload.client_document } : {}),
