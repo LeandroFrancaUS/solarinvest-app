@@ -300,15 +300,17 @@ export async function updateClient(sql, clientId, data, options = {}) {
 }
 
 /**
- * Sweeps all active clients and normalizes consultant metadata according to
- * business mapping rules:
+ * Sweeps clients that carry one of the 3 known LEGACY display names and maps them
+ * to the correct canonical consultant_id:
  *   - "Administrador" -> consultant "Kim"
  *   - "claudio"       -> consultant "Claudio"
  *   - "Laieny"        -> consultant "Laieny"
- *   - any other value -> "Sem consultor" (consultant_id = NULL)
  *
- * The canonical consultant name is sourced from the consultants table when the
- * mapped consultant exists; otherwise falls back to "Sem consultor".
+ * IMPORTANT: The sweep is intentionally scoped to ONLY clients whose
+ * metadata.consultor_nome is one of these 3 legacy values.  Clients with any
+ * other consultor_nome (including clients already correctly migrated to a real
+ * consultant name like 'Kim') are left completely untouched.  This prevents the
+ * sweep from accidentally writing consultant_id = NULL on properly-saved clients.
  *
  * Returns { updatedCount }.
  */
@@ -329,7 +331,6 @@ export async function backfillClientConsultorNames(sql) {
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' THEN t.kim_id
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'claudio' THEN t.claudio_id
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' THEN t.laieny_id
-          ELSE NULL
         END AS next_consultant_id,
         CASE
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'administrador' AND t.kim_id IS NOT NULL
@@ -338,7 +339,6 @@ export async function backfillClientConsultorNames(sql) {
             THEN COALESCE(cl.full_name, cl.apelido, 'Claudio')
           WHEN lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) = 'laieny' AND t.laieny_id IS NOT NULL
             THEN COALESCE(l.full_name, l.apelido, 'Laieny')
-          ELSE 'Sem consultor'
         END AS next_consultor_nome
       FROM clients c
       CROSS JOIN targets t
@@ -346,6 +346,11 @@ export async function backfillClientConsultorNames(sql) {
       LEFT JOIN public.consultants cl ON cl.id = t.claudio_id
       LEFT JOIN public.consultants l ON l.id = t.laieny_id
       WHERE c.deleted_at IS NULL
+        -- Only process clients that still carry one of the 3 legacy wrong display
+        -- names.  Clients with any other consultor_nome (correctly-named or already
+        -- migrated) are excluded entirely so this sweep can never overwrite a valid
+        -- consultant_id with NULL.
+        AND lower(trim(coalesce(c.metadata ->> 'consultor_nome', ''))) IN ('administrador', 'claudio', 'laieny')
     ),
     updated AS (
       UPDATE clients c
