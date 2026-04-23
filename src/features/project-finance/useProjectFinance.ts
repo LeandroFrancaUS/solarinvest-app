@@ -229,6 +229,14 @@ export function useProjectFinance(
   const deriveFromEngine = useCallback(
     (deriveParams: ProjectFinanceDeriveParams, force = false) => {
       const derived = deriveProjectFinanceCosts(deriveParams, contractType)
+      const derivedTechnical: ProjectFinanceTechnicalParams = {}
+      if (deriveParams.impostos_percent != null && deriveParams.impostos_percent >= 0) {
+        derivedTechnical.impostos_percent = deriveParams.impostos_percent
+      }
+      if (deriveParams.taxa_desconto_aa_pct != null && deriveParams.taxa_desconto_aa_pct >= 0) {
+        derivedTechnical.taxa_desconto_aa_pct = deriveParams.taxa_desconto_aa_pct
+      }
+
       setForm((prev) => {
         // Build the next state by assigning only the derived keys.
         // We work with a typed partial and use Object.assign for type safety.
@@ -243,6 +251,9 @@ export function useProjectFinance(
         }
         return { ...prev, ...patch }
       })
+      if (Object.keys(derivedTechnical).length > 0) {
+        setTechnicalParams((prev) => ({ ...(prev ?? {}), ...derivedTechnical }))
+      }
     },
     [contractType],
   )
@@ -277,4 +288,3 @@ export function useProjectFinance(
     deriveFromEngine,
   }
 }
-
