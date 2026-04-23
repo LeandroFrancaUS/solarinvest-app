@@ -14,13 +14,12 @@
  *   4. Para venda, comparamos também com `calcularAnaliseFinanceira` (AF)
  *      configurado com os mesmos custos → KPIs devem ser idênticos.
  *
- * Discrepâncias conhecidas documentadas nos comentários:
- *   - Leasing: `computeCustoTotal` inclui `custo_impostos` (total de tributos
- *     ao longo do prazo) MAS não inclui `custo_seguro`.
- *     AF inclui `seguro` e `CAC` na base de investimento, mas NÃO inclui
- *     `custo_impostos` (pois os tributos já são deduzidos mensalmente via
- *     `fator_liquido`). Isso resulta em dupla-contagem de impostos na base
- *     de investimento do GF leasing — documentado abaixo.
+ * Alinhamento com AF:
+ *   - `computeCustoTotal` inclui `custo_seguro` para que a base de investimento
+ *     do GF leasing coincida com AF: investimento = CAPEX + CAC + seguro.
+ *   - `custo_impostos` é omitido do form de leasing nestas simulações para
+ *     evitar dupla-contagem (os tributos já são deduzidos mensalmente via
+ *     `fator_liquido`, alinhado com AF que não inclui impostos no investimento).
  */
 
 import { describe, it, expect } from 'vitest'
@@ -125,6 +124,9 @@ function buildLeasingForm(
     custo_engenharia:      derivedCosts.custo_engenharia      ?? null,
     custo_homologacao:     derivedCosts.custo_homologacao     ?? null,
     custo_frete_logistica: derivedCosts.custo_frete_logistica ?? null,
+    // custo_seguro is included so that computeCustoTotal matches AF's investment base
+    // (AF includes seguro in investimento_total_leasing_rs = CAPEX + CAC + seguro).
+    custo_seguro:          derivedCosts.custo_seguro          ?? null,
     custo_comissao:        derivedCosts.custo_comissao        ?? null,
     // custo_impostos is intentionally omitted from the investment base
     // to avoid double-counting (taxes are already deducted per period via fatorLiquido).
@@ -336,8 +338,7 @@ describe('Auditoria GF×AF — 10 simulações leasing', () => {
       expect(derivedCosts.custo_comissao).toBe(s.mensalidade)          // CAC = first mensalidade
       expect(derivedCosts.custo_seguro).toBeCloseTo(expectedSeguro, 6) // insurance on capexBase
 
-      // Seguro is derived but intentionally excluded from computeCustoTotal
-      // (investment base uses CAC instead, matching AF's approach).
+      // Seguro is derived and included in computeCustoTotal (matches AF's investment base).
       // Verify seguro is a positive number so the field is correctly populated.
       expect(derivedCosts.custo_seguro!).toBeGreaterThan(0)
 
@@ -350,33 +351,27 @@ describe('Auditoria GF×AF — 10 simulações leasing', () => {
       const afFatorLiquido = 1 - aliquota - inadimplencia - opex
       expect(fatorLiquido).toBeCloseTo(afFatorLiquido, 10)
 
-      // ── 5. Investment base documentation (known divergence from AF) ───────────
+      // ── 5. Investment base verification ──────────────────────────────────────
       //
       // GF investment (computeCustoTotal) = equipamentos + frete + engenharia +
-      //   homologacao + custo_comissao (CAC) [no seguro, no custo_impostos]
+      //   homologacao + custo_seguro + custo_comissao (CAC)
+      //   [custo_impostos excluded to avoid double-counting]
       //
-      // AF investment = CAPEX + CAC + seguro
-      //   where CAPEX = custo_variavel_total_rs
+      // AF investment = custo_variavel_total_rs + CAC + seguro
+      //   = (equipamentos + frete + engenharia + homologacao) + CAC + seguro
+      //   = capexBase + CAC + seguro
       //
-      // For a clean comparison, GF's capex (used in tests above) excludes
-      // custo_impostos to avoid double-counting — this is the correct approach
-      // matching AF's methodology.
-      //
-      // The AF-equivalent investment for this scenario:
+      // With the fix (custo_seguro in computeCustoTotal), both must be equal.
       const afCapex      = capexBase                      // equipment costs only
       const afCac        = s.mensalidade                  // first payment
       const afSeguro     = calcSeguroLeasing(afCapex)
       const afInvestment = afCapex + afCac + afSeguro
       //
-      // GF's capex (as built in buildLeasingForm above) = capexBase + CAC (= afCapex + afCac)
-      // GF excludes seguro from computeCustoTotal.
-      //
-      // Difference = afSeguro (seguro is in AF but not in GF's investment base)
       const gfInvestment = capex!
       const delta        = Math.abs(gfInvestment - afInvestment)
       //
-      // The delta should be approximately equal to the seguro amount.
-      expect(delta).toBeCloseTo(afSeguro, 1)
+      // GF and AF investment bases must match after the custo_seguro fix.
+      expect(delta).toBeCloseTo(0, 1)
 
       // ── 6. AF cross-reference with same investment base ─────────────────────
       //
