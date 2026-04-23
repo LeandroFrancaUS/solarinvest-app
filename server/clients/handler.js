@@ -20,6 +20,7 @@ import {
   appendClientAuditLog,
   upsertClientEnergyProfile,
   upsertClientUsinaConfig,
+  backfillClientConsultorNames,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 
@@ -463,6 +464,20 @@ export async function handleClientsRequest(req, res, ctx) {
   }
 
   if (method === 'POST') {
+    if (requestUrl.pathname === '/api/clients/consultor-backfill') {
+      if (!actor.isAdmin) {
+        return sendError(sendJson, 403, 'FORBIDDEN', 'Apenas administradores podem executar a varredura de consultores.')
+      }
+      try {
+        logRoute('/api/clients/consultor-backfill', { method: 'POST', actorUserId: actor.userId })
+        const result = await backfillClientConsultorNames(db.sql)
+        return sendJson(200, { data: result })
+      } catch (err) {
+        console.error('[clients][consultor-backfill] failed', err)
+        return sendError(sendJson, 500, 'CONSULTOR_BACKFILL_FAILED', 'Falha ao executar a varredura de consultores.')
+      }
+    }
+
     if (actor.isFinanceiro && !actor.isAdmin) {
       return sendError(sendJson, 403, 'FORBIDDEN', 'Read-only role')
     }

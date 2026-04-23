@@ -252,6 +252,13 @@ export async function deleteClientById(id: string): Promise<void> {
   })
 }
 
+export async function runConsultorBackfillSweep(): Promise<{ updatedCount: number }> {
+  const result = await apiFetch<{ data?: { updatedCount?: number } }>('/consultor-backfill', {
+    method: 'POST',
+  })
+  return { updatedCount: result.data?.updatedCount ?? 0 }
+}
+
 /**
  * List clients with optional filters. The server enforces RBAC:
  *   admin/financeiro → all clients

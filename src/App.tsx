@@ -288,6 +288,7 @@ import {
   listConsultants as listConsultantsFromApi,
   type ClientRow,
   setClientsTokenProvider,
+  runConsultorBackfillSweep,
   upsertClientByDocument,
   updateClientById,
   type UpsertClientInput,
@@ -13238,93 +13239,30 @@ export default function App() {
   useEffect(() => {
     if (consultantBackfillRanRef.current) return
     if (meAuthState !== 'authenticated') return
-    if (formConsultores.length === 0) return
-    if (clientesSalvos.length === 0) return
-
-    const normalizeConsultorNome = (value: string) =>
-      value
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim()
-        .toLowerCase()
-
-    const findConsultorByName = (target: string) =>
-      formConsultores.find((entry) => normalizeConsultorNome(consultorDisplayName(entry)) === target)
-
-    const kim = findConsultorByName('kim')
-    const claudio = findConsultorByName('claudio')
-    const laieny = findConsultorByName('laieny')
-
-    const resolveConsultorTarget = (nomeAtual: string) => {
-      const normalized = normalizeConsultorNome(nomeAtual)
-      if (normalized === 'administrador') {
-        return kim
-          ? { consultorId: String(kim.id), consultorNome: consultorDisplayName(kim) }
-          : { consultorId: '', consultorNome: 'Sem consultor' }
-      }
-      if (normalized === 'claudio') {
-        return claudio
-          ? { consultorId: String(claudio.id), consultorNome: consultorDisplayName(claudio) }
-          : { consultorId: '', consultorNome: 'Sem consultor' }
-      }
-      if (normalized === 'laieny') {
-        return laieny
-          ? { consultorId: String(laieny.id), consultorNome: consultorDisplayName(laieny) }
-          : { consultorId: '', consultorNome: 'Sem consultor' }
-      }
-      return { consultorId: '', consultorNome: 'Sem consultor' }
-    }
+    if (!isAdmin) return
 
     consultantBackfillRanRef.current = true
     let cancelado = false
 
     const executarBackfill = async () => {
-      const atualizacoes: Array<{ localId: string; consultorId: string; consultorNome: string }> = []
-      for (const registro of clientesSalvos) {
-        const serverId = clientServerIdMapRef.current[registro.id] ?? registro.id
-        if (!serverId) continue
-
-        const currentNome = (registro.dados.consultorNome ?? '').trim()
-        const currentId = (registro.dados.consultorId ?? '').trim()
-        const alvo = resolveConsultorTarget(currentNome)
-        if (currentNome === alvo.consultorNome && currentId === alvo.consultorId) {
-          continue
-        }
-
-        try {
-          await updateClientById(serverId, {
-            metadata: {
-              consultor_id: alvo.consultorId || null,
-              consultor_nome: alvo.consultorNome,
-            },
-          })
-          atualizacoes.push({ localId: registro.id, consultorId: alvo.consultorId, consultorNome: alvo.consultorNome })
-        } catch (error) {
-          console.warn('[clients][consultor-backfill] falha ao atualizar cliente', {
-            clientId: serverId,
-            message: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
-
-      if (cancelado || atualizacoes.length === 0) return
-
-      const patchById = new Map(atualizacoes.map((item) => [item.localId, item]))
-      setClientesSalvos((prev) =>
-        prev.map((registro) => {
-          const patch = patchById.get(registro.id)
-          if (!patch) return registro
-          return {
-            ...registro,
-            dados: {
-              ...registro.dados,
-              consultorId: patch.consultorId,
-              consultorNome: patch.consultorNome,
-            },
+      try {
+        const { updatedCount } = await runConsultorBackfillSweep()
+        if (cancelado) return
+        if (updatedCount > 0) {
+          const refreshed = await carregarClientesPrioritarios({ silent: true })
+          if (!cancelado) {
+            setClientesSalvos(refreshed)
           }
-        }),
-      )
-      adicionarNotificacao(`Consultor atualizado em ${atualizacoes.length} cliente(s).`, 'info')
+        }
+        adicionarNotificacao(
+          updatedCount > 0
+            ? `Varredura de consultores concluída: ${updatedCount} cliente(s) atualizado(s).`
+            : 'Varredura de consultores concluída: nenhum cliente precisou de atualização.',
+          'info',
+        )
+      } catch (error) {
+        console.warn('[clients][consultor-backfill] sweep failed', error)
+      }
     }
 
     void executarBackfill()
@@ -13332,7 +13270,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-  }, [adicionarNotificacao, clientesSalvos, formConsultores, meAuthState])
+  }, [adicionarNotificacao, carregarClientesPrioritarios, isAdmin, meAuthState])
 
   useEffect(() => {
     return () => {
