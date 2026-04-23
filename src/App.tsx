@@ -1247,7 +1247,19 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
         : 'nenhum'
   const resolvedModalidade: TabKey =
     ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
-  const resolvedKwhContratado = row.consumption_kwh_month ?? null
+  const parsePositiveConsumption = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
+    if (typeof value === 'string') {
+      const parsed = toNumberFlexible(value)
+      if (Number.isFinite(parsed) && parsed > 0) return parsed
+    }
+    return null
+  }
+  const resolvedKwhContratado = (
+    parsePositiveConsumption(row.consumption_kwh_month)
+    ?? parsePositiveConsumption(lp?.kwh_contratado)
+    ?? parsePositiveConsumption(ep?.kwh_contratado)
+  )
   const resolvedTarifaAtual = lp?.tarifa_atual ?? ep?.tarifa_atual ?? null
   const resolvedDesconto = lp?.desconto_percentual ?? ep?.desconto_percentual ?? null
   const resolvedUcsBeneficiarias = Array.isArray(lp?.ucs_beneficiarias) ? lp.ucs_beneficiarias : []
