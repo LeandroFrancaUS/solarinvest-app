@@ -103,6 +103,7 @@ export async function createInvoice(sql, data) {
 
 /**
  * Update an invoice
+ * Uses sql(queryText, params) to support dynamic SET clause
  */
 export async function updateInvoice(sql, invoiceId, patch) {
   const allowedFields = [
@@ -141,14 +142,15 @@ export async function updateInvoice(sql, invoiceId, patch) {
   values.push(invoiceId)
 
   const setClause = setClauses.join(', ')
-  const query = `
+  const queryText = `
     UPDATE public.client_invoices
     SET ${setClause}
     WHERE id = $${values.length}
     RETURNING *
   `
 
-  const rows = await sql.unsafe(query, values)
+  // Use the neon callable form sql(queryText, params) for dynamic queries
+  const rows = await sql(queryText, values)
   return rows[0] || null
 }
 
