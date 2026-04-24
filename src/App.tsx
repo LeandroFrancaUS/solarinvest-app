@@ -22421,6 +22421,7 @@ export default function App() {
             'UC Geradora (número)',
             'Código numérico da unidade consumidora geradora junto à distribuidora, usado para vincular contratos e projeções de consumo.',
           )}
+          hint="Máximo de 15 caracteres numéricos"
         >
           <input
             data-field="cliente-ucGeradoraNumero"
@@ -22430,6 +22431,7 @@ export default function App() {
               clearFieldHighlight(e.currentTarget)
             }}
             placeholder="Número da UC geradora"
+            maxLength={15}
           />
         </Field>
         <Field
