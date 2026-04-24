@@ -528,15 +528,24 @@ export async function getPortfolioClient(sql, clientId) {
  * Remove a client from the portfolio by setting in_portfolio = false.
  * Does NOT delete the client from the system; only reverts the portfolio flag.
  * Historical export timestamps are preserved for audit purposes.
+ *
+ * Auto-restores soft-deleted clients: when removing a client from the portfolio,
+ * any accidental soft-delete fields are cleared so the client remains visible in
+ * the client management list and can be reactivated.
  */
 export async function removeClientFromPortfolio(sql, clientId) {
   const rows = await sql`
     UPDATE public.clients
     SET
-      in_portfolio = false,
-      updated_at   = NOW()
+      in_portfolio           = false,
+      deleted_at             = NULL,
+      deleted_by_user_id     = NULL,
+      deletion_reason        = NULL,
+      deletion_policy        = NULL,
+      deletion_retention_days = NULL,
+      purge_after            = NULL,
+      updated_at             = NOW()
     WHERE id = ${clientId}
-      AND deleted_at IS NULL
     RETURNING *
   `
   return rows[0] ?? null
