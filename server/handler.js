@@ -126,6 +126,25 @@ import {
   handleFinancialImportConfirm,
   handleFinancialImportBatches,
 } from './financial-import/handler.js'
+import {
+  handleInvoicesListRequest,
+  handleInvoicesCreateRequest,
+  handleInvoicesUpdateRequest,
+  handleInvoicesDeleteRequest,
+  handleInvoicePaymentRequest,
+  handleInvoiceNotificationsRequest,
+  handleInvoiceNotificationConfigGetRequest,
+  handleInvoiceNotificationConfigUpdateRequest,
+} from './invoices/handler.js'
+import {
+  handleOperationalTasksListRequest,
+  handleOperationalTasksCreateRequest,
+  handleOperationalTasksUpdateRequest,
+  handleOperationalTasksDeleteRequest,
+  handleTaskHistoryRequest,
+  handleNotificationPreferencesGetRequest,
+  handleNotificationPreferencesUpdateRequest,
+} from './operational-tasks/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1285,6 +1304,139 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioNotesMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
+      return
+    }
+
+    // ── Invoice Management routes ─────────────────────────────────────────────
+
+    // GET /api/invoices?client_id=:id — list invoices for a client
+    // POST /api/invoices — create new invoice
+    if (pathname === '/api/invoices') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleInvoicesListRequest(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleInvoicesCreateRequest(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    // PATCH /api/invoices/:invoiceId — update invoice
+    // DELETE /api/invoices/:invoiceId — delete invoice
+    const invoiceByIdMatch = pathname.match(/^\/api\/invoices\/(\d+)$/)
+    if (invoiceByIdMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
+      const invoiceId = Number(invoiceByIdMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'PATCH') {
+        const body = await readJsonBody(req)
+        await handleInvoicesUpdateRequest(req, res, { method, invoiceId, sendJson: sj, body })
+      } else if (method === 'DELETE') {
+        await handleInvoicesDeleteRequest(req, res, { method, invoiceId, sendJson: sj })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    // POST /api/invoices/:invoiceId/payment — register payment
+    const invoicePaymentMatch = pathname.match(/^\/api\/invoices\/(\d+)\/payment$/)
+    if (invoicePaymentMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const invoiceId = Number(invoicePaymentMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      const body = await readJsonBody(req)
+      await handleInvoicePaymentRequest(req, res, { method, invoiceId, sendJson: sj, body })
+      return
+    }
+
+    // GET /api/invoices/notifications — get invoice alerts
+    if (pathname === '/api/invoices/notifications') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleInvoiceNotificationsRequest(req, res, { method, sendJson: sj })
+      return
+    }
+
+    // GET /api/invoices/notification-config — get notification config
+    // POST /api/invoices/notification-config — update notification config
+    if (pathname === '/api/invoices/notification-config') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleInvoiceNotificationConfigGetRequest(req, res, { method, sendJson: sj })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleInvoiceNotificationConfigUpdateRequest(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    // ── Operational Tasks routes ──────────────────────────────────────────────
+
+    // GET /api/operational-tasks — list operational tasks
+    // POST /api/operational-tasks — create operational task
+    if (pathname === '/api/operational-tasks') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleOperationalTasksListRequest(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleOperationalTasksCreateRequest(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    // PATCH /api/operational-tasks/:taskId — update task
+    // DELETE /api/operational-tasks/:taskId — delete task
+    const operationalTaskMatch = pathname.match(/^\/api\/operational-tasks\/(\d+)$/)
+    if (operationalTaskMatch) {
+      const taskId = parseInt(operationalTaskMatch[1], 10)
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'PATCH') {
+        const body = await readJsonBody(req)
+        await handleOperationalTasksUpdateRequest(req, res, { method, taskId, sendJson: sj, body })
+      } else if (method === 'DELETE') {
+        await handleOperationalTasksDeleteRequest(req, res, { method, taskId, sendJson: sj })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    // GET /api/operational-tasks/:taskId/history — get task history
+    const taskHistoryMatch = pathname.match(/^\/api\/operational-tasks\/(\d+)\/history$/)
+    if (taskHistoryMatch) {
+      const taskId = parseInt(taskHistoryMatch[1], 10)
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleTaskHistoryRequest(req, res, { method, taskId, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    // GET /api/dashboard/notification-preferences — get dashboard notification preferences
+    // POST /api/dashboard/notification-preferences — update dashboard notification preferences
+    if (pathname === '/api/dashboard/notification-preferences') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleNotificationPreferencesGetRequest(req, res, { method, sendJson: sj })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleNotificationPreferencesUpdateRequest(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
       return
     }
 

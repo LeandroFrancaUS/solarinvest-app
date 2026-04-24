@@ -170,6 +170,8 @@ export interface PortfolioClientRow {
   commissioning_date_billing?: string | null
   inicio_da_mensalidade?: string | null
   inicio_mensalidade_fixa?: string | null
+  /** Whether the contractor is the holder (true) or SolarInvest is the holder (false) */
+  is_contratante_titular?: boolean | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client
@@ -221,6 +223,50 @@ export interface ContractAttachment {
   uploadedAt?: string | null
   category?: string | null
   origin?: string | null
+}
+
+/** Invoice payment status */
+export type InvoicePaymentStatus = 'pendente' | 'pago' | 'confirmado' | 'vencida'
+
+/** Client invoice (fatura) for a consumer unit (UC) */
+export interface ClientInvoice {
+  id: number
+  client_id: number
+  uc: string
+  invoice_number: string | null
+  reference_month: string // YYYY-MM-01 format
+  due_date: string // ISO date
+  amount: number
+  payment_status: InvoicePaymentStatus
+  paid_at: string | null
+  payment_receipt_number: string | null
+  payment_transaction_number: string | null
+  payment_attachment_url: string | null
+  confirmed_by_user_id: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Invoice notification configuration */
+export interface InvoiceNotificationConfig {
+  id: number
+  user_id: string | null
+  organization_id: string | null
+  days_before_due: number[]
+  notify_on_due_date: boolean
+  days_after_due: number[]
+  visual_notifications_enabled: boolean
+  audio_notifications_enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Invoice notification alert */
+export interface InvoiceNotificationAlert {
+  invoice: ClientInvoice
+  daysUntilDue: number
+  alertType: 'a_vencer' | 'vence_hoje' | 'vencida'
 }
 
 export interface ClientNote {
@@ -289,6 +335,13 @@ export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatusType, string> 
   vence_hoje: 'Vence Hoje',
   vencida: 'Vencida',
   paga: 'Paga',
+}
+
+export const INVOICE_PAYMENT_STATUS_LABELS: Record<InvoicePaymentStatus, string> = {
+  pendente: 'Pendente',
+  pago: 'Pago',
+  confirmado: 'Confirmado',
+  vencida: 'Vencida',
 }
 
 /**

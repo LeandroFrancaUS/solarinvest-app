@@ -23,6 +23,7 @@ import {
   backfillClientConsultorNames,
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { validateClientDuplicates } from './duplicateValidation.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
@@ -347,6 +348,22 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     }
 
     const mappedBody = toClientWritePayload(body)
+
+    // Validate for UC and address duplicates (migration 0058)
+    const duplicateValidation = await validateClientDuplicates(db.sql, {
+      uc_geradora: mappedBody.uc ?? mappedBody.uc_geradora ?? body.uc_geradora ?? body.ucGeradora ?? null,
+      cep: mappedBody.client_cep ?? mappedBody.cep ?? body.cep ?? null,
+      logradouro: mappedBody.logradouro ?? body.logradouro ?? null,
+      numero: mappedBody.numero ?? body.numero ?? null,
+      complemento: mappedBody.complemento ?? body.complemento ?? null,
+      quadra: body.quadra ?? null,
+      lote: body.lote ?? null,
+    })
+
+    if (!duplicateValidation.ok) {
+      return sendError(sendJson, 409, duplicateValidation.errorCode, duplicateValidation.error)
+    }
+
     const newClient = await createClient(db.sql, {
       ...mappedBody,
       name: (mappedBody.name ?? body.name ?? '').trim(),
@@ -510,6 +527,22 @@ export async function handleClientsRequest(req, res, ctx) {
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       const userSql = sqlForActor(db, actor)
       const mappedBody = toClientWritePayload(body)
+
+      // Validate for UC and address duplicates (migration 0058)
+      const duplicateValidation = await validateClientDuplicates(db.sql, {
+        uc_geradora: mappedBody.uc ?? mappedBody.uc_geradora ?? body.uc_geradora ?? body.ucGeradora ?? null,
+        cep: mappedBody.client_cep ?? mappedBody.cep ?? body.cep ?? null,
+        logradouro: mappedBody.logradouro ?? body.logradouro ?? null,
+        numero: mappedBody.numero ?? body.numero ?? null,
+        complemento: mappedBody.complemento ?? body.complemento ?? null,
+        quadra: body.quadra ?? null,
+        lote: body.lote ?? null,
+      })
+
+      if (!duplicateValidation.ok) {
+        return sendError(sendJson, 409, duplicateValidation.errorCode, duplicateValidation.error)
+      }
+
       const client = await createClient(userSql, {
         ...mappedBody,
         name: mappedBody.name,
@@ -630,6 +663,23 @@ export async function handleClientByIdRequest(req, res, ctx) {
       })
       const userSql = sqlForActor(db, actor)
       const mappedBody = toClientWritePayload(body)
+
+      // Validate for UC and address duplicates (migration 0058)
+      // Pass clientId to exclude current client from duplicate check
+      const duplicateValidation = await validateClientDuplicates(db.sql, {
+        uc_geradora: mappedBody.uc ?? mappedBody.uc_geradora ?? body.uc_geradora ?? body.ucGeradora ?? null,
+        cep: mappedBody.client_cep ?? mappedBody.cep ?? body.cep ?? null,
+        logradouro: mappedBody.logradouro ?? body.logradouro ?? null,
+        numero: mappedBody.numero ?? body.numero ?? null,
+        complemento: mappedBody.complemento ?? body.complemento ?? null,
+        quadra: body.quadra ?? null,
+        lote: body.lote ?? null,
+      }, clientId)
+
+      if (!duplicateValidation.ok) {
+        return sendError(sendJson, 409, duplicateValidation.errorCode, duplicateValidation.error)
+      }
+
       const updatePayload = {
         ...mappedBody,
         cpf_normalized: cpfNormalized,

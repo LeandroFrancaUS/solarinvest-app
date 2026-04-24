@@ -56,6 +56,21 @@ function first<T>(...candidates: Array<T | null | undefined>): T | null {
 }
 
 /**
+ * Coerce a raw DB value to a finite number.
+ *
+ * PostgreSQL `numeric` / `float8` columns are returned as **strings** by
+ * node-postgres unless a custom type-parser is configured. This helper
+ * converts those strings (and proper JS numbers) to `number`, returning
+ * `null` for anything that is absent or cannot be parsed as a finite
+ * number.
+ */
+function toNum(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
  * Safely read a metadata value and cast it to the expected primitive type.
  * Returns null when the key is absent, null, or undefined in metadata.
  */
@@ -118,27 +133,27 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     // ── Energy profile (optional table) ──
     energy_profile_id: raw.energy_profile_id ?? null,
     modalidade: raw.modalidade ?? null,
-    tarifa_atual: raw.tarifa_atual ?? null,
-    desconto_percentual: raw.desconto_percentual ?? null,
-    mensalidade: raw.mensalidade ?? null,
-    prazo_meses: raw.prazo_meses ?? null,
-    kwh_contratado: raw.kwh_contratado ?? null,
-    potencia_kwp: raw.potencia_kwp ?? null,
+    tarifa_atual: toNum(raw.tarifa_atual),
+    desconto_percentual: toNum(raw.desconto_percentual),
+    mensalidade: toNum(raw.mensalidade),
+    prazo_meses: toNum(raw.prazo_meses),
+    kwh_contratado: toNum(raw.kwh_contratado),
+    potencia_kwp: toNum(raw.potencia_kwp),
     tipo_rede: raw.tipo_rede ?? null,
     marca_inversor: raw.marca_inversor ?? null,
     indicacao: raw.indicacao ?? null,
 
     // ── Usina (UF) — priority: top-level > usina_* alias > metadata ──
-    potencia_modulo_wp: first(raw.potencia_modulo_wp, raw.usina_potencia_modulo_wp, metaNum(meta, 'potencia_modulo_wp')),
-    numero_modulos: first(raw.numero_modulos, raw.usina_numero_modulos, metaNum(meta, 'numero_modulos')),
+    potencia_modulo_wp: toNum(first(raw.potencia_modulo_wp, raw.usina_potencia_modulo_wp)) ?? metaNum(meta, 'potencia_modulo_wp'),
+    numero_modulos: toNum(first(raw.numero_modulos, raw.usina_numero_modulos)) ?? metaNum(meta, 'numero_modulos'),
     modelo_modulo: first(raw.modelo_modulo, raw.usina_modelo_modulo, metaStr(meta, 'modelo_modulo')),
     // marca_inversor from client_energy_profile is an alias for modelo_inversor (used by backend enrichPortfolioClientRow)
     modelo_inversor: first(raw.modelo_inversor, raw.usina_modelo_inversor, metaStr(meta, 'modelo_inversor'), raw.marca_inversor),
     tipo_instalacao: first(raw.tipo_instalacao, raw.usina_tipo_instalacao, metaStr(meta, 'tipo_instalacao')),
-    area_instalacao_m2: first(raw.area_instalacao_m2, raw.usina_area_instalacao_m2, metaNum(meta, 'area_instalacao_m2')),
-    geracao_estimada_kwh: first(raw.geracao_estimada_kwh, raw.usina_geracao_estimada_kwh, metaNum(meta, 'geracao_estimada_kwh')),
+    area_instalacao_m2: toNum(first(raw.area_instalacao_m2, raw.usina_area_instalacao_m2)) ?? metaNum(meta, 'area_instalacao_m2'),
+    geracao_estimada_kwh: toNum(first(raw.geracao_estimada_kwh, raw.usina_geracao_estimada_kwh)) ?? metaNum(meta, 'geracao_estimada_kwh'),
     // valordemercado: top-level (set by enrichPortfolioClientRow) > usina alias > null
-    valordemercado: first(raw.valordemercado, raw.usina_valordemercado),
+    valordemercado: toNum(first(raw.valordemercado, raw.usina_valordemercado)),
 
     // ── Contract (top-level only — never from metadata) ──
     contract_id: raw.contract_id ?? null,
@@ -156,7 +171,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     contract_start_date: raw.contract_start_date ?? null,
     billing_start_date: raw.billing_start_date ?? null,
     expected_billing_end_date: raw.expected_billing_end_date ?? null,
-    contractual_term_months: raw.contractual_term_months ?? null,
+    contractual_term_months: toNum(raw.contractual_term_months),
     // Default null so CobrancaTab / ContratoTab can apply their own type-specific defaults
     buyout_eligible: raw.buyout_eligible ?? null,
     buyout_status: raw.buyout_status ?? null,
@@ -187,13 +202,18 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     expected_go_live_date: raw.expected_go_live_date ?? null,
     integrator_name: raw.integrator_name ?? null,
     engineer_name: raw.engineer_name ?? null,
+    engineer_id: raw.engineer_id ?? null,
+    installer_id: raw.installer_id ?? null,
+    art_number: raw.art_number ?? null,
+    art_issued_at: raw.art_issued_at ?? null,
+    art_status: raw.art_status ?? null,
     timeline_velocity_score: raw.timeline_velocity_score ?? null,
     project_notes: raw.project_notes ?? null,
 
     // ── Billing (top-level only — never from metadata) ──
     billing_id: raw.billing_id ?? null,
-    due_day: raw.due_day ?? null,
-    reading_day: raw.reading_day ?? null,
+    due_day: toNum(raw.due_day),
+    reading_day: toNum(raw.reading_day),
     first_billing_date: raw.first_billing_date ?? null,
     expected_last_billing_date: raw.expected_last_billing_date ?? null,
     recurrence_type: raw.recurrence_type ?? null,
@@ -207,13 +227,14 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
 
     // ── Leasing plan ──
     // kwh_contratado from client_energy_profile is the backend alias for kwh_mes_contratado
-    kwh_mes_contratado: first(raw.kwh_mes_contratado, raw.kwh_contratado),
-    valor_mensalidade: raw.valor_mensalidade ?? null,
+    kwh_mes_contratado: toNum(first(raw.kwh_mes_contratado, raw.kwh_contratado)),
+    valor_mensalidade: toNum(raw.valor_mensalidade),
 
     // ── Billing extensions ──
     commissioning_date_billing: raw.commissioning_date_billing ?? null,
     inicio_da_mensalidade: raw.inicio_da_mensalidade ?? null,
     inicio_mensalidade_fixa: raw.inicio_mensalidade_fixa ?? null,
+    is_contratante_titular: raw.is_contratante_titular ?? null,
   }
 
   return base

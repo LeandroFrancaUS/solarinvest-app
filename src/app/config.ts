@@ -15,6 +15,7 @@ import { formatMoneyBR } from '../lib/locale/br-number'
 export type TabKey = 'leasing' | 'vendas'
 
 export type SettingsTabKey =
+  | 'usuarios'
   | 'mercado'
   | 'vendas'
   | 'leasing'
@@ -57,6 +58,7 @@ export const UF_LABELS: Record<string, string> = {
 }
 
 export const SETTINGS_TABS: { id: SettingsTabKey; label: string }[] = [
+  { id: 'usuarios', label: 'Gestão de Usuários' },
   { id: 'mercado', label: 'Mercado & Energia' },
   { id: 'vendas', label: 'Parâmetros de Vendas' },
   { id: 'leasing', label: 'Leasing Parâmetros' },

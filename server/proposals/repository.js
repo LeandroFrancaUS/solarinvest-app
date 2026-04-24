@@ -225,7 +225,7 @@ export async function listProposals(sql, filter = {}) {
     `SELECT p.*, up.primary_role AS owner_role, up.display_name AS owner_display_name, up.email AS owner_email
      FROM proposals p ${joinClause}
      WHERE ${whereClause}
-     ORDER BY p.updated_at DESC
+     ORDER BY p.created_at DESC
      LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
     listParams
   )

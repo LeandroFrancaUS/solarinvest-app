@@ -46,7 +46,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
       FROM public.clients c
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+      ORDER BY c.created_at DESC
     `
   } else {
     const like = `%${searchTerm}%`
@@ -85,7 +85,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
-      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+      ORDER BY c.created_at DESC
     `
   }
 
@@ -269,6 +269,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
       cb.installments_json,
+      cb.is_contratante_titular,
 
       -- client_energy_profile
       ep.id                                  AS energy_profile_id,
@@ -399,6 +400,7 @@ export async function getPortfolioClient(sql, clientId) {
       cb.valor_mensalidade,
       cb.commissioning_date                  AS commissioning_date_billing,
       cb.installments_json,
+      cb.is_contratante_titular,
 
       -- fake client_energy_profile aliases for compatibility
       NULL::bigint                           AS energy_profile_id,
@@ -526,15 +528,24 @@ export async function getPortfolioClient(sql, clientId) {
  * Remove a client from the portfolio by setting in_portfolio = false.
  * Does NOT delete the client from the system; only reverts the portfolio flag.
  * Historical export timestamps are preserved for audit purposes.
+ *
+ * Auto-restores soft-deleted clients: when removing a client from the portfolio,
+ * any accidental soft-delete fields are cleared so the client remains visible in
+ * the client management list and can be reactivated.
  */
 export async function removeClientFromPortfolio(sql, clientId) {
   const rows = await sql`
     UPDATE public.clients
     SET
-      in_portfolio = false,
-      updated_at   = NOW()
+      in_portfolio           = false,
+      deleted_at             = NULL,
+      deleted_by_user_id     = NULL,
+      deletion_reason        = NULL,
+      deletion_policy        = NULL,
+      deletion_retention_days = NULL,
+      purge_after            = NULL,
+      updated_at             = NOW()
     WHERE id = ${clientId}
-      AND deleted_at IS NULL
     RETURNING *
   `
   return rows[0] ?? null
@@ -970,6 +981,11 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
     : null
   // INSERT fallback: use provided value or default to empty array for new rows
   const installmentsJsonInsert = installmentsJsonStr ?? '[]'
+
+  // Handle boolean fields properly - check if field exists in object, not just truthy/falsy
+  const hasIsContratanteTitular = 'is_contratante_titular' in fields
+  const isContratanteTitularValue = hasIsContratanteTitular ? fields.is_contratante_titular : null
+
   try {
     const rows = await sql`
       INSERT INTO public.client_billing_profile (
@@ -977,6 +993,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         expected_last_billing_date, recurrence_type, payment_status,
         delinquency_status, collection_stage, auto_reminder_enabled,
         valor_mensalidade, commissioning_date, installments_json,
+        is_contratante_titular,
         created_at, updated_at
       ) VALUES (
         ${clientId},
@@ -993,6 +1010,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         ${fields.valor_mensalidade ?? null},
         ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
         ${installmentsJsonInsert}::jsonb,
+        ${hasIsContratanteTitular ? fields.is_contratante_titular : true},
         ${now},
         ${now}
       )
@@ -1010,6 +1028,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
         commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
         installments_json          = COALESCE(${installmentsJsonStr}::jsonb, client_billing_profile.installments_json),
+        is_contratante_titular     = COALESCE(${isContratanteTitularValue}, client_billing_profile.is_contratante_titular),
         updated_at                 = ${now}
       RETURNING *
     `

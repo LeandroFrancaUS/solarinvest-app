@@ -317,12 +317,15 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
+import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
+import { setInvoicesTokenProvider } from './services/invoicesApi'
+import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -383,7 +386,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
+type ActivePage = 'dashboard' | 'operational-dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -3194,7 +3197,6 @@ const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>
 const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
 const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
 
-const PROPOSAL_PDF_REMINDER_INTERVAL_MS = 15 * 24 * 60 * 60 * 1000
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
 const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
@@ -3788,6 +3790,8 @@ function ClientesPanel({
   // two consultants share a name or when the name changes.
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
+  const [sortColumn, setSortColumn] = useState<'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const consultorById = useMemo(() => {
     const map = new Map<string, ConsultantEntry>()
@@ -3879,12 +3883,60 @@ function ClientesPanel({
     })
   }, [consultorById, isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
 
+  // Sort registros filtrados based on selected column and direction
+  const registrosOrdenados = useMemo(() => {
+    if (!sortColumn) return registrosFiltrados
+
+    return [...registrosFiltrados].sort((a, b) => {
+      let compareResult = 0
+
+      if (sortColumn === 'nome') {
+        const nomeA = (a.dados.nome ?? '').toLowerCase()
+        const nomeB = (b.dados.nome ?? '').toLowerCase()
+        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
+      } else if (sortColumn === 'documento') {
+        const docA = (a.dados.documento ?? '').replace(/\D/g, '')
+        const docB = (b.dados.documento ?? '').replace(/\D/g, '')
+        compareResult = docA.localeCompare(docB, 'pt-BR')
+      } else if (sortColumn === 'cidade') {
+        const cidadeA = (a.dados.cidade ?? '').toLowerCase()
+        const cidadeB = (b.dados.cidade ?? '').toLowerCase()
+        compareResult = cidadeA.localeCompare(cidadeB, 'pt-BR')
+      } else if (sortColumn === 'consumo') {
+        const consumoA = a.consumption_kwh_month ?? 0
+        const consumoB = b.consumption_kwh_month ?? 0
+        compareResult = consumoA - consumoB
+      } else if (sortColumn === 'telefone') {
+        const telA = (a.dados.telefone ?? '').replace(/\D/g, '')
+        const telB = (b.dados.telefone ?? '').replace(/\D/g, '')
+        compareResult = telA.localeCompare(telB, 'pt-BR')
+      } else if (sortColumn === 'consultor') {
+        const consultorIdA = a.dados.consultorId ?? ''
+        const consultorIdB = b.dados.consultorId ?? ''
+        const nomeA = (consultorById.get(consultorIdA)?.name ?? a.dados.consultorNome ?? 'Sem consultor').toLowerCase()
+        const nomeB = (consultorById.get(consultorIdB)?.name ?? b.dados.consultorNome ?? 'Sem consultor').toLowerCase()
+        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
+      }
+
+      return sortDirection === 'asc' ? compareResult : -compareResult
+    })
+  }, [registrosFiltrados, sortColumn, sortDirection, consultorById])
+
+  const toggleSort = useCallback((column: 'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor') => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }, [sortColumn, sortDirection])
+
   // Active records (non-deleted) — used for total count, independent of search/owner filter
   const totalAtivos = useMemo(
     () => registros.filter((r) => r.deletedAt == null).length,
     [registros],
   )
-  const totalResultados = registrosFiltrados.length
+  const totalResultados = registrosOrdenados.length
   // Display name for the currently selected consultant filter (for empty-state messages)
   const selectedOwnerName = useMemo(() => {
     if (selectedOwner === 'all') return null
@@ -4028,7 +4080,7 @@ function ClientesPanel({
           </div>
           {totalAtivos === 0 ? (
             <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
-          ) : registrosFiltrados.length === 0 ? (
+          ) : registrosOrdenados.length === 0 ? (
             <p className="budget-search-empty">
               {clienteSearchTerm && selectedOwner !== 'all'
                 ? `Nenhum cliente encontrado para "${clienteSearchTerm}" no filtro de ${selectedOwnerName ?? 'consultor selecionado'}.`
@@ -4044,18 +4096,74 @@ function ClientesPanel({
                 <table>
                   <thead>
                     <tr>
-                      <th>Cliente</th>
-                      <th className="col-nowrap">CPF/CNPJ</th>
-                      <th className="col-nowrap">Cidade/UF</th>
-                      <th className="col-nowrap clients-table-consumo-col">Consumo (kWh/mês)</th>
-                      <th className="col-md col-nowrap">Telefone</th>
+                      <th>
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('nome')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0, textAlign: 'left' }}
+                          title="Clique para ordenar por nome"
+                        >
+                          Cliente {sortColumn === 'nome' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('documento')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por CPF/CNPJ"
+                        >
+                          CPF/CNPJ {sortColumn === 'documento' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('cidade')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por cidade"
+                        >
+                          Cidade/UF {sortColumn === 'cidade' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap clients-table-consumo-col">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('consumo')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por consumo"
+                        >
+                          Consumo (kWh/mês) {sortColumn === 'consumo' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-md col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('telefone')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por telefone"
+                        >
+                          Telefone {sortColumn === 'telefone' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
                       <th className="col-xl col-nowrap">Endereço</th>
-                      {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
+                      {isPrivilegedUser ? (
+                        <th className="col-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('consultor')}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                            title="Clique para ordenar por consultor"
+                          >
+                            Consultor {sortColumn === 'consultor' && (sortDirection === 'asc' ? '↑' : '↓')}
+                          </button>
+                        </th>
+                      ) : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {registrosFiltrados.map((registro) => {
+                    {registrosOrdenados.map((registro) => {
                       const { dados } = registro
                       const nomeCliente = sanitizeClientShowcaseValue(dados.nome)
                       const documentoCliente = sanitizeClientShowcaseValue(dados.documento)
@@ -5480,6 +5588,8 @@ export default function App() {
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
+    setInvoicesTokenProvider(getAccessToken)
+    setOperationalDashboardTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -5587,6 +5697,7 @@ export default function App() {
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
     const isKnownPage =
       storedPage === 'dashboard' ||
+      storedPage === 'operational-dashboard' ||
       storedPage === 'app' ||
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
@@ -13498,35 +13609,13 @@ export default function App() {
     })
   }, [contatosEnvio])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const storageKey = STORAGE_KEYS.proposalPdfReminderAt
-
-    if (proposalPdfIntegrationAvailable) {
-      try {
-        window.localStorage.removeItem(storageKey)
-      } catch (error) {
-        console.warn('Não foi possível limpar o lembrete da integração de PDF.', error)
-      }
-      return
-    }
-
-    try {
-      const raw = window.localStorage.getItem(storageKey)
-      const lastReminder = raw ? Number(raw) : NaN
-      const now = Date.now()
-
-      if (!Number.isFinite(lastReminder) || now - lastReminder >= PROPOSAL_PDF_REMINDER_INTERVAL_MS) {
-        adicionarNotificacao(PROPOSAL_PDF_REMINDER_MESSAGE, 'error')
-        window.localStorage.setItem(storageKey, String(now))
-      }
-    } catch (error) {
-      console.warn('Não foi possível registrar o lembrete da integração de PDF.', error)
-    }
-  }, [proposalPdfIntegrationAvailable, adicionarNotificacao])
+  // Note: a proactive global notification used to be raised here every 15 days
+  // when the PDF integration was missing. It surfaced as an out-of-context
+  // error toast on app load. The same message is already shown contextually
+  // (a) inside the proposal preview toolbar via `resolvePreviewToolbarMessage`
+  // and (b) at the moment the user actually attempts to save a PDF
+  // (see the `persistProposalPdf` call sites). The proactive effect has been
+  // removed to avoid the misplaced notification.
 
   /**
    * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
@@ -20340,10 +20429,8 @@ export default function App() {
 
   const abrirAdminUsuarios = useCallback(async () => {
     if (!canSeeUsersEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('admin-users')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsersEffective])
+    return abrirConfiguracoes('usuarios')
+  }, [abrirConfiguracoes, canSeeUsersEffective])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -20364,6 +20451,13 @@ export default function App() {
       setActivePage('financial-management')
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirDashboardOperacional = useCallback(async () => {
+    if (!canSeeDashboardEffective) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('operational-dashboard')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeDashboardEffective])
 
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -22452,7 +22546,7 @@ export default function App() {
               handleClienteChange('uc', e.target.value)
               clearFieldHighlight(e.currentTarget)
             }}
-            placeholder="Número da UC geradora"
+            placeholder="Número da UC geradora (15 dígitos)"
           />
         </Field>
         <Field
@@ -22785,7 +22879,7 @@ export default function App() {
                   onChange={(event) =>
                     handleAtualizarUcBeneficiaria(uc.id, 'numero', event.target.value)
                   }
-                  placeholder="Número da UC"
+                  placeholder="Número da UC (15 dígitos)"
                   aria-label={`Número da UC beneficiária ${index + 1}`}
                 />
                 <input
@@ -27123,20 +27217,60 @@ export default function App() {
   ]
 
   const sidebarGroups: SidebarGroup[] = [
-    ...(canSeeDashboardEffective
+    ...((canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective)
       ? [
           {
             id: 'dashboard',
             label: 'Dashboard',
             items: [
-              {
-                id: 'dashboard-home',
-                label: 'Dashboard',
-                icon: '📊',
-                onSelect: () => {
-                  void abrirDashboard()
-                },
-              },
+              ...(canSeeDashboardEffective
+                ? [
+                    {
+                      id: 'dashboard-home',
+                      label: 'Dashboard',
+                      icon: '📊',
+                      onSelect: () => {
+                        void abrirDashboard()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeePortfolioEffective
+                ? [
+                    {
+                      id: 'carteira-clientes',
+                      label: 'Carteira Ativa',
+                      icon: '💼',
+                      onSelect: () => {
+                        void abrirCarteira()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeFinancialManagementEffective
+                ? [
+                    {
+                      id: 'gestao-financeira-home',
+                      label: 'Receita e Cobrança',
+                      icon: '💰',
+                      onSelect: () => {
+                        void abrirGestaoFinanceira()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeDashboardEffective
+                ? [
+                    {
+                      id: 'operational-dashboard',
+                      label: 'Painel Operacional',
+                      icon: '⚙️',
+                      onSelect: () => {
+                        void abrirDashboardOperacional()
+                      },
+                    },
+                  ]
+                : []),
             ],
           },
         ]
@@ -27209,24 +27343,6 @@ export default function App() {
                     },
                   ]
                 : []),
-            ],
-          },
-        ]
-      : []),
-    ...(canSeeFinancialManagementEffective
-      ? [
-          {
-            id: 'gestao-financeira',
-            label: 'Financeiro',
-            items: [
-              {
-                id: 'gestao-financeira-home',
-                label: 'Gestão Financeira',
-                icon: '💰',
-                onSelect: () => {
-                  void abrirGestaoFinanceira()
-                },
-              },
             ],
           },
         ]
@@ -27344,53 +27460,9 @@ export default function App() {
       : []),
     {
       id: 'configuracoes',
-      label: 'Configurações',
+      label: '',
       items: [
-        ...(isAdmin
-          ? [
-              {
-                id: 'config-preferencias',
-                label: 'Preferências',
-                icon: '⚙️',
-                onSelect: () => {
-                  void abrirConfiguracoes()
-                },
-              },
-            ]
-          : []),
-        ...(canSeePortfolioEffective
-          ? [
-              {
-                id: 'carteira-clientes',
-                label: 'Carteira de Clientes',
-                icon: '💼',
-                onSelect: () => {
-                  void abrirCarteira()
-                },
-              },
-            ]
-          : []),
-        ...(canSeeUsersEffective
-          ? [
-              {
-                id: 'config-admin-users',
-                label: 'Gestão de Usuários',
-                icon: '👤',
-                onSelect: () => {
-                  void abrirAdminUsuarios()
-                },
-              },
-            ]
-          : []),
-        {
-          id: 'config-sair',
-          label: isLoggingOut ? 'Saindo…' : 'Sair',
-          icon: '🚪',
-          disabled: isLoggingOut,
-          onSelect: () => {
-            void handleLogout()
-          },
-        },
+        // Portfolio and Financial Management moved to top - removed from here
       ],
     },
   ]
@@ -27403,9 +27475,6 @@ export default function App() {
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
     ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-    ...(isAdmin ? ['config-preferencias'] : []),
-    ...(canSeeUsersEffective ? ['config-admin-users'] : []),
-    'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
@@ -28672,7 +28741,7 @@ export default function App() {
       </div>
       <div className="config-page">
         <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-          {SETTINGS_TABS.map((tab) => (
+          {SETTINGS_TABS.filter((tab) => tab.id !== 'usuarios' || canSeeUsersEffective).map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -28688,6 +28757,18 @@ export default function App() {
           ))}
         </div>
         <div className="config-panels">
+          {canSeeUsersEffective ? (
+            <section
+              id="settings-panel-usuarios"
+              role="tabpanel"
+              aria-labelledby="cfg-tab-usuarios"
+              className={`settings-panel config-card${settingsTab === 'usuarios' ? ' active' : ''}`}
+              hidden={settingsTab !== 'usuarios'}
+              aria-hidden={settingsTab !== 'usuarios'}
+            >
+              <AdminUsersPage embedded />
+            </section>
+          ) : null}
           <section
             id="settings-panel-mercado"
             role="tabpanel"
@@ -29409,14 +29490,12 @@ export default function App() {
             ? 'carteira-clientes'
             : activePage === 'consultar'
               ? 'orcamentos-importar'
-          : activePage === 'settings'
-                ? 'config-preferencias'
-                : activePage === 'admin-users'
-                  ? 'config-admin-users'
-                  : activePage === 'financial-management'
-                    ? 'gestao-financeira-home'
-                    : activePage === 'simulacoes'
-                    ? `simulacoes-${simulacoesSection}`
+          : activePage === 'settings' || activePage === 'admin-users'
+                ? 'gestao-financeira-home'
+                : activePage === 'financial-management'
+                  ? 'gestao-financeira-home'
+                  : activePage === 'simulacoes'
+                  ? `simulacoes-${simulacoesSection}`
                     : activeTab === 'vendas'
                       ? 'propostas-vendas'
                       : 'propostas-leasing'
@@ -29480,6 +29559,9 @@ export default function App() {
           }
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
+          onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
+          onLogout={handleLogout}
+          isLoggingOut={isLoggingOut}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>
@@ -29521,6 +29603,10 @@ export default function App() {
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
               />
+            : null
+        ) : activePage === 'operational-dashboard' ? (
+          canSeeDashboardEffective
+            ? <OperationalDashboardPage />
             : null
         ) : (
           <div className="page">

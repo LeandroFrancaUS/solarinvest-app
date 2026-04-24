@@ -17,9 +17,12 @@ export interface AppShellProps {
   }
   theme?: AppTheme
   onCycleTheme?: () => void
+  onOpenPreferences?: () => void
+  onLogout?: () => void
+  isLoggingOut?: boolean
 }
 
-export function AppShell({ topbar, sidebar, content, children, mobileMenuButton, theme, onCycleTheme }: AppShellProps) {
+export function AppShell({ topbar, sidebar, content, children, mobileMenuButton, theme, onCycleTheme, onOpenPreferences, onLogout, isLoggingOut }: AppShellProps) {
   const showBackdrop = sidebar.mobileOpen
   const bodyClasses = ['app-body']
   if (sidebar.collapsed) {
@@ -63,6 +66,9 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton,
         {...topbar}
         {...(theme !== undefined ? { theme } : {})}
         {...(onCycleTheme !== undefined ? { onCycleTheme } : {})}
+        {...(onOpenPreferences !== undefined ? { onOpenPreferences } : {})}
+        {...(onLogout !== undefined ? { onLogout } : {})}
+        {...(isLoggingOut !== undefined ? { isLoggingOut } : {})}
       />
       <div className={bodyClasses.join(' ')}>
         {/* Always rendered (not just when sidebar is closed) so the hamburger→X CSS animation plays.
