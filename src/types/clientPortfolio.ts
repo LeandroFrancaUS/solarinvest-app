@@ -170,6 +170,8 @@ export interface PortfolioClientRow {
   commissioning_date_billing?: string | null
   inicio_da_mensalidade?: string | null
   inicio_mensalidade_fixa?: string | null
+  /** Whether the contractor is the holder (true) or SolarInvest is the holder (false) */
+  is_contratante_titular?: boolean | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client

@@ -1697,11 +1697,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
-    // Session-only flag: drives which mensalidade rule the engine uses.
-    // Defaults to `true` (cliente é titular → regra padrão). Not yet
-    // persisted to the backend — adding a DB column is out of scope for
-    // this change; the resulting `valor_mensalidade` is what gets saved.
-    is_contratante_titular: true,
+    // Flag to determine which mensalidade rule applies: true = standard rule, false = GO/SolarInvest rule
+    // Now persisted to backend
+    is_contratante_titular: client.is_contratante_titular ?? true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
@@ -1710,7 +1708,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
-    is_contratante_titular: true,
+    is_contratante_titular: client.is_contratante_titular ?? true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
@@ -1915,7 +1913,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                 {mensalidadeAuto.status === 'OK'
                   ? `Calculado automaticamente — regra ${mensalidadeAuto.rule === 'PADRAO' ? 'padrão' : 'GO/SolarInvest'}.`
-                  : 'Preencha kwh, tarifa e desconto na aba Plano para cálculo automático.'}
+                  : form.is_contratante_titular
+                    ? 'Preencha kwh, tarifa e desconto na aba Plano para cálculo automático.'
+                    : 'Titularidade da SolarInvest. Configure os dados na aba Faturas.'}
               </div>
             </label>
           </div>
