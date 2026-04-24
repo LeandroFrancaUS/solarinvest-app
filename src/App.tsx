@@ -3790,6 +3790,8 @@ function ClientesPanel({
   // two consultants share a name or when the name changes.
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
+  const [sortColumn, setSortColumn] = useState<'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
   const consultorById = useMemo(() => {
     const map = new Map<string, ConsultantEntry>()
@@ -3881,12 +3883,60 @@ function ClientesPanel({
     })
   }, [consultorById, isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
 
+  // Sort registros filtrados based on selected column and direction
+  const registrosOrdenados = useMemo(() => {
+    if (!sortColumn) return registrosFiltrados
+
+    return [...registrosFiltrados].sort((a, b) => {
+      let compareResult = 0
+
+      if (sortColumn === 'nome') {
+        const nomeA = (a.dados.nome ?? '').toLowerCase()
+        const nomeB = (b.dados.nome ?? '').toLowerCase()
+        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
+      } else if (sortColumn === 'documento') {
+        const docA = (a.dados.documento ?? '').replace(/\D/g, '')
+        const docB = (b.dados.documento ?? '').replace(/\D/g, '')
+        compareResult = docA.localeCompare(docB, 'pt-BR')
+      } else if (sortColumn === 'cidade') {
+        const cidadeA = (a.dados.cidade ?? '').toLowerCase()
+        const cidadeB = (b.dados.cidade ?? '').toLowerCase()
+        compareResult = cidadeA.localeCompare(cidadeB, 'pt-BR')
+      } else if (sortColumn === 'consumo') {
+        const consumoA = a.consumption_kwh_month ?? 0
+        const consumoB = b.consumption_kwh_month ?? 0
+        compareResult = consumoA - consumoB
+      } else if (sortColumn === 'telefone') {
+        const telA = (a.dados.telefone ?? '').replace(/\D/g, '')
+        const telB = (b.dados.telefone ?? '').replace(/\D/g, '')
+        compareResult = telA.localeCompare(telB, 'pt-BR')
+      } else if (sortColumn === 'consultor') {
+        const consultorIdA = a.dados.consultorId ?? ''
+        const consultorIdB = b.dados.consultorId ?? ''
+        const nomeA = (consultorById.get(consultorIdA)?.name ?? a.dados.consultorNome ?? 'Sem consultor').toLowerCase()
+        const nomeB = (consultorById.get(consultorIdB)?.name ?? b.dados.consultorNome ?? 'Sem consultor').toLowerCase()
+        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
+      }
+
+      return sortDirection === 'asc' ? compareResult : -compareResult
+    })
+  }, [registrosFiltrados, sortColumn, sortDirection, consultorById])
+
+  const toggleSort = useCallback((column: 'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor') => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }, [sortColumn, sortDirection])
+
   // Active records (non-deleted) — used for total count, independent of search/owner filter
   const totalAtivos = useMemo(
     () => registros.filter((r) => r.deletedAt == null).length,
     [registros],
   )
-  const totalResultados = registrosFiltrados.length
+  const totalResultados = registrosOrdenados.length
   // Display name for the currently selected consultant filter (for empty-state messages)
   const selectedOwnerName = useMemo(() => {
     if (selectedOwner === 'all') return null
@@ -4030,7 +4080,7 @@ function ClientesPanel({
           </div>
           {totalAtivos === 0 ? (
             <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
-          ) : registrosFiltrados.length === 0 ? (
+          ) : registrosOrdenados.length === 0 ? (
             <p className="budget-search-empty">
               {clienteSearchTerm && selectedOwner !== 'all'
                 ? `Nenhum cliente encontrado para "${clienteSearchTerm}" no filtro de ${selectedOwnerName ?? 'consultor selecionado'}.`
@@ -4046,18 +4096,74 @@ function ClientesPanel({
                 <table>
                   <thead>
                     <tr>
-                      <th>Cliente</th>
-                      <th className="col-nowrap">CPF/CNPJ</th>
-                      <th className="col-nowrap">Cidade/UF</th>
-                      <th className="col-nowrap clients-table-consumo-col">Consumo (kWh/mês)</th>
-                      <th className="col-md col-nowrap">Telefone</th>
+                      <th>
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('nome')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0, textAlign: 'left' }}
+                          title="Clique para ordenar por nome"
+                        >
+                          Cliente {sortColumn === 'nome' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('documento')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por CPF/CNPJ"
+                        >
+                          CPF/CNPJ {sortColumn === 'documento' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('cidade')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por cidade"
+                        >
+                          Cidade/UF {sortColumn === 'cidade' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-nowrap clients-table-consumo-col">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('consumo')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por consumo"
+                        >
+                          Consumo (kWh/mês) {sortColumn === 'consumo' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
+                      <th className="col-md col-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort('telefone')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                          title="Clique para ordenar por telefone"
+                        >
+                          Telefone {sortColumn === 'telefone' && (sortDirection === 'asc' ? '↑' : '↓')}
+                        </button>
+                      </th>
                       <th className="col-xl col-nowrap">Endereço</th>
-                      {isPrivilegedUser ? <th className="col-nowrap">Consultor</th> : null}
+                      {isPrivilegedUser ? (
+                        <th className="col-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('consultor')}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                            title="Clique para ordenar por consultor"
+                          >
+                            Consultor {sortColumn === 'consultor' && (sortDirection === 'asc' ? '↑' : '↓')}
+                          </button>
+                        </th>
+                      ) : null}
                       <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {registrosFiltrados.map((registro) => {
+                    {registrosOrdenados.map((registro) => {
                       const { dados } = registro
                       const nomeCliente = sanitizeClientShowcaseValue(dados.nome)
                       const documentoCliente = sanitizeClientShowcaseValue(dados.documento)

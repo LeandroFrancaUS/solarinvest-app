@@ -3213,6 +3213,8 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [showAddClient, setShowAddClient] = useState(false)
+  const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'city'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3267,6 +3269,37 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const total = clients.length
   const hasClients = total > 0
 
+  // Sort clients based on selected criteria
+  const sortedClients = useMemo(() => {
+    const sorted = [...clients].sort((a, b) => {
+      let compareResult = 0
+      if (sortBy === 'name') {
+        const nameA = (a.name ?? '').toLowerCase()
+        const nameB = (b.name ?? '').toLowerCase()
+        compareResult = nameA.localeCompare(nameB, 'pt-BR')
+      } else if (sortBy === 'city') {
+        const cityA = (a.city ?? '').toLowerCase()
+        const cityB = (b.city ?? '').toLowerCase()
+        compareResult = cityA.localeCompare(cityB, 'pt-BR')
+      } else if (sortBy === 'created_at') {
+        const dateA = a.client_created_at ? new Date(a.client_created_at).getTime() : 0
+        const dateB = b.client_created_at ? new Date(b.client_created_at).getTime() : 0
+        compareResult = dateA - dateB
+      }
+      return sortDir === 'asc' ? compareResult : -compareResult
+    })
+    return sorted
+  }, [clients, sortBy, sortDir])
+
+  const toggleSort = useCallback((field: 'created_at' | 'name' | 'city') => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortDir(field === 'created_at' ? 'desc' : 'asc')
+    }
+  }, [sortBy, sortDir])
+
   // Compute billing alerts from all clients for the dashboard widget.
   // Skip clients whose Cobrança tab would be disabled (sale/buyout, inactive
   // contracts, or incomplete plans) so we don't surface notifications for
@@ -3309,7 +3342,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     return alerts.slice(0, MAX_DASHBOARD_ALERTS)
   }, [clients, hasClients])
 
-  const confirmDeleteClient = clients.find((c) => c.id === confirmDeleteId)
+  const confirmDeleteClient = sortedClients.find((c) => c.id === confirmDeleteId)
 
   return (
     <div
@@ -3386,6 +3419,64 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
             </button>
           )}
         </div>
+
+        {/* Sort controls */}
+        {!isLoading && hasClients && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Ordenar por:</span>
+            <button
+              type="button"
+              onClick={() => toggleSort('created_at')}
+              style={{
+                padding: '5px 10px',
+                fontSize: 12,
+                borderRadius: 6,
+                border: sortBy === 'created_at' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: sortBy === 'created_at' ? 'var(--accent-bg, rgba(255,140,0,0.1))' : 'transparent',
+                color: sortBy === 'created_at' ? 'var(--accent)' : 'var(--text-base)',
+                cursor: 'pointer',
+                fontWeight: sortBy === 'created_at' ? 600 : 400,
+              }}
+              title="Clique para ordenar por data de criação"
+            >
+              Data {sortBy === 'created_at' && (sortDir === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSort('name')}
+              style={{
+                padding: '5px 10px',
+                fontSize: 12,
+                borderRadius: 6,
+                border: sortBy === 'name' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: sortBy === 'name' ? 'var(--accent-bg, rgba(255,140,0,0.1))' : 'transparent',
+                color: sortBy === 'name' ? 'var(--accent)' : 'var(--text-base)',
+                cursor: 'pointer',
+                fontWeight: sortBy === 'name' ? 600 : 400,
+              }}
+              title="Clique para ordenar por nome"
+            >
+              Nome {sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')}
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSort('city')}
+              style={{
+                padding: '5px 10px',
+                fontSize: 12,
+                borderRadius: 6,
+                border: sortBy === 'city' ? '1px solid var(--accent)' : '1px solid var(--border)',
+                background: sortBy === 'city' ? 'var(--accent-bg, rgba(255,140,0,0.1))' : 'transparent',
+                color: sortBy === 'city' ? 'var(--accent)' : 'var(--text-base)',
+                cursor: 'pointer',
+                fontWeight: sortBy === 'city' ? 600 : 400,
+              }}
+              title="Clique para ordenar por cidade"
+            >
+              Cidade {sortBy === 'city' && (sortDir === 'asc' ? '↑' : '↓')}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -3463,7 +3554,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           )}
           {!isLoading && !error && hasClients && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {clients.map((c) => (
+              {sortedClients.map((c) => (
                 <ClientCard
                   key={c.id}
                   client={c}
