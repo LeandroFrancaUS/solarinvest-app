@@ -38,6 +38,10 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const msg = (body as { error?: { message?: string } })?.error?.message ?? `HTTP ${res.status}`
     throw new Error(msg)
   }
+  // Handle 204 No Content responses (e.g., from DELETE endpoints)
+  if (res.status === 204) {
+    return {} as T
+  }
   return res.json() as Promise<T>
 }
 
