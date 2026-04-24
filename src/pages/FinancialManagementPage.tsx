@@ -14,6 +14,7 @@ import {
   type FinancialProject,
   type CashflowPeriod,
 } from '../services/financialManagementApi'
+import { fetchPortfolioClients } from '../services/clientPortfolioApi'
 import { formatCurrencyBRL } from '../utils/formatters'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { ProjectDetailPage } from './ProjectDetailPage'
@@ -637,11 +638,9 @@ function FaturasAPagarTab() {
       setLoading(true)
       setError(null)
       try {
-        const response = await fetch('/api/client-portfolio')
-        if (!response.ok) throw new Error('Falha ao carregar clientes')
-        const data = await response.json()
+        const allClients = await fetchPortfolioClients()
         // Filter clients where titularidade is with SolarInvest
-        const solarInvestClients = data.data.filter((c: any) => c.is_contratante_titular === false)
+        const solarInvestClients = allClients.filter((c) => c.is_contratante_titular === false)
         setClients(solarInvestClients)
       } catch (err) {
         console.error('[faturas-a-pagar] load error', err)

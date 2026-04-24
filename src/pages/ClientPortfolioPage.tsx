@@ -1853,6 +1853,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         expected_last_billing_date: expectedLast,
         recurrence_type: 'monthly',
         auto_reminder_enabled: form.auto_reminder_enabled,
+        is_contratante_titular: form.is_contratante_titular,
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
       } as Partial<PortfolioClientRow>)
