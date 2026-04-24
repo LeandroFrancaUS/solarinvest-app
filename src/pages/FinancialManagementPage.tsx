@@ -24,7 +24,7 @@ import { PROJECT_TYPES, PROJECT_STATUSES } from '../domain/projects/types'
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'projects' | 'cashflow' | 'leasing' | 'sales'
+type Tab = 'overview' | 'projects' | 'cashflow' | 'leasing' | 'sales' | 'faturas'
 
 type PeriodFilter = 'month' | 'quarter' | 'year' | 'custom'
 
@@ -54,6 +54,7 @@ const TAB_LABELS: Record<Tab, string> = {
   cashflow: 'Fluxo de Caixa',
   leasing: 'Leasing',
   sales: 'Vendas',
+  faturas: 'Faturas a Pagar',
 }
 
 const PROJECT_KIND_LABELS: Record<string, string> = {
@@ -623,6 +624,217 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Faturas a Pagar Tab — Consolidated invoice tracking for all SolarInvest-owned accounts
+// ─────────────────────────────────────────────────────────────────────────────
+function FaturasAPagarTab() {
+  const [clients, setClients] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load all clients with is_contratante_titular = false
+  useEffect(() => {
+    async function loadClients() {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch('/api/client-portfolio')
+        if (!response.ok) throw new Error('Falha ao carregar clientes')
+        const data = await response.json()
+        // Filter clients where titularidade is with SolarInvest
+        const solarInvestClients = data.data.filter((c: any) => c.is_contratante_titular === false)
+        setClients(solarInvestClients)
+      } catch (err) {
+        console.error('[faturas-a-pagar] load error', err)
+        setError(err instanceof Error ? err.message : 'Erro ao carregar faturas')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadClients()
+  }, [])
+
+  // Flatten all installments from all clients
+  const allInvoices = useMemo(() => {
+    const invoices: Array<{
+      clientId: number
+      clientName: string
+      installmentNumber: number
+      dueDate: Date
+      amount: number
+      status: string
+      isPaid: boolean
+    }> = []
+
+    clients.forEach((client) => {
+      if (!client.installments_json) return
+      client.installments_json.forEach((inst: any) => {
+        // Calculate due date based on installment number and billing start
+        const termMonths = client.contractual_term_months ?? client.term_months ?? 0
+        if (termMonths === 0) return
+
+        // Estimate due date (simplified - should use billing dates engine in production)
+        const startDate = client.commissioning_date_billing || client.commissioning_date
+        if (!startDate) return
+
+        const dueDay = client.due_day ?? 5
+        const start = new Date(startDate)
+        const dueDate = new Date(start.getFullYear(), start.getMonth() + inst.number, dueDay)
+
+        invoices.push({
+          clientId: client.id,
+          clientName: client.name ?? `Cliente #${client.id}`,
+          installmentNumber: inst.number,
+          dueDate,
+          amount: client.valor_mensalidade ?? 0,
+          status: inst.status ?? 'pendente',
+          isPaid: inst.status === 'confirmado' || inst.status === 'pago',
+        })
+      })
+    })
+
+    // Sort by due date (nearest first)
+    return invoices.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+  }, [clients])
+
+  // Filter to show only upcoming and overdue
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const relevantInvoices = allInvoices.filter((inv) => {
+    const due = new Date(inv.dueDate)
+    due.setHours(0, 0, 0, 0)
+    // Show if not paid or if due within next 30 days
+    return !inv.isPaid || due >= today
+  })
+
+  // Group by status
+  const overdue = relevantInvoices.filter((inv) => {
+    const due = new Date(inv.dueDate)
+    due.setHours(0, 0, 0, 0)
+    return !inv.isPaid && due < today
+  })
+  const dueThisMonth = relevantInvoices.filter((inv) => {
+    const due = new Date(inv.dueDate)
+    due.setHours(0, 0, 0, 0)
+    const nextMonth = new Date(today)
+    nextMonth.setMonth(nextMonth.getMonth() + 1)
+    return !inv.isPaid && due >= today && due < nextMonth
+  })
+
+  if (loading) {
+    return <div className="fm-empty">Carregando faturas a pagar...</div>
+  }
+
+  if (error) {
+    return <SectionError message={error} onRetry={() => window.location.reload()} />
+  }
+
+  if (clients.length === 0) {
+    return (
+      <div className="fm-empty">
+        Nenhum cliente com titularidade da SolarInvest encontrado.
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
+        Faturas sob responsabilidade da SolarInvest ({clients.length} {clients.length === 1 ? 'cliente' : 'clientes'}).
+        Estas faturas devem ser monitoradas mensalmente para garantir pagamento à distribuidora.
+      </p>
+
+      {/* Summary cards */}
+      <div className="fm-kpi-grid" style={{ marginBottom: 24 }}>
+        <KpiCard
+          label="Vencidas"
+          value={String(overdue.length)}
+          icon="⚠️"
+          color={overdue.length > 0 ? 'red' : 'green'}
+          subtitle={overdue.length > 0 ? formatCurrencyBRL(overdue.reduce((sum, inv) => sum + inv.amount, 0)) : undefined}
+        />
+        <KpiCard
+          label="Vencem este Mês"
+          value={String(dueThisMonth.length)}
+          icon="📅"
+          color="yellow"
+          subtitle={dueThisMonth.length > 0 ? formatCurrencyBRL(dueThisMonth.reduce((sum, inv) => sum + inv.amount, 0)) : undefined}
+        />
+        <KpiCard
+          label="Total Pendente"
+          value={String(relevantInvoices.filter(i => !i.isPaid).length)}
+          icon="💰"
+          subtitle={formatCurrencyBRL(relevantInvoices.filter(i => !i.isPaid).reduce((sum, inv) => sum + inv.amount, 0))}
+        />
+      </div>
+
+      {/* Invoice table */}
+      <div className="fm-table-container">
+        <table className="fm-table">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Parcela</th>
+              <th>Vencimento</th>
+              <th className="right">Valor</th>
+              <th className="center">Status</th>
+              <th className="center">Dias</th>
+            </tr>
+          </thead>
+          <tbody>
+            {relevantInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  Nenhuma fatura pendente
+                </td>
+              </tr>
+            ) : (
+              relevantInvoices.map((inv, idx) => {
+                const due = new Date(inv.dueDate)
+                due.setHours(0, 0, 0, 0)
+                const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                const isOverdue = diffDays < 0
+                const isDueToday = diffDays === 0
+
+                return (
+                  <tr key={`${inv.clientId}-${inv.installmentNumber}`}>
+                    <td>{inv.clientName}</td>
+                    <td>#{inv.installmentNumber}</td>
+                    <td>
+                      {inv.dueDate.toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      })}
+                    </td>
+                    <td className="right">{formatCurrencyBRL(inv.amount)}</td>
+                    <td className="center">
+                      {inv.isPaid ? (
+                        <span className="fm-badge fm-badge--success">✓ Paga</span>
+                      ) : isOverdue ? (
+                        <span className="fm-badge fm-badge--danger">Vencida</span>
+                      ) : isDueToday ? (
+                        <span className="fm-badge fm-badge--warning">Vence Hoje</span>
+                      ) : (
+                        <span className="fm-badge">Pendente</span>
+                      )}
+                    </td>
+                    <td className="center" style={{
+                      color: isOverdue ? 'var(--color-danger)' : isDueToday ? 'var(--color-warning)' : 'var(--text-muted)'
+                    }}>
+                      {isOverdue ? `${Math.abs(diffDays)}d atrás` : isDueToday ? 'Hoje' : `${diffDays}d`}
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -720,7 +932,7 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
     void loadData()
   }, [loadData])
 
-  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'leasing', 'sales']
+  const TABS: Tab[] = ['overview', 'projects', 'cashflow', 'leasing', 'sales', 'faturas']
 
   // ── Project detail sub-view ──────────────────────────────────────────────
   if (detailProjectId !== null) {
@@ -830,6 +1042,7 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
             {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
             {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
+            {activeTab === 'faturas' && <FaturasAPagarTab />}
           </>
         )}
       </div>
