@@ -136,6 +136,12 @@ import {
   handleInvoiceNotificationConfigGetRequest,
   handleInvoiceNotificationConfigUpdateRequest,
 } from './invoices/handler.js'
+import {
+  handleOpDashboardKpi,
+  handleOpDashboardTasksList,
+  handleOpDashboardTasksCreate,
+  handleOpDashboardTaskById,
+} from './operational-dashboard/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1367,6 +1373,35 @@ export default async function handler(req, res) {
         sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
       }
       return
+    }
+
+    // ── Operational Dashboard routes ──────────────────────────────────────────
+    if (pathname === '/api/operational-dashboard/kpi') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleOpDashboardKpi(req, res, { method, sendJson: sj })
+      return
+    }
+
+    if (pathname === '/api/operational-dashboard/tasks') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'POST') {
+        await handleOpDashboardTasksCreate(req, res, { method, sendJson: sj, readJsonBody })
+      } else {
+        await handleOpDashboardTasksList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      }
+      return
+    }
+
+    {
+      const opTaskMatch = pathname.match(/^\/api\/operational-dashboard\/tasks\/([^/]+)$/)
+      if (opTaskMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleOpDashboardTaskById(req, res, { method, taskId: opTaskMatch[1], sendJson: sj, readJsonBody })
+        return
+      }
     }
 
     // ── Financial Management routes ───────────────────────────────────────────
