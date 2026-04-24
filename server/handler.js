@@ -71,6 +71,9 @@ import {
   handleConsultantsUpdateRequest,
   handleConsultantsDeactivateRequest,
   handleConsultantsPickerRequest,
+  handleConsultantsLinkRequest,
+  handleConsultantsUnlinkRequest,
+  handleConsultantsAutoDetectRequest,
 } from './routes/consultants.js'
 import {
   handleEngineersListRequest,
@@ -1010,6 +1013,44 @@ export default async function handler(req, res) {
         getScopedSql: createHandlerScopedSql,
         consultantId: Number(consultantDeactivateMatch[1]),
       })
+      return
+    }
+
+    // POST   /api/consultants/:id/link   — link consultant to user (admin only)
+    // DELETE /api/consultants/:id/link   — unlink consultant from user (admin only)
+    const consultantLinkMatch = pathname.match(/^\/api\/consultants\/(\d+)\/link$/)
+    if (consultantLinkMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
+      if (method === 'POST') {
+        await handleConsultantsLinkRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          readJsonBody,
+          consultantId: Number(consultantLinkMatch[1]),
+        })
+      } else if (method === 'DELETE') {
+        await handleConsultantsUnlinkRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+          consultantId: Number(consultantLinkMatch[1]),
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
+      return
+    }
+
+    // GET /api/consultants/auto-detect — auto-detect linked consultant (any auth)
+    if (pathname === '/api/consultants/auto-detect') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method === 'GET') {
+        await handleConsultantsAutoDetectRequest(req, res, {
+          sendJson: (s, b) => sendJson(res, s, b),
+          getScopedSql: createHandlerScopedSql,
+        })
+      } else {
+        sendJson(res, 405, { error: 'Método não suportado.' })
+      }
       return
     }
 

@@ -20,6 +20,8 @@ import {
   createConsultant,
   updateConsultant,
   deactivateConsultant,
+  linkConsultantToUser,
+  unlinkConsultantFromUser,
   fetchEngineers,
   createEngineer,
   updateEngineer,
@@ -940,6 +942,96 @@ function ConfirmDeactivateModal({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Link Consultant Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+function LinkConsultantModal({
+  consultant,
+  availableUsers,
+  onClose,
+  onLinked,
+}: {
+  consultant: Consultant
+  availableUsers: { id: string; email: string; full_name: string | null }[]
+  onClose: () => void
+  onLinked: () => void
+}) {
+  const [selectedUserId, setSelectedUserId] = useState<string>('')
+  const [linking, setLinking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleLink() {
+    if (!selectedUserId) {
+      setError('Selecione um usuário.')
+      return
+    }
+    setLinking(true)
+    setError(null)
+    try {
+      await linkConsultantToUser(consultant.id, selectedUserId)
+      onLinked()
+      onClose()
+    } catch (err) {
+      setError(personnelErrorMessage(err, 'Erro ao vincular consultor.'))
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
+      <div className="mx-4 w-full max-w-md rounded-xl border border-ds-border bg-ds-surface p-6 shadow-xl">
+        <h2 className="text-base font-semibold text-ds-text-primary mb-2">Vincular Consultor a Usuário</h2>
+        <p className="text-sm text-ds-text-secondary mb-4">
+          Vincular <strong>{consultant.full_name}</strong> a um usuário do sistema.
+        </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+            Selecione o usuário <span className="text-ds-danger">*</span>
+          </label>
+          <select
+            value={selectedUserId}
+            onChange={(e) => setSelectedUserId(e.target.value)}
+            className="w-full rounded-lg border border-ds-border bg-ds-input-bg text-ds-text-primary px-3 py-2 text-sm focus:border-ds-primary focus:outline-none focus:ring-2 focus:ring-[var(--input-focus-ring)]"
+          >
+            <option value="">Selecione um usuário...</option>
+            {availableUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name || u.email} ({u.email})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {error && (
+          <p className="mb-4 rounded-lg bg-[var(--color-error-bg)] px-3 py-2 text-sm text-ds-danger ring-1 ring-[var(--color-error-border)]">{error}</p>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={linking}
+            className="rounded-lg border border-ds-border px-4 py-2 text-sm font-medium text-ds-text-secondary hover:bg-ds-ghost-hover disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => { void handleLink() }}
+            disabled={linking || !selectedUserId}
+            className="rounded-lg bg-ds-primary px-4 py-2 text-sm font-medium text-white hover:bg-ds-primary-hover disabled:opacity-50"
+          >
+            {linking ? 'Vinculando...' : 'Vincular'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Consultants Tab
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -952,6 +1044,9 @@ export function ConsultantsTab() {
   const [editing, setEditing] = useState<Consultant | null>(null)
   const [deactivating, setDeactivating] = useState<Consultant | null>(null)
   const [deactivateLoading, setDeactivateLoading] = useState(false)
+  const [linkingConsultant, setLinkingConsultant] = useState<Consultant | null>(null)
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([])
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -996,6 +1091,30 @@ export function ConsultantsTab() {
     }
   }
 
+  async function handleShowLinkModal(consultant: Consultant) {
+    // Fetch available users from admin users API
+    try {
+      const { apiFetch } = await import('../../app/services/httpClient')
+      const response = await apiFetch<{ users: { id: string; email: string; full_name: string | null }[] }>('/api/admin/users?limit=1000')
+      setAvailableUsers(response.users)
+      setLinkingConsultant(consultant)
+    } catch (err) {
+      setError(personnelErrorMessage(err, 'Erro ao carregar usuários.'))
+    }
+  }
+
+  async function handleUnlink(consultantId: number) {
+    setUnlinkingId(consultantId)
+    try {
+      await unlinkConsultantFromUser(consultantId)
+      void load()
+    } catch (err) {
+      setError(personnelErrorMessage(err, 'Erro ao desvincular consultor.'))
+    } finally {
+      setUnlinkingId(null)
+    }
+  }
+
   return (
     <div>
       {showModal && (
@@ -1011,6 +1130,14 @@ export function ConsultantsTab() {
           onConfirm={() => { void handleDeactivate() }}
           onCancel={() => setDeactivating(null)}
           loading={deactivateLoading}
+        />
+      )}
+      {linkingConsultant && (
+        <LinkConsultantModal
+          consultant={linkingConsultant}
+          availableUsers={availableUsers}
+          onClose={() => { setLinkingConsultant(null); setAvailableUsers([]) }}
+          onLinked={() => { void load() }}
         />
       )}
 
@@ -1052,14 +1179,15 @@ export function ConsultantsTab() {
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">E-mail</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">Regiões</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">Status</th>
+              <th className="px-4 py-3 font-semibold text-ds-text-secondary text-center">Vínculo</th>
               <th className="px-4 py-3 font-semibold text-ds-text-secondary">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ds-border">
             {loading ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-ds-text-muted">Carregando...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-6 text-center text-ds-text-muted">Nenhum consultor encontrado.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-ds-text-muted">Nenhum consultor encontrado.</td></tr>
             ) : (
               filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-ds-table-hover">
@@ -1075,6 +1203,33 @@ export function ConsultantsTab() {
                   <td className="px-4 py-3 text-ds-text-secondary">{c.email}</td>
                   <td className="px-4 py-3 text-ds-text-secondary text-xs">{(c.regions ?? []).join(', ') || '—'}</td>
                   <td className="px-4 py-3"><ActiveBadge active={c.is_active} /></td>
+                  <td className="px-4 py-3 text-center">
+                    {c.linked_user_id ? (
+                      <button
+                        type="button"
+                        onClick={() => { void handleUnlink(c.id) }}
+                        disabled={unlinkingId === c.id}
+                        className="inline-flex items-center justify-center rounded p-1 text-ds-primary hover:bg-ds-primary-soft disabled:opacity-50"
+                        title="Desvincular usuário"
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z" />
+                          <path d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { void handleShowLinkModal(c) }}
+                        className="inline-flex items-center justify-center rounded p-1 text-ds-text-muted hover:bg-ds-ghost-hover hover:text-ds-primary"
+                        title="Vincular a usuário"
+                      >
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button

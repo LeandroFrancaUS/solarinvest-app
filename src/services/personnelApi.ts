@@ -49,6 +49,39 @@ export async function deactivateConsultant(id: number): Promise<Consultant> {
   return res.consultant
 }
 
+/**
+ * Links a consultant to a user. Admin only.
+ * A user can only be linked to ONE consultant, but a consultant can be linked to multiple users.
+ */
+export async function linkConsultantToUser(consultantId: number, userId: string): Promise<Consultant> {
+  const res = await apiFetch<{ consultant: Consultant }>(
+    `/api/consultants/${consultantId}/link`,
+    { method: 'POST', body: { userId } },
+  )
+  return res.consultant
+}
+
+/**
+ * Unlinks a consultant from a user. Admin only.
+ */
+export async function unlinkConsultantFromUser(consultantId: number): Promise<Consultant> {
+  const res = await apiFetch<{ consultant: Consultant }>(
+    `/api/consultants/${consultantId}/link`,
+    { method: 'DELETE' },
+  )
+  return res.consultant
+}
+
+/**
+ * Auto-detects a consultant linked to the current user.
+ * Returns null if no match is found.
+ * Matching priority: 1) linked_user_id, 2) email, 3) first+last name
+ */
+export async function autoDetectLinkedConsultant(): Promise<{ consultant: Consultant | null; matchType?: string }> {
+  const res = await apiFetch<{ consultant: Consultant | null; matchType?: string }>('/api/consultants/auto-detect')
+  return res
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Engineers
 // ─────────────────────────────────────────────────────────────────────────────
