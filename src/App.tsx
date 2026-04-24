@@ -317,6 +317,7 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
+import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
@@ -324,6 +325,7 @@ import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
+import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -384,7 +386,7 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
+type ActivePage = 'dashboard' | 'operational-dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
 type SimulacoesSection =
   | 'nova'
   | 'salvas'
@@ -5465,6 +5467,7 @@ export default function App() {
     setProjectFinanceTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
+    setOperationalDashboardTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -20326,6 +20329,13 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
 
+  const abrirDashboardOperacional = useCallback(async () => {
+    if (!canSeeDashboardEffective) return false
+    return runWithUnsavedChangesGuard(() => {
+      setActivePage('operational-dashboard')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeDashboardEffective])
+
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('crm')
@@ -27126,6 +27136,18 @@ export default function App() {
                     },
                   ]
                 : []),
+              ...(canSeeDashboardEffective
+                ? [
+                    {
+                      id: 'operational-dashboard',
+                      label: 'Painel Operacional',
+                      icon: '⚙️',
+                      onSelect: () => {
+                        void abrirDashboardOperacional()
+                      },
+                    },
+                  ]
+                : []),
             ],
           },
         ]
@@ -29458,6 +29480,10 @@ export default function App() {
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
               />
+            : null
+        ) : activePage === 'operational-dashboard' ? (
+          canSeeDashboardEffective
+            ? <OperationalDashboardPage />
             : null
         ) : (
           <div className="page">
