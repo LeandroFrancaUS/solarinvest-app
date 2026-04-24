@@ -53,7 +53,6 @@ export function ProjectFinanceSection({
     isDirty,
     error,
     setField,
-    setTechnicalParam,
     setOverride,
     restoreAuto,
     restoreAll,
@@ -167,20 +166,8 @@ export function ProjectFinanceSection({
     })
   }, [save])
 
-  const handleDeriveFromEngine = useCallback((force: boolean) => {
-    deriveFromEngine(deriveParams, force)
-  }, [deriveFromEngine, deriveParams])
-
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
   const hasProfile = profile !== null
-  const canDerive = Boolean(
-    pvData?.consumo_kwh_mes ||
-      pvData?.potencia_sistema_kwp ||
-      resolvedMensalidadeBase ||
-      // Fall back to leasing-only premise defaults (impostos / inadimp / opex /
-      // reajuste), which the engine can always emit even with no pvData.
-      contractType === 'leasing',
-  )
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (isLoading && !profile) {
@@ -261,19 +248,15 @@ export function ProjectFinanceSection({
             calculated={calculated}
             effective={effective}
             overrides={overrides}
-            technicalParams={technicalParams}
             isSaving={isSaving}
             isDirty={isDirty}
             error={error}
-            canDeriveFromEngine={canDerive}
             setField={setField}
-            setTechnicalParam={setTechnicalParam}
             setOverride={setOverride}
             restoreAuto={restoreAuto}
             restoreAll={restoreAll}
             onSave={handleSave}
             onCancel={handleCancel}
-            onDeriveFromEngine={handleDeriveFromEngine}
           />
         ) : null}
       </div>

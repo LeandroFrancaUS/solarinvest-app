@@ -8,7 +8,6 @@ import type {
   ProjectFinanceContractType,
   ProjectFinanceComputed,
   ProjectFinanceOverrides,
-  ProjectFinanceTechnicalParams,
   OverridableField,
 } from './types'
 import type { ProjectPvData } from '../../domain/projects/types'
@@ -33,6 +32,7 @@ function fmtPct(value: number | null | undefined): string {
 function TotalsBar({
   form,
   contractType,
+  calculated,
   isSaving,
   isDirty,
   onSave,
@@ -43,6 +43,7 @@ function TotalsBar({
 }: {
   form: ProjectFinanceFormState
   contractType: ProjectFinanceContractType
+  calculated: ProjectFinanceComputed
   isSaving: boolean
   isDirty: boolean
   onSave: () => void
@@ -52,8 +53,11 @@ function TotalsBar({
   hasOverrides: boolean
 }) {
   const custo = computeCustoTotal(form)
-  const lucro = computeLucroEsperado(form.receita_esperada, custo)
-  const margem = computeMargemEsperadaPct(form.receita_esperada, lucro)
+  const receitaBase = contractType === 'leasing'
+    ? calculated.receita_total_bruta
+    : form.receita_esperada
+  const lucro = computeLucroEsperado(receitaBase, custo)
+  const margem = computeMargemEsperadaPct(receitaBase, lucro)
 
   const contractLabel = contractType === 'leasing' ? 'Leasing' : 'Venda'
 
@@ -88,10 +92,19 @@ function TotalsBar({
         <strong>{fmtCurrency(custo)}</strong>
       </span>
 
-      {form.receita_esperada != null ? (
+      {contractType === 'leasing' ? (
         <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
-          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Receita:</span>
-          <strong>{fmtCurrency(form.receita_esperada)}</strong>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Mensalidade:</span>
+          <strong>{fmtCurrency(calculated.mensalidade_base)}</strong>
+        </span>
+      ) : null}
+
+      {receitaBase != null ? (
+        <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>
+            {contractType === 'leasing' ? 'Receita esperada:' : 'Receita:'}
+          </span>
+          <strong>{fmtCurrency(receitaBase)}</strong>
         </span>
       ) : null}
 
@@ -165,27 +178,15 @@ interface Props {
   calculated: ProjectFinanceComputed
   effective: ProjectFinanceComputed
   overrides: ProjectFinanceOverrides
-  technicalParams: ProjectFinanceTechnicalParams
   isSaving: boolean
   isDirty: boolean
   error: string | null
-  /**
-   * When true, the "Preencher com motor" button is shown.
-   * Only enabled when pvData has enough data to derive costs.
-   */
-  canDeriveFromEngine?: boolean
   setField: <K extends keyof ProjectFinanceFormState>(key: K, value: ProjectFinanceFormState[K]) => void
-  setTechnicalParam: <K extends keyof ProjectFinanceTechnicalParams>(key: K, value: ProjectFinanceTechnicalParams[K]) => void
   setOverride: (field: OverridableField, value: number) => void
   restoreAuto: (field: OverridableField) => void
   restoreAll: () => void
   onSave: () => void
   onCancel: () => void
-  /**
-   * Called when the user clicks "Preencher com motor".
-   * force=false fills only null fields; force=true overwrites all.
-   */
-  onDeriveFromEngine?: (force: boolean) => void
 }
 
 export function ProjectFinanceEditor({
@@ -195,61 +196,20 @@ export function ProjectFinanceEditor({
   pvData,
   calculated,
   overrides,
-  technicalParams,
   isSaving,
   isDirty,
   error,
-  canDeriveFromEngine = false,
   setField,
-  setTechnicalParam,
   setOverride,
   restoreAuto,
   restoreAll,
   onSave,
   onCancel,
-  onDeriveFromEngine,
 }: Props) {
   const hasOverrides = Object.keys(overrides).length > 0
 
   return (
     <div>
-      {/* Engine auto-fill toolbar */}
-      {canDeriveFromEngine && onDeriveFromEngine ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 4px',
-            borderBottom: '1px solid var(--border)',
-            marginBottom: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            🔄 Motor de Análise Financeira:
-          </span>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => onDeriveFromEngine(false)}
-            title="Preenche apenas campos ainda vazios com valores calculados pelo motor da Análise Financeira"
-            style={{ fontSize: 12, padding: '3px 10px' }}
-          >
-            Preencher campos vazios
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => onDeriveFromEngine(true)}
-            title="Recalcula e substitui todos os campos de custo com valores do motor da Análise Financeira"
-            style={{ fontSize: 12, padding: '3px 10px', color: 'var(--ds-warning, #f59e0b)' }}
-          >
-            Recalcular tudo
-          </button>
-        </div>
-      ) : null}
-
       <div style={{ padding: '0 4px' }}>
         {contractType === 'leasing' ? (
           <ProjectFinanceLeasingForm
@@ -278,6 +238,7 @@ export function ProjectFinanceEditor({
       <TotalsBar
         form={form}
         contractType={contractType}
+        calculated={calculated}
         isSaving={isSaving}
         isDirty={isDirty}
         onSave={onSave}

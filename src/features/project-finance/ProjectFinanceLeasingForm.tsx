@@ -379,19 +379,6 @@ export function ProjectFinanceLeasingForm({
       {/* ── Leasing — Receitas e Premissas ───────────────────── */}
       <SectionTitle title="Receitas e Premissas" />
       <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldWithOverride
-          id="pf-leasing-mensalidade"
-          label="Mensalidade base"
-          field="mensalidade_base"
-          effectiveValue={calculated.mensalidade_base}
-          isOverridden={'mensalidade_base' in overrides}
-          overrideValue={overrides.mensalidade_base ?? null}
-          unit="R$/mês"
-          step={0.01}
-          format={fmtCurrency}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
-        />
         <FieldNumber
           id="pf-leasing-desconto"
           label="Desconto ao cliente"
@@ -452,13 +439,22 @@ export function ProjectFinanceLeasingForm({
           onChange={(v) => setField('custo_impostos', v ?? undefined)}
           step={0.01}
         />
+        <FieldWithOverride
+          id="pf-leasing-mensalidade"
+          label="Mensalidade base"
+          field="mensalidade_base"
+          effectiveValue={calculated.mensalidade_base}
+          isOverridden={'mensalidade_base' in overrides}
+          overrideValue={overrides.mensalidade_base ?? null}
+          unit="R$/mês"
+          step={0.01}
+          format={fmtCurrency}
+          onOverride={setOverride}
+          onRestore={restoreAuto}
+        />
         <ReadonlyField
           label="Receita total esperada"
-          value={
-            calculated.receita_total_bruta != null
-              ? fmtCurrency(calculated.receita_total_bruta)
-              : '—'
-          }
+          value={calculated.receita_total_bruta != null ? fmtCurrency(calculated.receita_total_bruta) : '—'}
         />
       </div>
 
