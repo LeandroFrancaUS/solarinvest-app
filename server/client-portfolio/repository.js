@@ -972,6 +972,11 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
     : null
   // INSERT fallback: use provided value or default to empty array for new rows
   const installmentsJsonInsert = installmentsJsonStr ?? '[]'
+
+  // Handle boolean fields properly - check if field exists in object, not just truthy/falsy
+  const hasIsContratanteTitular = 'is_contratante_titular' in fields
+  const isContratanteTitularValue = hasIsContratanteTitular ? fields.is_contratante_titular : null
+
   try {
     const rows = await sql`
       INSERT INTO public.client_billing_profile (
@@ -996,7 +1001,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         ${fields.valor_mensalidade ?? null},
         ${fields.commissioning_date ?? fields.commissioning_date_billing ?? null},
         ${installmentsJsonInsert}::jsonb,
-        ${fields.is_contratante_titular ?? true},
+        ${hasIsContratanteTitular ? fields.is_contratante_titular : true},
         ${now},
         ${now}
       )
@@ -1014,7 +1019,7 @@ export async function upsertClientBillingProfile(sql, clientId, fields) {
         valor_mensalidade          = COALESCE(${fields.valor_mensalidade ?? null}, client_billing_profile.valor_mensalidade),
         commissioning_date         = COALESCE(${fields.commissioning_date ?? fields.commissioning_date_billing ?? null}, client_billing_profile.commissioning_date),
         installments_json          = COALESCE(${installmentsJsonStr}::jsonb, client_billing_profile.installments_json),
-        is_contratante_titular     = COALESCE(${fields.is_contratante_titular ?? null}, client_billing_profile.is_contratante_titular),
+        is_contratante_titular     = COALESCE(${isContratanteTitularValue}, client_billing_profile.is_contratante_titular),
         updated_at                 = ${now}
       RETURNING *
     `
