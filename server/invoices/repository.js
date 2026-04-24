@@ -125,14 +125,30 @@ export async function updateInvoice(sql, invoiceId, patch) {
     return getInvoiceById(sql, invoiceId)
   }
 
-  updates.updated_at = sql`NOW()`
+  // Build SET clause manually to avoid template literal nesting issues
+  const setClauses = []
+  const values = []
 
-  const rows = await sql`
+  for (const [key, value] of Object.entries(updates)) {
+    setClauses.push(`${key} = $${values.length + 1}`)
+    values.push(value)
+  }
+
+  // Add updated_at
+  setClauses.push(`updated_at = NOW()`)
+
+  // Add invoiceId as last parameter
+  values.push(invoiceId)
+
+  const setClause = setClauses.join(', ')
+  const query = `
     UPDATE public.client_invoices
-    SET ${sql(updates)}
-    WHERE id = ${invoiceId}
+    SET ${setClause}
+    WHERE id = $${values.length}
     RETURNING *
   `
+
+  const rows = await sql.unsafe(query, values)
   return rows[0] || null
 }
 
