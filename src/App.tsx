@@ -27100,6 +27100,41 @@ export default function App() {
           },
         ]
       : []),
+    // Portfolio and Financial Management - moved to top after Dashboard
+    ...((canSeePortfolioEffective || canSeeFinancialManagementEffective)
+      ? [
+          {
+            id: 'gestao',
+            label: '',
+            items: [
+              ...(canSeePortfolioEffective
+                ? [
+                    {
+                      id: 'carteira-clientes',
+                      label: 'Carteira Ativa',
+                      icon: '💼',
+                      onSelect: () => {
+                        void abrirCarteira()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeFinancialManagementEffective
+                ? [
+                    {
+                      id: 'gestao-financeira-home',
+                      label: 'Receita e Cobrança',
+                      icon: '💰',
+                      onSelect: () => {
+                        void abrirGestaoFinanceira()
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : []),
     ...((canSeeProposalsEffective || canSeeContractsEffective)
       ? [
           {
@@ -27285,32 +27320,9 @@ export default function App() {
       : []),
     {
       id: 'configuracoes',
-      label: 'Configurações',
+      label: '',
       items: [
-        ...(canSeeFinancialManagementEffective
-          ? [
-              {
-                id: 'gestao-financeira-home',
-                label: 'Receita e Cobrança',
-                icon: '💰',
-                onSelect: () => {
-                  void abrirGestaoFinanceira()
-                },
-              },
-            ]
-          : []),
-        ...(canSeePortfolioEffective
-          ? [
-              {
-                id: 'carteira-clientes',
-                label: 'Carteira Ativa',
-                icon: '💼',
-                onSelect: () => {
-                  void abrirCarteira()
-                },
-              },
-            ]
-          : []),
+        // Portfolio and Financial Management moved to top - removed from here
       ],
     },
   ]

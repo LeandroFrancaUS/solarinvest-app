@@ -1701,7 +1701,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
     // Flag to determine which mensalidade rule applies: true = standard rule, false = GO/SolarInvest rule
     // Now persisted to backend
-    is_contratante_titular: client.is_contratante_titular ?? true,
+    is_contratante_titular: client.is_contratante_titular != null ? client.is_contratante_titular : true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
@@ -1710,7 +1710,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
-    is_contratante_titular: client.is_contratante_titular ?? true,
+    is_contratante_titular: client.is_contratante_titular != null ? client.is_contratante_titular : true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
