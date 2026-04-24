@@ -63,14 +63,19 @@ interface Reference {
   vpl: number | null
 }
 
+/**
+ * Mensalidade efetiva após o desconto ao cliente.
+ * Convenção: o cenário declara `mensalidade` "cheia" (pré-desconto). O
+ * desconto é aplicado uma única vez aqui — usado tanto na referência quanto
+ * em `buildForm` para garantir consistência.
+ */
+function mensalidadeComDesconto(s: LeasingScenario): number {
+  return s.mensalidade * (1 - s.desconto_pct / 100)
+}
+
 function expectedReference(s: LeasingScenario): Reference {
-  // Aplica desconto na mensalidade efetiva (campo "Desconto ao cliente"
-  // reduz a mensalidade que o cliente paga).
-  // Observação: o motor `computeProjectKPIs` recebe `mensalidade_base` já
-  // com o desconto aplicado pelo formulário (auto-fill via
-  // `consumo × tarifa × (1 − desconto/100)`). Para manter consistência com a
-  // referência, aplicamos o desconto aqui também.
-  const mensalidadeBase = s.mensalidade * (1 - s.desconto_pct / 100)
+  // Mensalidade efetiva = mensalidade × (1 − desconto/100)
+  const mensalidadeBase = mensalidadeComDesconto(s)
 
   // Fator líquido = 1 − impostos − inadimplência − opex (todos sobre mensalidade)
   const fatorLiquido = Math.max(
@@ -134,8 +139,9 @@ function expectedReference(s: LeasingScenario): Reference {
 // ─── Conversão Cenário → Form do motor ────────────────────────────────────────
 
 function buildForm(s: LeasingScenario): ProjectFinanceFormState {
-  // Mensalidade já com desconto aplicado (mesma convenção do auto-fill).
-  const mensalidade = s.mensalidade * (1 - s.desconto_pct / 100)
+  // Mensalidade efetiva = mensalidade × (1 − desconto/100), aplicada via
+  // `mensalidadeComDesconto` para manter consistência com `expectedReference`.
+  const mensalidade = mensalidadeComDesconto(s)
   return {
     custo_equipamentos: s.capex,
     custo_seguro: s.custo_seguro,
@@ -430,7 +436,42 @@ describe('Fórmula VPL — Σ FC_t / (1 + i)^t', () => {
   })
 })
 
-// ─── Validação computeProjectFinancialState (state final) ─────────────────────
+// ─── Validação isolada da fórmula com VRG ─────────────────────────────────────
+
+describe('Cenários com VRG — referência valida a fórmula VPL = VPL(parcelas) + VRG/(1+i)^n', () => {
+  // Cenários 47 e 48 incluem VRG e são pulados na auditoria principal porque o
+  // motor atual (`computeProjectKPIs`) ainda não modela VRG. Aqui validamos
+  // que o cálculo de referência aplica a fórmula correta:
+  //   VPL_total = Σ FC_t/(1+i)^t  +  VRG/(1+i)^n
+  for (const s of SCENARIOS.filter((sc) => sc.vrg && sc.vrg > 0)) {
+    it(`${s.label}: VPL referência ≡ VPL(parcelas) + VRG/(1+i)^n`, () => {
+      const ref = expectedReference(s)
+      // Recalcula o cenário SEM VRG para isolar o efeito
+      const semVrg = expectedReference({ ...s, vrg: 0 })
+
+      expect(ref.vpl).not.toBeNull()
+      expect(semVrg.vpl).not.toBeNull()
+
+      // Valor presente do VRG no fim do contrato
+      const taxaMensal = toMonthlyRate(s.taxa_desconto_aa_pct ?? 0)
+      const vrgPresente = (s.vrg ?? 0) / Math.pow(1 + taxaMensal, s.prazo)
+
+      expect(ref.vpl!).toBeCloseTo(semVrg.vpl! + vrgPresente, 1)
+    })
+
+    it(`${s.label}: payback com VRG ≤ payback sem VRG (entrada extra antecipa retorno)`, () => {
+      const comVrg = expectedReference(s)
+      const semVrg = expectedReference({ ...s, vrg: 0 })
+      // Em ambos casos o payback intermediário pode ocorrer no mesmo mês,
+      // mas o VRG nunca pode atrasar o payback.
+      if (comVrg.payback != null && semVrg.payback != null) {
+        expect(comVrg.payback).toBeLessThanOrEqual(semVrg.payback)
+      }
+    })
+  }
+})
+
+
 
 describe('computeProjectFinancialState — overrides não afetam KPIs (KPIs read-only)', () => {
   it('overrides em KPIs ainda funcionam no motor (UI desabilita, mas API mantém)', () => {
