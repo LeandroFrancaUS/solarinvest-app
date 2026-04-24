@@ -20301,10 +20301,8 @@ export default function App() {
 
   const abrirAdminUsuarios = useCallback(async () => {
     if (!canSeeUsersEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('admin-users')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsersEffective])
+    return abrirConfiguracoes('usuarios')
+  }, [abrirConfiguracoes, canSeeUsersEffective])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -27289,30 +27287,6 @@ export default function App() {
       id: 'configuracoes',
       label: 'Configurações',
       items: [
-        ...(canSeeUsersEffective
-          ? [
-              {
-                id: 'config-admin-users',
-                label: 'Gestão de Usuários',
-                icon: '👤',
-                onSelect: () => {
-                  void abrirAdminUsuarios()
-                },
-              },
-            ]
-          : []),
-        ...(isAdmin
-          ? [
-              {
-                id: 'config-preferencias',
-                label: 'Preferências',
-                icon: '⚙️',
-                onSelect: () => {
-                  void abrirConfiguracoes()
-                },
-              },
-            ]
-          : []),
         ...(canSeeFinancialManagementEffective
           ? [
               {
@@ -27337,15 +27311,6 @@ export default function App() {
               },
             ]
           : []),
-        {
-          id: 'config-sair',
-          label: isLoggingOut ? 'Saindo…' : 'Sair',
-          icon: '🚪',
-          disabled: isLoggingOut,
-          onSelect: () => {
-            void handleLogout()
-          },
-        },
       ],
     },
   ]
@@ -27358,9 +27323,6 @@ export default function App() {
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
     ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-    ...(isAdmin ? ['config-preferencias'] : []),
-    ...(canSeeUsersEffective ? ['config-admin-users'] : []),
-    'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
@@ -28627,7 +28589,7 @@ export default function App() {
       </div>
       <div className="config-page">
         <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-          {SETTINGS_TABS.map((tab) => (
+          {SETTINGS_TABS.filter((tab) => tab.id !== 'usuarios' || canSeeUsersEffective).map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -28643,6 +28605,18 @@ export default function App() {
           ))}
         </div>
         <div className="config-panels">
+          {canSeeUsersEffective ? (
+            <section
+              id="settings-panel-usuarios"
+              role="tabpanel"
+              aria-labelledby="cfg-tab-usuarios"
+              className={`settings-panel config-card${settingsTab === 'usuarios' ? ' active' : ''}`}
+              hidden={settingsTab !== 'usuarios'}
+              aria-hidden={settingsTab !== 'usuarios'}
+            >
+              <AdminUsersPage embedded />
+            </section>
+          ) : null}
           <section
             id="settings-panel-mercado"
             role="tabpanel"
@@ -29364,14 +29338,12 @@ export default function App() {
             ? 'carteira-clientes'
             : activePage === 'consultar'
               ? 'orcamentos-importar'
-          : activePage === 'settings'
-                ? 'config-preferencias'
-                : activePage === 'admin-users'
-                  ? 'config-admin-users'
-                  : activePage === 'financial-management'
-                    ? 'gestao-financeira-home'
-                    : activePage === 'simulacoes'
-                    ? `simulacoes-${simulacoesSection}`
+          : activePage === 'settings' || activePage === 'admin-users'
+                ? 'gestao-financeira-home'
+                : activePage === 'financial-management'
+                  ? 'gestao-financeira-home'
+                  : activePage === 'simulacoes'
+                  ? `simulacoes-${simulacoesSection}`
                     : activeTab === 'vendas'
                       ? 'propostas-vendas'
                       : 'propostas-leasing'
@@ -29436,6 +29408,8 @@ export default function App() {
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
           onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
+          onLogout={handleLogout}
+          isLoggingOut={isLoggingOut}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>

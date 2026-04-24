@@ -16,6 +16,7 @@ type AdminTab = 'users' | 'consultants' | 'engineers' | 'installers'
 
 interface Props {
   onBack?: () => void
+  embedded?: boolean
 }
 
 // ── Add User Modal ─────────────────────────────────────────────────────────────
@@ -281,12 +282,12 @@ const TABS: { id: AdminTab; label: string; emoji: string }[] = [
   { id: 'installers',  label: 'Instaladores', emoji: '🔧' },
 ]
 
-export function AdminUsersPage({ onBack }: Props) {
+export function AdminUsersPage({ onBack, embedded = false }: Props) {
   const [activeTab, setActiveTab] = useState<AdminTab>('users')
   const [showAddModal, setShowAddModal] = useState(false)
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <div className={embedded ? '' : 'mx-auto max-w-6xl px-4 py-8 sm:px-6'}>
       {showAddModal && (
         <AddUserModal
           onClose={() => setShowAddModal(false)}
@@ -294,23 +295,25 @@ export function AdminUsersPage({ onBack }: Props) {
         />
       )}
 
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Gerencie usuários, consultores, engenheiros e instaladores.
-          </p>
+      {!embedded && (
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Gestão de Usuários</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Gerencie usuários, consultores, engenheiros e instaladores.
+            </p>
+          </div>
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Voltar
+            </button>
+          )}
         </div>
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Voltar
-          </button>
-        )}
-      </div>
+      )}
 
       {/* Tabs */}
       <div className="mb-6 border-b border-slate-200">

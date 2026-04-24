@@ -15,6 +15,8 @@ export interface TopbarProps {
   theme?: AppTheme
   onCycleTheme?: () => void
   onOpenPreferences?: () => void
+  onLogout?: () => void
+  isLoggingOut?: boolean
 }
 
 const THEME_ICON: Record<AppTheme, string> = {
@@ -27,7 +29,7 @@ const THEME_NEXT_LABEL: Record<AppTheme, string> = {
   old: 'Alternar para modo escuro',
 }
 
-export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, theme, onCycleTheme, onOpenPreferences }: TopbarProps) {
+export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, theme, onCycleTheme, onOpenPreferences, onLogout, isLoggingOut }: TopbarProps) {
   const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
   const currentTheme = theme ?? 'dark'
@@ -77,6 +79,18 @@ export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, the
               title={THEME_NEXT_LABEL[currentTheme]}
             >
               {THEME_ICON[currentTheme]}
+            </button>
+          ) : null}
+          {onLogout ? (
+            <button
+              type="button"
+              className="theme-toggle-btn topbar-logout-btn"
+              onClick={onLogout}
+              disabled={isLoggingOut}
+              aria-label={isLoggingOut ? 'Saindo…' : 'Sair da conta'}
+              title={isLoggingOut ? 'Saindo…' : 'Sair'}
+            >
+              🚪
             </button>
           ) : null}
         </div>
