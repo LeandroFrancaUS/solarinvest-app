@@ -11,6 +11,7 @@ import {
   findClientByCpf,
   findClientByCnpj,
   findClientByOfflineOriginId,
+  findClientByNormalizedName,
   createClient,
   updateClient,
   softDeleteClient,
@@ -348,6 +349,34 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     }
 
     const mappedBody = toClientWritePayload(body)
+
+    // ── NAME-BASED DEDUPLICATION FALLBACK ─────────────────────────────────────
+    // When no CPF, CNPJ, or offline_origin_id matched, check if the same owner
+    // already has a client with the exact same normalized name.  This prevents
+    // duplicate records from being created by auto-save retries or cross-device
+    // saves when the client-side ID map is lost (e.g. localStorage cleared).
+    // Only applies when there is no document at all — clients with documents
+    // that differ are legitimately different people.
+    if (!cpfNormalized && !cnpjNormalized && !offlineOriginId) {
+      const existingByName = await findClientByNormalizedName(
+        db.sql,
+        (mappedBody.name ?? body.name ?? '').trim(),
+        actor.userId,
+      )
+      if (existingByName) {
+        await appendClientAuditLog(
+          db.sql, existingByName.id, actor.userId, actor.email ?? null,
+          'client_deduplicated', null,
+          { linked_by: actor.userId },
+          'Name deduplication — existing client reused (no document)', null,
+        )
+        if (body.energyProfile && typeof body.energyProfile === 'object') {
+          await tryUpsertEnergyProfile(db.sql, existingByName.id, body.energyProfile)
+        }
+        logRoute('/api/clients/upsert-by-cpf', { method: 'POST', actorUserId: actor.userId, success: true, clientId: existingByName.id, deduplicated: true })
+        return sendJson(200, { data: normalizeClientResponse(existingByName), deduplicated: true, idempotent: false })
+      }
+    }
 
     // Validate for UC and address duplicates (migration 0058)
     const duplicateValidation = await validateClientDuplicates(db.sql, {
