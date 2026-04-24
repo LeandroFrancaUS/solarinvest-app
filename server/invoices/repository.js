@@ -160,11 +160,14 @@ export async function registerInvoicePayment(sql, invoiceId, paymentData) {
     confirmed_by_user_id = null,
   } = paymentData
 
+  // Determine paid_at value based on status
+  const shouldSetPaidAt = payment_status === 'pago' || payment_status === 'confirmado'
+
   const rows = await sql`
     UPDATE public.client_invoices
     SET
       payment_status = ${payment_status},
-      paid_at = ${payment_status === 'pago' || payment_status === 'confirmado' ? sql`NOW()` : sql`NULL`},
+      paid_at = ${shouldSetPaidAt ? sql`NOW()` : null},
       payment_receipt_number = ${receipt_number},
       payment_transaction_number = ${transaction_number},
       payment_attachment_url = ${attachment_url},

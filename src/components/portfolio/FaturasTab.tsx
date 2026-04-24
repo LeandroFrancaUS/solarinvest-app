@@ -45,6 +45,19 @@ export function FaturasTab({ client }: FaturasTabProps) {
     transaction_number: '',
   })
 
+  // Edit invoice modal
+  const [editModal, setEditModal] = useState<{
+    invoice: ClientInvoice
+  } | null>(null)
+  const [editForm, setEditForm] = useState({
+    uc: '',
+    invoice_number: '',
+    reference_month: '',
+    due_date: '',
+    amount: '',
+    notes: '',
+  })
+
   // Get all UCs for this client
   const clientUCs = useMemo(() => {
     const ucs: string[] = []
@@ -120,6 +133,32 @@ export function FaturasTab({ client }: FaturasTabProps) {
       await loadInvoices()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao registrar pagamento')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUpdateInvoice() {
+    if (!editModal) return
+    if (!editForm.reference_month || !editForm.due_date || !editForm.amount) {
+      setError('Preencha todos os campos obrigatórios.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      await updateInvoice(editModal.invoice.id, {
+        invoice_number: editForm.invoice_number || null,
+        reference_month: editForm.reference_month,
+        due_date: editForm.due_date,
+        amount: parseFloat(editForm.amount),
+        notes: editForm.notes || null,
+      })
+      setEditModal(null)
+      await loadInvoices()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar fatura')
     } finally {
       setSaving(false)
     }
@@ -452,6 +491,33 @@ export function FaturasTab({ client }: FaturasTabProps) {
                           )}
                           <button
                             type="button"
+                            onClick={() => {
+                              setEditModal({ invoice: inv })
+                              setEditForm({
+                                uc: inv.uc,
+                                invoice_number: inv.invoice_number || '',
+                                reference_month: inv.reference_month,
+                                due_date: inv.due_date,
+                                amount: String(inv.amount),
+                                notes: inv.notes || '',
+                              })
+                            }}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              border: '1px solid #3b82f6',
+                              background: 'transparent',
+                              color: '#3b82f6',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              marginRight: 4,
+                            }}
+                            title="Editar fatura"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteInvoice(inv.id)}
                             style={{
                               padding: '4px 8px',
@@ -577,6 +643,131 @@ export function FaturasTab({ client }: FaturasTabProps) {
                 }}
               >
                 {saving ? 'Salvando...' : 'Confirmar Pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit invoice modal */}
+      {editModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => setEditModal(null)}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: 10,
+              padding: 24,
+              maxWidth: 600,
+              width: '90%',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
+              Editar Fatura
+            </div>
+            <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+              <strong>UC:</strong> {editModal.invoice.uc}
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <label className="pf-label">
+                Número da Fatura
+                <input
+                  type="text"
+                  value={editForm.invoice_number}
+                  onChange={(e) => setEditForm((f) => ({ ...f, invoice_number: e.target.value }))}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)' }}
+                  placeholder="Ex: 123456789"
+                />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <label className="pf-label">
+                  Mês de Referência *
+                  <input
+                    type="month"
+                    value={editForm.reference_month ? editForm.reference_month.slice(0, 7) : ''}
+                    onChange={(e) => setEditForm((f) => ({ ...f, reference_month: e.target.value + '-01' }))}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)' }}
+                  />
+                </label>
+                <label className="pf-label">
+                  Data de Vencimento *
+                  <input
+                    type="date"
+                    value={editForm.due_date}
+                    onChange={(e) => setEditForm((f) => ({ ...f, due_date: e.target.value }))}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)' }}
+                  />
+                </label>
+                <label className="pf-label">
+                  Valor (R$) *
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)' }}
+                  />
+                </label>
+              </div>
+              <label className="pf-label">
+                Observações
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', fontFamily: 'inherit' }}
+                  placeholder="Observações adicionais..."
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setEditModal(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateInvoice}
+                disabled={saving}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  border: '1px solid #3b82f6',
+                  background: '#3b82f6',
+                  color: '#fff',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {saving ? 'Salvando...' : 'Salvar Alterações'}
               </button>
             </div>
           </div>
