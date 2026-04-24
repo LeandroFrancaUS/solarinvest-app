@@ -16633,9 +16633,15 @@ export default function App() {
           serverId: knownServerId ?? null,
           operation: knownServerId ? 'PUT /api/clients/:id' : 'POST /api/clients/upsert-by-cpf',
         })
+        // When creating (no known server ID), always pass the local client UUID as an
+        // idempotency key so the server can return the existing record on retries or
+        // cross-device saves instead of creating a new duplicate.
+        const createPayload: UpsertClientInput = knownServerId
+          ? upsertPayload
+          : { ...upsertPayload, ...(clienteEmEdicaoId ? { offline_origin_id: clienteEmEdicaoId } : {}) }
         const serverRow = knownServerId
           ? await updateClientById(knownServerId, upsertPayload as UpdateClientInput)
-          : await upsertClientByDocument(upsertPayload)
+          : await upsertClientByDocument(createPayload)
         neonServerId = serverRow.id
         console.info('[client-save] client mutation success', { clientId: serverRow.id, serverId: serverRow.id })
         clientLastPayloadSignatureRef.current = stableStringify(
@@ -17008,9 +17014,14 @@ export default function App() {
         clientServerAutoSaveInFlightRef.current = true
         try {
           const knownServerId = clientServerIdMapRef.current[clienteEmEdicaoId]
+          // When no server ID is known, include the local client UUID as an idempotency
+          // key so repeated auto-saves don't create duplicate server records.
+          const autoSavePayload: UpsertClientInput = knownServerId
+            ? payload
+            : { ...payload, offline_origin_id: clienteEmEdicaoId }
           const serverRow = knownServerId
             ? await updateClientById(knownServerId, payload as UpdateClientInput)
-            : await upsertClientByDocument(payload)
+            : await upsertClientByDocument(autoSavePayload)
           clientLastPayloadSignatureRef.current = payloadSignature
           updateClientServerIdMap(clienteEmEdicaoId, serverRow.id)
           await clearFormDraft()
