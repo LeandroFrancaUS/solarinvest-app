@@ -377,7 +377,7 @@ export function ProjectFinanceLeasingForm({
       </div>
 
       {/* ── Leasing — Receitas e Premissas ───────────────────── */}
-      <SectionTitle title="Receitas e Premissas (Leasing)" />
+      <SectionTitle title="Receitas e Premissas" />
       <div className="fm-detail-grid fm-detail-grid--edit">
         <FieldWithOverride
           id="pf-leasing-mensalidade"
@@ -446,12 +446,11 @@ export function ProjectFinanceLeasingForm({
         />
         <FieldNumber
           id="pf-leasing-impostos"
-          label="Impostos / Taxas (total contrato)"
+          label="Total de Impostos"
           unit="R$"
           value={form.custo_impostos}
           onChange={(v) => setField('custo_impostos', v ?? undefined)}
           step={0.01}
-          hint="(despesa operacional)"
         />
         <FieldNumber
           id="pf-leasing-receita"
@@ -460,64 +459,32 @@ export function ProjectFinanceLeasingForm({
           value={form.receita_esperada}
           onChange={(v) => setField('receita_esperada', v ?? undefined)}
           step={0.01}
-          hint="(contrato completo)"
         />
       </div>
 
       {/* ── KPIs Financeiros ─────────────────────────────────── */}
+      {/*
+        KPIs são calculados automaticamente pelo motor financeiro a partir
+        das premissas (custos, mensalidade, reajuste, inadimplência, opex,
+        manutenção, taxa de desconto). Não são editáveis pelo usuário.
+      */}
       <SectionTitle title="KPIs Financeiros" />
-      <div className="fm-detail-grid fm-detail-grid--edit fm-kpi-grid">
-        <FieldWithOverride
-          id="pf-leasing-payback"
-          label="Payback"
-          field="payback_meses"
-          effectiveValue={calculated.payback_meses}
-          isOverridden={'payback_meses' in overrides}
-          overrideValue={overrides.payback_meses ?? null}
-          unit="meses"
-          step={0.1}
-          format={(v) => fmtNum(v, 2)}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
+      <div className="fm-detail-grid fm-kpi-grid">
+        <ReadonlyField
+          label="Payback (meses)"
+          value={calculated.payback_meses != null ? fmtNum(calculated.payback_meses, 2) : '—'}
         />
-        <FieldWithOverride
-          id="pf-leasing-roi"
-          label="ROI"
-          field="roi_pct"
-          effectiveValue={calculated.roi_pct}
-          isOverridden={'roi_pct' in overrides}
-          overrideValue={overrides.roi_pct ?? null}
-          unit="%"
-          step={0.01}
-          format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
+        <ReadonlyField
+          label="ROI (%)"
+          value={calculated.roi_pct != null ? `${fmtNum(calculated.roi_pct, 2)}%` : '—'}
         />
-        <FieldWithOverride
-          id="pf-leasing-tir"
-          label="TIR (IRR anual)"
-          field="tir_pct"
-          effectiveValue={calculated.tir_pct}
-          isOverridden={'tir_pct' in overrides}
-          overrideValue={overrides.tir_pct ?? null}
-          unit="% a.a."
-          step={0.01}
-          format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
+        <ReadonlyField
+          label="TIR anual (%)"
+          value={calculated.tir_pct != null ? `${fmtNum(calculated.tir_pct, 2)}%` : '—'}
         />
-        <FieldWithOverride
-          id="pf-leasing-vpl"
-          label="VPL (NPV)"
-          field="vpl"
-          effectiveValue={calculated.vpl}
-          isOverridden={'vpl' in overrides}
-          overrideValue={overrides.vpl ?? null}
-          unit="R$"
-          step={0.01}
-          format={fmtCurrency}
-          onOverride={setOverride}
-          onRestore={restoreAuto}
+        <ReadonlyField
+          label="VPL (R$)"
+          value={fmtCurrency(calculated.vpl)}
         />
       </div>
 

@@ -122,12 +122,30 @@ export function computeProjectKPIs(
     const inadimplencia = (form.inadimplencia_pct ?? 0) / 100
     const opex = (form.opex_pct ?? 0) / 100
     const fatorLiquido = Math.max(0, 1 - impostosFrac - inadimplencia - opex)
-    const mensalidadeLiquida = mensalidade * fatorLiquido
 
-    // fluxos = net inflows only (without t0) — calcularKpis prepends −capex
-    const fluxos: number[] = Array<number>(prazo).fill(mensalidadeLiquida)
+    // ── Reajuste anual: a mensalidade é reajustada a cada 12 meses ────────────
+    //   mensalidade_t = mensalidade × (1 + reajuste)^⌊t/12⌋   para t em [0, prazo).
+    // Quando reajuste = 0, este modelo se reduz ao caso plano (compatível com
+    // o cálculo histórico).
+    const reajusteDecimal = Math.max(0, (form.reajuste_anual_pct ?? 0) / 100)
 
-    const receitaLiquida = mensalidadeLiquida * prazo
+    // ── Manutenção: tratada como despesa total do contrato distribuída
+    //    proporcionalmente entre os meses do prazo. Reduz o fluxo de caixa
+    //    mensal e impacta lucro/ROI/payback/TIR/VPL.
+    const manutencaoTotal = Math.max(0, form.custo_manutencao ?? 0)
+    const manutencaoMensal = manutencaoTotal / prazo
+
+    // fluxos = net inflows only (without t0) — calcularKpis prepends −capex.
+    // Cada mês: mensalidade reajustada × fator líquido − manutenção mensal.
+    const fluxos: number[] = []
+    let receitaLiquida = 0
+    for (let t = 0; t < prazo; t++) {
+      const mensalidadeBruta = mensalidade * Math.pow(1 + reajusteDecimal, Math.floor(t / 12))
+      const mensalidadeLiquida = mensalidadeBruta * fatorLiquido - manutencaoMensal
+      fluxos.push(mensalidadeLiquida)
+      receitaLiquida += mensalidadeLiquida
+    }
+
     const lucro = receitaLiquida - capex
 
     const kpis = calcularKpis(fluxos, capex, lucro, taxaDesconto)
