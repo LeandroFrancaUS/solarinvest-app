@@ -123,6 +123,21 @@ function ReadonlyField({ label, value }: { label: string; value: React.ReactNode
   )
 }
 
+function HighlightStat({
+  label,
+  value,
+}: {
+  label: string
+  value: React.ReactNode
+}) {
+  return (
+    <div className="fm-finance-highlight-card">
+      <span className="fm-detail-field-label">{label}</span>
+      <span className="fm-finance-highlight-value">{value}</span>
+    </div>
+  )
+}
+
 /**
  * A KPI field that is auto-computed by the engine but can be manually overridden.
  * Shows the computed value and allows manual override.
@@ -306,6 +321,20 @@ export function ProjectFinanceLeasingForm({
         contractTermMonths={contractTermMonths}
         formPrazo={form.prazo_contratual_meses}
       />
+      <div className="fm-finance-highlight-strip">
+        <HighlightStat
+          label="Custo total do projeto"
+          value={fmtCurrency(custoTotal)}
+        />
+        <HighlightStat
+          label="Mensalidade base"
+          value={fmtCurrency(calculated.mensalidade_base)}
+        />
+        <HighlightStat
+          label="Receita total esperada"
+          value={calculated.receita_total_bruta != null ? fmtCurrency(calculated.receita_total_bruta) : '—'}
+        />
+      </div>
 
       {/* ── Custos do Projeto ────────────────────────────────── */}
       <SectionTitle title="Custos do Projeto" />
@@ -365,14 +394,6 @@ export function ProjectFinanceLeasingForm({
           value={form.custo_diversos}
           onChange={(v) => setField('custo_diversos', v ?? undefined)}
           step={0.01}
-        />
-        <ReadonlyField
-          label="Custo total do projeto"
-          value={
-            <strong style={{ color: 'var(--text-primary, #f8fafc)' }}>
-              {fmtCurrency(custoTotal)}
-            </strong>
-          }
         />
       </div>
 
@@ -451,14 +472,6 @@ export function ProjectFinanceLeasingForm({
           value={form.custo_impostos}
           onChange={(v) => setField('custo_impostos', v ?? undefined)}
           step={0.01}
-        />
-        <ReadonlyField
-          label="Receita total esperada"
-          value={
-            calculated.receita_total_bruta != null
-              ? fmtCurrency(calculated.receita_total_bruta)
-              : '—'
-          }
         />
       </div>
 
