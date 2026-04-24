@@ -13482,7 +13482,10 @@ export default function App() {
     const cleanup = import('./events/consultantEvents').then(({ onConsultantLinkChanged }) => {
       return onConsultantLinkChanged((detail) => {
         // Only re-run auto-detection if the link change affects the current user
-        if (me?.id && detail.userId === me.id) {
+        // Compare using both database id and auth provider id to handle both scenarios
+        const matchesById = me?.id && detail.userId === me.id
+        const matchesByAuthId = me?.authProviderId && detail.userId === me.authProviderId
+        if (matchesById || matchesByAuthId) {
           if (import.meta.env.DEV) {
             console.debug('[consultant][auto-detect] Link changed for current user, re-running auto-detection', detail)
           }

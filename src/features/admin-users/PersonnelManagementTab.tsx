@@ -953,7 +953,7 @@ function LinkConsultantModal({
   onLinked,
 }: {
   consultant: Consultant
-  availableUsers: { id: string; email: string; full_name: string | null }[]
+  availableUsers: { id: string; auth_provider_user_id: string; email: string; full_name: string | null }[]
   onClose: () => void
   onLinked: () => void
 }) {
@@ -969,8 +969,13 @@ function LinkConsultantModal({
     setLinking(true)
     setError(null)
     try {
-      await linkConsultantToUser(consultant.id, selectedUserId)
+      // selectedUserId is the database UUID (id), but we need to send auth_provider_user_id for linking
+      const selectedUser = availableUsers.find((u) => u.id === selectedUserId)
+      const authProviderId = selectedUser?.auth_provider_user_id || selectedUserId
+
+      await linkConsultantToUser(consultant.id, authProviderId)
       // Emit event to trigger auto-detection refresh for the linked user
+      // The event should use the database id for frontend comparison with me.id
       emitConsultantLinkChanged({
         consultantId: consultant.id,
         userId: selectedUserId,
@@ -1052,7 +1057,7 @@ export function ConsultantsTab() {
   const [deactivating, setDeactivating] = useState<Consultant | null>(null)
   const [deactivateLoading, setDeactivateLoading] = useState(false)
   const [linkingConsultant, setLinkingConsultant] = useState<Consultant | null>(null)
-  const [availableUsers, setAvailableUsers] = useState<{ id: string; email: string; full_name: string | null }[]>([])
+  const [availableUsers, setAvailableUsers] = useState<{ id: string; auth_provider_user_id: string; email: string; full_name: string | null }[]>([])
   const [unlinkingId, setUnlinkingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
@@ -1102,7 +1107,7 @@ export function ConsultantsTab() {
     // Fetch available users from admin users API
     try {
       const { apiFetch } = await import('../../app/services/httpClient')
-      const response = await apiFetch<{ users: { id: string; email: string; full_name: string | null }[] }>('/api/admin/users?limit=1000')
+      const response = await apiFetch<{ users: { id: string; auth_provider_user_id: string; email: string; full_name: string | null }[] }>('/api/admin/users?limit=1000')
       setAvailableUsers(response.users)
       setLinkingConsultant(consultant)
     } catch (err) {
