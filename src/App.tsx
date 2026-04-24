@@ -13417,39 +13417,52 @@ export default function App() {
   }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
 
   // Fetch active consultants for the proposal form picker (any authenticated user).
-  // Auto-selects the logged-in user's consultant entry on first load.
+  // Auto-selects the logged-in user's consultant entry on first load using the auto-detect API.
   useEffect(() => {
     if (!user) {
       setFormConsultores([])
       return
     }
     let cancelado = false
+
+    // Fetch consultants for the dropdown
     fetchConsultantsForPicker()
       .then((entries) => {
         if (cancelado) return
         setFormConsultores(entries)
-        // Auto-select the logged-in user's consultant if not already set
-        if (entries.length > 0 && me) {
-          const myConsultor = entries.find(
-            (c) =>
-              (me.id && c.linked_user_id === me.id) ||
-              (me.email && c.email && c.email.toLowerCase() === me.email.toLowerCase()),
-          )
-          if (myConsultor) {
-            // Prefer the logged-in user's own name as the default consultant display name (Issue 2)
-            const defaultNome = me.fullName?.trim() || consultorDisplayName(myConsultor)
-            // Store for reuse when iniciarNovaProposta resets the form
-            myConsultorDefaultRef.current = { id: String(myConsultor.id), nome: defaultNome }
-            const current = clienteRef.current ?? cliente
-            if (!current.consultorId) {
-              updateClienteSync({ consultorId: String(myConsultor.id), consultorNome: defaultNome })
-            }
-          }
-        }
       })
       .catch(() => {
         // Non-critical: form works without the dropdown
       })
+
+    // Auto-detect the logged-in user's linked consultant
+    import('./services/personnelApi').then(({ autoDetectLinkedConsultant }) => {
+      autoDetectLinkedConsultant()
+        .then((result) => {
+          if (cancelado) return
+          if (result.consultant && me) {
+            // Prefer the logged-in user's own name as the default consultant display name
+            const defaultNome = me.fullName?.trim() || consultorDisplayName(result.consultant)
+            // Store for reuse when iniciarNovaProposta resets the form
+            myConsultorDefaultRef.current = { id: String(result.consultant.id), nome: defaultNome }
+            const current = clienteRef.current ?? cliente
+            if (!current.consultorId) {
+              updateClienteSync({ consultorId: String(result.consultant.id), consultorNome: defaultNome })
+            }
+            if (import.meta.env.DEV) {
+              console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, { consultantId: result.consultant.id, nome: defaultNome })
+            }
+          }
+        })
+        .catch((err) => {
+          if (!cancelado) {
+            console.warn('[consultant][auto-detect] Failed to auto-detect linked consultant:', err)
+          }
+        })
+    }).catch(() => {
+      // Module import failed (shouldn't happen in normal flow)
+    })
+
     return () => {
       cancelado = true
     }
