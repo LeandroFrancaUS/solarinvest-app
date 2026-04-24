@@ -50,7 +50,8 @@ import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2, addDays as addDaysV2 } from '../domain/billing/billingDates'
+import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
@@ -1645,10 +1646,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
-    first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
-    expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
-    recurrence_type: client.recurrence_type ?? 'monthly',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
+    // Session-only flag: drives which mensalidade rule the engine uses.
+    // Defaults to `true` (cliente é titular → regra padrão). Not yet
+    // persisted to the backend — adding a DB column is out of scope for
+    // this change; the resulting `valor_mensalidade` is what gets saved.
+    is_contratante_titular: true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
@@ -1656,13 +1659,45 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const resetForm = () => setForm({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
-    first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
-    expected_last_billing_date: client.expected_last_billing_date?.slice(0, 10) ?? '',
-    recurrence_type: client.recurrence_type ?? 'monthly',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
+    is_contratante_titular: true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
   })
+
+  // Auto-calculated monthly fee using the available engine.
+  // - Contratante titular (default): standard rule M = min(C, Kc) × Tc.
+  // - Otherwise (titularidade SolarInvest): M = Kc×Tc + max(0; Kr−(Kc+C))×T + E.
+  const mensalidadeAuto = useMemo(() => {
+    return calculateMensalidade(
+      {
+        C: client.consumption_kwh_month ?? null,
+        Kc: client.kwh_mes_contratado ?? client.kwh_contratado ?? null,
+        T: client.tarifa_atual ?? null,
+        desconto: client.desconto_percentual ?? null,
+        Kr: client.geracao_estimada_kwh ?? null,
+      },
+      form.is_contratante_titular,
+    )
+  }, [
+    client.consumption_kwh_month,
+    client.kwh_mes_contratado,
+    client.kwh_contratado,
+    client.tarifa_atual,
+    client.desconto_percentual,
+    client.geracao_estimada_kwh,
+    form.is_contratante_titular,
+  ])
+
+  // Mirror the auto-calculated value into the form's `valor_mensalidade`
+  // so that downstream consumers (installments, save payload) stay in
+  // sync. The user can still override the value when the engine cannot
+  // compute it (e.g. missing inputs).
+  useEffect(() => {
+    if (mensalidadeAuto.status !== 'OK' || mensalidadeAuto.valor == null) return
+    const next = mensalidadeAuto.valor.toFixed(2)
+    setForm((f) => (f.valor_mensalidade === next ? f : { ...f, valor_mensalidade: next }))
+  }, [mensalidadeAuto])
 
   // Compute billing dates using the engine
   const engineResult = useMemo(() => {
@@ -1687,20 +1722,40 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
+  // "Último Vencimento Previsto" =
+  //   Próxima cobrança recorrente + (Prazo − 1) meses + 30 dias
+  const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
+  const ultimoVencimentoPrevisto = useMemo(() => {
+    if (
+      billingDatesV2.status !== 'OK' ||
+      !billingDatesV2.proximaCobrancaRecorrente ||
+      !termMonths ||
+      termMonths < 1 ||
+      !billingDatesV2.vencimentoRecorrenteMensal
+    ) {
+      return null
+    }
+    const base = addMonthsSafeV2(
+      billingDatesV2.proximaCobrancaRecorrente,
+      Math.max(0, termMonths - 1),
+      billingDatesV2.vencimentoRecorrenteMensal,
+    )
+    return addDaysV2(base, 30)
+  }, [billingDatesV2, termMonths])
+
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
-  // Falls back to first_billing_date or commissioning_date_billing so that the
-  // table is visible even when reading_day / commissioning_date are not yet set.
+  // Falls back to commissioning_date_billing so that the table is visible
+  // even when reading_day / commissioning_date are not yet set.
   const installments = useMemo(() => {
-    const termMonths = client.contractual_term_months ?? client.term_months ?? 0
     if (!termMonths || !form.due_day) return []
 
-    // Determine start date: prefer the engine result, then explicit billing dates
-    let inicio: string | null = null
+    // Determine start date: prefer the engine result, then commissioning date
+    let inicio: string | Date | null = null
     if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
       inicio = engineResult.inicio_da_mensalidade
-    } else if (form.first_billing_date) {
-      inicio = form.first_billing_date
+    } else if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
+      inicio = billingDatesV2.dataPrimeiraCobranca
     } else if (form.commissioning_date_billing) {
       inicio = form.commissioning_date_billing
     }
@@ -1714,7 +1769,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       // Allow valor = 0 so the table renders before the amount is configured
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
-  }, [engineResult, client.contractual_term_months, client.term_months, form.due_day, form.valor_mensalidade, form.first_billing_date, form.commissioning_date_billing])
+  }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
 
   // Generate notifications preview
   const notifications = useMemo(() => {
@@ -1726,18 +1781,23 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     setSaving(true)
     setSaveError(null)
     try {
+      const expectedLast = ultimoVencimentoPrevisto
+        ? ultimoVencimentoPrevisto.toISOString().slice(0, 10)
+        : null
       await patchPortfolioBilling(client.id, {
         ...form,
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
-        first_billing_date: form.first_billing_date || null,
-        expected_last_billing_date: form.expected_last_billing_date || null,
+        reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
+        recurrence_type: 'monthly',
+        expected_last_billing_date: expectedLast,
+        commissioning_date_billing: form.commissioning_date_billing || null,
+        valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
       })
       onSaved({
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
-        first_billing_date: form.first_billing_date || null,
-        expected_last_billing_date: form.expected_last_billing_date || null,
-        recurrence_type: form.recurrence_type,
+        expected_last_billing_date: expectedLast,
+        recurrence_type: 'monthly',
         auto_reminder_enabled: form.auto_reminder_enabled,
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
@@ -1786,32 +1846,44 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             </label>
             <label className="pf-label" style={labelSty}>
               Valor da Mensalidade (R$)
-              <input type="number" min={0} step="0.01" value={form.valor_mensalidade} onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))} disabled={!editMode} style={inputStyle} />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.valor_mensalidade}
+                onChange={(e) => setForm((f) => ({ ...f, valor_mensalidade: e.target.value }))}
+                disabled={!editMode || mensalidadeAuto.status === 'OK'}
+                style={inputStyle}
+                title={mensalidadeAuto.status === 'OK'
+                  ? `Calculado automaticamente pela regra ${mensalidadeAuto.rule === 'PADRAO' ? 'padrão' : 'GO/SolarInvest'}.`
+                  : 'Inserir manualmente — dados insuficientes para cálculo automático.'}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {mensalidadeAuto.status === 'OK'
+                  ? `Calculado automaticamente — regra ${mensalidadeAuto.rule === 'PADRAO' ? 'padrão' : 'GO/SolarInvest'}.`
+                  : `Aguardando dados para cálculo automático${mensalidadeAuto.faltantes && mensalidadeAuto.faltantes.length ? ` (${mensalidadeAuto.faltantes.join(', ')})` : ''}.`}
+              </div>
             </label>
           </div>
-          <label className="pf-label" style={labelSty}>
-            Primeiro Vencimento
-            <input type="date" value={form.first_billing_date} onChange={(e) => setForm((f) => ({ ...f, first_billing_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
           <div style={gridSty}>
-            <label className="pf-label" style={labelSty}>
-              Recorrência
-              <select value={form.recurrence_type} onChange={(e) => setForm((f) => ({ ...f, recurrence_type: e.target.value }))} disabled={!editMode} style={inputStyle}>
-                <option value="monthly">Mensal</option>
-                <option value="quarterly">Trimestral</option>
-                <option value="annual">Anual</option>
-                <option value="custom">Personalizado</option>
-              </select>
+            <label className="pf-checkbox-label">
+              <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#8b5cf6' }} />
+              Lembrete automático ativado
+            </label>
+            <label
+              className="pf-checkbox-label"
+              title="Quando marcado, a mensalidade segue a regra padrão (M = min(C, Kc) × Tc). Desmarcado, a titularidade é da SolarInvest e a regra GO/SolarInvest é aplicada."
+            >
+              <input
+                type="checkbox"
+                checked={form.is_contratante_titular}
+                onChange={(e) => setForm((f) => ({ ...f, is_contratante_titular: e.target.checked }))}
+                disabled={!editMode}
+                style={{ width: 14, height: 14, accentColor: '#8b5cf6' }}
+              />
+              Contratante titular
             </label>
           </div>
-          <label className="pf-label" style={labelSty}>
-            Último Vencimento Previsto
-            <input type="date" value={form.expected_last_billing_date} onChange={(e) => setForm((f) => ({ ...f, expected_last_billing_date: e.target.value }))} disabled={!editMode} style={inputStyle} />
-          </label>
-          <label className="pf-checkbox-label">
-            <input type="checkbox" checked={form.auto_reminder_enabled} onChange={(e) => setForm((f) => ({ ...f, auto_reminder_enabled: e.target.checked }))} disabled={!editMode} style={{ width: 14, height: 14, accentColor: '#8b5cf6' }} />
-            Lembrete automático ativado
-          </label>
         </div>
       </div>
 
@@ -1863,43 +1935,27 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                 {billingDatesV2.proximaCobrancaRecorrente?.toLocaleDateString('pt-BR')}
               </span>
             </div>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Último vencimento previsto:</span>
+              <span className="pf-info-value">
+                {ultimoVencimentoPrevisto
+                  ? ultimoVencimentoPrevisto.toLocaleDateString('pt-BR')
+                  : '—'}
+              </span>
+            </div>
+            {!termMonths && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Configure o prazo do contrato para calcular o último vencimento previsto.
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Engine result */}
-      {engineResult && engineResult.status_calculo !== 'erro_entrada' && (
-        <div className="pf-section-card">
-          <div className="pf-section-title"><span className="pf-icon">📊</span> Cálculo de Vencimento</div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <div className="pf-info-row">
-              <span className="pf-info-label">Início da Mensalidade:</span>
-              <span className="pf-info-value">{engineResult.inicio_da_mensalidade.toLocaleDateString('pt-BR')}</span>
-            </div>
-            <div className="pf-info-row">
-              <span className="pf-info-label">Início Mensalidade Fixa:</span>
-              <span className="pf-info-value">{engineResult.inicio_mensalidade_fixa.toLocaleDateString('pt-BR')}</span>
-            </div>
-            <div className="pf-info-row">
-              <span className="pf-info-label">Status:</span>
-              <span style={{
-                fontWeight: 600,
-                color: engineResult.status_calculo === 'ok' ? 'var(--color-success-fg)' : 'var(--color-warning-fg)',
-              }}>
-                {engineResult.status_calculo === 'ok' ? '✅ Calculado' : '⏳ Aguardando Comissionamento'}
-              </span>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              {engineResult.mensagem}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Installments with payment management */}
       {(() => {
         const termMonths = client.contractual_term_months ?? client.term_months ?? 0
-        const hasStartDate = !!(engineResult?.inicio_da_mensalidade || form.first_billing_date || form.commissioning_date_billing)
+        const hasStartDate = !!(engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
           return (

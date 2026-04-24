@@ -80,8 +80,20 @@ export function parseDate(value: Date | string | null | undefined): Date | null 
       const year = Number(ymd[1])
       const month = Number(ymd[2]) - 1
       const day = Number(ymd[3])
+      // Basic range validation — rejects e.g. "2025-99-99".
+      if (month < 0 || month > 11 || day < 1 || day > 31) return null
       const d = new Date(year, month, day)
-      return Number.isNaN(d.getTime()) ? null : d
+      // Reject dates that JavaScript silently rolled over (e.g. Feb 30
+      // would become Mar 02). This keeps the parser strict.
+      if (
+        Number.isNaN(d.getTime()) ||
+        d.getFullYear() !== year ||
+        d.getMonth() !== month ||
+        d.getDate() !== day
+      ) {
+        return null
+      }
+      return d
     }
 
     const parsed = new Date(trimmed)
