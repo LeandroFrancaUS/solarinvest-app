@@ -57,12 +57,15 @@ export async function resolveActor(req) {
   const appUser = await getCurrentAppUser(req)
   if (!appUser) return null
 
+  // Generate correlation ID from request for better debugging
+  const correlationId = req.headers?.['x-vercel-id'] || req.headers?.['x-request-id'] || ''
+
   // Resolve roles from Stack Auth permissions (all four in parallel)
   const [isAdmin, isComercial, isOffice, isFinanceiro] = await Promise.all([
-    hasStackPermission(req, PERM_ADMIN),
-    hasStackPermission(req, PERM_COMERCIAL),
-    hasStackPermission(req, PERM_OFFICE),
-    hasStackPermission(req, PERM_FINANCEIRO),
+    hasStackPermission(req, PERM_ADMIN, { correlationId }),
+    hasStackPermission(req, PERM_COMERCIAL, { correlationId }),
+    hasStackPermission(req, PERM_OFFICE, { correlationId }),
+    hasStackPermission(req, PERM_FINANCEIRO, { correlationId }),
   ])
 
   // DB fallback: if Stack Auth returned no role at all, check the DB role.

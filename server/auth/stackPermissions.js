@@ -19,7 +19,8 @@ const ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
 const ADMIN_USER_ID = getBootstrapAdminUserId()
 const ADMIN_PERMISSION = 'role_admin'
 const STACK_API_BASE = 'https://api.stack-auth.com'
-const API_TIMEOUT_MS = 6000
+// Increased from 6s to 10s to handle Vercel serverless cold starts
+const API_TIMEOUT_MS = 10000
 
 // Maximum number of retry attempts for transient (5xx / network) errors.
 const API_MAX_RETRIES = 2
@@ -63,9 +64,19 @@ async function withRetry(fn, opts = {}) {
       return await fn()
     } catch (err) {
       lastError = err
-      // Network/timeout errors are always retryable.
+      // Check if this is a timeout error (AbortSignal timeout)
+      const isTimeout = err?.name === 'TimeoutError' ||
+                        err?.name === 'AbortError' ||
+                        (err?.message && err.message.includes('aborted due to timeout'))
+
+      // Network/timeout errors are retryable, but log timeouts differently
       if (attempt < API_MAX_RETRIES) {
-        console.warn(`[RBAC] ${label} attempt ${attempt} failed (retrying):`, err?.message, { correlationId })
+        const errorType = isTimeout ? 'timeout' : 'network error'
+        console.warn(
+          `[RBAC] ${label} attempt ${attempt} failed (${errorType}, retrying):`,
+          err?.message || String(err),
+          { correlationId: correlationId || 'none' }
+        )
         continue
       }
     }
@@ -365,7 +376,7 @@ export async function ensureAdminPermissionForUser(userId, email) {
  *
  * Returns false (not throws) when the user is unauthenticated.
  */
-export async function hasStackPermission(req, permissionId) {
+export async function hasStackPermission(req, permissionId, opts = {}) {
   const stackUser = await getStackUser(req)
   if (!stackUser?.id) return false
 
@@ -378,7 +389,9 @@ export async function hasStackPermission(req, permissionId) {
   // refreshed, or JWT format does not include permissions).
   const secretKey = getSecretKey()
   if (secretKey) {
-    const apiPerms = await getUserPermissionsViaApi(stackUser.id)
+    // Generate correlation ID from request ID if available
+    const correlationId = opts.correlationId || req.headers?.['x-vercel-id'] || ''
+    const apiPerms = await getUserPermissionsViaApi(stackUser.id, { correlationId })
     if (apiPerms !== null) {
       return apiPerms.includes(permissionId)
     }
