@@ -3,28 +3,7 @@
 // Extracted from App.tsx to keep App.tsx leaner. Zero visual or behavioural change.
 
 import type { SidebarGroup, SidebarItem } from '../layout/Sidebar'
-
-type ActivePage =
-  | 'dashboard'
-  | 'operational-dashboard'
-  | 'app'
-  | 'crm'
-  | 'consultar'
-  | 'clientes'
-  | 'settings'
-  | 'simulacoes'
-  | 'admin-users'
-  | 'carteira'
-  | 'financial-management'
-
-type SimulacoesSection =
-  | 'nova'
-  | 'salvas'
-  | 'ia'
-  | 'risco'
-  | 'packs'
-  | 'packs-inteligentes'
-  | 'analise'
+import type { ActivePage, SimulacoesSection } from '../types/navigation'
 
 export interface SidebarConfigParams {
   // Permissions

@@ -4,28 +4,7 @@
 // Zero behavioural change — exact same useEffect logic as the original inline block.
 
 import { useEffect } from 'react'
-
-type ActivePage =
-  | 'dashboard'
-  | 'operational-dashboard'
-  | 'app'
-  | 'crm'
-  | 'consultar'
-  | 'clientes'
-  | 'settings'
-  | 'simulacoes'
-  | 'admin-users'
-  | 'carteira'
-  | 'financial-management'
-
-type SimulacoesSection =
-  | 'nova'
-  | 'salvas'
-  | 'ia'
-  | 'risco'
-  | 'packs'
-  | 'packs-inteligentes'
-  | 'analise'
+import type { ActivePage, SimulacoesSection } from '../types/navigation'
 
 export interface RouteGuardParams {
   activePage: ActivePage

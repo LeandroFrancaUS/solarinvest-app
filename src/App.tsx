@@ -329,6 +329,7 @@ import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
+import type { ActivePage, SimulacoesSection } from './types/navigation'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -388,15 +389,6 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type ActivePage = 'dashboard' | 'operational-dashboard' | 'app' | 'crm' | 'consultar' | 'clientes' | 'settings' | 'simulacoes' | 'admin-users' | 'carteira' | 'financial-management'
-type SimulacoesSection =
-  | 'nova'
-  | 'salvas'
-  | 'ia'
-  | 'risco'
-  | 'packs'
-  | 'packs-inteligentes'
-  | 'analise'
 type AprovacaoStatus = 'pendente' | 'aprovado' | 'reprovado'
 type AprovacaoChecklistKey = 'roi' | 'tir' | 'spread' | 'vpl' | 'payback' | 'eficiencia' | 'lucro'
 
