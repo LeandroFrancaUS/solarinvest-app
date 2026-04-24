@@ -5575,6 +5575,7 @@ export default function App() {
     const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
     const isKnownPage =
       storedPage === 'dashboard' ||
+      storedPage === 'operational-dashboard' ||
       storedPage === 'app' ||
       storedPage === 'crm' ||
       storedPage === 'consultar' ||
