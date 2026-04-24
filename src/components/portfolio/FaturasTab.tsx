@@ -183,8 +183,8 @@ export function FaturasTab({ client }: FaturasTabProps) {
   async function handleAutoGenerateInvoices() {
     // Validate required data
     const contractTermMonths = client.contractual_term_months
-    const firstBillingDate = client.first_billing_date
-    const readingDay = client.reading_day
+    const firstBillingDate = client.first_billing_date ?? client.inicio_da_mensalidade
+    const dueDay = client.due_day
 
     if (!contractTermMonths || contractTermMonths <= 0) {
       setError('Prazo do contrato (meses) não definido na aba Cobrança.')
@@ -196,8 +196,8 @@ export function FaturasTab({ client }: FaturasTabProps) {
       return
     }
 
-    if (!readingDay || readingDay < 1 || readingDay > 31) {
-      setError('Dia da leitura inválido na aba Cobrança.')
+    if (!dueDay || dueDay < 1 || dueDay > 31) {
+      setError('Dia de vencimento inválido na aba Cobrança.')
       return
     }
 
@@ -211,7 +211,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
     const confirmMsg = `Gerar ${totalInvoices} faturas automaticamente?\n\n` +
       `${contractTermMonths} meses × ${clientUCs.length} UCs\n` +
       `Início: ${firstBillingDate}\n` +
-      `Dia do vencimento: ${readingDay}\n\n` +
+      `Dia do vencimento: ${dueDay}\n\n` +
       `Valores ficarão em branco para preenchimento durante o pagamento.`
 
     if (!confirm(confirmMsg)) return
@@ -244,8 +244,8 @@ export function FaturasTab({ client }: FaturasTabProps) {
           const referenceMonthStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-01`
 
           // Calculate due date
-          const dueDay = clampDay(refYear, refMonthNormalized, readingDay)
-          const dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`
+          const dueDateDay = clampDay(refYear, refMonthNormalized, dueDay)
+          const dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(dueDateDay).padStart(2, '0')}`
 
           // Check if invoice already exists
           const exists = invoices.some(
