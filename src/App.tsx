@@ -22424,7 +22424,7 @@ export default function App() {
               handleClienteChange('uc', e.target.value)
               clearFieldHighlight(e.currentTarget)
             }}
-            placeholder="Número da UC geradora"
+            placeholder="Número da UC geradora (15 dígitos)"
           />
         </Field>
         <Field
@@ -22757,7 +22757,7 @@ export default function App() {
                   onChange={(event) =>
                     handleAtualizarUcBeneficiaria(uc.id, 'numero', event.target.value)
                   }
-                  placeholder="Número da UC"
+                  placeholder="Número da UC (15 dígitos)"
                   aria-label={`Número da UC beneficiária ${index + 1}`}
                 />
                 <input
