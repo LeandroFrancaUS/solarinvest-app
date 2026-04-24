@@ -7390,6 +7390,13 @@ i:hover {
   transform: scale(1.08);
 }
 
+/* Hide the preferences shortcut button on mobile — accessible via sidebar instead */
+@media (max-width: 768px) {
+  .topbar-prefs-btn {
+    display: none;
+  }
+}
+
 .topbar-user-info {
   display: inline-flex;
   align-items: center;

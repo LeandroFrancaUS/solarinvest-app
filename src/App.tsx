@@ -3194,7 +3194,6 @@ const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>
 const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
 const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
 
-const PROPOSAL_PDF_REMINDER_INTERVAL_MS = 15 * 24 * 60 * 60 * 1000
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
 const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
@@ -13482,35 +13481,13 @@ export default function App() {
     })
   }, [contatosEnvio])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const storageKey = STORAGE_KEYS.proposalPdfReminderAt
-
-    if (proposalPdfIntegrationAvailable) {
-      try {
-        window.localStorage.removeItem(storageKey)
-      } catch (error) {
-        console.warn('Não foi possível limpar o lembrete da integração de PDF.', error)
-      }
-      return
-    }
-
-    try {
-      const raw = window.localStorage.getItem(storageKey)
-      const lastReminder = raw ? Number(raw) : NaN
-      const now = Date.now()
-
-      if (!Number.isFinite(lastReminder) || now - lastReminder >= PROPOSAL_PDF_REMINDER_INTERVAL_MS) {
-        adicionarNotificacao(PROPOSAL_PDF_REMINDER_MESSAGE, 'error')
-        window.localStorage.setItem(storageKey, String(now))
-      }
-    } catch (error) {
-      console.warn('Não foi possível registrar o lembrete da integração de PDF.', error)
-    }
-  }, [proposalPdfIntegrationAvailable, adicionarNotificacao])
+  // Note: a proactive global notification used to be raised here every 15 days
+  // when the PDF integration was missing. It surfaced as an out-of-context
+  // error toast on app load. The same message is already shown contextually
+  // (a) inside the proposal preview toolbar via `resolvePreviewToolbarMessage`
+  // and (b) at the moment the user actually attempts to save a PDF
+  // (see the `persistProposalPdf` call sites). The proactive effect has been
+  // removed to avoid the misplaced notification.
 
   /**
    * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
@@ -20324,10 +20301,8 @@ export default function App() {
 
   const abrirAdminUsuarios = useCallback(async () => {
     if (!canSeeUsersEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('admin-users')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeUsersEffective])
+    return abrirConfiguracoes('usuarios')
+  }, [abrirConfiguracoes, canSeeUsersEffective])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -27197,24 +27172,6 @@ export default function App() {
           },
         ]
       : []),
-    ...(canSeeFinancialManagementEffective
-      ? [
-          {
-            id: 'gestao-financeira',
-            label: 'Financeiro',
-            items: [
-              {
-                id: 'gestao-financeira-home',
-                label: 'Gestão Financeira',
-                icon: '💰',
-                onSelect: () => {
-                  void abrirGestaoFinanceira()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
     ...(isAdmin
       ? [
           {
@@ -27330,14 +27287,14 @@ export default function App() {
       id: 'configuracoes',
       label: 'Configurações',
       items: [
-        ...(isAdmin
+        ...(canSeeFinancialManagementEffective
           ? [
               {
-                id: 'config-preferencias',
-                label: 'Preferências',
-                icon: '⚙️',
+                id: 'gestao-financeira-home',
+                label: 'Receita e Cobrança',
+                icon: '💰',
                 onSelect: () => {
-                  void abrirConfiguracoes()
+                  void abrirGestaoFinanceira()
                 },
               },
             ]
@@ -27346,7 +27303,7 @@ export default function App() {
           ? [
               {
                 id: 'carteira-clientes',
-                label: 'Carteira de Clientes',
+                label: 'Carteira Ativa',
                 icon: '💼',
                 onSelect: () => {
                   void abrirCarteira()
@@ -27354,27 +27311,6 @@ export default function App() {
               },
             ]
           : []),
-        ...(canSeeUsersEffective
-          ? [
-              {
-                id: 'config-admin-users',
-                label: 'Gestão de Usuários',
-                icon: '👤',
-                onSelect: () => {
-                  void abrirAdminUsuarios()
-                },
-              },
-            ]
-          : []),
-        {
-          id: 'config-sair',
-          label: isLoggingOut ? 'Saindo…' : 'Sair',
-          icon: '🚪',
-          disabled: isLoggingOut,
-          onSelect: () => {
-            void handleLogout()
-          },
-        },
       ],
     },
   ]
@@ -27387,9 +27323,6 @@ export default function App() {
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
     ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-    ...(isAdmin ? ['config-preferencias'] : []),
-    ...(canSeeUsersEffective ? ['config-admin-users'] : []),
-    'config-sair',
   ]
   const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
 
@@ -28656,7 +28589,7 @@ export default function App() {
       </div>
       <div className="config-page">
         <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-          {SETTINGS_TABS.map((tab) => (
+          {SETTINGS_TABS.filter((tab) => tab.id !== 'usuarios' || canSeeUsersEffective).map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -28672,6 +28605,18 @@ export default function App() {
           ))}
         </div>
         <div className="config-panels">
+          {canSeeUsersEffective ? (
+            <section
+              id="settings-panel-usuarios"
+              role="tabpanel"
+              aria-labelledby="cfg-tab-usuarios"
+              className={`settings-panel config-card${settingsTab === 'usuarios' ? ' active' : ''}`}
+              hidden={settingsTab !== 'usuarios'}
+              aria-hidden={settingsTab !== 'usuarios'}
+            >
+              <AdminUsersPage embedded />
+            </section>
+          ) : null}
           <section
             id="settings-panel-mercado"
             role="tabpanel"
@@ -29393,14 +29338,12 @@ export default function App() {
             ? 'carteira-clientes'
             : activePage === 'consultar'
               ? 'orcamentos-importar'
-          : activePage === 'settings'
-                ? 'config-preferencias'
-                : activePage === 'admin-users'
-                  ? 'config-admin-users'
-                  : activePage === 'financial-management'
-                    ? 'gestao-financeira-home'
-                    : activePage === 'simulacoes'
-                    ? `simulacoes-${simulacoesSection}`
+          : activePage === 'settings' || activePage === 'admin-users'
+                ? 'gestao-financeira-home'
+                : activePage === 'financial-management'
+                  ? 'gestao-financeira-home'
+                  : activePage === 'simulacoes'
+                  ? `simulacoes-${simulacoesSection}`
                     : activeTab === 'vendas'
                       ? 'propostas-vendas'
                       : 'propostas-leasing'
@@ -29464,6 +29407,9 @@ export default function App() {
           }
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
+          onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
+          onLogout={handleLogout}
+          isLoggingOut={isLoggingOut}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>

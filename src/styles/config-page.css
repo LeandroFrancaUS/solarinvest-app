@@ -136,10 +136,6 @@
   transition: background 0.2s ease;
 }
 
-.cfg-tab[aria-selected='true']::after {
-  background: var(--cfg-accent-contrast);
-}
-
 .cfg-tab:hover::after {
   background: var(--cfg-accent-soft);
 }
