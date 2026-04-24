@@ -27082,20 +27082,48 @@ export default function App() {
   ]
 
   const sidebarGroups: SidebarGroup[] = [
-    ...(canSeeDashboardEffective
+    ...((canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective)
       ? [
           {
             id: 'dashboard',
             label: 'Dashboard',
             items: [
-              {
-                id: 'dashboard-home',
-                label: 'Dashboard',
-                icon: '📊',
-                onSelect: () => {
-                  void abrirDashboard()
-                },
-              },
+              ...(canSeeDashboardEffective
+                ? [
+                    {
+                      id: 'dashboard-home',
+                      label: 'Dashboard',
+                      icon: '📊',
+                      onSelect: () => {
+                        void abrirDashboard()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeePortfolioEffective
+                ? [
+                    {
+                      id: 'carteira-clientes',
+                      label: 'Carteira Ativa',
+                      icon: '💼',
+                      onSelect: () => {
+                        void abrirCarteira()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeFinancialManagementEffective
+                ? [
+                    {
+                      id: 'gestao-financeira-home',
+                      label: 'Receita e Cobrança',
+                      icon: '💰',
+                      onSelect: () => {
+                        void abrirGestaoFinanceira()
+                      },
+                    },
+                  ]
+                : []),
             ],
           },
         ]
@@ -27285,32 +27313,9 @@ export default function App() {
       : []),
     {
       id: 'configuracoes',
-      label: 'Configurações',
+      label: '',
       items: [
-        ...(canSeeFinancialManagementEffective
-          ? [
-              {
-                id: 'gestao-financeira-home',
-                label: 'Receita e Cobrança',
-                icon: '💰',
-                onSelect: () => {
-                  void abrirGestaoFinanceira()
-                },
-              },
-            ]
-          : []),
-        ...(canSeePortfolioEffective
-          ? [
-              {
-                id: 'carteira-clientes',
-                label: 'Carteira Ativa',
-                icon: '💼',
-                onSelect: () => {
-                  void abrirCarteira()
-                },
-              },
-            ]
-          : []),
+        // Portfolio and Financial Management moved to top - removed from here
       ],
     },
   ]
