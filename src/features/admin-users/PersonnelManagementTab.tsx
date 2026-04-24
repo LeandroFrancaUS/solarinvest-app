@@ -42,6 +42,7 @@ import {
   mapUserToInstallerDraft,
   mapClientToInstallerDraft,
 } from './personnelImportMappers'
+import { emitConsultantLinkChanged } from '../../events/consultantEvents'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -969,6 +970,12 @@ function LinkConsultantModal({
     setError(null)
     try {
       await linkConsultantToUser(consultant.id, selectedUserId)
+      // Emit event to trigger auto-detection refresh for the linked user
+      emitConsultantLinkChanged({
+        consultantId: consultant.id,
+        userId: selectedUserId,
+        action: 'linked',
+      })
       onLinked()
       onClose()
     } catch (err) {
@@ -1106,7 +1113,16 @@ export function ConsultantsTab() {
   async function handleUnlink(consultantId: number) {
     setUnlinkingId(consultantId)
     try {
+      const consultant = items.find((c) => c.id === consultantId)
       await unlinkConsultantFromUser(consultantId)
+      // Emit event to trigger auto-detection refresh for the unlinked user
+      if (consultant?.linked_user_id) {
+        emitConsultantLinkChanged({
+          consultantId,
+          userId: consultant.linked_user_id,
+          action: 'unlinked',
+        })
+      }
       void load()
     } catch (err) {
       setError(personnelErrorMessage(err, 'Erro ao desvincular consultor.'))

@@ -13418,6 +13418,7 @@ export default function App() {
 
   // Fetch active consultants for the proposal form picker (any authenticated user).
   // Auto-selects the logged-in user's consultant entry on first load using the auto-detect API.
+  // Also listens for consultant link changes to re-run auto-detection.
   useEffect(() => {
     if (!user) {
       setFormConsultores([])
@@ -13435,36 +13436,66 @@ export default function App() {
         // Non-critical: form works without the dropdown
       })
 
-    // Auto-detect the logged-in user's linked consultant
-    import('./services/personnelApi').then(({ autoDetectLinkedConsultant }) => {
-      autoDetectLinkedConsultant()
-        .then((result) => {
-          if (cancelado) return
-          if (result.consultant && me) {
-            // Prefer the logged-in user's own name as the default consultant display name
-            const defaultNome = me.fullName?.trim() || consultorDisplayName(result.consultant)
-            // Store for reuse when iniciarNovaProposta resets the form
-            myConsultorDefaultRef.current = { id: String(result.consultant.id), nome: defaultNome }
-            const current = clienteRef.current ?? cliente
-            if (!current.consultorId) {
+    // Function to run auto-detection
+    const runAutoDetection = () => {
+      import('./services/personnelApi').then(({ autoDetectLinkedConsultant }) => {
+        autoDetectLinkedConsultant()
+          .then((result) => {
+            if (cancelado) return
+            if (result.consultant && me) {
+              // Prefer the logged-in user's own name as the default consultant display name
+              const defaultNome = me.fullName?.trim() || consultorDisplayName(result.consultant)
+              // Store for reuse when iniciarNovaProposta resets the form
+              myConsultorDefaultRef.current = { id: String(result.consultant.id), nome: defaultNome }
+              const current = clienteRef.current ?? cliente
+              // Always update when auto-detection runs (handles both initial load and link changes)
               updateClienteSync({ consultorId: String(result.consultant.id), consultorNome: defaultNome })
+              if (import.meta.env.DEV) {
+                console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, { consultantId: result.consultant.id, nome: defaultNome })
+              }
+            } else if (result.consultant === null && me) {
+              // No consultant found - clear the selection if previously set
+              const current = clienteRef.current ?? cliente
+              if (current.consultorId && myConsultorDefaultRef.current) {
+                myConsultorDefaultRef.current = null
+                updateClienteSync({ consultorId: '', consultorNome: '' })
+                if (import.meta.env.DEV) {
+                  console.debug('[consultant][auto-detect] No consultant found, clearing selection')
+                }
+              }
             }
-            if (import.meta.env.DEV) {
-              console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, { consultantId: result.consultant.id, nome: defaultNome })
+          })
+          .catch((err) => {
+            if (!cancelado) {
+              console.warn('[consultant][auto-detect] Failed to auto-detect linked consultant:', err)
             }
+          })
+      }).catch(() => {
+        // Module import failed (shouldn't happen in normal flow)
+      })
+    }
+
+    // Run initial auto-detection
+    runAutoDetection()
+
+    // Listen for consultant link change events
+    const cleanup = import('./events/consultantEvents').then(({ onConsultantLinkChanged }) => {
+      return onConsultantLinkChanged((detail) => {
+        // Only re-run auto-detection if the link change affects the current user
+        if (me?.id && detail.userId === me.id) {
+          if (import.meta.env.DEV) {
+            console.debug('[consultant][auto-detect] Link changed for current user, re-running auto-detection', detail)
           }
-        })
-        .catch((err) => {
-          if (!cancelado) {
-            console.warn('[consultant][auto-detect] Failed to auto-detect linked consultant:', err)
-          }
-        })
+          runAutoDetection()
+        }
+      })
     }).catch(() => {
-      // Module import failed (shouldn't happen in normal flow)
+      return () => {}
     })
 
     return () => {
       cancelado = true
+      cleanup.then((cleanupFn) => cleanupFn()).catch(() => {})
     }
   }, [user, authSyncKey])
 
