@@ -104,7 +104,7 @@ function TotalsBar({
         </span>
       ) : null}
 
-      {margem != null ? (
+      {margem != null && contractType !== 'leasing' ? (
         <span style={{ fontSize: 13, whiteSpace: 'nowrap' }}>
           <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>Margem:</span>
           <strong>{fmtPct(margem)}</strong>

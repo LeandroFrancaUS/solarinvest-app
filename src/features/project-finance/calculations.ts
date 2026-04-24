@@ -74,6 +74,30 @@ export function computeMargemEsperadaPct(
 // ─── Shared engine bridge ─────────────────────────────────────────────────────
 
 /**
+ * Computes the gross total revenue for a leasing contract:
+ *   Σ mensalidade × (1 + reajuste)^⌊t/12⌋   para t em [0, prazo).
+ *
+ * This is the raw billing total before any deduction (impostos, inadimplência,
+ * opex, manutenção). It is exposed as a reactive computed field so that the
+ * UI updates automatically whenever mensalidade_base, reajuste_anual_pct or
+ * the contract term change.
+ *
+ * Returns null when mensalidade or prazo are unavailable.
+ */
+export function computeReceitaTotalBruta(
+  mensalidade: number,
+  prazo: number,
+  reajusteAnualPct: number,
+): number {
+  const reajuste = Math.max(0, reajusteAnualPct / 100)
+  let total = 0
+  for (let t = 0; t < prazo; t++) {
+    total += mensalidade * Math.pow(1 + reajuste, Math.floor(t / 12))
+  }
+  return total
+}
+
+/**
  * Computes the auto-calculated financial KPIs for a project using the
  * SAME engine as the Análise Financeira (calcularKpis from
  * analiseFinanceiraSpreadsheet, which internally uses computeIRR, computeNPV,
@@ -96,13 +120,13 @@ export function computeProjectKPIs(
   contractTermMonths: number,
   pvData: ProjectPvData | null,
   technicalParams?: ProjectFinanceTechnicalParams,
-): Omit<ProjectFinanceComputed, 'mensalidade_base'> {
+): Omit<ProjectFinanceComputed, 'mensalidade_base' | 'receita_total_bruta'> {
   const taxaDesconto = technicalParams?.taxa_desconto_aa_pct ?? null
   const impostosPercent = technicalParams?.impostos_percent ?? 0
 
   const capex = computeCustoTotal(form)
 
-  const nullKPIs: Omit<ProjectFinanceComputed, 'mensalidade_base'> = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
+  const nullKPIs: Omit<ProjectFinanceComputed, 'mensalidade_base' | 'receita_total_bruta'> = { payback_meses: null, roi_pct: null, tir_pct: null, vpl: null }
 
   if (capex == null || capex <= 0) return nullKPIs
 
@@ -122,12 +146,30 @@ export function computeProjectKPIs(
     const inadimplencia = (form.inadimplencia_pct ?? 0) / 100
     const opex = (form.opex_pct ?? 0) / 100
     const fatorLiquido = Math.max(0, 1 - impostosFrac - inadimplencia - opex)
-    const mensalidadeLiquida = mensalidade * fatorLiquido
 
-    // fluxos = net inflows only (without t0) — calcularKpis prepends −capex
-    const fluxos: number[] = Array<number>(prazo).fill(mensalidadeLiquida)
+    // ── Reajuste anual: a mensalidade é reajustada a cada 12 meses ────────────
+    //   mensalidade_t = mensalidade × (1 + reajuste)^⌊t/12⌋   para t em [0, prazo).
+    // Quando reajuste = 0, este modelo se reduz ao caso plano (compatível com
+    // o cálculo histórico).
+    const reajusteDecimal = Math.max(0, (form.reajuste_anual_pct ?? 0) / 100)
 
-    const receitaLiquida = mensalidadeLiquida * prazo
+    // ── Manutenção: tratada como despesa total do contrato distribuída
+    //    proporcionalmente entre os meses do prazo. Reduz o fluxo de caixa
+    //    mensal e impacta lucro/ROI/payback/TIR/VPL.
+    const manutencaoTotal = Math.max(0, form.custo_manutencao ?? 0)
+    const manutencaoMensal = manutencaoTotal / prazo
+
+    // fluxos = net inflows only (without t0) — calcularKpis prepends −capex.
+    // Cada mês: mensalidade reajustada × fator líquido − manutenção mensal.
+    const fluxos: number[] = []
+    let receitaLiquida = 0
+    for (let t = 0; t < prazo; t++) {
+      const mensalidadeBruta = mensalidade * Math.pow(1 + reajusteDecimal, Math.floor(t / 12))
+      const mensalidadeLiquida = mensalidadeBruta * fatorLiquido - manutencaoMensal
+      fluxos.push(mensalidadeLiquida)
+      receitaLiquida += mensalidadeLiquida
+    }
+
     const lucro = receitaLiquida - capex
 
     const kpis = calcularKpis(fluxos, capex, lucro, taxaDesconto)
@@ -255,13 +297,25 @@ export function computeProjectFinancialState(
   // Step 4: compute remaining KPIs
   const kpis = computeProjectKPIs(formForKpis, contractType, contractTermMonths, pvData, technicalParams)
 
+  // Step 4b: compute gross total revenue for leasing (reactive display field).
+  // Formula: Σ mensalidade × (1 + reajuste)^⌊t/12⌋  para t em [0, prazo).
+  // Uses the effective mensalidade_base so that overriding it propagates here too.
+  const receitaTotalBruta: number | null = contractType === 'leasing' && mensalidadeForKpis != null && mensalidadeForKpis > 0 && contractTermMonths > 0
+    ? computeReceitaTotalBruta(
+        mensalidadeForKpis,
+        contractTermMonths,
+        formForKpis.reajuste_anual_pct ?? 0,
+      )
+    : null
+
   // Step 5: assemble calculated (auto values only) and effective (overrides applied)
-  const calculated: ProjectFinanceComputed = { mensalidade_base: mensalidadeBaseAuto, ...kpis }
+  const calculated: ProjectFinanceComputed = { mensalidade_base: mensalidadeBaseAuto, receita_total_bruta: receitaTotalBruta, ...kpis }
 
   // Apply overrides to KPI fields (mensalidade_base override was already handled above).
   // Build effective by starting from calculated and applying any KPI overrides explicitly.
   const effective: ProjectFinanceComputed = {
     mensalidade_base: effectiveMensalidadeBase,
+    receita_total_bruta: receitaTotalBruta,
     payback_meses: 'payback_meses' in overrides && overrides.payback_meses != null
       ? overrides.payback_meses
       : kpis.payback_meses,

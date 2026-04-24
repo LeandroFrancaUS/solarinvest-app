@@ -60,7 +60,9 @@ export function ProjectFinanceSummary({ summary }: Props) {
           value={fmtCurrency(summary.lucro_esperado)}
           highlight={summary.lucro_esperado != null && summary.lucro_esperado > 0}
         />
-        <MetricCard label="Margem esperada" value={fmtPct(summary.margem_esperada_pct)} />
+        {summary.contract_type !== 'leasing' ? (
+          <MetricCard label="Margem esperada" value={fmtPct(summary.margem_esperada_pct)} />
+        ) : null}
         {summary.payback_meses != null ? (
           <MetricCard label="Payback" value={fmtNum(summary.payback_meses, 'meses')} />
         ) : null}
