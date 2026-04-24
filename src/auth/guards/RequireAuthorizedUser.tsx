@@ -123,6 +123,12 @@ function RequireAuthorizedUserCore({
 function RequireAuthorizedUserWithStack({ children }: Props) {
   const user = useUser()
   const sessionInitRef = useRef(false)
+  // Keep a ref to the latest user so getAccessToken is a stable reference.
+  // This prevents useAuthSession from seeing a new getter on every SDK polling
+  // cycle (where the user object reference is replaced even though the identity
+  // hasn't changed), which would otherwise trigger spurious /me re-fetches.
+  const userRef = useRef(user)
+  userRef.current = user
 
   // After Stack Auth resolves a valid user, call POST /api/auth/login to
   // exchange the Bearer token for a backend HMAC session cookie.  This gives
@@ -176,18 +182,18 @@ function RequireAuthorizedUserWithStack({ children }: Props) {
     void initBackendSession()
   }, [user])
 
-  // Stable callback — recreated only when the user identity changes.
-  // `user.getAccessToken()` automatically refreshes the short-lived JWT when
-  // it is about to expire, so we always forward a valid token.
+  // Stable callback — created once (empty deps) and never recreated.
+  // Always reads from userRef.current so it picks up token refreshes while
+  // remaining a stable reference that does not trigger effect re-runs.
   const getAccessToken = useCallback(
     () => {
-      if (!user) {
+      if (!userRef.current) {
         if (import.meta.env.DEV) console.debug('[auth] getAccessToken called but user is null')
         return Promise.resolve(null)
       }
-      return user.getAccessToken()
+      return userRef.current.getAccessToken()
     },
-    [user],
+    [], // intentionally empty — stable for the lifetime of the component
   )
 
   return (
