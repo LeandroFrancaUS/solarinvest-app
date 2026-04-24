@@ -47,6 +47,21 @@ export async function fetchClientInvoices(clientId: number): Promise<ClientInvoi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// List all invoices (for dashboard)
+// ─────────────────────────────────────────────────────────────────────────────
+export interface ListInvoicesParams {
+  client_id?: number
+  limit?: number
+}
+
+export async function listInvoices(params?: ListInvoicesParams): Promise<{ data: ClientInvoice[] }> {
+  const url = new URL(resolveApiUrl('/api/invoices'), window.location.origin)
+  if (params?.client_id) url.searchParams.set('client_id', String(params.client_id))
+  if (params?.limit) url.searchParams.set('limit', String(params.limit))
+  return apiFetch<{ data: ClientInvoice[] }>(url.toString())
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Create a new invoice
 // ─────────────────────────────────────────────────────────────────────────────
 export interface CreateInvoicePayload {
