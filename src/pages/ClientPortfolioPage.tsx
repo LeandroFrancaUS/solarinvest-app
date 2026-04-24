@@ -1843,6 +1843,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         ...form,
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
+        first_billing_date: billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca
+          ? billingDatesV2.dataPrimeiraCobranca.toISOString().slice(0, 10)
+          : null,
         recurrence_type: 'monthly',
         expected_last_billing_date: expectedLast,
         commissioning_date_billing: form.commissioning_date_billing || null,
@@ -1851,6 +1854,9 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       onSaved({
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
+        first_billing_date: billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca
+          ? billingDatesV2.dataPrimeiraCobranca.toISOString().slice(0, 10)
+          : null,
         expected_last_billing_date: expectedLast,
         recurrence_type: 'monthly',
         auto_reminder_enabled: form.auto_reminder_enabled,
