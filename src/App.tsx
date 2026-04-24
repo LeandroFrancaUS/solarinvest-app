@@ -5442,11 +5442,19 @@ export default function App() {
     canSeeFinancialManagement,
   } = useStackRbac()
 
-  // Derive a memoized token getter so useAuthSession sends the Bearer header.
-  // Falls back to null while user hasn't resolved yet (no auth header sent).
+  // Keep a ref to the latest user object so getAccessToken can always call
+  // the most recent getAccessToken() without needing user in its deps array.
+  // This makes getAccessToken a stable reference that never changes identity,
+  // preventing effects that depend on it from re-running on every SDK polling
+  // cycle where the Stack Auth user object reference is replaced.
+  const userRef = useRef(user)
+  userRef.current = user
+
+  // Stable token getter — created once and never recreated (empty deps).
+  // Always reads from userRef.current so it picks up token refreshes.
   const getAccessToken = useCallback(
-    async (): Promise<string | null> => user?.getAccessToken() ?? null,
-    [user],
+    async (): Promise<string | null> => userRef.current?.getAccessToken() ?? null,
+    [], // intentionally empty — stable for the lifetime of the component
   )
   // Read the internal DB role from /api/auth/me. This is the ground-truth for
   // admin status: the bootstrap admin always has role='admin' in the DB, even
@@ -5556,13 +5564,21 @@ export default function App() {
   // Incremented when auth is established so that data-load effects re-run and
   // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
   const [authSyncKey, setAuthSyncKey] = useState(0)
+  // Stable primitive derived from the Stack Auth user identity.
+  // Using user.id (string | null) instead of the user object avoids re-running
+  // the bootstrap effect when the SDK replaces the user object reference during
+  // internal token refreshes or polling cycles (same user, new object identity).
+  const userId = user?.id ?? null
   // Wire up Stack Auth Bearer token for cross-device data persistence.
   // When the user resolves, register the token provider so serverStorage
   // and proposalsApi can include Authorization: Bearer <token> in requests.
   // Storage sync runs only after auth is available to avoid unauthenticated
   // /api/storage calls that can generate noisy 5xx/401 logs.
+  //
+  // Keyed on userId (primitive) + getAccessToken (stable ref from userRef pattern)
+  // so this runs ONCE per real login — not on every SDK polling cycle.
   useEffect(() => {
-    if (!user) return
+    if (!userId) return
     setStorageTokenProvider(getAccessToken)
     setProposalsTokenProvider(getAccessToken)
     setClientsTokenProvider(getAccessToken)
@@ -5588,7 +5604,7 @@ export default function App() {
     // This fixes cross-device/cross-browser: the initial load runs before auth
     // resolves; this increment triggers a reload once the token provider is set.
     setAuthSyncKey((k) => k + 1)
-  }, [user, getAccessToken])
+  }, [userId, getAccessToken])
   useEffect(() => {
     removeFogOverlays()
     const disconnect = watchFogReinjection()
