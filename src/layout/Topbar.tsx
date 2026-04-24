@@ -14,6 +14,7 @@ export interface TopbarProps {
   userInfo?: TopbarUserInfo
   theme?: AppTheme
   onCycleTheme?: () => void
+  onOpenPreferences?: () => void
 }
 
 const THEME_ICON: Record<AppTheme, string> = {
@@ -26,7 +27,7 @@ const THEME_NEXT_LABEL: Record<AppTheme, string> = {
   old: 'Alternar para modo escuro',
 }
 
-export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, theme, onCycleTheme }: TopbarProps) {
+export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, theme, onCycleTheme, onOpenPreferences }: TopbarProps) {
   const hasHeading = Boolean(title || subtitle)
   const hasActions = actions != null
   const currentTheme = theme ?? 'dark'
@@ -56,6 +57,17 @@ export function Topbar({ title, subtitle, actions, mobileSubtitle, userInfo, the
         ) : null}
         <div className="topbar-end-cluster">
           {hasActions ? <div className="top-actions">{actions}</div> : null}
+          {onOpenPreferences ? (
+            <button
+              type="button"
+              className="theme-toggle-btn topbar-prefs-btn"
+              onClick={onOpenPreferences}
+              aria-label="Abrir Preferências"
+              title="Preferências"
+            >
+              ⚙️
+            </button>
+          ) : null}
           {onCycleTheme ? (
             <button
               type="button"

@@ -29435,6 +29435,7 @@ export default function App() {
           }
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
+          onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
           <React.Suspense fallback={null}>
