@@ -24,6 +24,7 @@ import { describe, it, expect } from 'vitest'
 import {
   computeProjectKPIs,
   computeProjectFinancialState,
+  computeReceitaTotalBruta,
 } from '../calculations'
 import type { ProjectFinanceFormState } from '../types'
 import {
@@ -508,5 +509,78 @@ describe('computeProjectFinancialState — overrides não afetam KPIs (KPIs read
     expect(effective.payback_meses).toBe(calculated.payback_meses)
     expect(effective.tir_pct).toBe(calculated.tir_pct)
     expect(effective.vpl).toBe(calculated.vpl)
+  })
+})
+
+// ─── computeReceitaTotalBruta — fórmula e reatividade ────────────────────────
+
+describe('computeReceitaTotalBruta — receita bruta total reativa', () => {
+  it('reajuste = 0 → mensalidade × prazo', () => {
+    expect(computeReceitaTotalBruta(1000, 36, 0)).toBeCloseTo(36000, 6)
+  })
+
+  it('reajuste = 0 → equivalente a todos os 50 cenários sem reajuste', () => {
+    for (const s of SCENARIOS.filter((sc) => sc.reajuste_anual_pct === 0)) {
+      const m = mensalidadeComDesconto(s)
+      const esperado = m * s.prazo
+      expect(computeReceitaTotalBruta(m, s.prazo, 0)).toBeCloseTo(esperado, 6)
+    }
+  })
+
+  it('reajuste > 0 → receita bruta é maior que mensalidade × prazo', () => {
+    const base = computeReceitaTotalBruta(1000, 60, 0)
+    const comReajuste = computeReceitaTotalBruta(1000, 60, 5)
+    expect(comReajuste).toBeGreaterThan(base)
+  })
+
+  it('reajuste aplica (1+r)^⌊t/12⌋ corretamente (prazo 24m, reajuste 6%)', () => {
+    const m = 1000
+    const r = 0.06
+    let esperado = 0
+    for (let t = 0; t < 24; t++) {
+      esperado += m * Math.pow(1 + r, Math.floor(t / 12))
+    }
+    expect(computeReceitaTotalBruta(1000, 24, 6)).toBeCloseTo(esperado, 6)
+  })
+
+  it('computeProjectFinancialState expõe receita_total_bruta em calculated', () => {
+    const s = SCENARIOS[4]! // prazo 60m, reajuste 4%
+    const m = mensalidadeComDesconto(s)
+    const form = buildForm(s)
+    const { calculated } = computeProjectFinancialState(
+      form,
+      'leasing',
+      s.prazo,
+      null,
+      {},
+      { impostos_percent: s.impostos_pct, taxa_desconto_aa_pct: s.taxa_desconto_aa_pct ?? undefined },
+    )
+    const esperado = computeReceitaTotalBruta(m, s.prazo, s.reajuste_anual_pct)
+    expect(calculated.receita_total_bruta).not.toBeNull()
+    expect(calculated.receita_total_bruta!).toBeCloseTo(esperado, 4)
+  })
+
+  it('receita_total_bruta aumenta quando reajuste aumenta (reatividade)', () => {
+    const form0 = { ...buildForm(SCENARIOS[4]!), reajuste_anual_pct: 0 }
+    const form4 = { ...buildForm(SCENARIOS[4]!), reajuste_anual_pct: 4 }
+    const form8 = { ...buildForm(SCENARIOS[4]!), reajuste_anual_pct: 8 }
+    const params = { impostos_percent: 4 }
+    const { calculated: c0 } = computeProjectFinancialState(form0, 'leasing', 60, null, {}, params)
+    const { calculated: c4 } = computeProjectFinancialState(form4, 'leasing', 60, null, {}, params)
+    const { calculated: c8 } = computeProjectFinancialState(form8, 'leasing', 60, null, {}, params)
+    expect(c4.receita_total_bruta!).toBeGreaterThan(c0.receita_total_bruta!)
+    expect(c8.receita_total_bruta!).toBeGreaterThan(c4.receita_total_bruta!)
+  })
+
+  it('receita_total_bruta é null quando mensalidade_base não está disponível', () => {
+    const { calculated } = computeProjectFinancialState(
+      { reajuste_anual_pct: 4 },
+      'leasing',
+      60,
+      null,
+      {},
+      { impostos_percent: 4 },
+    )
+    expect(calculated.receita_total_bruta).toBeNull()
   })
 })

@@ -452,13 +452,13 @@ export function ProjectFinanceLeasingForm({
           onChange={(v) => setField('custo_impostos', v ?? undefined)}
           step={0.01}
         />
-        <FieldNumber
-          id="pf-leasing-receita"
+        <ReadonlyField
           label="Receita total esperada"
-          unit="R$"
-          value={form.receita_esperada}
-          onChange={(v) => setField('receita_esperada', v ?? undefined)}
-          step={0.01}
+          value={
+            calculated.receita_total_bruta != null
+              ? fmtCurrency(calculated.receita_total_bruta)
+              : '—'
+          }
         />
       </div>
 

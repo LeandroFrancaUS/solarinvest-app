@@ -50,6 +50,12 @@ export interface ProjectFinanceTechnicalParams {
 export interface ProjectFinanceComputed {
   /** Leasing: consumo × tarifa × (1 − desconto/100). Null when tarifa is unavailable. */
   mensalidade_base: number | null
+  /**
+   * Leasing: Σ mensalidade × (1 + reajuste)^⌊t/12⌋  para t em [0, prazo).
+   * Receita bruta total do contrato — calculada automaticamente a partir das premissas.
+   * Null quando mensalidade_base ou prazo não estão disponíveis.
+   */
+  receita_total_bruta: number | null
   payback_meses: number | null
   roi_pct: number | null
   tir_pct: number | null
