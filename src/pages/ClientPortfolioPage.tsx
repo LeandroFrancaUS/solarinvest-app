@@ -1915,7 +1915,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                 {mensalidadeAuto.status === 'OK'
                   ? `Calculado automaticamente — regra ${mensalidadeAuto.rule === 'PADRAO' ? 'padrão' : 'GO/SolarInvest'}.`
-                  : `Aguardando dados para cálculo automático${mensalidadeAuto.faltantes && mensalidadeAuto.faltantes.length ? ` (${mensalidadeAuto.faltantes.join(', ')})` : ''}.`}
+                  : 'Preencha kwh, tarifa e desconto na aba Plano para cálculo automático.'}
               </div>
             </label>
           </div>
