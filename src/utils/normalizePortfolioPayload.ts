@@ -202,6 +202,11 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     expected_go_live_date: raw.expected_go_live_date ?? null,
     integrator_name: raw.integrator_name ?? null,
     engineer_name: raw.engineer_name ?? null,
+    engineer_id: raw.engineer_id ?? null,
+    installer_id: raw.installer_id ?? null,
+    art_number: raw.art_number ?? null,
+    art_issued_at: raw.art_issued_at ?? null,
+    art_status: raw.art_status ?? null,
     timeline_velocity_score: raw.timeline_velocity_score ?? null,
     project_notes: raw.project_notes ?? null,
 
@@ -229,6 +234,7 @@ export function normalizePortfolioClientPayload(raw: RawPortfolioRow): Portfolio
     commissioning_date_billing: raw.commissioning_date_billing ?? null,
     inicio_da_mensalidade: raw.inicio_da_mensalidade ?? null,
     inicio_mensalidade_fixa: raw.inicio_mensalidade_fixa ?? null,
+    is_contratante_titular: raw.is_contratante_titular ?? null,
   }
 
   return base
