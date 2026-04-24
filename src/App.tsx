@@ -27174,24 +27174,6 @@ export default function App() {
           },
         ]
       : []),
-    ...(canSeeFinancialManagementEffective
-      ? [
-          {
-            id: 'gestao-financeira',
-            label: 'Financeiro',
-            items: [
-              {
-                id: 'gestao-financeira-home',
-                label: 'Gestão Financeira',
-                icon: '💰',
-                onSelect: () => {
-                  void abrirGestaoFinanceira()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
     ...(isAdmin
       ? [
           {
@@ -27307,6 +27289,18 @@ export default function App() {
       id: 'configuracoes',
       label: 'Configurações',
       items: [
+        ...(canSeeUsersEffective
+          ? [
+              {
+                id: 'config-admin-users',
+                label: 'Gestão de Usuários',
+                icon: '👤',
+                onSelect: () => {
+                  void abrirAdminUsuarios()
+                },
+              },
+            ]
+          : []),
         ...(isAdmin
           ? [
               {
@@ -27319,26 +27313,26 @@ export default function App() {
               },
             ]
           : []),
-        ...(canSeePortfolioEffective
+        ...(canSeeFinancialManagementEffective
           ? [
               {
-                id: 'carteira-clientes',
-                label: 'Carteira de Clientes',
-                icon: '💼',
+                id: 'gestao-financeira-home',
+                label: 'Receita e Cobrança',
+                icon: '💰',
                 onSelect: () => {
-                  void abrirCarteira()
+                  void abrirGestaoFinanceira()
                 },
               },
             ]
           : []),
-        ...(canSeeUsersEffective
+        ...(canSeePortfolioEffective
           ? [
               {
-                id: 'config-admin-users',
-                label: 'Gestão de Usuários',
-                icon: '👤',
+                id: 'carteira-clientes',
+                label: 'Carteira Ativa',
+                icon: '💼',
                 onSelect: () => {
-                  void abrirAdminUsuarios()
+                  void abrirCarteira()
                 },
               },
             ]
