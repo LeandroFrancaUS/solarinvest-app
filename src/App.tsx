@@ -8038,6 +8038,11 @@ export default function App() {
       return false
     }
 
+    if (!isValidCep(cepCliente)) {
+      reportError('CEP inválido. Informe um CEP com 8 dígitos no formato 12345-678.')
+      return false
+    }
+
     if (!segmentoCliente) {
       reportError('Selecione o Tipo de Edificação para salvar o cliente.')
       return false
@@ -21367,7 +21372,7 @@ export default function App() {
         }
 
         if (!data) {
-          setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado.' }))
+          setClienteMensagens((prev) => ({ ...prev, cep: 'CEP não encontrado. Você pode prosseguir informando o endereço manualmente.' }))
           setCidadeBloqueadaPorCep(false)
           return
         }
@@ -21449,7 +21454,7 @@ export default function App() {
 
         setClienteMensagens((prev) => ({
           ...prev,
-          cep: 'Não foi possível consultar o CEP.',
+          cep: 'Não foi possível consultar o CEP. Você pode prosseguir informando o endereço manualmente.',
         }))
         setCidadeBloqueadaPorCep(false)
       } finally {
@@ -21511,7 +21516,7 @@ export default function App() {
         }
 
         if (!data) {
-          setUcGeradoraTitularCepMessage('CEP não encontrado.')
+          setUcGeradoraTitularCepMessage('CEP não encontrado. Você pode prosseguir informando o endereço manualmente.')
           setUcGeradoraCidadeBloqueadaPorCep(false)
           return
         }
