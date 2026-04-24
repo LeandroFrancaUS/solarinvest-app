@@ -222,7 +222,7 @@ async function validateClientDuplicates(sql, clientData, existingClientId = null
   };
 }
 
-module.exports = {
+export {
   checkClientDuplicate,
   validateClientDuplicates,
   extractNumeroFromAddress,
