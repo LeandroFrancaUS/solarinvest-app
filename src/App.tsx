@@ -182,6 +182,8 @@ import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
+import { buildSidebarGroups } from './config/sidebarConfig'
+import { useRouteGuard } from './hooks/useRouteGuard'
 import { useTheme } from './hooks/useTheme'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
@@ -5460,14 +5462,6 @@ export default function App() {
   // admin status: the bootstrap admin always has role='admin' in the DB, even
   // before the Stack Auth native permission 'role_admin' is granted.
   const { me, authState: meAuthState } = useAuthSession(user ? getAccessToken : null)
-  useEffect(() => {
-    console.info('[auth][bootstrap]', {
-      authState: meAuthState,
-      source: me?.authSource ?? null,
-      hasToken: Boolean(user),
-    })
-  }, [me?.authSource, meAuthState, user])
-
   // Fetch and cache the full authorization snapshot from /api/authz/me.
   // The snapshot is reused for offline mode and provides capability-level RBAC.
   const { snapshot: authzSnapshot } = useAuthorizationSnapshot({
@@ -5856,13 +5850,6 @@ export default function App() {
     if (afMaterialCAOverride == null) {
       setAfAutoMaterialCA(Math.max(1000, Math.round(850 + 0.4 * consumo)))
     }
-    console.info('[current-sale-value] af-cost-inputs recomputed', {
-      source: 'consumo-change',
-      consumo,
-      afCustoKitManual,
-      afFreteManual,
-    })
-   
   }, [kcKwhMes, afConsumoOverride, afCustoKitManual, afFreteManual, afMaterialCAOverride])
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
@@ -5927,22 +5914,18 @@ export default function App() {
   // Guard protected pages: redirect unauthorized users away from 'settings',
   // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
   // have been resolved. The isRbacLoading check prevents premature redirects.
-  useEffect(() => {
-    if (isRbacLoading) return
-    if (activePage === 'settings' && !isAdmin) {
-      setActivePage('app')
-    } else if (activePage === 'simulacoes' && simulacoesSection === 'analise' && !canSeeFinancialAnalysisEffective) {
-      setActivePage('app')
-    } else if (activePage === 'admin-users' && !canSeeUsersEffective) {
-      setActivePage('app')
-    } else if (activePage === 'dashboard' && !canSeeDashboardEffective) {
-      setActivePage('app')
-    } else if (activePage === 'carteira' && !canSeePortfolioEffective) {
-      setActivePage('app')
-    } else if (activePage === 'financial-management' && !canSeeFinancialManagementEffective) {
-      setActivePage('app')
-    }
-  }, [activePage, simulacoesSection, canSeeFinancialAnalysisEffective, canSeeUsersEffective, canSeeDashboardEffective, canSeePortfolioEffective, canSeeFinancialManagementEffective, isRbacLoading, setActivePage])
+  useRouteGuard({
+    activePage,
+    simulacoesSection,
+    isRbacLoading,
+    isAdmin,
+    canSeeFinancialAnalysisEffective,
+    canSeeUsersEffective,
+    canSeeDashboardEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialManagementEffective,
+    setActivePage,
+  })
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') {
       return false
@@ -11413,14 +11396,6 @@ export default function App() {
     const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
 
     if (consumo <= 0 || afCustoKit <= 0) {
-      console.info('[current-sale-value] analiseFinanceiraResult blocked', {
-        consumo,
-        afCustoKit,
-        reasons: [
-          consumo <= 0 ? 'consumo_kwh_mes ausente ou zero' : null,
-          afCustoKit <= 0 ? 'afCustoKit ausente ou zero (será auto-preenchido ao setar consumo)' : null,
-        ].filter(Boolean),
-      })
       return null
     }
 
@@ -27216,256 +27191,29 @@ export default function App() {
       : []),
   ]
 
-  const sidebarGroups: SidebarGroup[] = [
-    ...((canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective)
-      ? [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            items: [
-              ...(canSeeDashboardEffective
-                ? [
-                    {
-                      id: 'dashboard-home',
-                      label: 'Dashboard',
-                      icon: '📊',
-                      onSelect: () => {
-                        void abrirDashboard()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeePortfolioEffective
-                ? [
-                    {
-                      id: 'carteira-clientes',
-                      label: 'Carteira Ativa',
-                      icon: '💼',
-                      onSelect: () => {
-                        void abrirCarteira()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeeFinancialManagementEffective
-                ? [
-                    {
-                      id: 'gestao-financeira-home',
-                      label: 'Receita e Cobrança',
-                      icon: '💰',
-                      onSelect: () => {
-                        void abrirGestaoFinanceira()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeeDashboardEffective
-                ? [
-                    {
-                      id: 'operational-dashboard',
-                      label: 'Painel Operacional',
-                      icon: '⚙️',
-                      onSelect: () => {
-                        void abrirDashboardOperacional()
-                      },
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ]
-      : []),
-    ...((canSeeProposalsEffective || canSeeContractsEffective)
-      ? [
-          {
-            id: 'propostas',
-            label: 'Propostas',
-            items: [
-              ...(canSeeProposalsEffective
-                ? [
-                    {
-                      id: 'propostas-leasing',
-                      label: 'Leasing',
-                      icon: '📝',
-                      onSelect: () => {
-                        void handleNavigateToProposalTab('leasing')
-                      },
-                    },
-                    {
-                      id: 'propostas-vendas',
-                      label: 'Vendas',
-                      icon: '🧾',
-                      onSelect: () => {
-                        void handleNavigateToProposalTab('vendas')
-                      },
-                    },
-                    ...(canSeeFinancialAnalysisEffective
-                      ? [
-                          {
-                            id: 'simulacoes-analise',
-                            label: 'Análise Financeira',
-                            icon: '✅',
-                            onSelect: () => {
-                              void abrirSimulacoes('analise')
-                            },
-                          },
-                        ]
-                      : []),
-                  ]
-                : []),
-              ...(canSeeContractsEffective
-                ? [
-                    {
-                      id: 'propostas-contratos',
-                      label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
-                      icon: '🖋️',
-                      onSelect: () => {
-                        void handleGerarContratosComConfirmacao()
-                      },
-                      disabled: gerandoContratos,
-                    },
-                  ]
-                : []),
-              ...(canSeeProposalsEffective
-                ? [
-                    {
-                      id: 'propostas-enviar',
-                      label: 'Enviar proposta',
-                      icon: '📨',
-                      onSelect: () => {
-                        abrirEnvioPropostaModal()
-                      },
-                      disabled: contatosEnvio.length === 0,
-                      title:
-                        contatosEnvio.length === 0
-                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-                          : undefined,
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          {
-            id: 'simulacoes',
-            label: 'Simulações',
-            items: [
-        {
-          id: 'simulacoes-nova',
-          label: 'Nova Simulação',
-          icon: '🧮',
-          onSelect: () => {
-            void abrirSimulacoes('nova')
-          },
-        },
-        {
-          id: 'simulacoes-salvas',
-          label: 'Simulações Salvas',
-          icon: '💾',
-          onSelect: () => {
-            void abrirSimulacoes('salvas')
-          },
-        },
-        {
-          id: 'simulacoes-ia',
-          label: 'Análises IA (AI Analytics)',
-          icon: '🤖',
-          onSelect: () => {
-            void abrirSimulacoes('ia')
-          },
-        },
-        {
-          id: 'simulacoes-risco',
-          label: 'Risco & Monte Carlo',
-          icon: '🎲',
-          onSelect: () => {
-            void abrirSimulacoes('risco')
-          },
-        },
-        {
-          id: 'simulacoes-packs',
-          label: 'Packs',
-          icon: '📦',
-          onSelect: () => {
-            void abrirSimulacoes('packs')
-          },
-        },
-        {
-          id: 'simulacoes-packs-inteligentes',
-          label: 'Packs Inteligentes',
-          icon: '🧠',
-          onSelect: () => {
-            void abrirSimulacoes('packs-inteligentes')
-          },
-        },
-            ],
-          },
-        ]
-      : []),
-    ...(canSeeProposalsEffective
-      ? [
-          {
-            id: 'relatorios',
-            label: 'Relatórios',
-            items: [
-              {
-                id: 'relatorios-pdfs',
-                label: 'Ver propostas',
-                icon: '📂',
-                onSelect: () => {
-                  void abrirPesquisaOrcamentos()
-                },
-              },
-              {
-                id: 'relatorios-exportacoes',
-                label: 'Exportar',
-                icon: '📤',
-                onSelect: () => {
-                  setActivePage('app')
-                },
-              },
-            ],
-          },
-        ]
-      : []),
-    ...((canSeeClientsEffective || canSeeProposalsEffective)
-      ? [
-          {
-            id: 'orcamentos',
-            label: 'Orçamentos',
-            items: [
-              {
-                id: 'orcamentos-importar',
-                label: 'Consultar',
-                icon: '📄',
-                onSelect: () => {
-                  void abrirPesquisaOrcamentos()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(crmItems.length > 0
-      ? [
-          {
-            id: 'crm',
-            label: 'CRM',
-            items: crmItems,
-          },
-        ]
-      : []),
-    {
-      id: 'configuracoes',
-      label: '',
-      items: [
-        // Portfolio and Financial Management moved to top - removed from here
-      ],
-    },
-  ]
+  const sidebarGroups = buildSidebarGroups({
+    canSeeDashboardEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialManagementEffective,
+    canSeeProposalsEffective,
+    canSeeContractsEffective,
+    canSeeClientsEffective,
+    canSeeFinancialAnalysisEffective,
+    isAdmin,
+    abrirDashboard,
+    abrirCarteira,
+    abrirGestaoFinanceira,
+    abrirDashboardOperacional,
+    handleNavigateToProposalTab,
+    abrirSimulacoes,
+    handleGerarContratosComConfirmacao,
+    abrirEnvioPropostaModal,
+    abrirPesquisaOrcamentos,
+    setActivePage,
+    crmItems,
+    gerandoContratos,
+    contatosEnvio,
+  })
 
   const mobileAllowedIds = [
     ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
