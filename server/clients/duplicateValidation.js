@@ -168,58 +168,71 @@ async function checkClientDuplicate(sql, clientData, excludeClientId = null) {
  * @returns {Promise<{ok: boolean, error?: string, errorCode?: string, duplicateInfo?: object}>}
  */
 async function validateClientDuplicates(sql, clientData, existingClientId = null) {
-  const { isDuplicate, duplicateInfo } = await checkClientDuplicate(
-    sql,
-    clientData,
-    existingClientId
-  );
+  try {
+    const { isDuplicate, duplicateInfo } = await checkClientDuplicate(
+      sql,
+      clientData,
+      existingClientId
+    );
 
-  if (!isDuplicate) {
-    return { ok: true };
+    if (!isDuplicate) {
+      return { ok: true };
+    }
+
+    // Generate user-friendly error message based on duplicate type
+    let errorMessage = '';
+    let errorCode = '';
+
+    switch (duplicateInfo.type) {
+      case 'UC_DUPLICADA':
+        errorCode = 'DUPLICATE_UC';
+        errorMessage = `Já existe um cliente com a mesma UC (${duplicateInfo.ucGeradora}). ` +
+          `Cliente existente: "${duplicateInfo.clientName}" (ID: ${duplicateInfo.clientId}). ` +
+          `Não é possível cadastrar o mesmo número de UC para dois clientes diferentes. ` +
+          `Se este é um novo contrato para o mesmo endereço, edite o cliente existente.`;
+        break;
+
+      case 'ENDERECO_DUPLICADO':
+        errorCode = 'DUPLICATE_ADDRESS';
+        errorMessage = `Já existe um cliente no mesmo endereço (CEP e número idênticos). ` +
+          `Cliente existente: "${duplicateInfo.clientName}" no endereço ${duplicateInfo.address}. ` +
+          `Para cadastrar uma nova UC no mesmo endereço, é necessário que a UC seja diferente. ` +
+          `Se este é o mesmo cliente, edite o cadastro existente ao invés de criar um novo.`;
+        break;
+
+      case 'ENDERECO_DUPLICADO_QUADRA_LOTE':
+        errorCode = 'DUPLICATE_ADDRESS_QUADRA_LOTE';
+        errorMessage = `Já existe um cliente no mesmo endereço (CEP, quadra e lote idênticos). ` +
+          `Cliente existente: "${duplicateInfo.clientName}" no endereço ${duplicateInfo.address}. ` +
+          `Para cadastrar uma nova UC no mesmo endereço, é necessário que a UC seja diferente. ` +
+          `Se este é o mesmo cliente, edite o cadastro existente ao invés de criar um novo.`;
+        break;
+
+      default:
+        errorCode = 'DUPLICATE_CLIENT';
+        errorMessage = `Já existe um cliente com dados similares. ` +
+          `Cliente existente: "${duplicateInfo.clientName}" (ID: ${duplicateInfo.clientId}). ` +
+          `Verifique se este cliente já não está cadastrado.`;
+    }
+
+    return {
+      ok: false,
+      error: errorMessage,
+      errorCode,
+      duplicateInfo,
+    };
+  } catch (err) {
+    // Graceful fallback: if the database function doesn't exist (migration 0058 not run),
+    // allow the operation to proceed without duplicate validation
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    if (errorMessage.includes('function public.check_client_duplicate') ||
+        errorMessage.includes('does not exist')) {
+      console.warn('[duplicate-validation] DB function not available (migration 0058 pending), skipping validation:', errorMessage);
+      return { ok: true };
+    }
+    // Re-throw other errors
+    throw err;
   }
-
-  // Generate user-friendly error message based on duplicate type
-  let errorMessage = '';
-  let errorCode = '';
-
-  switch (duplicateInfo.type) {
-    case 'UC_DUPLICADA':
-      errorCode = 'DUPLICATE_UC';
-      errorMessage = `Já existe um cliente com a mesma UC (${duplicateInfo.ucGeradora}). ` +
-        `Cliente existente: "${duplicateInfo.clientName}" (ID: ${duplicateInfo.clientId}). ` +
-        `Não é possível cadastrar o mesmo número de UC para dois clientes diferentes. ` +
-        `Se este é um novo contrato para o mesmo endereço, edite o cliente existente.`;
-      break;
-
-    case 'ENDERECO_DUPLICADO':
-      errorCode = 'DUPLICATE_ADDRESS';
-      errorMessage = `Já existe um cliente no mesmo endereço (CEP e número idênticos). ` +
-        `Cliente existente: "${duplicateInfo.clientName}" no endereço ${duplicateInfo.address}. ` +
-        `Para cadastrar uma nova UC no mesmo endereço, é necessário que a UC seja diferente. ` +
-        `Se este é o mesmo cliente, edite o cadastro existente ao invés de criar um novo.`;
-      break;
-
-    case 'ENDERECO_DUPLICADO_QUADRA_LOTE':
-      errorCode = 'DUPLICATE_ADDRESS_QUADRA_LOTE';
-      errorMessage = `Já existe um cliente no mesmo endereço (CEP, quadra e lote idênticos). ` +
-        `Cliente existente: "${duplicateInfo.clientName}" no endereço ${duplicateInfo.address}. ` +
-        `Para cadastrar uma nova UC no mesmo endereço, é necessário que a UC seja diferente. ` +
-        `Se este é o mesmo cliente, edite o cadastro existente ao invés de criar um novo.`;
-      break;
-
-    default:
-      errorCode = 'DUPLICATE_CLIENT';
-      errorMessage = `Já existe um cliente com dados similares. ` +
-        `Cliente existente: "${duplicateInfo.clientName}" (ID: ${duplicateInfo.clientId}). ` +
-        `Verifique se este cliente já não está cadastrado.`;
-  }
-
-  return {
-    ok: false,
-    error: errorMessage,
-    errorCode,
-    duplicateInfo,
-  };
 }
 
 export {
