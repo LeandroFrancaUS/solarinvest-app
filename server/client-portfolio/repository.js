@@ -46,7 +46,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
       FROM public.clients c
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+      ORDER BY c.created_at DESC
     `
   } else {
     const like = `%${searchTerm}%`
@@ -85,7 +85,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
-      ORDER BY c.portfolio_exported_at DESC NULLS LAST, c.client_name ASC
+      ORDER BY c.created_at DESC
     `
   }
 

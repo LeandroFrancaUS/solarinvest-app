@@ -65,6 +65,7 @@ export function ProposalSelectorModal({
 }: ProposalSelectorModalProps) {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'status' | 'type'>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const filtered = proposals
     .filter((p) => {
@@ -78,11 +79,25 @@ export function ProposalSelectorModal({
       )
     })
     .sort((a, b) => {
-      if (sortBy === 'date') return b.created_at.localeCompare(a.created_at)
-      if (sortBy === 'status') return a.status.localeCompare(b.status)
-      if (sortBy === 'type') return a.proposal_type.localeCompare(b.proposal_type)
-      return 0
+      let compareResult = 0
+      if (sortBy === 'date') {
+        compareResult = b.created_at.localeCompare(a.created_at)
+      } else if (sortBy === 'status') {
+        compareResult = a.status.localeCompare(b.status)
+      } else if (sortBy === 'type') {
+        compareResult = a.proposal_type.localeCompare(b.proposal_type)
+      }
+      return sortDir === 'asc' ? -compareResult : compareResult
     })
+
+  const toggleSort = (field: 'date' | 'status' | 'type') => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortDir(field === 'date' ? 'desc' : 'asc')
+    }
+  }
 
   const newest = proposals.reduce(
     (acc, p) => (!acc || p.created_at > acc.created_at ? p : acc),
@@ -121,16 +136,62 @@ export function ProposalSelectorModal({
             className="proposal-selector-modal__search"
             aria-label="Buscar proposta"
           />
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'date' | 'status' | 'type')}
-            className="proposal-selector-modal__sort"
-            aria-label="Ordenar por"
+        </div>
+
+        {/* Sort controls */}
+        <div style={{ padding: '8px 20px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Ordenar por:</span>
+          <button
+            type="button"
+            onClick={() => toggleSort('date')}
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              borderRadius: 6,
+              border: sortBy === 'date' ? '1px solid var(--accent, #ff8c00)' : '1px solid var(--border, #e2e8f0)',
+              background: sortBy === 'date' ? 'rgba(255,140,0,0.1)' : 'transparent',
+              color: sortBy === 'date' ? 'var(--accent, #ff8c00)' : 'var(--text-base)',
+              cursor: 'pointer',
+              fontWeight: sortBy === 'date' ? 600 : 400,
+            }}
+            title="Clique para ordenar por data"
           >
-            <option value="date">Mais recente</option>
-            <option value="status">Status</option>
-            <option value="type">Tipo</option>
-          </select>
+            Data {sortBy === 'date' && (sortDir === 'asc' ? '↑' : '↓')}
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleSort('status')}
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              borderRadius: 6,
+              border: sortBy === 'status' ? '1px solid var(--accent, #ff8c00)' : '1px solid var(--border, #e2e8f0)',
+              background: sortBy === 'status' ? 'rgba(255,140,0,0.1)' : 'transparent',
+              color: sortBy === 'status' ? 'var(--accent, #ff8c00)' : 'var(--text-base)',
+              cursor: 'pointer',
+              fontWeight: sortBy === 'status' ? 600 : 400,
+            }}
+            title="Clique para ordenar por status"
+          >
+            Status {sortBy === 'status' && (sortDir === 'asc' ? '↑' : '↓')}
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleSort('type')}
+            style={{
+              padding: '4px 10px',
+              fontSize: 12,
+              borderRadius: 6,
+              border: sortBy === 'type' ? '1px solid var(--accent, #ff8c00)' : '1px solid var(--border, #e2e8f0)',
+              background: sortBy === 'type' ? 'rgba(255,140,0,0.1)' : 'transparent',
+              color: sortBy === 'type' ? 'var(--accent, #ff8c00)' : 'var(--text-base)',
+              cursor: 'pointer',
+              fontWeight: sortBy === 'type' ? 600 : 400,
+            }}
+            title="Clique para ordenar por tipo"
+          >
+            Tipo {sortBy === 'type' && (sortDir === 'asc' ? '↑' : '↓')}
+          </button>
         </div>
 
         <ul className="proposal-selector-modal__list" role="listbox" aria-label="Lista de propostas">
