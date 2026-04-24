@@ -503,15 +503,24 @@ type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 
  * so Cobrança can only be enabled once these are present.
  */
 function hasCompletePlanInfo(client: PortfolioClientRow): boolean {
-  const kwh = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
-  const tarifa = client.tarifa_atual ?? null
-  const desconto = client.desconto_percentual ?? null
-  const prazo = client.contractual_term_months ?? client.prazo_meses ?? client.term_months ?? null
+  // PostgreSQL `numeric` columns are returned as strings by node-postgres,
+  // so we coerce defensively here instead of using `typeof === 'number'`.
+  const toFiniteNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null
+    const n = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  const kwh = toFiniteNumber(client.kwh_mes_contratado ?? client.kwh_contratado)
+  const tarifa = toFiniteNumber(client.tarifa_atual)
+  const desconto = toFiniteNumber(client.desconto_percentual)
+  const prazo = toFiniteNumber(
+    client.contractual_term_months ?? client.prazo_meses ?? client.term_months,
+  )
   return (
-    typeof kwh === 'number' && kwh > 0 &&
-    typeof tarifa === 'number' && tarifa > 0 &&
-    typeof desconto === 'number' && desconto >= 0 &&
-    typeof prazo === 'number' && prazo > 0
+    kwh !== null && kwh > 0 &&
+    tarifa !== null && tarifa > 0 &&
+    desconto !== null && desconto >= 0 &&
+    prazo !== null && prazo > 0
   )
 }
 
