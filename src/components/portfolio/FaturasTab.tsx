@@ -179,6 +179,114 @@ export function FaturasTab({ client }: FaturasTabProps) {
     }
   }
 
+  // Auto-generate invoices from leasing installments
+  async function handleAutoGenerateInvoices() {
+    // Validate required data
+    const contractTermMonths = client.contractual_term_months
+    const firstBillingDate = client.first_billing_date
+    const readingDay = client.reading_day
+
+    if (!contractTermMonths || contractTermMonths <= 0) {
+      setError('Prazo do contrato (meses) não definido na aba Cobrança.')
+      return
+    }
+
+    if (!firstBillingDate) {
+      setError('Data da primeira cobrança não definida na aba Cobrança.')
+      return
+    }
+
+    if (!readingDay || readingDay < 1 || readingDay > 31) {
+      setError('Dia da leitura inválido na aba Cobrança.')
+      return
+    }
+
+    if (clientUCs.length === 0) {
+      setError('Nenhuma UC cadastrada para este cliente.')
+      return
+    }
+
+    // Show confirmation
+    const totalInvoices = contractTermMonths * clientUCs.length
+    const confirmMsg = `Gerar ${totalInvoices} faturas automaticamente?\n\n` +
+      `${contractTermMonths} meses × ${clientUCs.length} UCs\n` +
+      `Início: ${firstBillingDate}\n` +
+      `Dia do vencimento: ${readingDay}\n\n` +
+      `Valores ficarão em branco para preenchimento durante o pagamento.`
+
+    if (!confirm(confirmMsg)) return
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      const startDate = new Date(firstBillingDate + 'T00:00:00')
+      if (isNaN(startDate.getTime())) {
+        throw new Error('Data da primeira cobrança inválida.')
+      }
+
+      let createdCount = 0
+      let skippedCount = 0
+
+      // Helper: clamp day to valid range for month
+      function clampDay(year: number, month: number, day: number): number {
+        const lastDay = new Date(year, month + 1, 0).getDate()
+        return Math.min(day, lastDay)
+      }
+
+      // Generate invoices for each UC and each month
+      for (const uc of clientUCs) {
+        for (let i = 0; i < contractTermMonths; i++) {
+          // Calculate reference month
+          const refMonth = startDate.getMonth() + i
+          const refYear = startDate.getFullYear() + Math.floor(refMonth / 12)
+          const refMonthNormalized = ((refMonth % 12) + 12) % 12
+          const referenceMonthStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-01`
+
+          // Calculate due date
+          const dueDay = clampDay(refYear, refMonthNormalized, readingDay)
+          const dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`
+
+          // Check if invoice already exists
+          const exists = invoices.some(
+            (inv) => inv.uc === uc && inv.reference_month === referenceMonthStr
+          )
+
+          if (exists) {
+            skippedCount++
+            continue
+          }
+
+          // Create invoice with amount = 0 (blank for later filling)
+          const payload: CreateInvoicePayload = {
+            client_id: client.id,
+            uc,
+            invoice_number: null,
+            reference_month: referenceMonthStr,
+            due_date: dueDateStr,
+            amount: 0,
+            notes: 'Fatura gerada automaticamente',
+          }
+
+          await createInvoice(payload)
+          createdCount++
+        }
+      }
+
+      await loadInvoices()
+
+      if (createdCount > 0) {
+        alert(`✓ ${createdCount} faturas criadas com sucesso!${skippedCount > 0 ? `\n${skippedCount} faturas já existiam e foram ignoradas.` : ''}`)
+      } else {
+        alert('Nenhuma fatura foi criada. Todas as faturas já existem.')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao gerar faturas automaticamente')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Group invoices by reference month
   const invoicesByMonth = useMemo(() => {
     const grouped: Record<string, ClientInvoice[]> = {}
@@ -255,22 +363,43 @@ export function FaturasTab({ client }: FaturasTabProps) {
               Gerenciar faturas das unidades consumidoras sob titularidade da SolarInvest
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowNewInvoiceForm(!showNewInvoiceForm)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: '1px solid #8b5cf6',
-              background: '#8b5cf6',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            {showNewInvoiceForm ? 'Cancelar' : '+ Nova Fatura'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleAutoGenerateInvoices}
+              disabled={saving}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: '1px solid #10b981',
+                background: '#10b981',
+                color: '#fff',
+                cursor: saving ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+                opacity: saving ? 0.6 : 1,
+              }}
+              title="Gerar faturas automaticamente com base nas parcelas de leasing"
+            >
+              ⚡ Gerar Automaticamente
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNewInvoiceForm(!showNewInvoiceForm)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: '1px solid #8b5cf6',
+                background: '#8b5cf6',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {showNewInvoiceForm ? 'Cancelar' : '+ Nova Fatura'}
+            </button>
+          </div>
         </div>
 
         {/* UCs summary */}
