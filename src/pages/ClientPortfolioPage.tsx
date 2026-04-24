@@ -50,7 +50,7 @@ import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2, addDays as addDaysV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2 } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
@@ -497,11 +497,52 @@ function ClientCard({
 // ─────────────────────────────────────────────────────────────────────────────
 type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 'notas'
 
-function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled }: {
+/**
+ * Returns whether a leasing client has all Plano-tab fields filled in.
+ * The Plano tab feeds the mensalidade engine and the billing dates engine,
+ * so Cobrança can only be enabled once these are present.
+ */
+function hasCompletePlanInfo(client: PortfolioClientRow): boolean {
+  const kwh = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
+  const tarifa = client.tarifa_atual ?? null
+  const desconto = client.desconto_percentual ?? null
+  const prazo = client.contractual_term_months ?? client.prazo_meses ?? client.term_months ?? null
+  return (
+    typeof kwh === 'number' && kwh > 0 &&
+    typeof tarifa === 'number' && tarifa > 0 &&
+    typeof desconto === 'number' && desconto >= 0 &&
+    typeof prazo === 'number' && prazo > 0
+  )
+}
+
+/**
+ * Determines whether the Cobrança tab should be enabled and, when not, the
+ * reason that should be surfaced as a tooltip.
+ *
+ * Cobrança is only available when ALL of the following hold:
+ *   1. contract_type === 'leasing'  (sale and buyout never have recurring billing)
+ *   2. contract_status === 'active'
+ *   3. Plano tab is shown (true for leasing) and all its fields are filled
+ */
+function resolveCobrancaGating(client: PortfolioClientRow): { enabled: boolean; reason?: string } {
+  if (client.contract_type !== 'leasing') {
+    return { enabled: false, reason: 'Indisponível para contratos de venda ou buy-out.' }
+  }
+  if (client.contract_status !== 'active') {
+    return { enabled: false, reason: 'Disponível somente quando o contrato estiver ativo.' }
+  }
+  if (!hasCompletePlanInfo(client)) {
+    return { enabled: false, reason: 'Preencha todos os campos da aba Plano (kWh/mês, tarifa, desconto e prazo).' }
+  }
+  return { enabled: true }
+}
+
+function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled, cobrancaDisabledReason }: {
   activeTab: Tab
   onChange: (t: Tab) => void
   showPlano: boolean
   cobrancaEnabled: boolean
+  cobrancaDisabledReason?: string
 }) {
   const tabs: { id: Tab; label: string; hidden?: boolean; disabled?: boolean; title?: string }[] = [
     { id: 'editar', label: '👤 Cliente' },
@@ -513,7 +554,7 @@ function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled }: {
       id: 'cobranca',
       label: '💰 Cobrança',
       disabled: !cobrancaEnabled,
-      title: cobrancaEnabled ? undefined : 'Disponível após a instalação ser concluída',
+      title: cobrancaEnabled ? undefined : (cobrancaDisabledReason ?? 'Indisponível'),
     },
     { id: 'notas', label: '📝 Notas' },
   ]
@@ -1666,13 +1707,19 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   })
 
   // Auto-calculated monthly fee using the available engine.
-  // - Contratante titular (default): standard rule M = min(C, Kc) × Tc.
-  // - Otherwise (titularidade SolarInvest): M = Kc×Tc + max(0; Kr−(Kc+C))×T + E.
+  // Inputs come from the Plano tab values (kwh_mes_contratado as consumo,
+  // tarifa_atual, desconto_percentual). The same value plays the role of
+  // both `C` (consumo) and `Kc` (energia contratada) so that the standard
+  // rule M = min(C, Kc) × Tc collapses to `kwh × tarifa × (1 − desconto)`,
+  // which matches what the user expects from the Plano-based engine.
+  // - Contratante titular (default): standard rule.
+  // - Otherwise (titularidade SolarInvest): GO/SolarInvest rule (requires Kr/E).
   const mensalidadeAuto = useMemo(() => {
+    const planKwh = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
     return calculateMensalidade(
       {
-        C: client.consumption_kwh_month ?? null,
-        Kc: client.kwh_mes_contratado ?? client.kwh_contratado ?? null,
+        C: planKwh,
+        Kc: planKwh,
         T: client.tarifa_atual ?? null,
         desconto: client.desconto_percentual ?? null,
         Kr: client.geracao_estimada_kwh ?? null,
@@ -1680,7 +1727,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       form.is_contratante_titular,
     )
   }, [
-    client.consumption_kwh_month,
     client.kwh_mes_contratado,
     client.kwh_contratado,
     client.tarifa_atual,
@@ -1723,7 +1769,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
   // "Último Vencimento Previsto" =
-  //   Próxima cobrança recorrente + (Prazo − 1) meses + 30 dias
+  //   Próxima cobrança recorrente + (Prazo − 1) meses
   const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
   const ultimoVencimentoPrevisto = useMemo(() => {
     if (
@@ -1735,12 +1781,11 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     ) {
       return null
     }
-    const base = addMonthsSafeV2(
+    return addMonthsSafeV2(
       billingDatesV2.proximaCobrancaRecorrente,
       Math.max(0, termMonths - 1),
       billingDatesV2.vencimentoRecorrenteMensal,
     )
-    return addDaysV2(base, 30)
   }, [billingDatesV2, termMonths])
 
   // Generate installments.
@@ -3046,7 +3091,8 @@ function ClientDetailPanel({
           activeTab={activeTab}
           onChange={setActiveTab}
           showPlano={displayClient.contract_type === 'leasing'}
-          cobrancaEnabled={displayClient.installation_status === 'Concluído'}
+          cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
+          cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
         />
         {activeTab === 'editar' && (
           <EditarTab
@@ -3065,7 +3111,7 @@ function ClientDetailPanel({
         {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-        {activeTab === 'cobranca' && displayClient.installation_status === 'Concluído' && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
@@ -3104,7 +3150,8 @@ function ClientDetailPanel({
               activeTab={activeTab}
               onChange={setActiveTab}
               showPlano={displayClient.contract_type === 'leasing'}
-              cobrancaEnabled={displayClient.installation_status === 'Concluído'}
+              cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
+              cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
             />
             {activeTab === 'editar' && (
               <EditarTab
@@ -3123,7 +3170,7 @@ function ClientDetailPanel({
             {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-            {activeTab === 'cobranca' && displayClient.installation_status === 'Concluído' && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
@@ -3197,11 +3244,15 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const total = clients.length
   const hasClients = total > 0
 
-  // Compute billing alerts from all clients for the dashboard widget
+  // Compute billing alerts from all clients for the dashboard widget.
+  // Skip clients whose Cobrança tab would be disabled (sale/buyout, inactive
+  // contracts, or incomplete plans) so we don't surface notifications for
+  // clients that can't be billed.
   const billingAlerts = useMemo(() => {
     if (!hasClients) return []
     const alerts: BillingAlertItem[] = []
     for (const c of clients) {
+      if (!resolveCobrancaGating(c).enabled) continue
       if (!c.due_day || !c.valor_mensalidade || !c.commissioning_date) continue
       const readingDay = c.reading_day ?? c.due_day
       const engine = calculateBillingDates({
