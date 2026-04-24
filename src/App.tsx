@@ -27082,31 +27082,24 @@ export default function App() {
   ]
 
   const sidebarGroups: SidebarGroup[] = [
-    ...(canSeeDashboardEffective
+    ...((canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective)
       ? [
           {
             id: 'dashboard',
             label: 'Dashboard',
             items: [
-              {
-                id: 'dashboard-home',
-                label: 'Dashboard',
-                icon: '📊',
-                onSelect: () => {
-                  void abrirDashboard()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
-    // Portfolio and Financial Management - moved to top after Dashboard
-    ...((canSeePortfolioEffective || canSeeFinancialManagementEffective)
-      ? [
-          {
-            id: 'gestao',
-            label: '',
-            items: [
+              ...(canSeeDashboardEffective
+                ? [
+                    {
+                      id: 'dashboard-home',
+                      label: 'Dashboard',
+                      icon: '📊',
+                      onSelect: () => {
+                        void abrirDashboard()
+                      },
+                    },
+                  ]
+                : []),
               ...(canSeePortfolioEffective
                 ? [
                     {
