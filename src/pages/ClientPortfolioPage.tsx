@@ -495,7 +495,7 @@ function ClientCard({
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail Panel Tabs
 // ─────────────────────────────────────────────────────────────────────────────
-type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 'notas'
+type Tab = 'editar' | 'usina' | 'contrato' | 'plano' | 'projeto' | 'cobranca' | 'faturas' | 'notas'
 
 /**
  * Returns whether a leasing client has all Plano-tab fields filled in.
@@ -546,10 +546,11 @@ function resolveCobrancaGating(client: PortfolioClientRow): { enabled: boolean; 
   return { enabled: true }
 }
 
-function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled, cobrancaDisabledReason }: {
+function DetailTabBar({ activeTab, onChange, showPlano, showFaturas, cobrancaEnabled, cobrancaDisabledReason }: {
   activeTab: Tab
   onChange: (t: Tab) => void
   showPlano: boolean
+  showFaturas: boolean
   cobrancaEnabled: boolean
   cobrancaDisabledReason?: string
 }) {
@@ -565,6 +566,7 @@ function DetailTabBar({ activeTab, onChange, showPlano, cobrancaEnabled, cobranc
       disabled: !cobrancaEnabled,
       title: cobrancaEnabled ? undefined : (cobrancaDisabledReason ?? 'Indisponível'),
     },
+    { id: 'faturas', label: '🧾 Faturas', hidden: !showFaturas, title: 'Faturas sob titularidade da SolarInvest' },
     { id: 'notas', label: '📝 Notas' },
   ]
   return (
@@ -2252,6 +2254,262 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Faturas Tab — Invoice tracking for SolarInvest-owned accounts
+// Shown when is_contratante_titular = false (titularidade da SolarInvest)
+// ─────────────────────────────────────────────────────────────────────────────
+function FaturasTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+  const [editMode, setEditMode] = useState(false)
+
+  // Get installments from the client
+  const installments = useMemo(() => {
+    const termMonths = client.contractual_term_months ?? client.term_months ?? 0
+    if (termMonths === 0 || !client.valor_mensalidade) return []
+
+    // Use existing installments from client data
+    return client.installments_json ?? []
+  }, [client.installments_json, client.contractual_term_months, client.term_months, client.valor_mensalidade])
+
+  // Map to track invoice payment status
+  const [invoicePayments, setInvoicePayments] = useState<Record<number, {
+    invoice_due_date: string | null
+    invoice_paid: boolean
+    invoice_paid_at: string | null
+    distributor_receipt: string | null
+  }>>({})
+
+  // Load existing invoice data from installments
+  useEffect(() => {
+    if (!installments.length) return
+    const payments: Record<number, any> = {}
+    installments.forEach((inst: any) => {
+      if (inst.status === 'confirmado' || inst.status === 'pago') {
+        payments[inst.number] = {
+          invoice_due_date: inst.paid_at,
+          invoice_paid: true,
+          invoice_paid_at: inst.paid_at,
+          distributor_receipt: inst.receipt_number,
+        }
+      }
+    })
+    setInvoicePayments(payments)
+  }, [installments])
+
+  return (
+    <div className="pf-tab-content">
+      <div className="pf-section-card">
+        <div className="pf-section-title">
+          <span className="pf-icon">🧾</span> Faturas sob Titularidade da SolarInvest
+        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+          Estas faturas são de responsabilidade da SolarInvest e devem ser monitoradas mensalmente para garantir o pagamento.
+          A titularidade está com a SolarInvest, portanto a distribuidora cobra diretamente da empresa.
+        </p>
+
+        {installments.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '16px 0' }}>
+            Configure as parcelas na aba Cobrança para visualizar o controle de faturas.
+          </div>
+        ) : (
+          <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+            <table className="pf-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Ref. Parcela</th>
+                  <th>Vencimento Distribuidora</th>
+                  <th className="center">Fatura Paga?</th>
+                  <th>Data Pagamento</th>
+                  <th>Comprovante Distribuidora</th>
+                  <th className="center">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {installments.map((inst: any, idx: number) => {
+                  const invoiceData = invoicePayments[inst.number] ?? {}
+                  const isPaid = invoiceData.invoice_paid ?? false
+
+                  return (
+                    <tr key={inst.number}>
+                      <td>{idx + 1}</td>
+                      <td>Parcela {inst.number}</td>
+                      <td>
+                        {editMode ? (
+                          <input
+                            type="date"
+                            value={invoiceData.invoice_due_date?.slice(0, 10) ?? ''}
+                            onChange={(e) => {
+                              setInvoicePayments(prev => ({
+                                ...prev,
+                                [inst.number]: { ...prev[inst.number], invoice_due_date: e.target.value }
+                              }))
+                            }}
+                            style={{ fontSize: 12, padding: 4 }}
+                          />
+                        ) : (
+                          invoiceData.invoice_due_date
+                            ? new Date(invoiceData.invoice_due_date).toLocaleDateString('pt-BR')
+                            : '—'
+                        )}
+                      </td>
+                      <td className="center">
+                        {editMode ? (
+                          <input
+                            type="checkbox"
+                            checked={isPaid}
+                            onChange={(e) => {
+                              setInvoicePayments(prev => ({
+                                ...prev,
+                                [inst.number]: {
+                                  ...prev[inst.number],
+                                  invoice_paid: e.target.checked,
+                                  invoice_paid_at: e.target.checked ? new Date().toISOString() : null
+                                }
+                              }))
+                            }}
+                            style={{ width: 16, height: 16 }}
+                          />
+                        ) : (
+                          isPaid ? (
+                            <span style={{ color: 'var(--color-success-fg)' }}>✓ Sim</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>⏳ Pendente</span>
+                          )
+                        )}
+                      </td>
+                      <td>
+                        {invoiceData.invoice_paid_at
+                          ? new Date(invoiceData.invoice_paid_at).toLocaleDateString('pt-BR')
+                          : '—'}
+                      </td>
+                      <td>
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={invoiceData.distributor_receipt ?? ''}
+                            onChange={(e) => {
+                              setInvoicePayments(prev => ({
+                                ...prev,
+                                [inst.number]: { ...prev[inst.number], distributor_receipt: e.target.value }
+                              }))
+                            }}
+                            placeholder="Nº comprovante"
+                            style={{ fontSize: 12, padding: 4, width: '100%' }}
+                          />
+                        ) : (
+                          invoiceData.distributor_receipt ?? '—'
+                        )}
+                      </td>
+                      <td className="center">
+                        {editMode && !isPaid && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setInvoicePayments(prev => ({
+                                ...prev,
+                                [inst.number]: {
+                                  ...prev[inst.number],
+                                  invoice_paid: true,
+                                  invoice_paid_at: new Date().toISOString()
+                                }
+                              }))
+                            }}
+                            style={{
+                              fontSize: 11,
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              border: '1px solid var(--color-success-border)',
+                              background: 'var(--color-success-bg)',
+                              color: 'var(--color-success-fg)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Marcar Paga
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          {!editMode ? (
+            <button
+              type="button"
+              onClick={() => setEditMode(true)}
+              style={{
+                padding: '8px 16px',
+                background: 'var(--color-primary)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              ✏️ Editar
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  // Save would go here - for now just exit edit mode
+                  setEditMode(false)
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--color-success-bg)',
+                  color: 'var(--color-success-fg)',
+                  border: '1px solid var(--color-success-border)',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                ✓ Salvar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditMode(false)
+                  // Reset to loaded state
+                  const payments: Record<number, any> = {}
+                  installments.forEach((inst: any) => {
+                    if (inst.status === 'confirmado' || inst.status === 'pago') {
+                      payments[inst.number] = {
+                        invoice_due_date: inst.paid_at,
+                        invoice_paid: true,
+                        invoice_paid_at: inst.paid_at,
+                        distributor_receipt: inst.receipt_number,
+                      }
+                    }
+                  })
+                  setInvoicePayments(payments)
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  color: 'var(--text-base)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Cancelar
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
@@ -3100,6 +3358,7 @@ function ClientDetailPanel({
           activeTab={activeTab}
           onChange={setActiveTab}
           showPlano={displayClient.contract_type === 'leasing'}
+          showFaturas={displayClient.is_contratante_titular === false}
           cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
           cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
         />
@@ -3121,6 +3380,7 @@ function ClientDetailPanel({
         {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
         {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+        {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
@@ -3159,6 +3419,7 @@ function ClientDetailPanel({
               activeTab={activeTab}
               onChange={setActiveTab}
               showPlano={displayClient.contract_type === 'leasing'}
+              showFaturas={displayClient.is_contratante_titular === false}
               cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
               cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
             />
@@ -3180,6 +3441,7 @@ function ClientDetailPanel({
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
             {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
