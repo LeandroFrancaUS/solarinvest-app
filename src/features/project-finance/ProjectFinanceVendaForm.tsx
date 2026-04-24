@@ -22,6 +22,19 @@ function fmtNum(value: number | null | undefined, decimals = 2): string {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
+function getStepPrecision(step: string | number): number {
+  if (step === 'any') return 2
+  const raw = String(step)
+  if (!raw.includes('.')) return 0
+  return Math.min(2, raw.split('.')[1]?.length ?? 0)
+}
+
+function normalizeNumericValue(value: number | null | undefined, step: string | number): number | '' {
+  if (value == null) return ''
+  const precision = getStepPrecision(step)
+  return Number(value.toFixed(precision))
+}
+
 function FieldNumber({
   id, label, value, onChange, unit, min = 0, step = 'any', hint,
 }: {
@@ -38,8 +51,15 @@ function FieldNumber({
       </label>
       <input
         id={id} className="fm-form-input" type="number" min={min} step={step}
-        value={value ?? ''}
-        onChange={(e) => { const n = e.target.valueAsNumber; onChange(isNaN(n) ? null : n) }}
+        value={normalizeNumericValue(value, step)}
+        onChange={(e) => {
+          const n = e.target.valueAsNumber
+          if (isNaN(n)) {
+            onChange(null)
+            return
+          }
+          onChange(Number(n.toFixed(getStepPrecision(step))))
+        }}
       />
     </div>
   )
@@ -89,33 +109,22 @@ function FieldWithOverride({
 }) {
   return (
     <div className="fm-detail-field fm-detail-field--edit">
-      <label className="fm-detail-field-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <label className="fm-detail-field-label" htmlFor={id}>
         {label}
         {unit ? <span className="fm-field-hint"> ({unit})</span> : null}
-        <span style={{
-          fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3, marginLeft: 4,
-          background: isOverridden ? 'var(--ds-warning-bg, rgba(245,158,11,0.15))' : 'var(--ds-success-bg, rgba(34,197,94,0.12))',
-          color: isOverridden ? 'var(--ds-warning, #f59e0b)' : 'var(--ds-success, #22c55e)',
-        }}>
-          {isOverridden ? 'Manual' : 'Automático'}
-        </span>
         {isOverridden ? (
-          <button type="button" onClick={() => onRestore(field)}
-            style={{ fontSize: 10, padding: '1px 5px', marginLeft: 2, background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)' }}
-            title="Restaurar valor automático">↺ Auto</button>
+          <button type="button" onClick={() => onRestore(field)} className="fm-kpi-action-btn" title="Restaurar valor padrão">↺ Restaurar</button>
         ) : null}
       </label>
       {isOverridden ? (
-        <input id={id} className="fm-form-input" type="number" step={step} value={overrideValue ?? ''}
-          onChange={(e) => { const n = e.target.valueAsNumber; if (!isNaN(n)) onOverride(field, n) }} />
+        <input id={id} className="fm-form-input" type="number" step={step} value={normalizeNumericValue(overrideValue, step)}
+          onChange={(e) => { const n = e.target.valueAsNumber; if (!isNaN(n)) onOverride(field, Number(n.toFixed(getStepPrecision(step)))) }} />
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="fm-detail-field-value" style={{ flex: 1 }}>
+        <div className="fm-kpi-value-row">
+          <span className="fm-detail-field-value fm-kpi-value">
             {format ? format(effectiveValue) : fmtNum(effectiveValue)}
           </span>
-          <button type="button" onClick={() => onOverride(field, effectiveValue ?? 0)}
-            style={{ fontSize: 10, padding: '2px 6px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}
-            title="Editar manualmente">✏️ Editar</button>
+          <button type="button" onClick={() => onOverride(field, effectiveValue ?? 0)} className="fm-kpi-action-btn" title="Editar manualmente">✏️ Editar</button>
         </div>
       )}
     </div>
@@ -192,11 +201,11 @@ export function ProjectFinanceVendaForm({
         <FieldNumber id="pf-venda-receita" label="Receita total esperada" unit="R$" value={form.receita_esperada} onChange={(v) => setField('receita_esperada', v ?? undefined)} step={0.01} hint="(total recebido)" />
       </div>
 
-      <SectionTitle title="KPIs Financeiros (calculados pelo motor)" />
-      <div className="fm-detail-grid fm-detail-grid--edit">
-        <FieldWithOverride id="pf-venda-payback" label="Payback" field="payback_meses" effectiveValue={calculated.payback_meses} isOverridden={'payback_meses' in overrides} overrideValue={overrides.payback_meses ?? null} unit="meses" step={0.1} format={(v) => fmtNum(v, 1)} onOverride={setOverride} onRestore={restoreAuto} />
-        <FieldWithOverride id="pf-venda-roi" label="ROI" field="roi_pct" effectiveValue={calculated.roi_pct} isOverridden={'roi_pct' in overrides} overrideValue={overrides.roi_pct ?? null} unit="%" step={0.01} format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'} onOverride={setOverride} onRestore={restoreAuto} />
-        <FieldWithOverride id="pf-venda-tir" label="TIR (IRR anual)" field="tir_pct" effectiveValue={calculated.tir_pct} isOverridden={'tir_pct' in overrides} overrideValue={overrides.tir_pct ?? null} unit="% a.a." step={0.01} format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'} onOverride={setOverride} onRestore={restoreAuto} />
+      <SectionTitle title="KPIs Financeiros" />
+      <div className="fm-detail-grid fm-detail-grid--edit fm-kpi-grid">
+        <FieldWithOverride id="pf-venda-payback" label="Payback" field="payback_meses" effectiveValue={calculated.payback_meses} isOverridden={'payback_meses' in overrides} overrideValue={overrides.payback_meses ?? null} unit="meses" step={0.1} format={(v) => fmtNum(v, 2)} onOverride={setOverride} onRestore={restoreAuto} />
+        <FieldWithOverride id="pf-venda-roi" label="ROI" field="roi_pct" effectiveValue={calculated.roi_pct} isOverridden={'roi_pct' in overrides} overrideValue={overrides.roi_pct ?? null} unit="%" step={0.01} format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'} onOverride={setOverride} onRestore={restoreAuto} />
+        <FieldWithOverride id="pf-venda-tir" label="TIR (IRR anual)" field="tir_pct" effectiveValue={calculated.tir_pct} isOverridden={'tir_pct' in overrides} overrideValue={overrides.tir_pct ?? null} unit="% a.a." step={0.01} format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'} onOverride={setOverride} onRestore={restoreAuto} />
         <FieldWithOverride id="pf-venda-vpl" label="VPL (NPV)" field="vpl" effectiveValue={calculated.vpl} isOverridden={'vpl' in overrides} overrideValue={overrides.vpl ?? null} unit="R$" step={0.01} format={fmtCurrency} onOverride={setOverride} onRestore={restoreAuto} />
       </div>
 

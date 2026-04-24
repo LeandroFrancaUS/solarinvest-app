@@ -461,7 +461,6 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
           <div className="fm-detail-field fm-detail-field--edit">
             <label className="fm-detail-field-label" htmlFor="usina-n-modulos">
               Número de módulos
-              <span className="fm-field-hint"> (auto)</span>
             </label>
             <input
               id="usina-n-modulos"
@@ -493,7 +492,6 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
           <div className="fm-detail-field fm-detail-field--edit">
             <label className="fm-detail-field-label" htmlFor="usina-pot-sistema">
               Potência do sistema (kWp)
-              <span className="fm-field-hint"> (auto)</span>
             </label>
             <input
               id="usina-pot-sistema"
@@ -502,7 +500,7 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
               readOnly
               aria-readonly="true"
               value={form.potencia_sistema_kwp != null
-                ? form.potencia_sistema_kwp.toFixed(3)
+                ? form.potencia_sistema_kwp.toFixed(2)
                 : ''}
               tabIndex={-1}
             />
@@ -512,7 +510,6 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
           <div className="fm-detail-field fm-detail-field--edit">
             <label className="fm-detail-field-label" htmlFor="usina-geracao">
               Geração estimada (kWh/mês)
-              <span className="fm-field-hint"> (auto)</span>
             </label>
             <input
               id="usina-geracao"

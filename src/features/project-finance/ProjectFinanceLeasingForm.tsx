@@ -27,6 +27,19 @@ function fmtNum(value: number | null | undefined, decimals = 2): string {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
+function getStepPrecision(step: string | number): number {
+  if (step === 'any') return 2
+  const raw = String(step)
+  if (!raw.includes('.')) return 0
+  return Math.min(2, raw.split('.')[1]?.length ?? 0)
+}
+
+function normalizeNumericValue(value: number | null | undefined, step: string | number): number | '' {
+  if (value == null) return ''
+  const precision = getStepPrecision(step)
+  return Number(value.toFixed(precision))
+}
+
 // ─── Field components ────────────────────────────────────────────────────────
 
 function FieldNumber({
@@ -54,10 +67,15 @@ function FieldNumber({
         type="number"
         min={min}
         step={step}
-        value={value ?? ''}
+        value={normalizeNumericValue(value, step)}
         onChange={(e) => {
           const n = e.target.valueAsNumber
-          onChange(isNaN(n) ? null : n)
+          if (isNaN(n)) {
+            onChange(null)
+            return
+          }
+          const precision = getStepPrecision(step)
+          onChange(Number(n.toFixed(precision)))
         }}
       />
     </div>
@@ -107,7 +125,7 @@ function ReadonlyField({ label, value }: { label: string; value: React.ReactNode
 
 /**
  * A KPI field that is auto-computed by the engine but can be manually overridden.
- * Shows "Automático" or "Manual" badge and a restore button.
+ * Shows the computed value and allows manual override.
  */
 function FieldWithOverride({
   id,
@@ -136,39 +154,17 @@ function FieldWithOverride({
 }) {
   return (
     <div className="fm-detail-field fm-detail-field--edit">
-      <label className="fm-detail-field-label" htmlFor={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <label className="fm-detail-field-label" htmlFor={id}>
         {label}
         {unit ? <span className="fm-field-hint"> ({unit})</span> : null}
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: '1px 5px',
-            borderRadius: 3,
-            marginLeft: 4,
-            background: isOverridden ? 'var(--ds-warning-bg, rgba(245,158,11,0.15))' : 'var(--ds-success-bg, rgba(34,197,94,0.12))',
-            color: isOverridden ? 'var(--ds-warning, #f59e0b)' : 'var(--ds-success, #22c55e)',
-          }}
-        >
-          {isOverridden ? 'Manual' : 'Automático'}
-        </span>
         {isOverridden ? (
           <button
             type="button"
             onClick={() => onRestore(field)}
-            style={{
-              fontSize: 10,
-              padding: '1px 5px',
-              marginLeft: 2,
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 3,
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-            }}
-            title="Restaurar valor automático"
+            className="fm-kpi-action-btn"
+            title="Restaurar valor padrão"
           >
-            ↺ Auto
+            ↺ Restaurar
           </button>
         ) : null}
       </label>
@@ -178,30 +174,21 @@ function FieldWithOverride({
           className="fm-form-input"
           type="number"
           step={step}
-          value={overrideValue ?? ''}
+          value={normalizeNumericValue(overrideValue, step)}
           onChange={(e) => {
             const n = e.target.valueAsNumber
-            if (!isNaN(n)) onOverride(field, n)
+            if (!isNaN(n)) onOverride(field, Number(n.toFixed(getStepPrecision(step))))
           }}
         />
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="fm-detail-field-value" style={{ flex: 1 }}>
+        <div className="fm-kpi-value-row">
+          <span className="fm-detail-field-value fm-kpi-value">
             {format ? format(effectiveValue) : fmtNum(effectiveValue)}
           </span>
           <button
             type="button"
             onClick={() => onOverride(field, effectiveValue ?? 0)}
-            style={{
-              fontSize: 10,
-              padding: '2px 6px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 3,
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-              whiteSpace: 'nowrap',
-            }}
+            className="fm-kpi-action-btn"
             title="Editar manualmente"
           >
             ✏️ Editar
@@ -478,8 +465,8 @@ export function ProjectFinanceLeasingForm({
       </div>
 
       {/* ── KPIs Financeiros ─────────────────────────────────── */}
-      <SectionTitle title="KPIs Financeiros (calculados pelo motor)" />
-      <div className="fm-detail-grid fm-detail-grid--edit">
+      <SectionTitle title="KPIs Financeiros" />
+      <div className="fm-detail-grid fm-detail-grid--edit fm-kpi-grid">
         <FieldWithOverride
           id="pf-leasing-payback"
           label="Payback"
@@ -489,7 +476,7 @@ export function ProjectFinanceLeasingForm({
           overrideValue={overrides.payback_meses ?? null}
           unit="meses"
           step={0.1}
-          format={(v) => fmtNum(v, 1)}
+          format={(v) => fmtNum(v, 2)}
           onOverride={setOverride}
           onRestore={restoreAuto}
         />
@@ -502,7 +489,7 @@ export function ProjectFinanceLeasingForm({
           overrideValue={overrides.roi_pct ?? null}
           unit="%"
           step={0.01}
-          format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'}
+          format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'}
           onOverride={setOverride}
           onRestore={restoreAuto}
         />
@@ -515,7 +502,7 @@ export function ProjectFinanceLeasingForm({
           overrideValue={overrides.tir_pct ?? null}
           unit="% a.a."
           step={0.01}
-          format={(v) => v != null ? `${fmtNum(v, 1)}%` : '—'}
+          format={(v) => v != null ? `${fmtNum(v, 2)}%` : '—'}
           onOverride={setOverride}
           onRestore={restoreAuto}
         />
