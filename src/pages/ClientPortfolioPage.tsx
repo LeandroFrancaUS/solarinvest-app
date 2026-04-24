@@ -50,6 +50,7 @@ import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
+import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
@@ -1674,6 +1675,18 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
+  // Automatic billing date calculation (pure module — no recalculation
+  // of the monthly amount; uses the value already produced by the
+  // upstream billing engines).
+  const billingDatesV2 = useMemo(() => {
+    return calculateBillingDatesV2({
+      valorMensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+      dataComissionamento: form.commissioning_date_billing || null,
+      diaLeituraDistribuidora: form.reading_day !== '' ? Number(form.reading_day) : null,
+      diaVencimentoCliente: form.due_day !== '' ? Number(form.due_day) : null,
+    })
+  }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
+
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
   // Falls back to first_billing_date or commissioning_date_billing so that the
@@ -1800,6 +1813,58 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             Lembrete automático ativado
           </label>
         </div>
+      </div>
+
+      {/* Automatic billing dates (pure module) */}
+      <div className="pf-section-card">
+        <div className="pf-section-title"><span className="pf-icon">📅</span> Datas de Cobrança</div>
+        {billingDatesV2.status === 'NA' && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>N/A</div>
+        )}
+        {billingDatesV2.status === 'AGUARDANDO' && (
+          <div>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: 'var(--color-warning-bg, #fef3c7)',
+                color: 'var(--color-warning-fg, #92400e)',
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              Aguardando dados
+            </span>
+            {billingDatesV2.motivo && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                {billingDatesV2.motivo}
+              </div>
+            )}
+          </div>
+        )}
+        {billingDatesV2.status === 'OK' && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Data da primeira cobrança:</span>
+              <span className="pf-info-value">
+                {billingDatesV2.dataPrimeiraCobranca?.toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Vencimento recorrente mensal:</span>
+              <span className="pf-info-value">
+                {`Todo dia ${billingDatesV2.vencimentoRecorrenteMensal}`}
+              </span>
+            </div>
+            <div className="pf-info-row">
+              <span className="pf-info-label">Próxima cobrança recorrente:</span>
+              <span className="pf-info-value">
+                {billingDatesV2.proximaCobrancaRecorrente?.toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Engine result */}
