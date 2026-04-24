@@ -289,9 +289,14 @@ export async function updateClient(sql, clientId, data, options = {}) {
                             ELSE metadata
                           END,
        consultant_id    = COALESCE($22, consultant_id),
+       deleted_at       = NULL,
+       deleted_by_user_id = NULL,
+       deletion_reason  = NULL,
+       deletion_policy  = NULL,
+       deletion_retention_days = NULL,
+       purge_after      = NULL,
        updated_at       = now()
      WHERE id = $23
-       AND deleted_at IS NULL
        ${ownerClause}
      RETURNING *`
   console.info('[clients][update] sql', { queryText, params })
