@@ -45,3 +45,6 @@ export {
 } from './crmUtils'
 
 export { useCrm } from './useCrm'
+
+export { CrmPage } from './CrmPage'
+export type { CrmPageProps } from './CrmPage'
