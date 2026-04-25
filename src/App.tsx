@@ -84,7 +84,7 @@ import {
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import {
   calcularAnaliseFinanceira,
@@ -260,6 +260,7 @@ import type {
 import {
   mapTipoBasicoToLabel,
   normalizeTipoBasico,
+  NOVOS_TIPOS_TUSD,
   TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
@@ -356,7 +357,6 @@ import { VendasParametrosInternosSettings } from './pages/settings/VendasParamet
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
 const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
-const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
 
 const TIPOS_INSTALACAO = [
   { value: 'fibrocimento', label: 'Telhado de fibrocimento' },
@@ -543,10 +543,6 @@ const formatLeasingPrazoAnos = (valor: number) => {
 // --- FIM BLOCO DESATIVADO ---
 
 const _TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value)
-const TUSD_TIPO_LABELS = NOVOS_TIPOS_TUSD.reduce(
-  (acc, { value, label }) => ({ ...acc, [value]: label }),
-  {} as Record<TipoClienteTUSD, string>,
-)
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
   residencial: 'residencial' as SegmentoCliente,
