@@ -168,6 +168,7 @@ export async function handleAuthMeRequest(req, res, { sendJson }) {
     email: appUser.email,
     fullName: appUser.full_name,
     id: appUser.id,
+    authProviderId: appUser.auth_provider_user_id,
     authSource,
   })
 }

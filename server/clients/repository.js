@@ -1026,6 +1026,37 @@ export async function findClientByPhone(sql, phone) {
 }
 
 /**
+ * Find a client by normalized name scoped to a specific owner.
+ * Used as a last-resort deduplication fallback when no CPF/CNPJ or
+ * offline_origin_id is available.  Only matches active, non-merged records.
+ *
+ * @param {Function} sql
+ * @param {string}   name         - Raw client name (will be normalized server-side)
+ * @param {string}   ownerUserId  - User ID that owns the client
+ * @returns {Promise<object|null>}
+ *
+ * NOTE: The normalization expression is evaluated per-row on every call.
+ * For large tables, consider adding a generated column:
+ *   ALTER TABLE clients ADD COLUMN client_name_normalized TEXT
+ *     GENERATED ALWAYS AS (lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))) STORED;
+ * and an index on (client_name_normalized, owner_user_id).
+ */
+export async function findClientByNormalizedName(sql, name, ownerUserId) {
+  if (!name || !name.trim() || !ownerUserId) return null
+  const rows = await sql`
+    SELECT * FROM clients
+    WHERE lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
+            = lower(regexp_replace(btrim(${name.trim()}), '\s+', ' ', 'g'))
+      AND owner_user_id = ${ownerUserId}
+      AND deleted_at IS NULL
+      AND merged_into_client_id IS NULL
+    ORDER BY updated_at DESC NULLS LAST
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
  * Upsert (insert or update) the energy profile for a client.
  * On conflict (client already has a profile), updates all non-null incoming fields.
  */

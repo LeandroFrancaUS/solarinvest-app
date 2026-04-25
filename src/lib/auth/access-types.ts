@@ -37,6 +37,7 @@ export interface MeResponse {
   email?: string
   fullName?: string | null
   id?: string
+  authProviderId?: string
   /** Which server-side method authenticated this request. */
   authSource?: AuthSource | null
 }

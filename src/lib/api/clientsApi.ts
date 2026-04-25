@@ -146,6 +146,13 @@ export interface UpsertClientInput {
   consultant_id?: string | null
   /** Valor atual de mercado do sistema fotovoltaico (persisted to client_usina_config.valordemercado) */
   valordemercado?: number | null
+  /**
+   * Idempotency key: the stable local UUID for this client record.
+   * When set, the server returns the existing record if a client with the
+   * same offline_origin_id is already saved (prevents duplicate creation
+   * when the server-side ID is not yet in the local ID map).
+   */
+  offline_origin_id?: string | null
 }
 
 export interface UpdateClientInput {
