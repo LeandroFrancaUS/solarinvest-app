@@ -25,10 +25,12 @@ import type {
   CrmPosVendaResumoData,
   CrmStageId,
   CrmTimelineEntry,
+  UseCrmDeps,
   UseCrmState,
 } from './crmTypes'
 
-export function useCrm(adicionarNotificacao: CrmAdicionarNotificacaoFn): UseCrmState {
+export function useCrm(deps: UseCrmDeps): UseCrmState {
+  const { adicionarNotificacao } = deps
   const [crmIntegrationMode, setCrmIntegrationMode] = useState<CrmIntegrationMode>('local')
   const crmIntegrationModeRef = useRef<CrmIntegrationMode>(crmIntegrationMode)
   const [crmIsSaving, setCrmIsSaving] = useState(false)

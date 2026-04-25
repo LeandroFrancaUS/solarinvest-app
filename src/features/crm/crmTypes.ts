@@ -5,6 +5,10 @@ export type CrmAdicionarNotificacaoFn = (
   tipo?: 'success' | 'info' | 'error',
 ) => void
 
+export type UseCrmDeps = {
+  adicionarNotificacao: CrmAdicionarNotificacaoFn
+}
+
 export type CrmStageId =
   | 'novo-lead'
   | 'qualificacao'

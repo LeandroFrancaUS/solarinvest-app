@@ -27,6 +27,7 @@ export type {
   CrmStageId,
   CrmTimelineEntry,
   CrmTimelineEntryType,
+  UseCrmDeps,
   UseCrmState,
 } from './crmTypes'
 

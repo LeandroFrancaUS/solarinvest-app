@@ -7233,7 +7233,7 @@ export default function App() {
     handleAdicionarManutencaoCrm,
     handleConcluirManutencaoCrm,
     handleSyncCrmManualmente,
-  } = useCrm(adicionarNotificacao)
+  } = useCrm({ adicionarNotificacao })
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
   )
