@@ -130,6 +130,8 @@ import {
   formatTipoLigacaoLabel,
   normalizeTipoLigacaoNorma,
   type NormComplianceResult,
+  type PrecheckDecision,
+  type PrecheckDecisionAction,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
@@ -342,6 +344,7 @@ import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
 import { BudgetSearchPage } from './pages/BudgetSearchPage'
+import { PrecheckModal } from './pages/PrecheckModal'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -3964,8 +3967,7 @@ type PreviewActionResponse = {
   updatedHtml?: string | undefined
 }
 
-type PrecheckDecisionAction = 'adjust_current' | 'adjust_upgrade' | 'proceed' | 'cancel'
-type PrecheckDecision = { action: PrecheckDecisionAction; clienteCiente: boolean }
+
 
 declare global {
   interface Window {
@@ -21389,153 +21391,6 @@ export default function App() {
     </section>
   )
 
-  const renderPrecheckModal = () => {
-    if (!precheckModalData) {
-      return null
-    }
-
-    const isFora = precheckModalData.status === 'FORA_DA_NORMA'
-    const isLimitado = precheckModalData.status === 'LIMITADO'
-    const isWarning = precheckModalData.status === 'WARNING'
-    const tipoLabel = formatTipoLigacaoLabel(precheckModalData.tipoLigacao)
-    const limiteAtual = precheckModalData.kwMaxPermitido
-    const upgradeLabel = precheckModalData.upgradeTo
-      ? formatTipoLigacaoLabel(precheckModalData.upgradeTo)
-      : null
-    const limiteUpgrade = precheckModalData.kwMaxUpgrade
-
-    const formatKw = (value?: number | null) =>
-      value != null
-        ? formatNumberBRWithOptions(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-        : null
-
-    const potenciaLabel = formatKw(precheckModalData.potenciaInversorKw) ?? '—'
-    const limiteAtualLabel = formatKw(limiteAtual)
-    const limiteUpgradeLabel = formatKw(limiteUpgrade)
-
-    const canAdjustCurrent = Boolean(limiteAtual)
-    const isAboveLimit = precheckModalData.status === 'FORA_DA_NORMA' || precheckModalData.status === 'LIMITADO'
-    const canAdjustUpgrade = Boolean(upgradeLabel && limiteUpgrade)
-
-    const statusMessageMap: Record<NormComplianceStatus, string> = {
-      OK: 'Dentro do limite do padrão informado.',
-      WARNING: 'Regra provisória: valide com a distribuidora antes do envio. Você pode continuar, mas recomendamos confirmar o padrão.',
-      FORA_DA_NORMA:
-        'A potência informada está acima do limite do padrão atual. Você pode ajustar para o limite atual ou simular o upgrade do padrão.',
-      LIMITADO:
-        'A potência informada excede o limite do padrão atual e também o limite do próximo upgrade. É necessário adequar a potência/projeto.',
-    }
-
-    return (
-      <div className="modal precheck-modal" role="dialog" aria-modal="true">
-        <div
-          className="modal-backdrop precheck-modal__backdrop"
-          onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-          aria-hidden="true"
-        />
-        <div className="modal-content precheck-modal__content">
-          <div className="modal-header">
-            <div>
-              <h3>Pré-check normativo (padrão de entrada)</h3>
-              <p className="muted">
-                UF: {precheckModalData.uf} • Padrão atual: {tipoLabel} • Potência informada: {potenciaLabel} kW
-              </p>
-            </div>
-            <button
-              type="button"
-              className="icon"
-              onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-              aria-label="Fechar pré-check normativo"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="modal-body">
-            <p>{statusMessageMap[precheckModalData.status]}</p>
-            <div className="precheck-modal__limits">
-              <ul>
-                <li>Limite do padrão atual: {limiteAtualLabel ? `${limiteAtualLabel} kW` : '—'}</li>
-                {isAboveLimit && upgradeLabel && limiteUpgradeLabel ? (
-                  <li>
-                    Upgrade sugerido: {upgradeLabel} (até {limiteUpgradeLabel} kW)
-                  </li>
-                ) : (
-                  <li>Sem upgrade sugerido para este caso.</li>
-                )}
-              </ul>
-            </div>
-            {isFora ? (
-              <label className="precheck-modal__ack">
-                <CheckboxSmall
-                  checked={precheckModalClienteCiente}
-                  onChange={(event) => setPrecheckModalClienteCiente(event.target.checked)}
-                />
-                <span>
-                  Cliente ciente. A SolarInvest seguirá com a proposta, e o cliente se compromete a adequar o
-                  padrão junto à distribuidora.
-                </span>
-              </label>
-            ) : null}
-            {isLimitado ? (
-              <p className="muted">Este cenário exige ajuste antes de gerar a proposta.</p>
-            ) : null}
-            {isWarning ? (
-              <p className="muted">Você pode continuar, mas recomendamos confirmar a regra com a distribuidora.</p>
-            ) : null}
-          </div>
-          <div className="modal-actions precheck-modal__actions">
-            {canAdjustCurrent ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'adjust_current', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Ajustar para {limiteAtualLabel} kW
-              </button>
-            ) : null}
-            {canAdjustUpgrade ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'adjust_upgrade', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Upgrade para {upgradeLabel} ({limiteUpgradeLabel} kW)
-              </button>
-            ) : null}
-            {isFora ? (
-              <button
-                type="button"
-                className="ghost"
-                disabled={!precheckModalClienteCiente}
-                title={
-                  precheckModalClienteCiente
-                    ? undefined
-                    : 'Marque cliente ciente para continuar sem ajuste'
-                }
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'proceed', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Gerar sem ajuste
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-            >
-              Voltar
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const renderVendaParametrosSection = () => (
     <section className="card">
       <h2>Parâmetros principais</h2>
@@ -25270,7 +25125,14 @@ export default function App() {
           onClose={handleFecharModalContratos}
         />
       ) : null}
-      {renderPrecheckModal()}
+      {precheckModalData ? (
+        <PrecheckModal
+          data={precheckModalData}
+          clienteCiente={precheckModalClienteCiente}
+          setClienteCiente={setPrecheckModalClienteCiente}
+          onDecision={resolvePrecheckDecision}
+        />
+      ) : null}
 
       {(clientsSyncState === 'local-fallback' || clientsSyncState === 'degraded-api' || proposalsSyncState === 'local-only' || proposalsSyncState === 'failed') ? (
         <div className="sync-warning-banner" role="status" aria-live="polite">
