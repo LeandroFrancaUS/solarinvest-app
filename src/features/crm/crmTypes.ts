@@ -127,6 +127,63 @@ export type CrmManutencaoFormState = {
   observacao: string
 }
 
+export type CrmMargemItem = {
+  leadId: string
+  leadNome: string
+  margemBruta: number
+  margemPct: number | null
+  custoTotal: number
+  receitaProjetada: number
+  roi: number | null
+  modelo: 'LEASING' | 'VENDA_DIRETA'
+}
+
+export type CrmKpisData = {
+  totalLeads: number
+  leadsFechados: number
+  receitaRecorrente: number
+  receitaPontual: number
+  leadsEmRisco: number
+}
+
+export type CrmFinanceiroResumoData = {
+  previsaoLeasing: number
+  previsaoVendas: number
+  inadimplentes: number
+  contratosAtivos: number
+  margens: CrmMargemItem[]
+}
+
+export type CrmGeracaoItem = {
+  id: string
+  nome: string
+  geracaoPrevista: number
+  geracaoAtual: number
+  alertaBaixa: boolean
+  cidade: string
+}
+
+export type CrmPosVendaResumoData = {
+  totalManutencoes: number
+  pendentes: number
+  concluidas: number
+  proximas: CrmManutencaoRegistro[]
+  geracao: CrmGeracaoItem[]
+  alertasCriticos: string[]
+  chamadosRecentes: Array<CrmTimelineEntry & { dataFormatada: string }>
+}
+
+export type CrmIndicadoresGerenciaisData = {
+  taxaConversao: number
+  tempoMedioFechamento: number
+  leadsPorOrigem: Record<string, number>
+  gargalos: string[]
+  roiMedio: number
+  receitaRecorrenteProjetada: number
+  receitaPontualProjetada: number
+  mapaGeracao: Record<string, number>
+}
+
 export type UseCrmState = {
   crmIntegrationMode: CrmIntegrationMode
   setCrmIntegrationMode: React.Dispatch<React.SetStateAction<CrmIntegrationMode>>
@@ -157,4 +214,14 @@ export type UseCrmState = {
   crmManutencaoForm: CrmManutencaoFormState
   setCrmManutencaoForm: React.Dispatch<React.SetStateAction<CrmManutencaoFormState>>
   crmIntegrationModeRef: React.MutableRefObject<CrmIntegrationMode>
+  crmLeadSelecionado: CrmLeadRecord | null
+  crmLeadsFiltrados: CrmLeadRecord[]
+  crmLeadsPorEtapa: Record<CrmStageId, CrmLeadRecord[]>
+  crmKpis: CrmKpisData
+  crmFinanceiroResumo: CrmFinanceiroResumoData
+  crmPosVendaResumo: CrmPosVendaResumoData
+  crmIndicadoresGerenciais: CrmIndicadoresGerenciaisData
+  crmManutencoesPendentes: CrmManutencaoRegistro[]
+  crmContratosPorLead: Map<string, CrmContratoFinanceiro>
+  crmTimelineFiltrada: CrmTimelineEntry[]
 }

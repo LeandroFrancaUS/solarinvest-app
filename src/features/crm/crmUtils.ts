@@ -231,6 +231,14 @@ export const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
   return { leads, timeline, contratos, custos, manutencoes }
 }
 
+/** Normalizes text for case-insensitive and accent-insensitive comparison in CRM search. */
+export const normalizarTextoCrm = (value: string | null | undefined): string =>
+  (value ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
 export const carregarDatasetCrm = (): CrmDataset => {
   if (typeof window === 'undefined') {
     return { ...CRM_DATASET_VAZIO }
