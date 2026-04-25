@@ -360,6 +360,7 @@ import { BudgetSearchPage } from './pages/BudgetSearchPage'
 import { PrecheckModal } from './pages/PrecheckModal'
 import { PropostaImagensSection } from './components/PropostaImagensSection'
 import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
+import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
@@ -19506,227 +19507,31 @@ export default function App() {
         >
           <div aria-hidden="true" />
         </Field>
-        {leasingContrato.ucGeradoraTitularDiferente ? (
-          <div className="uc-geradora-titular-panel-row">
-            <div className="uc-geradora-titular-panel">
-              {ucGeradoraTitularPanelOpen ? (
-                <>
-                  <div className="uc-geradora-titular-grid">
-                    <Field
-                      label="Nome completo"
-                      hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-nomeCompleto"
-                        value={leasingContrato.ucGeradoraTitularDraft?.nomeCompleto ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({ nomeCompleto: event.target.value })
-                          clearUcGeradoraTitularError('nomeCompleto')
-                        }}
-                        placeholder="Nome completo"
-                      />
-                    </Field>
-                    <Field
-                      label="CPF"
-                      hint={<FieldError message={ucGeradoraTitularErrors.cpf} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cpf"
-                        value={leasingContrato.ucGeradoraTitularDraft?.cpf ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            cpf: formatCpfCnpj(event.target.value),
-                          })
-                          clearUcGeradoraTitularError('cpf')
-                        }}
-                        placeholder="000.000.000-00"
-                        inputMode="numeric"
-                      />
-                    </Field>
-                    <Field
-                      label="CEP"
-                      hint={
-                        ucGeradoraTitularErrors.cep ||
-                        ucGeradoraTitularBuscandoCep ||
-                        ucGeradoraTitularCepMessage ? (
-                          <>
-                            <FieldError message={ucGeradoraTitularErrors.cep} />
-                            {ucGeradoraTitularBuscandoCep ? (
-                              <span>Buscando CEP...</span>
-                            ) : ucGeradoraTitularCepMessage ? (
-                              <span>{ucGeradoraTitularCepMessage}</span>
-                            ) : null}
-                          </>
-                        ) : undefined
-                      }
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cep"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
-                        onChange={(event) => {
-                          setUcGeradoraTitularCepMessage(undefined)
-                          setUcGeradoraTitularBuscandoCep(false)
-                          setUcGeradoraCidadeBloqueadaPorCep(false)
-                          updateUcGeradoraTitularDraft({
-                            endereco: { cep: formatCep(event.target.value) },
-                          })
-                          clearUcGeradoraTitularError('cep')
-                        }}
-                        placeholder="00000-000"
-                        inputMode="numeric"
-                      />
-                    </Field>
-                    <Field
-                      label="Logradouro"
-                      hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-logradouro"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            endereco: { logradouro: event.target.value },
-                          })
-                          clearUcGeradoraTitularError('logradouro')
-                        }}
-                        placeholder="Rua, avenida, etc."
-                      />
-                    </Field>
-                    <Field
-                      label="Cidade"
-                      hint={
-                        ucGeradoraCidadeBloqueadaPorCep ? (
-                          <span>Cidade definida pelo CEP. Altere o CEP para modificar.</span>
-                        ) : (
-                          <FieldError message={ucGeradoraTitularErrors.cidade} />
-                        )
-                      }
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cidade"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
-                        readOnly={ucGeradoraCidadeBloqueadaPorCep}
-                        aria-readonly={ucGeradoraCidadeBloqueadaPorCep}
-                        onChange={(event) => {
-                          if (ucGeradoraCidadeBloqueadaPorCep) {
-                            return
-                          }
-                          updateUcGeradoraTitularDraft({
-                            endereco: { cidade: event.target.value },
-                          })
-                          clearUcGeradoraTitularError('cidade')
-                        }}
-                        placeholder="Cidade"
-                      />
-                    </Field>
-                    <Field
-                      label="UF"
-                      hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
-                    >
-                      <select
-                        data-field="ucGeradoraTitular-uf"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
-                        onChange={(event) => {
-                          handleUcGeradoraTitularUfChange(event.target.value)
-                          clearUcGeradoraTitularError('uf')
-                        }}
-                      >
-                        <option value="">UF</option>
-                        {ufsDisponiveis.map((uf) => (
-                          <option key={uf} value={uf}>
-                            {uf}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <Field
-                        label={labelWithTooltip(
-                          'Distribuidora (ANEEL)',
-                          'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
-                        )}
-                      >
-                        <select
-                          data-field="ucGeradoraTitular-distribuidoraAneel"
-                          value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                          onChange={(event) =>
-                            handleUcGeradoraTitularDistribuidoraChange(event.target.value)
-                          }
-                          disabled={titularDistribuidoraDisabled}
-                          aria-disabled={titularDistribuidoraDisabled}
-                          style={
-                            titularDistribuidoraDisabled
-                              ? { opacity: 0.6, cursor: 'not-allowed' }
-                              : undefined
-                          }
-                        >
-                          <option value="">
-                            {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-                          </option>
-                          {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
-                            <option key={nome} value={nome}>
-                              {nome}
-                            </option>
-                          ))}
-                          {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
-                          !ucGeradoraTitularDistribuidorasDisponiveis.includes(
-                            leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-                          ) ? (
-                            <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
-                              {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                            </option>
-                          ) : null}
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-                  <div className="uc-geradora-titular-actions">
-                    <button
-                      type="button"
-                      className="primary uc-geradora-titular-button"
-                      onClick={() => { void handleSalvarUcGeradoraTitular() }}
-                    >
-                      Salvar
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost uc-geradora-titular-button"
-                      onClick={handleCancelarUcGeradoraTitular}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              ) : leasingContrato.ucGeradoraTitular ? (
-                <div className="uc-geradora-titular-summary">
-                  <div className="uc-geradora-titular-summary-info">
-                    <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
-                    <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
-                    <span>
-                      {formatUcGeradoraTitularEndereco(
-                        leasingContrato.ucGeradoraTitular.endereco,
-                      )}
-                    </span>
-                    {leasingContrato.ucGeradoraTitularDistribuidoraAneel ? (
-                      <span>
-                        Distribuidora (ANEEL): {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="uc-geradora-titular-summary-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={handleEditarUcGeradoraTitular}
-                    >
-                      Editar
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
+        <UcGeradoraTitularPanel
+          ucGeradoraTitularDiferente={leasingContrato.ucGeradoraTitularDiferente}
+          ucGeradoraTitular={leasingContrato.ucGeradoraTitular}
+          ucGeradoraTitularDraft={leasingContrato.ucGeradoraTitularDraft}
+          ucGeradoraTitularDistribuidoraAneel={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+          panelOpen={ucGeradoraTitularPanelOpen}
+          errors={ucGeradoraTitularErrors}
+          buscandoCep={ucGeradoraTitularBuscandoCep}
+          cepMessage={ucGeradoraTitularCepMessage}
+          cidadeBloqueadaPorCep={ucGeradoraCidadeBloqueadaPorCep}
+          ufsDisponiveis={ufsDisponiveis}
+          titularDistribuidoraDisabled={titularDistribuidoraDisabled}
+          ucGeradoraTitularUf={ucGeradoraTitularUf}
+          ucGeradoraTitularDistribuidorasDisponiveis={ucGeradoraTitularDistribuidorasDisponiveis}
+          onUpdateDraft={updateUcGeradoraTitularDraft}
+          onClearError={clearUcGeradoraTitularError}
+          onUfChange={handleUcGeradoraTitularUfChange}
+          onDistribuidoraChange={handleUcGeradoraTitularDistribuidoraChange}
+          onSalvar={() => { void handleSalvarUcGeradoraTitular() }}
+          onCancelar={handleCancelarUcGeradoraTitular}
+          onEditar={handleEditarUcGeradoraTitular}
+          onSetCepMessage={setUcGeradoraTitularCepMessage}
+          onSetBuscandoCep={setUcGeradoraTitularBuscandoCep}
+          onSetCidadeBloqueada={setUcGeradoraCidadeBloqueadaPorCep}
+        />
         {isCondominio ? (
           <div className="grid g3">
             <Field label="Nome do síndico">
