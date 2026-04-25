@@ -13438,6 +13438,9 @@ export default function App() {
 
     // Function to run auto-detection
     const runAutoDetection = () => {
+      if (import.meta.env.DEV) {
+        console.debug('[consultant][auto-detect] Running auto-detection...')
+      }
       import('./services/personnelApi').then(({ autoDetectLinkedConsultant }) => {
         autoDetectLinkedConsultant()
           .then((result) => {
@@ -13451,7 +13454,11 @@ export default function App() {
               // Always update when auto-detection runs (handles both initial load and link changes)
               updateClienteSync({ consultorId: String(result.consultant.id), consultorNome: defaultNome })
               if (import.meta.env.DEV) {
-                console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, { consultantId: result.consultant.id, nome: defaultNome })
+                console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, {
+                  consultantId: result.consultant.id,
+                  nome: defaultNome,
+                  currentClienteConsultorId: current.consultorId
+                })
               }
             } else if (result.consultant === null && me) {
               // No consultant found - clear the selection if previously set
@@ -13485,9 +13492,20 @@ export default function App() {
         // Compare using both database id and auth provider id to handle both scenarios
         const matchesById = me?.id && detail.userId === me.id
         const matchesByAuthId = me?.authProviderId && detail.userId === me.authProviderId
+
+        if (import.meta.env.DEV) {
+          console.debug('[consultant][auto-detect] Link change event received', {
+            detail,
+            me: { id: me?.id, authProviderId: me?.authProviderId },
+            matchesById,
+            matchesByAuthId,
+            willRunDetection: matchesById || matchesByAuthId
+          })
+        }
+
         if (matchesById || matchesByAuthId) {
           if (import.meta.env.DEV) {
-            console.debug('[consultant][auto-detect] Link changed for current user, re-running auto-detection', detail)
+            console.debug('[consultant][auto-detect] Link changed for current user, re-running auto-detection')
           }
           runAutoDetection()
         }
