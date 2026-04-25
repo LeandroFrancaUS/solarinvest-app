@@ -1,4 +1,4 @@
-import type { CrmDataset, CrmLeadFormState, CrmPipelineStage, CrmStageId } from './crmTypes'
+import type { CrmDataset, CrmLeadFormState, CrmLeadRecord, CrmPipelineStage, CrmStageId } from './crmTypes'
 
 export const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
 export const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
@@ -12,7 +12,7 @@ export const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
   { id: 'fechado', label: 'Fechado' },
 ]
 
-export const CRM_INSTALACAO_STATUS: { id: 'planejamento' | 'em-andamento' | 'concluida' | 'aguardando-homologacao'; label: string }[] = [
+export const CRM_INSTALACAO_STATUS: { id: CrmLeadRecord['instalacaoStatus']; label: string }[] = [
   { id: 'planejamento', label: 'Planejamento' },
   { id: 'em-andamento', label: 'Em andamento' },
   { id: 'aguardando-homologacao', label: 'Aguardando homologação' },
