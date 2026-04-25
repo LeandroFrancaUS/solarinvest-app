@@ -352,6 +352,13 @@ import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
+import {
+  type AprovacaoStatus,
+  type AprovacaoChecklistKey,
+  SIMULACOES_MENU,
+  SIMULACOES_SECTION_COPY,
+  APROVACAO_SELLOS,
+} from './features/simulacoes/simulacoesConstants'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -423,62 +430,6 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type AprovacaoStatus = 'pendente' | 'aprovado' | 'reprovado'
-type AprovacaoChecklistKey = 'roi' | 'tir' | 'spread' | 'vpl' | 'payback' | 'eficiencia' | 'lucro'
-
-const SIMULACOES_MENU: { id: SimulacoesSection; label: string; description: string }[] = [
-  {
-    id: 'nova',
-    label: 'Nova Simulação',
-    description: 'Monte um cenário do zero com premissas de consumo, tarifas e capex.',
-  },
-  {
-    id: 'salvas',
-    label: 'Simulações Salvas',
-    description: 'Acesse e compare simulações gravadas sem voltar para Preferências.',
-  },
-  {
-    id: 'ia',
-    label: 'Análises IA (AI Analytics)',
-    description: 'Insights automáticos sobre KPIs, alavancagem e oportunidades.',
-  },
-  {
-    id: 'risco',
-    label: 'Risco & Monte Carlo',
-    description: 'Cenários de risco e volatilidade com distribuição full-width.',
-  },
-  {
-    id: 'packs',
-    label: 'Packs',
-    description: 'Agrupe propostas e combos comerciais para reutilizar.',
-  },
-  {
-    id: 'packs-inteligentes',
-    label: 'Packs Inteligentes',
-    description: 'Automatize packs com IA e premissas dinâmicas.',
-  },
-  {
-    id: 'analise',
-    label: 'Análise Financeira',
-    description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
-  },
-]
-
-const SIMULACOES_SECTION_COPY: Record<SimulacoesSection, string> = {
-  nova: 'Abra novas simulações em layout de tela cheia e compare resultados lado a lado.',
-  salvas: 'Revise simulações existentes sem sair do módulo dedicado.',
-  ia: 'Centralize análises assistidas por IA e recomendações automáticas.',
-  risco: 'Use Monte Carlo e cenários de risco com gráficos em largura total.',
-  packs: 'Organize pacotes comerciais para acelerar a operação.',
-  'packs-inteligentes': 'Combine inteligência artificial e packs dinâmicos.',
-  analise: 'Aplique regras SolarInvest, checklist interno e selo de aprovação.',
-}
-
-const APROVACAO_SELLOS: Record<AprovacaoStatus, string> = {
-  pendente: 'Decisão pendente',
-  aprovado: 'Aprovado SolarInvest',
-  reprovado: 'Reprovado SolarInvest',
-}
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
   if (typeof value === 'string') {
