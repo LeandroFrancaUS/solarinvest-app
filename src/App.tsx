@@ -340,6 +340,7 @@ import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
+import { BudgetSearchPage } from './pages/BudgetSearchPage'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -4784,15 +4785,6 @@ export default function App() {
   type ClientsSource = 'api' | 'server-storage' | 'local-browser-storage' | 'memory'
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
-  const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
-  const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
-  const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
-    | {
-        id: string
-        cliente: string
-      }
-    | null
-  >(null)
   const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
     | {
         id: string
@@ -18935,64 +18927,6 @@ export default function App() {
     [removerOrcamentoSalvo, requestConfirmDialog],
   )
 
-  const [selectedProposalOwner, setSelectedProposalOwner] = useState('all')
-  const proposalOwnerOptions = useMemo(() => {
-    if (!(isAdmin || isOffice || isFinanceiro)) return []
-    return Array.from(new Set(orcamentosSalvos.map((r) => r.ownerName ?? 'Desconhecido')))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [isAdmin, isFinanceiro, isOffice, orcamentosSalvos])
-
-  const orcamentosFiltrados = useMemo(() => {
-    if (!orcamentoSearchTerm.trim() && selectedProposalOwner === 'all') {
-      return orcamentosSalvos
-    }
-
-    const queryText = normalizeText(orcamentoSearchTerm.trim())
-    const queryDigits = normalizeNumbers(orcamentoSearchTerm)
-
-    return orcamentosSalvos.filter((registro) => {
-      const codigo = normalizeText(registro.id)
-      const codigoDigits = normalizeNumbers(registro.id)
-      const nome = normalizeText(registro.clienteNome || registro.dados.cliente.nome || '')
-      const clienteIdTexto = normalizeText(registro.clienteId ?? '')
-      const clienteIdDigits = normalizeNumbers(registro.clienteId ?? '')
-      const documentoRaw = registro.clienteDocumento || registro.dados.cliente.documento || ''
-      const documentoTexto = normalizeText(documentoRaw)
-      const documentoDigits = normalizeNumbers(documentoRaw)
-      const ucRaw = registro.clienteUc || registro.dados.cliente.uc || ''
-      const ucTexto = normalizeText(ucRaw)
-      const ucDigits = normalizeNumbers(ucRaw)
-      const ownerTexto = normalizeText(registro.ownerName ?? '')
-      const ownerLabel = registro.ownerName ?? 'Desconhecido'
-      const matchSelectedOwner = selectedProposalOwner === 'all' || ownerLabel === selectedProposalOwner
-
-      if (
-        codigo.includes(queryText) ||
-        nome.includes(queryText) ||
-        clienteIdTexto.includes(queryText) ||
-        documentoTexto.includes(queryText) ||
-        ucTexto.includes(queryText) ||
-        (ownerTexto && ownerTexto.includes(queryText))
-      ) {
-        return matchSelectedOwner
-      }
-
-      if (!queryDigits) {
-        return false
-      }
-
-      return matchSelectedOwner && (
-        codigoDigits.includes(queryDigits) ||
-        clienteIdDigits.includes(queryDigits) ||
-        documentoDigits.includes(queryDigits) ||
-        ucDigits.includes(queryDigits)
-      )
-    })
-  }, [orcamentoSearchTerm, orcamentosSalvos, selectedProposalOwner])
-
-  const totalOrcamentos = orcamentosSalvos.length
-  const totalResultados = orcamentosFiltrados.length
-
   const carregarOrcamentoSalvo = useCallback(
     async (registroInicial: OrcamentoSalvo) => {
       let registro = registroInicial
@@ -19064,8 +18998,6 @@ export default function App() {
   }, [setActivePage])
 
   const fecharPesquisaOrcamentos = () => {
-    setOrcamentoVisualizado(null)
-    setOrcamentoVisualizadoInfo(null)
     voltarParaPaginaPrincipal()
   }
 
@@ -23219,239 +23151,6 @@ export default function App() {
     : isDesktopSimpleEnabled
     ? desktopSimpleSidebarGroups
     : sidebarGroups
-
-  const renderBudgetSearchPage = () => (
-    <div className="budget-search-page">
-      <div className="budget-search-page-header">
-        <div>
-          <h2>Consultar orçamentos</h2>
-          <p>
-            Localize propostas salvas pelo cliente, documento, unidade consumidora ou código do orçamento e carregue-as
-            novamente na proposta.
-          </p>
-        </div>
-        <button type="button" className="ghost" onClick={fecharPesquisaOrcamentos}>
-          Voltar
-        </button>
-      </div>
-      <div className="budget-search-panels budget-search-panels--single budget-search-panels--budget">
-        <section className="budget-search-panel budget-search-panel--records">
-          <div className="budget-search-quick">
-            <div className="budget-search-header">
-              <h4>Consulta rápida</h4>
-              <p>Busque pelo cliente, código interno, CPF/CNPJ ou unidade consumidora.</p>
-            </div>
-            <Field
-              label={labelWithTooltip(
-                'Buscar orçamentos',
-                'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
-              )}
-              hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
-            >
-              <input
-                id="budget-search-input"
-                type="search"
-                value={orcamentoSearchTerm}
-                onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
-                placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
-                autoFocus
-              />
-            </Field>
-            {(isAdmin || isOffice || isFinanceiro) ? (
-              <div className="owner-filter-row">
-                <label htmlFor="propostas-owner-filter">Criador/consultor</label>
-                <select
-                  id="propostas-owner-filter"
-                  value={selectedProposalOwner}
-                  onChange={(event) => setSelectedProposalOwner(event.target.value)}
-                >
-                  <option value="all">Todos os consultores</option>
-                  {proposalOwnerOptions.map((owner) => (
-                    <option key={owner} value={owner}>
-                      {owner}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            <div className="budget-search-summary">
-              <span>
-                {totalOrcamentos === 0
-                  ? 'Nenhum orçamento salvo até o momento.'
-                  : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
-              </span>
-              {(orcamentoSearchTerm || selectedProposalOwner !== 'all') ? (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => {
-                    setOrcamentoSearchTerm('')
-                    setSelectedProposalOwner('all')
-                  }}
-                >
-                  Limpar filtros
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <div className="budget-search-header">
-            <h4>Registros salvos</h4>
-          </div>
-          {totalOrcamentos === 0 ? (
-            <p className="budget-search-empty">Nenhum orçamento foi salvo ainda. Gere uma proposta para começar.</p>
-          ) : totalResultados === 0 ? (
-            <p className="budget-search-empty">
-              Nenhum orçamento encontrado para "<strong>{orcamentoSearchTerm}</strong>".
-            </p>
-          ) : (
-            <div className="budget-search-table">
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Cliente</th>
-                      <th>Documento</th>
-                      <th>Unidade consumidora</th>
-                      <th>Criado em</th>
-                      {(isAdmin || isOffice || isFinanceiro) ? <th className="col-nowrap">Consultor</th> : null}
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orcamentosFiltrados.map((registro) => {
-                      const documento =
-                        registro.clienteDocumento?.trim() ||
-                        registro.dados.cliente.documento?.trim() ||
-                        ''
-                      const unidadeConsumidora =
-                        registro.clienteUc?.trim() || registro.dados.cliente.uc?.trim() || ''
-                      const cidade =
-                        registro.clienteCidade?.trim() || registro.dados.cliente.cidade?.trim() || ''
-                      const uf = registro.clienteUf?.trim() || registro.dados.cliente.uf?.trim() || ''
-                      const nomeCliente =
-                        registro.clienteNome?.trim() ||
-                        registro.dados.cliente.nome?.trim() ||
-                        registro.id
-                      const registroIdPadronizado = normalizeProposalId(registro.id) || registro.id
-                      const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
-                      return (
-                        <tr
-                          key={registro.id}
-                          className={
-                            orcamentoVisualizadoInfo?.id === registroIdPadronizado ? 'is-selected' : undefined
-                          }
-                        >
-                          <td>
-                            <button
-                              type="button"
-                              className="budget-search-code"
-                              onClick={() => { void carregarOrcamentoSalvo(registro) }}
-                              title="Visualizar orçamento salvo"
-                            >
-                              {registro.id}
-                            </button>
-                          </td>
-                          <td>
-                            <div className="budget-search-client">
-                              <strong>{nomeCliente}</strong>
-                              {cidadeUf ? <span>{cidadeUf}</span> : null}
-                            </div>
-                          </td>
-                          <td>{documento || null}</td>
-                          <td>{unidadeConsumidora || null}</td>
-                          <td>{formatBudgetDate(registro.criadoEm)}</td>
-                          {(isAdmin || isOffice || isFinanceiro) ? (
-                            <td data-label="Consultor">
-                              {registro.ownerName ? (
-                                <span className="budget-search-owner">{registro.ownerName}</span>
-                              ) : null}
-                            </td>
-                          ) : null}
-                          <td>
-                            <div className="budget-search-actions">
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void carregarOrcamentoSalvo(registro) }}
-                                aria-label="Carregar orçamento salvo"
-                                title="Carregar orçamento"
-                              >
-                                📂
-                              </button>
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void abrirOrcamentoSalvo(registro, 'preview') }}
-                                aria-label="Visualizar orçamento salvo"
-                                title="Visualizar orçamento"
-                              >
-                                👁
-                              </button>
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void abrirOrcamentoSalvo(registro, 'download') }}
-                                aria-label="Baixar orçamento em PDF"
-                                title="Baixar PDF"
-                              >
-                                ⤓
-                              </button>
-                              {!isProposalReadOnly && (
-                              <button
-                                type="button"
-                                className="budget-search-action danger"
-                                onClick={() => void confirmarRemocaoOrcamento(registro)}
-                                aria-label="Excluir orçamento salvo"
-                                title="Excluir orçamento salvo"
-                              >
-                                🗑
-                              </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-      {orcamentoVisualizado ? (
-        <section className="budget-search-panel budget-search-viewer">
-          <div className="budget-search-header">
-            <h4>
-              Visualizando orçamento <strong>{orcamentoVisualizadoInfo?.id ?? '—'}</strong>
-            </h4>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                setOrcamentoVisualizado(null)
-                setOrcamentoVisualizadoInfo(null)
-              }}
-            >
-              Fechar visualização
-            </button>
-          </div>
-          <p className="budget-viewer-subtitle">
-            Dados somente leitura para {orcamentoVisualizadoInfo?.cliente ?? 'o cliente selecionado'}.
-          </p>
-          <div className="budget-viewer-body">
-            <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
-              <div className="budget-viewer-content">
-                <PrintableProposal {...orcamentoVisualizado} />
-              </div>
-            </React.Suspense>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  )
-
   const renderSimulacoesPage = () => {
     const formatAprovacaoData = (timestamp: number | null) => {
       if (!timestamp) {
@@ -24545,7 +24244,18 @@ export default function App() {
         ) : activePage === 'crm' ? (
           <CrmPage {...crmState} />
         ) : activePage === 'consultar' ? (
-          renderBudgetSearchPage()
+          <BudgetSearchPage
+            registros={orcamentosSalvos}
+            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+            isProposalReadOnly={isProposalReadOnly}
+            onClose={fecharPesquisaOrcamentos}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onCarregarOrcamento={carregarOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onAbrirOrcamento={abrirOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onConfirmarRemocao={confirmarRemocaoOrcamento}
+          />
         ) : activePage === 'clientes' ? (
           <ClientesPage
             registros={clientesSalvos}
