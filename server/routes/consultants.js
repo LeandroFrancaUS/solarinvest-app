@@ -420,3 +420,231 @@ export async function handleConsultantsDeactivateRequest(req, res, { sendJson, g
   sendJson(200, { consultant: rows[0] })
 }
 
+/**
+ * POST /api/consultants/:id/link
+ * Links a consultant to a user. Admin only.
+ * Body: { userId: string }
+ * A user can only be linked to ONE consultant, but a consultant can be linked to multiple users.
+ */
+export async function handleConsultantsLinkRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId }) {
+  const actor = await resolveActor(req)
+  if (!requireAdmin(actor, sendJson)) return
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+    return
+  }
+
+  if (!body.userId || typeof body.userId !== 'string') {
+    sendJson(422, { error: { code: 'VALIDATION_ERROR', message: 'userId é obrigatório.' } })
+    return
+  }
+
+  const sql = await getScopedSql(actor)
+
+  // Check if consultant exists
+  const consultant = await sql`
+    SELECT id FROM public.consultants WHERE id = ${consultantId}
+  `
+  if (consultant.length === 0) {
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    return
+  }
+
+  // Check if the user is already linked to a different consultant
+  const existingLink = await sql`
+    SELECT id, full_name FROM public.consultants
+    WHERE linked_user_id = ${body.userId} AND id != ${consultantId}
+  `
+  if (existingLink.length > 0) {
+    sendJson(409, {
+      error: {
+        code: 'USER_ALREADY_LINKED',
+        message: `Este usuário já está vinculado ao consultor "${existingLink[0].full_name}". Desvincule primeiro.`
+      }
+    })
+    return
+  }
+
+  // Link the consultant to the user
+  const rows = await sql`
+    UPDATE public.consultants SET
+      linked_user_id     = ${body.userId},
+      updated_by_user_id = ${actor.userId ?? null},
+      updated_at         = now()
+    WHERE id = ${consultantId}
+    RETURNING *
+  `
+
+  console.info('[consultants][link]', { id: consultantId, userId: body.userId })
+  sendJson(200, { consultant: rows[0] })
+}
+
+/**
+ * DELETE /api/consultants/:id/link
+ * Unlinks a consultant from a user. Admin only.
+ */
+export async function handleConsultantsUnlinkRequest(req, res, { sendJson, getScopedSql, consultantId }) {
+  const actor = await resolveActor(req)
+  if (!requireAdmin(actor, sendJson)) return
+
+  const sql = await getScopedSql(actor)
+
+  const rows = await sql`
+    UPDATE public.consultants SET
+      linked_user_id     = NULL,
+      updated_by_user_id = ${actor.userId ?? null},
+      updated_at         = now()
+    WHERE id = ${consultantId}
+    RETURNING *
+  `
+
+  if (rows.length === 0) {
+    sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
+    return
+  }
+
+  console.info('[consultants][unlink]', { id: consultantId })
+  sendJson(200, { consultant: rows[0] })
+}
+
+/**
+ * GET /api/consultants/auto-detect
+ * Attempts to auto-detect a consultant linked to the current user.
+ * Returns the consultant if found by:
+ *   1) linked_user_id matching the current user's ID
+ *   2) email matching (case-insensitive)
+ *   3) first and last name matching (case-insensitive, normalized)
+ * Accessible to any authenticated user.
+ */
+export async function handleConsultantsAutoDetectRequest(req, res, { sendJson, getScopedSql }) {
+  const actor = await resolveActor(req)
+  if (!actor) {
+    sendJson(401, { error: { code: 'UNAUTHENTICATED', message: 'Autenticação necessária.' } })
+    return
+  }
+
+  let sql
+  try {
+    sql = await getScopedSql(actor)
+  } catch {
+    sendJson(200, { consultant: null })
+    return
+  }
+
+  // First, try to find by linked_user_id (highest priority)
+  let rows
+  try {
+    rows = await sql`
+      SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
+             linked_user_id, is_active, created_at, updated_at, created_by_user_id
+      FROM public.consultants
+      WHERE linked_user_id = ${actor.userId} AND is_active = true
+      LIMIT 1
+    `
+  } catch (err) {
+    if (err?.code === '42P01') {
+      sendJson(200, { consultant: null })
+      return
+    }
+    // apelido column does not exist yet (migration 0042 pending) → retry without it
+    if (err?.code === '42703') {
+      rows = await sql`
+        SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
+               linked_user_id, is_active, created_at, updated_at, created_by_user_id
+        FROM public.consultants
+        WHERE linked_user_id = ${actor.userId} AND is_active = true
+        LIMIT 1
+      `
+    } else {
+      throw err
+    }
+  }
+
+  if (rows.length > 0) {
+    console.info('[consultants][auto-detect] found by linked_user_id', { consultantId: rows[0].id, userId: actor.userId })
+    sendJson(200, { consultant: rows[0], matchType: 'linked_user_id' })
+    return
+  }
+
+  // Second, try to find by email match (case-insensitive)
+  if (actor.email) {
+    const userEmail = actor.email.toLowerCase().trim()
+    try {
+      rows = await sql`
+        SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
+               linked_user_id, is_active, created_at, updated_at, created_by_user_id
+        FROM public.consultants
+        WHERE LOWER(email) = ${userEmail} AND is_active = true
+        LIMIT 1
+      `
+    } catch (err) {
+      if (err?.code === '42703') {
+        rows = await sql`
+          SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
+                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
+          FROM public.consultants
+          WHERE LOWER(email) = ${userEmail} AND is_active = true
+          LIMIT 1
+        `
+      } else {
+        throw err
+      }
+    }
+
+    if (rows.length > 0) {
+      console.info('[consultants][auto-detect] found by email', { consultantId: rows[0].id, email: userEmail })
+      sendJson(200, { consultant: rows[0], matchType: 'email' })
+      return
+    }
+  }
+
+  // Third, try to find by name match (first + last name, case-insensitive)
+  if (actor.fullName) {
+    const nameParts = actor.fullName.trim().split(/\s+/).filter(Boolean)
+    if (nameParts.length >= 2) {
+      const firstName = nameParts[0].toLowerCase()
+      const lastName = nameParts[nameParts.length - 1].toLowerCase()
+
+      try {
+        rows = await sql`
+          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
+                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
+          FROM public.consultants
+          WHERE is_active = true
+            AND LOWER(SPLIT_PART(full_name, ' ', 1)) = ${firstName}
+            AND LOWER(SPLIT_PART(full_name, ' ', ARRAY_LENGTH(STRING_TO_ARRAY(full_name, ' '), 1))) = ${lastName}
+          LIMIT 1
+        `
+      } catch (err) {
+        if (err?.code === '42703') {
+          rows = await sql`
+            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
+                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
+            FROM public.consultants
+            WHERE is_active = true
+              AND LOWER(SPLIT_PART(full_name, ' ', 1)) = ${firstName}
+              AND LOWER(SPLIT_PART(full_name, ' ', ARRAY_LENGTH(STRING_TO_ARRAY(full_name, ' '), 1))) = ${lastName}
+            LIMIT 1
+          `
+        } else {
+          throw err
+        }
+      }
+
+      if (rows.length > 0) {
+        console.info('[consultants][auto-detect] found by name', { consultantId: rows[0].id, firstName, lastName })
+        sendJson(200, { consultant: rows[0], matchType: 'name' })
+        return
+      }
+    }
+  }
+
+  // No match found
+  console.info('[consultants][auto-detect] no match found', { userId: actor.userId })
+  sendJson(200, { consultant: null })
+}
+
