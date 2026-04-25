@@ -326,6 +326,7 @@ import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
@@ -24240,7 +24241,7 @@ export default function App() {
           </React.Suspense>
         </div>
         {activePage === 'dashboard' ? (
-          renderDashboardPage()
+          <DashboardPage />
         ) : activePage === 'crm' ? (
           <CrmPage {...crmState} />
         ) : activePage === 'consultar' ? (
