@@ -335,6 +335,7 @@ import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
+import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -629,9 +630,6 @@ const numbersAreClose = (
   return Math.abs(a - b) <= tolerance
 }
 
-const toNumberSafe = (value: number | null | undefined): number =>
-  Number.isFinite(value) ? Number(value) : 0
-
 const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
   return (
     Math.round(
@@ -753,13 +751,6 @@ const formatCurrencyInputValue = (value: number | null) => {
   return formatMoneyBR(value)
 }
 
-const parseNumericInput = (value: string): number | null => {
-  if (!value) {
-    return null
-  }
-  return toNumberFlexible(value)
-}
-
 const toFiniteNonNegativeNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null
   // eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -813,21 +804,6 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
 
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
-
-const cloneImpostosOverrides = (
-  overrides?: Partial<ImpostosRegimeConfig> | null,
-): Partial<ImpostosRegimeConfig> => {
-  if (!overrides) {
-    return {}
-  }
-  const cloned: Partial<ImpostosRegimeConfig> = {}
-  for (const regime of ['simples', 'lucro_presumido', 'lucro_real'] as const) {
-    if (Array.isArray(overrides[regime])) {
-      cloned[regime] = overrides[regime].map((item) => ({ ...item }))
-    }
-  }
-  return cloned
-}
 
 const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   if (!progress) {
