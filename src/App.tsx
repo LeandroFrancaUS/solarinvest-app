@@ -330,6 +330,28 @@ import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
+import {
+  type CrmStageId,
+  type CrmTimelineEntry,
+  type CrmLeadRecord,
+  type CrmFinanceiroStatus,
+  type CrmContratoFinanceiro,
+  type CrmCustoProjeto,
+  type CrmManutencaoRegistro,
+  type CrmDataset,
+  type CrmLeadFormState,
+  type CrmIntegrationMode,
+  type CrmBackendStatus,
+  type CrmFiltroOperacao,
+  CRM_LOCAL_STORAGE_KEY,
+  CRM_BACKEND_BASE_URL,
+  CRM_PIPELINE_STAGES,
+  CRM_INSTALACAO_STATUS,
+  CRM_STAGE_INDEX,
+  CRM_EMPTY_LEAD_FORM,
+  gerarIdCrm,
+  carregarDatasetCrm,
+} from './features/crm'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -931,107 +953,6 @@ const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   info: 'ℹ',
   error: '⚠',
 }
-
-type CrmStageId =
-  | 'novo-lead'
-  | 'qualificacao'
-  | 'proposta-enviada'
-  | 'negociacao'
-  | 'aguardando-contrato'
-  | 'fechado'
-
-type CrmPipelineStage = {
-  id: CrmStageId
-  label: string
-}
-
-type CrmTimelineEntryType = 'status' | 'anotacao'
-
-type CrmTimelineEntry = {
-  id: string
-  leadId: string
-  mensagem: string
-  tipo: CrmTimelineEntryType
-  criadoEmIso: string
-}
-
-type CrmLeadRecord = {
-  id: string
-  nome: string
-  telefone: string
-  email?: string | undefined
-  cidade: string
-  tipoImovel: string
-  consumoKwhMes: number
-  origemLead: string
-  interesse: string
-  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
-  valorEstimado: number
-  etapa: CrmStageId
-  ultimoContatoIso: string
-  criadoEmIso: string
-  notas?: string | undefined
-  instalacaoStatus: 'planejamento' | 'em-andamento' | 'concluida' | 'aguardando-homologacao'
-}
-
-type CrmFinanceiroStatus = 'em-aberto' | 'ativo' | 'inadimplente' | 'quitado'
-
-type CrmContratoFinanceiro = {
-  id: string
-  leadId: string
-  modelo: 'LEASING' | 'VENDA_DIRETA'
-  valorTotal: number
-  entrada: number
-  parcelas: number
-  valorParcela: number
-  reajusteAnualPct: number
-  vencimentoInicialIso: string
-  status: CrmFinanceiroStatus
-}
-
-type CrmCustoProjeto = {
-  id: string
-  leadId: string
-  equipamentos: number
-  maoDeObra: number
-  deslocamento: number
-  taxasSeguros: number
-}
-
-type CrmManutencaoRegistro = {
-  id: string
-  leadId: string
-  dataIso: string
-  tipo: string
-  status: 'pendente' | 'concluida'
-  observacao?: string | undefined
-}
-
-type CrmDataset = {
-  leads: CrmLeadRecord[]
-  timeline: CrmTimelineEntry[]
-  contratos: CrmContratoFinanceiro[]
-  custos: CrmCustoProjeto[]
-  manutencoes: CrmManutencaoRegistro[]
-}
-
-type CrmLeadFormState = {
-  nome: string
-  telefone: string
-  email: string
-  cidade: string
-  tipoImovel: string
-  consumoKwhMes: string
-  origemLead: string
-  interesse: string
-  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
-  valorEstimado: string
-  notas: string
-}
-
-type CrmIntegrationMode = 'local' | 'remote'
-type CrmBackendStatus = 'idle' | 'success' | 'error'
-type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
 
 type OrcamentoSnapshotBudgetState = {
   isProcessing: boolean
@@ -3188,70 +3109,10 @@ const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>
   return generateClienteId(existingIds)
 }
 
-const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
-const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
-
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
 const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
   'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
-
-const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
-  { id: 'novo-lead', label: 'Novo lead' },
-  { id: 'qualificacao', label: 'Qualificação' },
-  { id: 'proposta-enviada', label: 'Proposta enviada' },
-  { id: 'negociacao', label: 'Negociação' },
-  { id: 'aguardando-contrato', label: 'Aguardando contrato' },
-  { id: 'fechado', label: 'Fechado' },
-]
-
-const CRM_INSTALACAO_STATUS: { id: CrmLeadRecord['instalacaoStatus']; label: string }[] = [
-  { id: 'planejamento', label: 'Planejamento' },
-  { id: 'em-andamento', label: 'Em andamento' },
-  { id: 'aguardando-homologacao', label: 'Aguardando homologação' },
-  { id: 'concluida', label: 'Concluída' },
-]
-
-const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
-  (acc, stage, index) => {
-    acc[stage.id] = index
-    return acc
-  },
-  {} as Record<CrmStageId, number>,
-)
-
-const CRM_EMPTY_LEAD_FORM: CrmLeadFormState = {
-  nome: '',
-  telefone: '',
-  email: '',
-  cidade: '',
-  tipoImovel: '',
-  consumoKwhMes: '',
-  origemLead: '',
-  interesse: 'Leasing',
-  tipoOperacao: 'LEASING',
-  valorEstimado: '',
-  notas: '',
-}
-
-const CRM_DATASET_VAZIO: CrmDataset = {
-  leads: [],
-  timeline: [],
-  contratos: [],
-  custos: [],
-  manutencoes: [],
-}
-
-const gerarIdCrm = (
-  prefixo: 'lead' | 'evento' | 'contrato' | 'custo' | 'manutencao',
-) => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `${prefixo}-${crypto.randomUUID()}`
-  }
-
-  const aleatorio = Math.floor(Math.random() * 1_000_000)
-  return `${prefixo}-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
-}
 
 const diasDesdeDataIso = (isoString: string) => {
   const data = new Date(isoString)
@@ -3268,214 +3129,6 @@ const formatarDataCurta = (isoString: string) => {
     return ''
   }
   return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-}
-
-const sanitizarLeadCrm = (valor: Partial<CrmLeadRecord>): CrmLeadRecord => {
-  const agoraIso = new Date().toISOString()
-  const etapaValida = CRM_PIPELINE_STAGES.some((stage) => stage.id === valor.etapa)
-    ? (valor.etapa as CrmStageId)
-    : 'novo-lead'
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('lead'),
-    nome: typeof valor.nome === 'string' ? valor.nome : '',
-    telefone: typeof valor.telefone === 'string' ? valor.telefone : '',
-    email: typeof valor.email === 'string' && valor.email ? valor.email : undefined,
-    cidade: typeof valor.cidade === 'string' ? valor.cidade : '',
-    tipoImovel: typeof valor.tipoImovel === 'string' ? valor.tipoImovel : 'Não informado',
-    consumoKwhMes: Number.isFinite(valor.consumoKwhMes)
-      ? Math.max(0, Math.round(valor.consumoKwhMes as number))
-      : 0,
-    origemLead: typeof valor.origemLead === 'string' && valor.origemLead
-      ? valor.origemLead
-      : 'Cadastro manual',
-    interesse: typeof valor.interesse === 'string' && valor.interesse ? valor.interesse : 'Leasing',
-    tipoOperacao: valor.tipoOperacao === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-    valorEstimado: Number.isFinite(valor.valorEstimado)
-      ? Math.max(0, Math.round(valor.valorEstimado as number))
-      : 0,
-    etapa: etapaValida,
-    ultimoContatoIso:
-      typeof valor.ultimoContatoIso === 'string' && valor.ultimoContatoIso
-        ? valor.ultimoContatoIso
-        : agoraIso,
-    criadoEmIso:
-      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso ? valor.criadoEmIso : agoraIso,
-    notas: typeof valor.notas === 'string' && valor.notas ? valor.notas : undefined,
-    instalacaoStatus:
-      valor.instalacaoStatus && CRM_INSTALACAO_STATUS.some((item) => item.id === valor.instalacaoStatus)
-        ? valor.instalacaoStatus
-        : 'planejamento',
-  }
-}
-
-const sanitizarContratoCrm = (
-  valor: Partial<CrmContratoFinanceiro>,
-  leadIds: Set<string>,
-): CrmContratoFinanceiro | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const parcelas = Number.isFinite(valor.parcelas) ? Math.max(0, Math.round(valor.parcelas as number)) : 0
-  const valorParcela = Number.isFinite(valor.valorParcela)
-    ? Math.max(0, Number(valor.valorParcela))
-    : 0
-  const valorTotal = Number.isFinite(valor.valorTotal) ? Math.max(0, Number(valor.valorTotal)) : 0
-  const entrada = Number.isFinite(valor.entrada) ? Math.max(0, Number(valor.entrada)) : 0
-  const reajuste = Number.isFinite(valor.reajusteAnualPct)
-    ? Math.max(0, Number(valor.reajusteAnualPct))
-    : 0
-
-  const modelo = valor.modelo === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING'
-  const status: CrmFinanceiroStatus =
-    valor.status === 'ativo' || valor.status === 'inadimplente' || valor.status === 'quitado'
-      ? valor.status
-      : 'em-aberto'
-
-  const vencimentoIso =
-    typeof valor.vencimentoInicialIso === 'string' && valor.vencimentoInicialIso
-      ? valor.vencimentoInicialIso
-      : new Date().toISOString()
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('contrato'),
-    leadId: valor.leadId,
-    modelo,
-    valorTotal,
-    entrada,
-    parcelas,
-    valorParcela,
-    reajusteAnualPct: reajuste,
-    vencimentoInicialIso: vencimentoIso,
-    status,
-  }
-}
-
-const sanitizarCustoCrm = (
-  valor: Partial<CrmCustoProjeto>,
-  leadIds: Set<string>,
-): CrmCustoProjeto | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const normalizar = (numero?: number) => (Number.isFinite(numero) ? Math.max(0, Number(numero)) : 0)
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('custo'),
-    leadId: valor.leadId,
-    equipamentos: normalizar(valor.equipamentos),
-    maoDeObra: normalizar(valor.maoDeObra),
-    deslocamento: normalizar(valor.deslocamento),
-    taxasSeguros: normalizar(valor.taxasSeguros),
-  }
-}
-
-const sanitizarManutencaoCrm = (
-  valor: Partial<CrmManutencaoRegistro>,
-  leadIds: Set<string>,
-): CrmManutencaoRegistro | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const status = valor.status === 'concluida' ? 'concluida' : 'pendente'
-  const dataIso = typeof valor.dataIso === 'string' && valor.dataIso ? valor.dataIso : new Date().toISOString()
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('manutencao'),
-    leadId: valor.leadId,
-    dataIso,
-    tipo: typeof valor.tipo === 'string' && valor.tipo ? valor.tipo : 'Revisão preventiva',
-    status,
-    observacao:
-      typeof valor.observacao === 'string' && valor.observacao ? valor.observacao.slice(0, 280) : undefined,
-  }
-}
-
-const sanitizarEventoCrm = (
-  valor: Partial<CrmTimelineEntry>,
-  leadIds: Set<string>,
-): CrmTimelineEntry | null => {
-  const leadId = typeof valor.leadId === 'string' ? valor.leadId : ''
-  const mensagem = typeof valor.mensagem === 'string' ? valor.mensagem : ''
-  if (!leadId || !mensagem || !leadIds.has(leadId)) {
-    return null
-  }
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('evento'),
-    leadId,
-    mensagem,
-    tipo: valor.tipo === 'anotacao' ? 'anotacao' : 'status',
-    criadoEmIso:
-      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso
-        ? valor.criadoEmIso
-        : new Date().toISOString(),
-  }
-}
-
-const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
-  if (!valor || typeof valor !== 'object') {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  const bruto = valor as Partial<CrmDataset>
-  const leads = Array.isArray(bruto.leads)
-    ? bruto.leads.map((item) => sanitizarLeadCrm(item as Partial<CrmLeadRecord>))
-    : []
-  const leadIds = new Set(leads.map((lead) => lead.id))
-  const timeline = Array.isArray(bruto.timeline)
-    ? bruto.timeline
-        .map((item) => sanitizarEventoCrm(item as Partial<CrmTimelineEntry>, leadIds))
-        .filter((item): item is CrmTimelineEntry => Boolean(item))
-    : []
-
-  const contratos = Array.isArray(bruto.contratos)
-    ? bruto.contratos
-        .map((item) => sanitizarContratoCrm(item as Partial<CrmContratoFinanceiro>, leadIds))
-        .filter((item): item is CrmContratoFinanceiro => Boolean(item))
-    : []
-
-  const custos = Array.isArray(bruto.custos)
-    ? bruto.custos
-        .map((item) => sanitizarCustoCrm(item as Partial<CrmCustoProjeto>, leadIds))
-        .filter((item): item is CrmCustoProjeto => Boolean(item))
-    : []
-
-  const manutencoes = Array.isArray(bruto.manutencoes)
-    ? bruto.manutencoes
-        .map((item) => sanitizarManutencaoCrm(item as Partial<CrmManutencaoRegistro>, leadIds))
-        .filter((item): item is CrmManutencaoRegistro => Boolean(item))
-    : []
-
-  leads.sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
-  timeline.sort((a, b) => (a.criadoEmIso < b.criadoEmIso ? 1 : -1))
-
-  contratos.sort((a, b) => (a.vencimentoInicialIso < b.vencimentoInicialIso ? -1 : 1))
-  manutencoes.sort((a, b) => (a.dataIso > b.dataIso ? 1 : -1))
-
-  return { leads, timeline, contratos, custos, manutencoes }
-}
-
-const carregarDatasetCrm = (): CrmDataset => {
-  if (typeof window === 'undefined') {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  const existente = window.localStorage.getItem(CRM_LOCAL_STORAGE_KEY)
-  if (!existente) {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(existente)
-    return sanitizarDatasetCrm(parsed)
-  } catch (error) {
-    console.warn('Não foi possível interpretar o dataset do CRM salvo localmente.', error)
-    return { ...CRM_DATASET_VAZIO }
-  }
 }
 
 const normalizeText = (value: string | null | undefined) =>
