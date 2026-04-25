@@ -359,6 +359,7 @@ import {
   SIMULACOES_SECTION_COPY,
   APROVACAO_SELLOS,
 } from './features/simulacoes/simulacoesConstants'
+import { SimulacoesHeroCard } from './features/simulacoes/SimulacoesHeroCard'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -20136,27 +20137,13 @@ export default function App() {
             : ''
         }`}
       >
-        {isAnaliseMobileSimpleView ? null : (
-          <div className="simulacoes-hero-card">
-            <div>
-              <p className="simulacoes-tag">Módulo dedicado</p>
-              <h2>Simulações &amp; análise financeira</h2>
-              <p>{sectionCopy}</p>
-            </div>
-            <div className="simulacoes-hero-actions">
-              <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
-              <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
-              <div className="simulacoes-hero-buttons">
-                <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                  Aprovar
-                </button>
-                <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                  Reprovar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <SimulacoesHeroCard
+          aprovacaoStatus={aprovacaoStatus}
+          ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
+          onRegistrarDecisao={registrarDecisaoInterna}
+          isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
+          sectionCopy={sectionCopy}
+        />
 
         <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
           {SIMULACOES_MENU.filter((item) => !(isAnaliseMobileSimpleView && hiddenAnaliseMobileMenuIds.has(item.id))).map((item) => (
