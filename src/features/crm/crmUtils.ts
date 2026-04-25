@@ -1,19 +1,18 @@
-import type {
-  CrmLeadRecord,
-  CrmStageId,
-  CrmContratoFinanceiro,
-  CrmFinanceiroStatus,
-  CrmCustoProjeto,
-  CrmManutencaoRegistro,
-  CrmTimelineEntry,
-  CrmDataset,
-} from './crmTypes'
 import {
-  CRM_PIPELINE_STAGES,
-  CRM_INSTALACAO_STATUS,
   CRM_DATASET_VAZIO,
+  CRM_INSTALACAO_STATUS,
   CRM_LOCAL_STORAGE_KEY,
+  CRM_PIPELINE_STAGES,
 } from './crmConstants'
+import type {
+  CrmContratoFinanceiro,
+  CrmCustoProjeto,
+  CrmDataset,
+  CrmLeadRecord,
+  CrmManutencaoRegistro,
+  CrmStageId,
+  CrmTimelineEntry,
+} from './crmTypes'
 
 export const gerarIdCrm = (
   prefixo: 'lead' | 'evento' | 'contrato' | 'custo' | 'manutencao',
@@ -24,6 +23,23 @@ export const gerarIdCrm = (
 
   const aleatorio = Math.floor(Math.random() * 1_000_000)
   return `${prefixo}-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
+}
+
+export const diasDesdeDataIso = (isoString: string) => {
+  const data = new Date(isoString)
+  if (Number.isNaN(data.getTime())) {
+    return 0
+  }
+  const diffMs = Date.now() - data.getTime()
+  return diffMs <= 0 ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24))
+}
+
+export const formatarDataCurta = (isoString: string) => {
+  const data = new Date(isoString)
+  if (Number.isNaN(data.getTime())) {
+    return ''
+  }
+  return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export const sanitizarLeadCrm = (valor: Partial<CrmLeadRecord>): CrmLeadRecord => {
@@ -84,10 +100,10 @@ export const sanitizarContratoCrm = (
     : 0
 
   const modelo = valor.modelo === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING'
-  const status: CrmFinanceiroStatus =
+  const status =
     valor.status === 'ativo' || valor.status === 'inadimplente' || valor.status === 'quitado'
       ? valor.status
-      : 'em-aberto'
+      : ('em-aberto' as const)
 
   const vencimentoIso =
     typeof valor.vencimentoInicialIso === 'string' && valor.vencimentoInicialIso
@@ -214,6 +230,14 @@ export const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
 
   return { leads, timeline, contratos, custos, manutencoes }
 }
+
+/** Normalizes text for case-insensitive and accent-insensitive comparison in CRM search. */
+export const normalizarTextoCrm = (value: string | null | undefined): string =>
+  (value ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
 
 export const carregarDatasetCrm = (): CrmDataset => {
   if (typeof window === 'undefined') {

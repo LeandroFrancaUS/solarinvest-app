@@ -1,4 +1,4 @@
-import type { CrmPipelineStage, CrmStageId, CrmLeadRecord, CrmDataset, CrmLeadFormState } from './crmTypes'
+import type { CrmDataset, CrmLeadFormState, CrmLeadRecord, CrmPipelineStage, CrmStageId } from './crmTypes'
 
 export const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
 export const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
