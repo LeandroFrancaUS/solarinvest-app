@@ -38,6 +38,8 @@ export interface StackRbacState {
   canSeeDashboard: boolean
   /** True when user has page_financial_management permission. */
   canSeeFinancialManagement: boolean
+  /** True when user has page:portfolio permission. */
+  canSeePortfolio: boolean
 }
 
 /**
@@ -71,11 +73,12 @@ export function useStackRbac(): StackRbacState {
     canSeeUsers: false,
     canSeeDashboard: false,
     canSeeFinancialManagement: false,
+    canSeePortfolio: false,
   })
 
   useEffect(() => {
     if (!user) {
-      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false, canSeeFinancialManagement: false })
+      setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false, canSeeFinancialManagement: false, canSeePortfolio: false })
       return
     }
 
@@ -98,6 +101,7 @@ export function useStackRbac(): StackRbacState {
       user.hasPermission(PERMISSIONS.PAGE_USERS),
       user.hasPermission(PERMISSIONS.PAGE_DASHBOARD),
       user.hasPermission(PERMISSIONS.PAGE_FINANCIAL_MANAGEMENT),
+      user.hasPermission(PERMISSIONS.PAGE_PORTFOLIO),
     ])
       .then(([
         isAdminPerm,
@@ -116,6 +120,7 @@ export function useStackRbac(): StackRbacState {
         canUsers,
         canDashboard,
         canFinancialManagement,
+        canPortfolio,
       ]) => {
         if (cancelled) return
         const resolvedAdmin = isAdminPerm
@@ -147,6 +152,7 @@ export function useStackRbac(): StackRbacState {
           canSeeUsers: canUsers || isAdminPerm,
           canSeeDashboard: canDashboard || isAdminPerm,
           canSeeFinancialManagement: canFinancialManagement || isAdminPerm,
+          canSeePortfolio: canPortfolio || isAdminPerm || isOfficePerm || isFinanceiroPerm,
         })
       })
       .catch((err) => {
@@ -155,7 +161,7 @@ export function useStackRbac(): StackRbacState {
           '[rbac] Failed to fetch Stack Auth permissions:',
           err instanceof Error ? err.message : String(err),
         )
-        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false, canSeeFinancialManagement: false })
+        setState({ isAdmin: false, isComercial: false, isOffice: false, isFinanceiro: false, role: 'Usuário', isLoading: false, canSeeFinancialAnalysis: false, canSeePreferences: false, canSeeContracts: false, canSeeClients: false, canSeeProposals: false, canSeeUsers: false, canSeeDashboard: false, canSeeFinancialManagement: false, canSeePortfolio: false })
       })
 
     return () => {

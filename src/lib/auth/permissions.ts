@@ -30,4 +30,5 @@ export const PERMISSIONS = {
   PAGE_PREF: "page:preferences",
   PAGE_USERS: "page:users",
   PAGE_DASHBOARD: "page:dashboard",
+  PAGE_PORTFOLIO: "page:portfolio",
 } as const
