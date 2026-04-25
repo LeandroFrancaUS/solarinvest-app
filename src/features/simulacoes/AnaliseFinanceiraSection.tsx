@@ -8,29 +8,12 @@ import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 import type { VendasConfig } from '../../types/vendasConfig'
-import {
-  type AprovacaoChecklistKey,
-  type AprovacaoStatus,
-  APROVACAO_SELLOS,
-} from './simulacoesConstants'
 import { AfBaseSistemaPanel } from './AfBaseSistemaPanel'
 import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
+import { AfAprovacaoGrid } from './AfAprovacaoGrid'
 import type { MoneyFieldHandle } from './simulacoesTypes'
-
-const formatAprovacaoData = (timestamp: number | null): string => {
-  if (!timestamp) {
-    return '—'
-  }
-  try {
-    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
-      new Date(timestamp),
-    )
-  } catch (_error) {
-    return '—'
-  }
-}
 
 export interface AnaliseFinanceiraSectionProps {
   afModo: 'venda' | 'leasing'
@@ -431,66 +414,15 @@ export function AnaliseFinanceiraSection({
       )}
 
       {/* Approval checklist */}
-      <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
-        <div className="simulacoes-module-tile">
-          <h4>Checklist de aprovação</h4>
-          <ul className="simulacoes-checklist">
-            {(afModo === 'leasing'
-              ? (['roi', 'tir', 'vpl', 'payback', 'eficiencia', 'lucro'] as AprovacaoChecklistKey[])
-              : (['roi', 'tir', 'spread', 'vpl'] as AprovacaoChecklistKey[])
-            ).map((item) => (
-              <li key={item}>
-                <label className="simulacoes-check">
-                  <input
-                    type="checkbox"
-                    checked={aprovacaoChecklist[item]}
-                    onChange={() => toggleAprovacaoChecklist(item)}
-                  />
-                  <span>
-                    {item === 'roi'
-                      ? (afModo === 'leasing' ? 'ROI mínimo do leasing atendido' : 'ROI mínimo SolarInvest atendido')
-                      : item === 'tir'
-                        ? 'TIR anual acima do piso definido'
-                        : item === 'spread'
-                          ? 'Spread e margem dentro do range'
-                          : item === 'vpl'
-                            ? 'VPL positivo no horizonte definido'
-                            : item === 'payback'
-                              ? 'Payback dentro do limite aceitável'
-                              : item === 'eficiencia'
-                                ? 'Indicador de eficiência acima do mínimo'
-                                : 'Lucro mensal positivo e saudável'}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {isAnaliseMobileSimpleView ? null : (
-          <div className="simulacoes-module-tile">
-            <h4>Selo e decisão</h4>
-            <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
-            <p className="simulacoes-description">
-              Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
-            </p>
-            <div className="simulacoes-hero-buttons">
-              <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                Aprovar
-              </button>
-              <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                Reprovar
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
-              >
-                Salvar decisão
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <AfAprovacaoGrid
+        afModo={afModo}
+        aprovacaoChecklist={aprovacaoChecklist}
+        toggleAprovacaoChecklist={toggleAprovacaoChecklist}
+        aprovacaoStatus={aprovacaoStatus}
+        ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
+        registrarDecisaoInterna={registrarDecisaoInterna}
+        isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
+      />
     </section>
   )
 }
