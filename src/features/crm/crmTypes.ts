@@ -1,5 +1,10 @@
 import type React from 'react'
 
+export type CrmAdicionarNotificacaoFn = (
+  mensagem: string,
+  tipo?: 'success' | 'info' | 'error',
+) => void
+
 export type CrmStageId =
   | 'novo-lead'
   | 'qualificacao'
@@ -224,4 +229,17 @@ export type UseCrmState = {
   crmManutencoesPendentes: CrmManutencaoRegistro[]
   crmContratosPorLead: Map<string, CrmContratoFinanceiro>
   crmTimelineFiltrada: CrmTimelineEntry[]
+  persistCrmDataset: (dataset: CrmDataset, origem?: 'auto' | 'manual') => Promise<void>
+  handleCrmLeadFormChange: <K extends keyof CrmLeadFormState>(campo: K, valor: CrmLeadFormState[K]) => void
+  handleCrmLeadFormSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  handleMoverLead: (leadId: string, direcao: 1 | -1) => void
+  handleSelecionarLead: (leadId: string) => void
+  handleAdicionarNotaCrm: () => void
+  handleAtualizarStatusInstalacao: (leadId: string, status: CrmLeadRecord['instalacaoStatus']) => void
+  handleRemoverLead: (leadId: string) => void
+  handleSalvarCustosCrm: (event: React.FormEvent<HTMLFormElement>) => void
+  handleSalvarContratoCrm: (event: React.FormEvent<HTMLFormElement>) => void
+  handleAdicionarManutencaoCrm: (event: React.FormEvent<HTMLFormElement>) => void
+  handleConcluirManutencaoCrm: (manutencaoId: string) => void
+  handleSyncCrmManualmente: () => void
 }

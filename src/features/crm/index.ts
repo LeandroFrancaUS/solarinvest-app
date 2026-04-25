@@ -9,6 +9,7 @@ export {
 } from './crmConstants'
 
 export type {
+  CrmAdicionarNotificacaoFn,
   CrmBackendStatus,
   CrmContratoFinanceiro,
   CrmContratoFormState,
