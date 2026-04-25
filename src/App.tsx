@@ -337,6 +337,8 @@ import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashb
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
+import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
+import { Field, FieldError } from './components/ui/Field'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -3090,32 +3092,6 @@ const normalizeClienteEmail = (value: string) => value.trim().toLowerCase()
 
 const normalizeClienteNumbers = (value: string) => normalizeNumbers(value)
 
-const formatWhatsappPhoneNumber = (value: string): string | null => {
-  let digits = normalizeNumbers(value)
-
-  if (!digits) {
-    return null
-  }
-
-  digits = digits.replace(/^0+/, '')
-
-  if (digits.startsWith('55')) {
-    while (digits.length > 2 && digits[2] === '0') {
-      digits = `55${digits.slice(3)}`
-    }
-  } else if (digits.length === 10 || digits.length === 11) {
-    digits = `55${digits}`
-  } else {
-    return null
-  }
-
-  if (digits.length < 12 || digits.length > 13) {
-    return null
-  }
-
-  return digits
-}
-
 const createClienteComparisonData = (dados: ClienteDados) => {
   const normalized = {
     nome: normalizeClienteString(dados.nome),
@@ -4658,78 +4634,6 @@ function EnviarPropostaModal({
       </div>
     </div>
   )
-}
-
-function Field({
-  label,
-  children,
-  hint,
-  htmlFor,
-}: {
-  label: React.ReactNode
-  children: React.ReactNode
-  hint?: React.ReactNode
-  htmlFor?: string
-}) {
-  const generatedId = useId()
-  let firstControlId: string | undefined
-
-  const enhancedChildren = React.Children.map(children, (child, index) => {
-    if (!React.isValidElement(child)) {
-      return child
-    }
-
-    if (typeof child.type === 'string') {
-      if (child.type === 'input') {
-        const inputType = (child.props as { type?: string }).type
-        if (inputType === 'checkbox' || inputType === 'radio') {
-          return child
-        }
-      }
-
-      if (child.type === 'input' || child.type === 'select' || child.type === 'textarea') {
-        const existingProps = child.props as {
-          className?: string
-          id?: string
-          name?: string
-        }
-        const existingClassName = existingProps.className ?? ''
-        const classes = existingClassName.split(' ').filter(Boolean)
-        if (!classes.includes('cfg-input')) {
-          classes.push('cfg-input')
-        }
-        const resolvedId = existingProps.id ?? (index === 0 ? generatedId : `${generatedId}-${index}`)
-        if (!firstControlId) {
-          firstControlId = resolvedId
-        }
-        return React.cloneElement(child, {
-          className: classes.join(' '),
-          id: existingProps.id ?? resolvedId,
-          name: existingProps.name ?? resolvedId,
-        })
-      }
-    }
-
-    return child
-  })
-
-  const labelHtmlFor = htmlFor ?? firstControlId
-
-  return (
-    <div className="field cfg-field">
-      <label className="field-label cfg-label" {...(labelHtmlFor ? { htmlFor: labelHtmlFor } : undefined)}>
-        {label}
-      </label>
-      <div className="field-control cfg-control">
-        {enhancedChildren}
-        {hint ? <small className="cfg-help">{hint}</small> : null}
-      </div>
-    </div>
-  )
-}
-
-function FieldError({ message }: { message?: string }) {
-  return message ? <span className="field-error">{message}</span> : null
 }
 
 type PrintMode = 'preview' | 'print' | 'download'
