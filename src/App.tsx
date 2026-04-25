@@ -346,6 +346,7 @@ import { ClientesPage } from './pages/ClientesPage'
 import { BudgetSearchPage } from './pages/BudgetSearchPage'
 import { PrecheckModal } from './pages/PrecheckModal'
 import { PropostaImagensSection } from './components/PropostaImagensSection'
+import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -21913,107 +21914,6 @@ export default function App() {
     </section>
   )
 
-  const renderComposicaoUfvSection = () => {
-    const abrirParametrosVendas = () => {
-      void abrirConfiguracoes('vendas')
-    }
-    return (
-      <section className="card">
-        <div className="card-header">
-          <h2>Composição da UFV</h2>
-          <button type="button" className="ghost with-icon" onClick={abrirParametrosVendas}>
-            <span aria-hidden="true">⚙︎</span>
-            Ajustar parâmetros internos
-          </button>
-        </div>
-        <p className="muted">
-          Consulte abaixo os valores consolidados da proposta. Custos e ajustes comerciais podem ser
-          atualizados em Configurações → Parâmetros de Vendas.
-        </p>
-        <div className="composicao-ufv-controls">
-          <h3>Ajustes desta proposta</h3>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Descontos comerciais (R$)',
-                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
-              )}
-            >
-              <input
-                ref={descontosMoneyField.ref}
-                type="text"
-                inputMode="decimal"
-                value={descontosMoneyField.text}
-                onChange={descontosMoneyField.handleChange}
-                onBlur={descontosMoneyField.handleBlur}
-                onFocus={(event) => {
-                  descontosMoneyField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={MONEY_INPUT_PLACEHOLDER}
-              />
-            </Field>
-          </div>
-        </div>
-        <div className="composicao-ufv-summary">
-          <h3>Referências internas</h3>
-          <p className="muted">Valores herdados de Configurações → Parâmetros de Vendas.</p>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'CAPEX base (R$)',
-                'CAPEX base considerado após os custos internos e impostos configurados.',
-              )}
-            >
-              <input
-                ref={capexBaseResumoField.ref}
-                type="text"
-                inputMode="decimal"
-                value={capexBaseResumoField.text}
-                onChange={capexBaseResumoField.handleChange}
-                onBlur={() => {
-                  capexBaseResumoField.handleBlur()
-                  capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
-                }}
-                onFocus={(event) => {
-                  capexBaseResumoField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={
-                  typeof capexBaseManualValor === 'number'
-                    ? MONEY_INPUT_PLACEHOLDER
-                    : 'Automático (calculado)'
-                }
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Margem operacional (R$)',
-                'Margem operacional calculada a partir do CAPEX base e dos ajustes comerciais desta proposta.',
-              )}
-            >
-              <input
-                ref={margemOperacionalResumoField.ref}
-                type="text"
-                inputMode="decimal"
-                value={margemOperacionalResumoField.text}
-                onChange={margemOperacionalResumoField.handleChange}
-                onBlur={() => margemOperacionalResumoField.handleBlur()}
-                onFocus={(event) => {
-                  margemOperacionalResumoField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={
-                  margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
-                }
-              />
-            </Field>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
 
   const renderCondicoesPagamentoSection = () => {
     const condicao = vendaForm.condicao
@@ -24728,7 +24628,15 @@ export default function App() {
                 {renderVendaParametrosSection()}
                 {renderVendaConfiguracaoSection()}
                 {renderVendaResumoPublicoSection()}
-                {renderComposicaoUfvSection()}
+                <ComposicaoUfvSection
+                  descontosMoneyField={descontosMoneyField}
+                  capexBaseResumoField={capexBaseResumoField}
+                  capexBaseResumoValor={capexBaseResumoValor}
+                  capexBaseManualValor={capexBaseManualValor}
+                  margemOperacionalResumoField={margemOperacionalResumoField}
+                  margemManualAtiva={margemManualAtiva}
+                  onOpenVendasConfig={() => { void abrirConfiguracoes('vendas') }}
+                />
                 <section className="card">
                   <h2>Upload de Orçamento</h2>
                   <div className="budget-upload-section">
