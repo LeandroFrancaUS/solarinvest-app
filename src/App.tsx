@@ -332,8 +332,6 @@ import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplay
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
   type CrmStageId,
-  type CrmPipelineStage,
-  type CrmTimelineEntryType,
   type CrmTimelineEntry,
   type CrmLeadRecord,
   type CrmFinanceiroStatus,
@@ -351,14 +349,7 @@ import {
   CRM_INSTALACAO_STATUS,
   CRM_STAGE_INDEX,
   CRM_EMPTY_LEAD_FORM,
-  CRM_DATASET_VAZIO,
   gerarIdCrm,
-  sanitizarLeadCrm,
-  sanitizarContratoCrm,
-  sanitizarCustoCrm,
-  sanitizarManutencaoCrm,
-  sanitizarEventoCrm,
-  sanitizarDatasetCrm,
   carregarDatasetCrm,
 } from './features/crm'
 
