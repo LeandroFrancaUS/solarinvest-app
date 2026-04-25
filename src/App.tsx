@@ -355,11 +355,11 @@ import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
   type AprovacaoStatus,
   type AprovacaoChecklistKey,
-  SIMULACOES_MENU,
   SIMULACOES_SECTION_COPY,
   APROVACAO_SELLOS,
 } from './features/simulacoes/simulacoesConstants'
 import { SimulacoesHeroCard } from './features/simulacoes/SimulacoesHeroCard'
+import { SimulacoesNav } from './features/simulacoes/SimulacoesNav'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -20145,20 +20145,11 @@ export default function App() {
           sectionCopy={sectionCopy}
         />
 
-        <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
-          {SIMULACOES_MENU.filter((item) => !(isAnaliseMobileSimpleView && hiddenAnaliseMobileMenuIds.has(item.id))).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`simulacoes-nav-btn${simulacoesSection === item.id ? ' is-active' : ''}`}
-              onClick={() => void abrirSimulacoes(item.id)}
-              aria-current={simulacoesSection === item.id ? 'page' : undefined}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.description}</span>
-            </button>
-          ))}
-        </nav>
+        <SimulacoesNav
+          simulacoesSection={simulacoesSection}
+          hiddenAnaliseMobileMenuIds={isAnaliseMobileSimpleView ? hiddenAnaliseMobileMenuIds : new Set<SimulacoesSection>()}
+          onAbrirSimulacoes={abrirSimulacoes}
+        />
 
         <div className="simulacoes-panels">
           <section
