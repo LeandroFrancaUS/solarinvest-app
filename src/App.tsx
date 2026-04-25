@@ -276,6 +276,16 @@ import {
   normalizeNumbers,
   tarifaCurrency,
 } from './utils/formatters'
+import { normalizeText } from './utils/textUtils'
+import {
+  createEmptyUcGeradoraTitularEndereco,
+  createEmptyUcGeradoraTitular,
+  cloneUcGeradoraTitular,
+} from './utils/ucGeradoraTitularFactory'
+import {
+  getDistribuidoraDefaultForUf,
+  resolveUfForDistribuidora,
+} from './utils/distribuidoraHelpers'
 import { Switch } from './components/ui/switch'
 import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
@@ -1461,16 +1471,6 @@ const normalizeDistribuidoraName = (value?: string | null): string =>
     .trim()
     .toUpperCase() ?? ''
 
-const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
-  const normalized = uf?.trim().toUpperCase() ?? ''
-  if (normalized === 'GO') {
-    return 'Equatorial Goiás'
-  }
-  if (normalized === 'DF') {
-    return 'Neoenergia Brasilia'
-  }
-  return ''
-}
 
 const getDistribuidoraValidationMessage = (
   ufRaw?: string | null,
@@ -1503,22 +1503,6 @@ const getDistribuidoraValidationMessage = (
   return null
 }
 
-const resolveUfForDistribuidora = (
-  distribuidorasPorUf: Record<string, string[]>,
-  distribuidora?: string | null,
-): string => {
-  const alvo = distribuidora?.trim()
-  if (!alvo) {
-    return ''
-  }
-  const alvoNormalizado = alvo.toLowerCase()
-  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
-    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
-      return uf
-    }
-  }
-  return ''
-}
 
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
@@ -1553,22 +1537,6 @@ const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
   rateioPercentual: '',
 })
 
-const createEmptyUcGeradoraTitularEndereco = (): LeasingEndereco => ({
-  logradouro: '',
-  numero: '',
-  complemento: '',
-  bairro: '',
-  cidade: '',
-  uf: '',
-  cep: '',
-})
-
-const createEmptyUcGeradoraTitular = (): LeasingUcGeradoraTitular => ({
-  nomeCompleto: '',
-  cpf: '',
-  rg: '',
-  endereco: createEmptyUcGeradoraTitularEndereco(),
-})
 
 const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
   nome: '',
@@ -1580,12 +1548,6 @@ const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
   telefone: '',
 })
 
-const cloneUcGeradoraTitular = (
-  input: LeasingUcGeradoraTitular,
-): LeasingUcGeradoraTitular => ({
-  ...input,
-  endereco: { ...input.endereco },
-})
 
 type DistribuidoraAneelState = {
   clienteDistribuidoraAneel?: string | null
@@ -3020,12 +2982,6 @@ const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
 const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
   'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
-const normalizeText = (value: string | null | undefined) =>
-  (value ?? '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
 
 const normalizeClienteString = (value: string) =>
   normalizeText(value)
