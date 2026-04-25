@@ -223,7 +223,7 @@ import {
 } from './app/config'
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
+import { MULTI_UC_CLASSES, MULTI_UC_CLASS_LABELS, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
@@ -269,6 +269,7 @@ import {
   formatAxis,
   formatCep,
   formatCpfCnpj,
+  formatKwhWithUnit,
   formatTelefone,
   normalizeNumbers,
   tarifaCurrency,
@@ -397,13 +398,6 @@ const SimulacoesTab = React.lazy(() => import('./components/simulacoes/Simulacoe
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
 
-const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
-  B1_Residencial: 'B1 — Residencial',
-  B2_Rural: 'B2 — Rural',
-  B3_Comercial: 'B3 — Comercial',
-  B4_Iluminacao: 'B4 — Iluminação pública',
-}
-
 const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   simples: 'Simples Nacional',
   lucro_presumido: 'Lucro Presumido',
@@ -465,21 +459,6 @@ const APROVACAO_SELLOS: Record<AprovacaoStatus, string> = {
   pendente: 'Decisão pendente',
   aprovado: 'Aprovado SolarInvest',
   reprovado: 'Reprovado SolarInvest',
-}
-
-const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return formatNumberBRWithOptions(value, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    })
-  }
-  return null
-}
-
-const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
-  const formatted = formatKwhValue(value, digits)
-  return formatted ? `${formatted} kWh` : null
 }
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {

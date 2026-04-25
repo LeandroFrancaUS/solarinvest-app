@@ -1,4 +1,4 @@
-import { formatMoneyBR, formatMoneyBRWithDigits } from '../lib/locale/br-number'
+import { formatMoneyBR, formatMoneyBRWithDigits, formatNumberBRWithOptions } from '../lib/locale/br-number'
 
 export const currency = (value: number) => formatMoneyBR(value)
 
@@ -131,4 +131,19 @@ export const formatTelefone = (value: string) => {
   const part1 = remaining.slice(0, 5)
   const part2 = remaining.slice(5)
   return part2 ? `(${ddd}) ${part1}-${part2}` : `(${ddd}) ${part1}`
+}
+
+const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatNumberBRWithOptions(value, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
+  }
+  return null
+}
+
+export const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
+  const formatted = formatKwhValue(value, digits)
+  return formatted ? `${formatted} kWh` : null
 }
