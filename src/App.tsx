@@ -272,6 +272,7 @@ import {
   formatCpfCnpj,
   formatKwhWithUnit,
   formatTelefone,
+  formatUcGeradoraTitularEndereco,
   normalizeNumbers,
   tarifaCurrency,
 } from './utils/formatters'
@@ -355,6 +356,10 @@ import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
 import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
+import type { ClienteMensagens } from './types/cliente'
+import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
+import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
+import { isSegmentoCondominio } from './utils/segmento'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -590,8 +595,6 @@ const _SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
   (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
   { '': 'Selecione' } as Record<SegmentoCliente, string>,
 )
-const isSegmentoCondominio = (segmento: SegmentoCliente) =>
-  segmento === 'cond_vertical' || segmento === 'cond_horizontal'
 
 const emailValido = (valor: string) => {
   if (!valor) {
@@ -715,11 +718,6 @@ type ClienteRegistro = {
 }
 
 
-type ClienteMensagens = {
-  email?: string | undefined
-  cidade?: string | undefined
-  cep?: string | undefined
-}
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
 
@@ -1048,23 +1046,6 @@ type OrcamentoSalvo = {
   ownerName?: string
   /** Stack user id of the owner (server-loaded, privileged views only) */
   ownerUserId?: string
-}
-
-type UcBeneficiariaFormState = {
-  id: string
-  numero: string
-  endereco: string
-  consumoKWh: string
-  rateioPercentual: string
-}
-
-type UcGeradoraTitularErrors = {
-  nomeCompleto?: string
-  cpf?: string
-  logradouro?: string
-  cidade?: string
-  uf?: string
-  cep?: string
 }
 
 type CorresponsavelErrors = {
@@ -1605,31 +1586,6 @@ const cloneUcGeradoraTitular = (
   ...input,
   endereco: { ...input.endereco },
 })
-
-const formatUcGeradoraTitularEndereco = (
-  endereco?: LeasingEndereco | null,
-): string => {
-  if (!endereco) {
-    return ''
-  }
-  const logradouro = endereco.logradouro?.trim() ?? ''
-  const numero = endereco.numero?.trim() ?? ''
-  const complemento = endereco.complemento?.trim() ?? ''
-  const bairro = endereco.bairro?.trim() ?? ''
-  const cidade = endereco.cidade?.trim() ?? ''
-  const uf = endereco.uf?.trim() ?? ''
-  const cep = endereco.cep?.trim() ?? ''
-  const primeiraLinha = [logradouro, numero].filter(Boolean).join(', ')
-  const primeiraLinhaCompleta =
-    complemento && primeiraLinha ? `${primeiraLinha}, ${complemento}` : primeiraLinha || complemento
-  const partes = [
-    primeiraLinhaCompleta,
-    bairro || '',
-    [cidade, uf].filter(Boolean).join('/'),
-    cep ? `CEP ${cep}` : '',
-  ].filter(Boolean)
-  return partes.join(' — ')
-}
 
 type DistribuidoraAneelState = {
   clienteDistribuidoraAneel?: string | null

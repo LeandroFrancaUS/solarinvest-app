@@ -1,4 +1,5 @@
 import { formatMoneyBR, formatMoneyBRWithDigits, formatNumberBRWithOptions } from '../lib/locale/br-number'
+import type { LeasingEndereco } from '../store/useLeasingStore'
 
 export const currency = (value: number) => formatMoneyBR(value)
 
@@ -146,4 +147,29 @@ const formatKwhValue = (value: number | null | undefined, digits = 2): string | 
 export const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
   const formatted = formatKwhValue(value, digits)
   return formatted ? `${formatted} kWh` : null
+}
+
+export const formatUcGeradoraTitularEndereco = (
+  endereco?: LeasingEndereco | null,
+): string => {
+  if (!endereco) {
+    return ''
+  }
+  const logradouro = endereco.logradouro?.trim() ?? ''
+  const numero = endereco.numero?.trim() ?? ''
+  const complemento = endereco.complemento?.trim() ?? ''
+  const bairro = endereco.bairro?.trim() ?? ''
+  const cidade = endereco.cidade?.trim() ?? ''
+  const uf = endereco.uf?.trim() ?? ''
+  const cep = endereco.cep?.trim() ?? ''
+  const primeiraLinha = [logradouro, numero].filter(Boolean).join(', ')
+  const primeiraLinhaCompleta =
+    complemento && primeiraLinha ? `${primeiraLinha}, ${complemento}` : primeiraLinha || complemento
+  const partes = [
+    primeiraLinhaCompleta,
+    bairro || '',
+    [cidade, uf].filter(Boolean).join('/'),
+    cep ? `CEP ${cep}` : '',
+  ].filter(Boolean)
+  return partes.join(' — ')
 }
