@@ -345,6 +345,7 @@ import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
 import { BudgetSearchPage } from './pages/BudgetSearchPage'
 import { PrecheckModal } from './pages/PrecheckModal'
+import { PropostaImagensSection } from './components/PropostaImagensSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -20302,56 +20303,6 @@ export default function App() {
     )
   }
 
-  const renderPropostaImagensSection = () => {
-    if (propostaImagens.length === 0) {
-      return null
-    }
-
-    const descricao =
-      activeTab === 'leasing'
-        ? 'Estas imagens serão exibidas na proposta de leasing. Remova as que não devem aparecer.'
-        : 'Estas imagens serão exibidas na proposta de vendas. Remova as que não devem aparecer.'
-
-    return (
-      <section className="card proposal-images-card">
-        <div className="card-header">
-          <h2>Imagens anexadas à proposta</h2>
-          <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
-            Adicionar imagens
-          </button>
-        </div>
-        <p className="muted proposal-images-description">{descricao}</p>
-        <div className="proposal-images-grid">
-          {propostaImagens.map((imagem, index) => {
-            const trimmedName = imagem.fileName?.trim()
-            const label = trimmedName && trimmedName.length > 0 ? trimmedName : `Imagem ${index + 1}`
-            return (
-              <figure
-                key={imagem.id ?? `imagem-${index}`}
-                className="proposal-images-item"
-                aria-label={`Pré-visualização da imagem ${index + 1}`}
-              >
-                <div className="proposal-images-thumb">
-                  <img src={imagem.url} alt={`Imagem anexada: ${label}`} />
-                </div>
-                <figcaption>
-                  <span title={label}>{label}</span>
-                  <button
-                    type="button"
-                    className="link danger"
-                    onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
-                  >
-                    Remover
-                  </button>
-                </figcaption>
-              </figure>
-            )
-          })}
-        </div>
-      </section>
-    )
-  }
-
   function renderTusdParametersSection() {
     const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {
       maximumFractionDigits: 2,
@@ -24449,7 +24400,12 @@ export default function App() {
                         </section>
                       </>
                     ) : null}
-                    {renderPropostaImagensSection()}
+                    <PropostaImagensSection
+                      propostaImagens={propostaImagens}
+                      activeTab={activeTab}
+                      onAddImages={handleAbrirUploadImagens}
+                      onRemoveImagem={handleRemoverPropostaImagem}
+                    />
               {activeTab === 'leasing' ? (
                 <>
                   {renderParametrosPrincipaisSection()}
