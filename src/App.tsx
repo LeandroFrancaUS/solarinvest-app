@@ -354,6 +354,7 @@ import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
+import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -20094,626 +20095,6 @@ export default function App() {
     )
   }
 
-  const renderParametrosPrincipaisSection = () => {
-    const rateioPercentualDiff = Math.abs(multiUcRateioPercentualTotal - 100)
-    const rateioPercentualValido =
-      !multiUcAtivo || multiUcRateioModo !== 'percentual' || multiUcEnergiaGeradaKWh <= 0
-        ? true
-        : rateioPercentualDiff <= 0.001
-    const rateioManualDiff = Math.abs(multiUcRateioManualTotal - multiUcEnergiaGeradaKWh)
-    const rateioManualValido =
-      !multiUcAtivo || multiUcRateioModo !== 'manual' || multiUcEnergiaGeradaKWh <= 0
-        ? true
-        : rateioManualDiff <= 0.001
-    const escalonamentoAplicadoTexto = formatPercentBRWithDigits(
-      multiUcResultado?.escalonamentoPercentual ?? multiUcEscalonamentoPercentual,
-      0,
-    )
-    const rateioHeader = multiUcRateioModo === 'percentual' ? 'Rateio (%)' : 'Rateio (kWh)'
-    const rateioPercentualResumoTexto =
-      multiUcRateioModo === 'percentual'
-        ? formatPercentBRWithDigits(multiUcRateioPercentualTotal / 100, 2)
-        : null
-    const rateioManualResumoTexto =
-      multiUcRateioModo === 'manual' ? formatKwhWithUnit(multiUcRateioManualTotal) : null
-    const energiaGeradaTexto = formatKwhWithUnit(multiUcEnergiaGeradaKWh)
-    const energiaCompensadaTexto = formatKwhWithUnit(
-      multiUcResultado?.energiaGeradaUtilizadaKWh ?? null,
-    )
-    const sobraCreditosTexto = formatKwhWithUnit(multiUcResultado?.sobraCreditosKWh ?? null)
-    const totalTusdTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalTusd)
-        ? currency(multiUcResultado.totalTusd)
-        : null
-    const totalTeTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalTe)
-        ? currency(multiUcResultado.totalTe)
-        : null
-    const totalContratoTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalContrato)
-        ? currency(multiUcResultado.totalContrato)
-        : null
-
-    return (
-      <section className="card">
-        <h2>Parâmetros principais</h2>
-        <div className="grid g3">
-          <Field
-            label={labelWithTooltip(
-              'Consumo (kWh/mês)',
-              'Consumo médio mensal histórico da UC principal; serve como base para dimensionar geração e economia.',
-            )}
-          >
-            <input
-              data-field="cliente-consumo"
-              type="number"
-              value={kcKwhMes}
-              onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
-              onFocus={selectNumberInputOnFocus}
-            />
-            <div className="mt-2 flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Taxa mínima ({tipoRedeLabel})
-              </label>
-              <Switch
-                checked={vendaForm.aplica_taxa_minima ?? true}
-                onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
-              />
-              <span className="text-xs text-gray-500">
-                {vendaForm.aplica_taxa_minima ?? true
-                  ? 'Cliente paga taxa mínima (padrão)'
-                  : 'Cliente isento de taxa mínima'}
-              </span>
-            </div>
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Tarifa cheia (R$/kWh)',
-              'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
-            )}
-          >
-            <input
-              data-field="cliente-tarifaCheia"
-              type="text"
-              inputMode="decimal"
-              value={tarifaCheiaField.value}
-              onChange={tarifaCheiaField.onChange}
-              onFocus={tarifaCheiaField.onFocus}
-              onBlur={tarifaCheiaField.onBlur}
-              onKeyDown={tarifaCheiaField.onKeyDown}
-            />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Custos Fixos da Conta de Energia (R$/MÊS)',
-              'Total de custos fixos cobrados pela distribuidora independentemente da compensação de créditos.',
-            )}
-          >
-            <input
-              type="number"
-              min={0}
-              value={taxaMinimaInputEmpty ? '' : taxaMinima}
-              onChange={(event) => {
-                normalizeTaxaMinimaInputValue(event.target.value)
-              }}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Encargos adicionais (R$/mês)',
-              'Outras cobranças fixas recorrentes (CIP, iluminação, taxas municipais) adicionadas à conta mensal.',
-            )}
-          >
-            <input
-              type="number"
-              value={encargosFixosExtras}
-              onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
-          <Field
-            label={
-              <>
-                Irradiação média (kWh/m²/dia)
-                <InfoTooltip text="Irradiação média é preenchida automaticamente a partir da UF/distribuidora ou do valor configurado manualmente." />
-              </>
-            }
-            hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
-          >
-            <input
-              readOnly
-              value={
-                baseIrradiacao > 0
-                  ? formatNumberBRWithOptions(baseIrradiacao, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : ''
-              }
-            />
-          </Field>
-        </div>
-        {shouldHideSimpleViewItems ? null : (
-          <TusdParametersSection
-            tusdPercent={tusdPercent}
-            tusdTipoCliente={tusdTipoCliente}
-            tusdSubtipo={tusdSubtipo}
-            tusdSimultaneidade={tusdSimultaneidade}
-            tusdTarifaRkwh={tusdTarifaRkwh}
-            tusdAnoReferencia={tusdAnoReferencia}
-            tusdOpcoesExpandidas={tusdOpcoesExpandidas}
-            segmentoCliente={segmentoCliente}
-            tipoEdificacaoOutro={tipoEdificacaoOutro}
-            tusdOptionsTitleId={tusdOptionsTitleId}
-            tusdOptionsToggleId={tusdOptionsToggleId}
-            tusdOptionsContentId={tusdOptionsContentId}
-            onTusdPercentChange={(normalized) => {
-              setTusdPercent(normalized)
-              applyVendaUpdates({ tusd_percentual: normalized })
-              resetRetorno()
-            }}
-            onTusdTipoClienteChange={handleTusdTipoClienteChange}
-            onTusdSubtipoChange={(value) => {
-              setTusdSubtipo(value)
-              applyVendaUpdates({ tusd_subtipo: value || undefined })
-              resetRetorno()
-            }}
-            onTusdSimultaneidadeChange={(value) => {
-              setTusdSimultaneidadeFromSource(value, 'manual')
-              resetRetorno()
-            }}
-            onTusdTarifaRkwhChange={(value) => {
-              setTusdTarifaRkwh(value)
-              applyVendaUpdates({ tusd_tarifa_r_kwh: value ?? undefined })
-              resetRetorno()
-            }}
-            onTusdAnoReferenciaChange={(value) => {
-              setTusdAnoReferencia(value)
-              applyVendaUpdates({ tusd_ano_referencia: value })
-              resetRetorno()
-            }}
-            onTusdOpcoesExpandidasChange={setTusdOpcoesExpandidas}
-            onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
-          />
-        )}
-        {!shouldHideSimpleViewItems ? (
-        <div className="multi-uc-section" id="multi-uc">
-          <div className="multi-uc-header">
-            <div className="multi-uc-title-row">
-              <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
-              <label className="multi-uc-toggle flex items-center gap-2">
-                <CheckboxSmall
-                  checked={multiUcAtivo}
-                  onChange={(event) => handleMultiUcToggle(event.target.checked)}
-                />
-                <span className="multi-uc-toggle-indicator" aria-hidden="true" />
-                <span className="multi-uc-toggle-text">Ativar modo multi-UC</span>
-              </label>
-            </div>
-            <p>
-              Cadastre várias UCs de classes distintas, defina o rateio dos créditos de energia e acompanhe a TUSD não
-              compensável escalonada pela Lei 14.300.
-            </p>
-          </div>
-          {multiUcAtivo ? (
-            <div className="multi-uc-body">
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Número de UCs',
-                    'Quantidade de unidades consumidoras consideradas no rateio de créditos deste cenário.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    min={1}
-                    value={multiUcRows.length}
-                    onChange={(event) => handleMultiUcQuantidadeChange(Number(event.target.value))}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Energia gerada total (kWh/mês)
-                      <InfoTooltip text="Valor utilizado para distribuir os créditos entre as UCs." />
-                    </>
-                  }
-                  hint={
-                    multiUcEnergiaGeradaTouched
-                      ? undefined
-                      : 'Sugestão automática com base na geração estimada.'
-                  }
-                >
-                  <input
-                    type="number"
-                    min={0}
-                    value={multiUcEnergiaGeradaKWh}
-                    onChange={(event) =>
-                      setMultiUcEnergiaGeradaKWh(Number(event.target.value) || 0, 'user')
-                    }
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Modo de rateio dos créditos
-                      <InfoTooltip text="Escolha entre ratear por percentuais ou informar valores manuais em kWh por unidade consumidora." />
-                    </>
-                  }
-                  hint={
-                    multiUcRateioModo === 'percentual'
-                      ? 'Percentuais devem totalizar 100%.'
-                      : 'O somatório em kWh deve ser igual à geração disponível.'
-                  }
-                >
-                  <div className="toggle-group multi-uc-rateio-toggle">
-                    <button
-                      type="button"
-                      className={`toggle-option${multiUcRateioModo === 'percentual' ? ' active' : ''}`}
-                      onClick={() => handleMultiUcRateioModoChange('percentual')}
-                    >
-                      Percentual (%)
-                    </button>
-                    <button
-                      type="button"
-                      className={`toggle-option${multiUcRateioModo === 'manual' ? ' active' : ''}`}
-                      onClick={() => handleMultiUcRateioModoChange('manual')}
-                    >
-                      Manual (kWh)
-                    </button>
-                  </div>
-                </Field>
-              </div>
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Ano de vigência',
-                    'Ano-base do contrato utilizado para determinar o percentual de TUSD Fio B escalonado.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    min={2023}
-                    value={multiUcAnoVigencia}
-                    onChange={(event) => {
-                      const { value } = event.target
-                      if (value === '') {
-                        setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
-                        return
-                      }
-                      const parsed = Number(value)
-                      setMultiUcAnoVigencia(
-                        Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : INITIAL_VALUES.multiUcAnoVigencia,
-                      )
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Escalonamento aplicado
-                      <InfoTooltip text="Percentual do Fio B aplicado sobre a energia compensada, conforme Lei 14.300." />
-                    </>
-                  }
-                >
-                  <input readOnly value={escalonamentoAplicadoTexto} />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Personalizar escalonamento',
-                    'Habilite para informar manualmente o percentual de TUSD Fio B aplicado no ano selecionado.',
-                  )}
-                >
-                  <div className="multi-uc-override-control">
-                    <label className="multi-uc-checkbox flex items-center gap-2">
-                      <CheckboxSmall
-                        checked={multiUcOverrideEscalonamento}
-                        onChange={(event) => setMultiUcOverrideEscalonamento(event.target.checked)}
-                      />
-                      <span>Habilitar edição manual</span>
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.1"
-                      placeholder={`${multiUcEscalonamentoPadrao[multiUcAnoVigencia] ?? 0}`}
-                      value={multiUcEscalonamentoCustomPercent ?? ''}
-                      onChange={(event) => {
-                        const next = event.target.value === '' ? null : Number(event.target.value)
-                        if (next === null) {
-                          setMultiUcEscalonamentoCustomPercent(null)
-                          return
-                        }
-                        if (Number.isFinite(next)) {
-                          setMultiUcEscalonamentoCustomPercent(Math.max(0, next))
-                          return
-                        }
-                        setMultiUcEscalonamentoCustomPercent(null)
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                      disabled={!multiUcOverrideEscalonamento}
-                    />
-                  </div>
-                </Field>
-              </div>
-              <div className="multi-uc-summary-grid">
-                {rateioPercentualResumoTexto ? (
-                  <div
-                    className={`multi-uc-summary-item${multiUcRateioModo === 'percentual' && !rateioPercentualValido ? ' multi-uc-summary-item--error' : ''}`}
-                  >
-                    <span>Soma do rateio (%)</span>
-                    <strong>{rateioPercentualResumoTexto}</strong>
-                  </div>
-                ) : null}
-                {rateioManualResumoTexto ? (
-                  <div
-                    className={`multi-uc-summary-item${multiUcRateioModo === 'manual' && !rateioManualValido ? ' multi-uc-summary-item--error' : ''}`}
-                  >
-                    <span>Rateio manual (kWh)</span>
-                    <strong>{rateioManualResumoTexto}</strong>
-                  </div>
-                ) : null}
-                {energiaGeradaTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Energia gerada</span>
-                    <strong>{energiaGeradaTexto}</strong>
-                  </div>
-                ) : null}
-                {energiaCompensadaTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Energia compensada</span>
-                    <strong>{energiaCompensadaTexto}</strong>
-                  </div>
-                ) : null}
-                {sobraCreditosTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Sobra de créditos</span>
-                    <strong>{sobraCreditosTexto}</strong>
-                  </div>
-                ) : null}
-                {totalTusdTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>TUSD mensal total</span>
-                    <strong>{totalTusdTexto}</strong>
-                  </div>
-                ) : null}
-                {totalTeTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>TE mensal total</span>
-                    <strong>{totalTeTexto}</strong>
-                  </div>
-                ) : null}
-                {totalContratoTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Total contrato</span>
-                    <strong>{totalContratoTexto}</strong>
-                  </div>
-                ) : null}
-              </div>
-              <div className="multi-uc-escalonamento">
-                <h4>Tabela de escalonamento Fio B (padrão)</h4>
-                <ul className="multi-uc-escalonamento-list">
-                  {multiUcEscalonamentoTabela.map((item) => (
-                    <li key={item.ano}>
-                      <span>{item.ano}</span>
-                      <span>{formatPercentBRWithDigits((item.valor ?? 0) / 100, 0)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {multiUcErrors.length > 0 || multiUcWarnings.length > 0 ? (
-                <div className="multi-uc-alerts">
-                  {multiUcErrors.map((mensagem, index) => (
-                    <div key={`multi-uc-error-${index}`} className="multi-uc-alert error" role="alert">
-                      <strong>Erro</strong>
-                      <span>{mensagem}</span>
-                    </div>
-                  ))}
-                  {multiUcWarnings.map((mensagem, index) => (
-                    <div key={`multi-uc-warning-${index}`} className="multi-uc-alert warning">
-                      <strong>Aviso</strong>
-                      <span>{mensagem}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="multi-uc-table-actions">
-                <div className="action-group">
-                  <button type="button" className="ghost with-icon" onClick={handleMultiUcAdicionar}>
-                    <span aria-hidden="true">＋</span>
-                    Adicionar UC
-                  </button>
-                  <button type="button" className="ghost with-icon" onClick={handleMultiUcRecarregarTarifas}>
-                    <span aria-hidden="true">↻</span>
-                    Reaplicar tarifas automáticas
-                  </button>
-                </div>
-                <span className="muted">
-                  Distribuidora de referência: {distribuidoraAneelEfetiva ?? ''}
-                </span>
-              </div>
-              <div className="table-wrapper multi-uc-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>UC</th>
-                      <th>Classe tarifária</th>
-                      <th>Consumo (kWh/mês)</th>
-                      <th>{rateioHeader}</th>
-                      <th>Créditos (kWh)</th>
-                      <th>kWh faturados</th>
-                      <th>kWh compensados</th>
-                      <th>TE (R$/kWh)</th>
-                      <th>TUSD total (R$/kWh)</th>
-                      <th>TUSD Fio B (R$/kWh)</th>
-                      <th>TUSD outros (R$/kWh)</th>
-                      <th>TUSD mensal (R$)</th>
-                      <th>TE mensal (R$)</th>
-                      <th>Total mensal (R$)</th>
-                      <th>Observações</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {multiUcRows.map((row, index) => {
-                      const calculado = multiUcResultadoPorId.get(row.id)
-                      const rateioManualKWh = row.manualRateioKWh ?? 0
-                      const creditosDistribuidos = calculado?.creditosKWh ??
-                        (multiUcRateioModo === 'percentual'
-                          ? multiUcEnergiaGeradaKWh * (Math.max(0, row.rateioPercentual) / 100)
-                          : Math.max(0, rateioManualKWh))
-                      const consumoNormalizado = Math.max(0, row.consumoKWh)
-                      const kWhCompensados = calculado?.kWhCompensados ?? Math.min(consumoNormalizado, creditosDistribuidos)
-                      const kWhFaturados = calculado?.kWhFaturados ?? Math.max(consumoNormalizado - creditosDistribuidos, 0)
-                      const tusdOutros = calculado?.tusdOutros ?? Math.max(0, row.tusdTotal - row.tusdFioB)
-                      const escalonamentoBase = multiUcResultado?.escalonamentoPercentual ?? multiUcEscalonamentoPercentual
-                      const tusdNaoCompensavel = calculado?.tusdNaoCompensavel ??
-                        kWhCompensados * row.tusdFioB * escalonamentoBase
-                      const tusdNaoCompensada = calculado?.tusdNaoCompensada ?? kWhFaturados * row.tusdTotal
-                      const tusdMensal = calculado?.tusdMensal ?? tusdNaoCompensavel + tusdNaoCompensada
-                      const teMensal = calculado?.teMensal ?? kWhFaturados * row.te
-                      const totalMensal = calculado?.totalMensal ?? tusdMensal + teMensal
-                      const creditosDistribuidosTexto = formatKwhWithUnit(creditosDistribuidos)
-                      const kWhFaturadosTexto = formatKwhWithUnit(kWhFaturados)
-                      const kWhCompensadosTexto = formatKwhWithUnit(kWhCompensados)
-
-                      return (
-                        <tr key={row.id}>
-                          <td>
-                            <div className="multi-uc-id">
-                              <strong>{row.id}</strong>
-                              <span className="muted">UC {index + 1}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <select
-                              value={row.classe}
-                              onChange={(event) =>
-                                handleMultiUcClasseChange(row.id, event.target.value as MultiUcClasse)
-                              }
-                            >
-                              {MULTI_UC_CLASSES.map((classe) => (
-                                <option key={classe} value={classe}>
-                                  {MULTI_UC_CLASS_LABELS[classe]}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.consumoKWh}
-                              onChange={(event) =>
-                                handleMultiUcConsumoChange(row.id, Number(event.target.value) || 0)
-                              }
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            {multiUcRateioModo === 'percentual' ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step="0.01"
-                                value={row.rateioPercentual}
-                                onChange={(event) =>
-                                  handleMultiUcRateioPercentualChange(row.id, Number(event.target.value) || 0)
-                                }
-                                onFocus={selectNumberInputOnFocus}
-                              />
-                            ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={row.manualRateioKWh ?? 0}
-                                onChange={(event) =>
-                                  handleMultiUcManualRateioChange(row.id, Number(event.target.value) || 0)
-                                }
-                                onFocus={selectNumberInputOnFocus}
-                              />
-                            )}
-                          </td>
-                          <td>{creditosDistribuidosTexto}</td>
-                          <td>{kWhFaturadosTexto}</td>
-                          <td>{kWhCompensadosTexto}</td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.te}
-                              onChange={(event) => handleMultiUcTeChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.tusdTotal}
-                              onChange={(event) => handleMultiUcTusdTotalChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.tusdFioB}
-                              onChange={(event) => handleMultiUcTusdFioBChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>{tarifaCurrency(tusdOutros)}</td>
-                          <td>{currency(tusdMensal)}</td>
-                          <td>{currency(teMensal)}</td>
-                          <td>{currency(totalMensal)}</td>
-                          <td>
-                            <input
-                              type="text"
-                              value={row.observacoes}
-                              onChange={(event) => handleMultiUcObservacoesChange(row.id, event.target.value)}
-                              placeholder="Anotações"
-                            />
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="multi-uc-remove"
-                              onClick={() => handleMultiUcRemover(row.id)}
-                              disabled={multiUcRows.length <= 1}
-                            >
-                              Remover
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <p className="multi-uc-disabled-hint">
-              Ative o modo multi-UC para cadastrar unidades consumidoras adicionais, tarifários por classe e aplicar
-              o escalonamento da TUSD não compensável.
-            </p>
-          )}
-        </div>
-        ) : null}
-      </section>
-    )
-  }
-
   const handleTipoInstalacaoChange = (value: TipoInstalacao) => {
     setTipoInstalacaoDirty(true)
     setTipoInstalacao(value)
@@ -23289,7 +22670,97 @@ export default function App() {
                     />
               {activeTab === 'leasing' ? (
                 <>
-                  {renderParametrosPrincipaisSection()}
+                  <ParametrosPrincipaisSection
+                    kcKwhMes={kcKwhMes}
+                    tipoRedeLabel={tipoRedeLabel}
+                    vendaForm={vendaForm}
+                    tarifaCheiaField={tarifaCheiaField}
+                    taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                    taxaMinima={taxaMinima}
+                    encargosFixosExtras={encargosFixosExtras}
+                    baseIrradiacao={baseIrradiacao}
+                    shouldHideSimpleViewItems={shouldHideSimpleViewItems}
+                    tusdPercent={tusdPercent}
+                    tusdTipoCliente={tusdTipoCliente}
+                    tusdSubtipo={tusdSubtipo}
+                    tusdSimultaneidade={tusdSimultaneidade}
+                    tusdTarifaRkwh={tusdTarifaRkwh}
+                    tusdAnoReferencia={tusdAnoReferencia}
+                    tusdOpcoesExpandidas={tusdOpcoesExpandidas}
+                    segmentoCliente={segmentoCliente}
+                    tipoEdificacaoOutro={tipoEdificacaoOutro}
+                    tusdOptionsTitleId={tusdOptionsTitleId}
+                    tusdOptionsToggleId={tusdOptionsToggleId}
+                    tusdOptionsContentId={tusdOptionsContentId}
+                    multiUcAtivo={multiUcAtivo}
+                    multiUcRateioModo={multiUcRateioModo}
+                    multiUcEnergiaGeradaKWh={multiUcEnergiaGeradaKWh}
+                    multiUcEnergiaGeradaTouched={multiUcEnergiaGeradaTouched}
+                    multiUcAnoVigencia={multiUcAnoVigencia}
+                    multiUcOverrideEscalonamento={multiUcOverrideEscalonamento}
+                    multiUcEscalonamentoCustomPercent={multiUcEscalonamentoCustomPercent}
+                    multiUcEscalonamentoPadrao={multiUcEscalonamentoPadrao}
+                    multiUcEscalonamentoPercentual={multiUcEscalonamentoPercentual}
+                    multiUcEscalonamentoTabela={multiUcEscalonamentoTabela}
+                    multiUcRows={multiUcRows}
+                    multiUcResultado={multiUcResultado}
+                    multiUcResultadoPorId={multiUcResultadoPorId}
+                    multiUcRateioPercentualTotal={multiUcRateioPercentualTotal}
+                    multiUcRateioManualTotal={multiUcRateioManualTotal}
+                    multiUcErrors={multiUcErrors}
+                    multiUcWarnings={multiUcWarnings}
+                    distribuidoraAneelEfetiva={distribuidoraAneelEfetiva}
+                    initialMultiUcAnoVigencia={INITIAL_VALUES.multiUcAnoVigencia}
+                    onSetKcKwhMes={setKcKwhMes}
+                    onApplyVendaUpdates={applyVendaUpdates}
+                    onNormalizeTaxaMinimaInputValue={normalizeTaxaMinimaInputValue}
+                    onSetEncargosFixosExtras={setEncargosFixosExtras}
+                    onTusdPercentChange={(normalized) => {
+                      setTusdPercent(normalized)
+                      applyVendaUpdates({ tusd_percentual: normalized })
+                      resetRetorno()
+                    }}
+                    onTusdTipoClienteChange={handleTusdTipoClienteChange}
+                    onTusdSubtipoChange={(value) => {
+                      setTusdSubtipo(value)
+                      applyVendaUpdates({ tusd_subtipo: value || undefined })
+                      resetRetorno()
+                    }}
+                    onTusdSimultaneidadeChange={(value) => {
+                      setTusdSimultaneidadeFromSource(value, 'manual')
+                      resetRetorno()
+                    }}
+                    onTusdTarifaRkwhChange={(value) => {
+                      setTusdTarifaRkwh(value)
+                      applyVendaUpdates({ tusd_tarifa_r_kwh: value ?? undefined })
+                      resetRetorno()
+                    }}
+                    onTusdAnoReferenciaChange={(value) => {
+                      setTusdAnoReferencia(value)
+                      applyVendaUpdates({ tusd_ano_referencia: value })
+                      resetRetorno()
+                    }}
+                    onTusdOpcoesExpandidasChange={setTusdOpcoesExpandidas}
+                    onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
+                    onHandleMultiUcToggle={handleMultiUcToggle}
+                    onHandleMultiUcQuantidadeChange={handleMultiUcQuantidadeChange}
+                    onSetMultiUcEnergiaGeradaKWh={setMultiUcEnergiaGeradaKWh}
+                    onHandleMultiUcRateioModoChange={handleMultiUcRateioModoChange}
+                    onSetMultiUcAnoVigencia={setMultiUcAnoVigencia}
+                    onSetMultiUcOverrideEscalonamento={setMultiUcOverrideEscalonamento}
+                    onSetMultiUcEscalonamentoCustomPercent={setMultiUcEscalonamentoCustomPercent}
+                    onHandleMultiUcClasseChange={handleMultiUcClasseChange}
+                    onHandleMultiUcConsumoChange={handleMultiUcConsumoChange}
+                    onHandleMultiUcRateioPercentualChange={handleMultiUcRateioPercentualChange}
+                    onHandleMultiUcManualRateioChange={handleMultiUcManualRateioChange}
+                    onHandleMultiUcTeChange={handleMultiUcTeChange}
+                    onHandleMultiUcTusdTotalChange={handleMultiUcTusdTotalChange}
+                    onHandleMultiUcTusdFioBChange={handleMultiUcTusdFioBChange}
+                    onHandleMultiUcObservacoesChange={handleMultiUcObservacoesChange}
+                    onHandleMultiUcAdicionar={handleMultiUcAdicionar}
+                    onHandleMultiUcRecarregarTarifas={handleMultiUcRecarregarTarifas}
+                    onHandleMultiUcRemover={handleMultiUcRemover}
+                  />
                   {renderConfiguracaoUsinaSection()}
                   {shouldHideSimpleViewItems ? null : (
                     <LeasingContratoSection
