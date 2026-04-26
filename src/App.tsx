@@ -4241,6 +4241,14 @@ export default function App() {
   const storeAfDeslocamentoErro = useAfDeslocamentoStore(selectAfDeslocamentoErro)
   const storeAfCidadeSuggestions = useAfDeslocamentoStore(selectAfCidadeSuggestions)
   const storeAfCidadeShowSuggestions = useAfDeslocamentoStore(selectAfCidadeShowSuggestions)
+  const setStoreAfCidadeDestino = useAfDeslocamentoStore((state) => state.setAfCidadeDestino)
+  const setStoreAfDeslocamentoKm = useAfDeslocamentoStore((state) => state.setAfDeslocamentoKm)
+  const setStoreAfDeslocamentoRs = useAfDeslocamentoStore((state) => state.setAfDeslocamentoRs)
+  const setStoreAfDeslocamentoStatus = useAfDeslocamentoStore((state) => state.setAfDeslocamentoStatus)
+  const setStoreAfDeslocamentoCidadeLabel = useAfDeslocamentoStore((state) => state.setAfDeslocamentoCidadeLabel)
+  const setStoreAfDeslocamentoErro = useAfDeslocamentoStore((state) => state.setAfDeslocamentoErro)
+  const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
+  const setStoreAfCidadeShowSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeShowSuggestions)
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
@@ -4355,6 +4363,34 @@ export default function App() {
   useEffect(() => {
     setAfTransporteCombustivel(afDeslocamentoRs)
   }, [afDeslocamentoRs])
+
+  useEffect(() => {
+    setStoreAfCidadeDestino(afCidadeDestino)
+    setStoreAfDeslocamentoKm(afDeslocamentoKm)
+    setStoreAfDeslocamentoRs(afDeslocamentoRs)
+    setStoreAfDeslocamentoStatus(afDeslocamentoStatus)
+    setStoreAfDeslocamentoCidadeLabel(afDeslocamentoCidadeLabel)
+    setStoreAfDeslocamentoErro(afDeslocamentoErro)
+    setStoreAfCidadeSuggestions(afCidadeSuggestions)
+    setStoreAfCidadeShowSuggestions(afCidadeShowSuggestions)
+  }, [
+    afCidadeDestino,
+    afDeslocamentoKm,
+    afDeslocamentoRs,
+    afDeslocamentoStatus,
+    afDeslocamentoCidadeLabel,
+    afDeslocamentoErro,
+    afCidadeSuggestions,
+    afCidadeShowSuggestions,
+    setStoreAfCidadeDestino,
+    setStoreAfDeslocamentoKm,
+    setStoreAfDeslocamentoRs,
+    setStoreAfDeslocamentoStatus,
+    setStoreAfDeslocamentoCidadeLabel,
+    setStoreAfDeslocamentoErro,
+    setStoreAfCidadeSuggestions,
+    setStoreAfCidadeShowSuggestions,
+  ])
 
   useEffect(() => {
     if (!import.meta.env.DEV) {
