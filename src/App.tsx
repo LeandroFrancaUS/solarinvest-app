@@ -188,9 +188,9 @@ import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
-import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
+import { useShellLayout } from './hooks/useShellLayout'
 import { useTheme } from './hooks/useTheme'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
@@ -19729,71 +19729,9 @@ export default function App() {
     </React.Suspense>
   ) : null
 
-  const handleSidebarMenuToggle = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen((previous) => {
-        const next = !previous
-        if (next) {
-          setIsSidebarCollapsed(false)
-        }
-        return next
-      })
-      return
-    }
-
-    setIsSidebarCollapsed((previous) => !previous)
-  }, [isMobileViewport])
-
-  const handleSidebarNavigate = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen(false)
-    }
-  }, [isMobileViewport])
-
-  const handleSidebarClose = useCallback(() => {
-    setIsSidebarMobileOpen(false)
-  }, [])
-
   const contentActions = activePage === 'crm'
     ? <CrmPageActions {...crmState} onVoltar={() => setActivePage('app')} />
     : null
-  const contentSubtitle =
-    activePage === 'dashboard'
-      ? undefined
-      : activePage === 'crm'
-        ? 'CRM Gestão de Relacionamento e Operações'
-        : activePage === 'consultar'
-          ? 'Consulta de orçamentos salvos'
-          : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
-            : activePage === 'simulacoes'
-              ? 'Simulações financeiras, risco e aprovação interna'
-              : activePage === 'settings'
-                ? 'Preferências e integrações da proposta'
-                : undefined
-  const currentPageIndicator =
-    activePage === 'dashboard'
-      ? 'Dashboard'
-      : activePage === 'crm'
-        ? 'Central CRM'
-        : activePage === 'consultar'
-          ? 'Consultar'
-          : activePage === 'clientes'
-            ? 'Clientes'
-            : activePage === 'simulacoes'
-              ? 'Simulações'
-              : activePage === 'settings'
-                ? 'Configurações'
-                : activeTab === 'vendas'
-                  ? 'Vendas'
-                  : 'Leasing'
-  const topbarSubtitle = contentSubtitle
-  const isSimulacoesMobile = isMobileViewport && activePage === 'simulacoes'
-  const mobileTopbarSubtitle = isSimulacoesMobile ? undefined : currentPageIndicator
-  const shellTopbarSubtitle = isSimulacoesMobile ? undefined : topbarSubtitle
-  const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
-  const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
-
   const crmItems = [
     ...(canSeeProposalsEffective
       ? [
@@ -19868,35 +19806,37 @@ export default function App() {
     contatosEnvio,
   })
 
-  const mobileAllowedIds = [
-    ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
-    ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
-    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
-    ...(canSeeClientsEffective ? ['crm-clientes'] : []),
-    ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
-    ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
-    ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-  ]
-  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  const {
+    shellTopbarSubtitle,
+    mobileTopbarSubtitle,
+    shellContentSubtitle,
+    shellPageIndicator,
+    mobileSidebarGroups,
+    activeSidebarItem,
+    menuButtonLabel,
+    menuButtonExpanded,
+    handleSidebarMenuToggle,
+    handleSidebarNavigate,
+    handleSidebarClose,
+  } = useShellLayout({
+    activePage,
+    activeTab,
+    simulacoesSection,
+    isMobileViewport,
+    isSidebarCollapsed,
+    isSidebarMobileOpen,
+    isDesktopSimpleEnabled,
+    setIsSidebarCollapsed,
+    setIsSidebarMobileOpen,
+    sidebarGroups,
+    canSeeProposalsEffective,
+    canSeeContractsEffective,
+    canSeeClientsEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialAnalysisEffective,
+    canSeeFinancialManagementEffective,
+  })
 
-  const desktopSimpleSidebarGroups: SidebarGroup[] = sidebarGroups.filter(
-    (group) => group.id !== 'simulacoes' && group.id !== 'crm',
-  )
-
-  const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
-    ? [
-        {
-          id: 'mobile',
-          label: '',
-          items: mobileAllowedIds.flatMap((id) => {
-            const item = allSidebarItems.get(id)
-            return item ? [item] : []
-          }),
-        },
-      ]
-    : isDesktopSimpleEnabled
-    ? desktopSimpleSidebarGroups
-    : sidebarGroups
   const renderSimulacoesPage = () => {
     const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
     const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
@@ -20076,28 +20016,6 @@ export default function App() {
     )
   }
 
-  const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'carteira'
-            ? 'carteira-clientes'
-            : activePage === 'consultar'
-              ? 'orcamentos-importar'
-          : activePage === 'settings' || activePage === 'admin-users'
-                ? 'gestao-financeira-home'
-                : activePage === 'financial-management'
-                  ? 'gestao-financeira-home'
-                  : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                    : activeTab === 'vendas'
-                      ? 'propostas-vendas'
-                      : 'propostas-leasing'
-
-
   // If in print mode, render the Bento Grid print page
   if (isPrintMode) {
     return (
@@ -20123,12 +20041,8 @@ export default function App() {
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
             onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
-            menuButtonLabel: isMobileViewport
-              ? isSidebarMobileOpen
-                ? 'Fechar menu Painel SolarInvest'
-                : 'Abrir menu Painel SolarInvest'
-              : 'Painel SolarInvest',
-            menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+            menuButtonLabel: menuButtonLabel,
+            menuButtonExpanded: menuButtonExpanded,
             menuButtonText: 'Painel SolarInvest',
             userInfo: user?.displayName
               ? { name: user.displayName, role: userRole }
