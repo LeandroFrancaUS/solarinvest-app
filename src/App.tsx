@@ -380,6 +380,7 @@ import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
 import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
+import { VendaParametrosSection } from './components/VendaParametrosSection'
 import type { ClienteMensagens } from './types/cliente'
 import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
 import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
@@ -19228,326 +19229,7 @@ export default function App() {
     </section>
   )
 
-  const renderVendaParametrosSection = () => (
-    <section className="card">
-      <h2>Parâmetros principais</h2>
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Consumo (kWh/mês)
-              <InfoTooltip text="Consumo médio mensal utilizado para projetar a geração e a economia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.consumo_kwh_mes) ? vendaForm.consumo_kwh_mes : ''
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
-                applyVendaUpdates({
-                  consumo_kwh_mes: undefined,
-                  geracao_estimada_kwh_mes: undefined,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                return
-              }
-
-              const parsed = Number(value)
-              const consumoDesejado = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              const modulosCalculados = calcularModulosPorGeracao(consumoDesejado)
-
-              let potenciaCalculada = 0
-              let geracaoCalculada = consumoDesejado
-
-              if (modulosCalculados != null) {
-                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
-                if (potenciaCalculada > 0) {
-                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                  if (estimada > 0) {
-                    geracaoCalculada = normalizarGeracaoMensal(estimada)
-                  }
-                }
-              }
-
-              if (geracaoCalculada <= 0 && consumoDesejado > 0) {
-                geracaoCalculada = consumoDesejado
-              }
-
-              const consumoFinal = consumoDesejado
-              setKcKwhMes(consumoFinal, 'user')
-
-              applyVendaUpdates({
-                consumo_kwh_mes: consumoFinal,
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? normalizarPotenciaKwp(potenciaCalculada)
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                quantidade_modulos: modulosCalculados ?? undefined,
-              })
-
-              if (modulosCalculados != null) {
-                setNumeroModulosManual('')
-              }
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.consumo_kwh_mes} />
-          <div className="mt-2 flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">
-              Taxa mínima ({tipoRedeLabel})
-            </label>
-            <Switch
-              checked={vendaForm.aplica_taxa_minima ?? true}
-              onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
-            />
-            <span className="text-xs text-gray-500">
-              {vendaForm.aplica_taxa_minima ?? true
-                ? 'Cliente paga taxa mínima (padrão)'
-                : 'Cliente isento de taxa mínima'}
-            </span>
-          </div>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tarifa cheia (R$/kWh)',
-            'Valor cobrado por kWh sem descontos contratuais; base para calcular a conta de energia projetada.',
-          )}
-        >
-          <input
-            type="text"
-            inputMode="decimal"
-            value={tarifaCheiaVendaField.value}
-            onChange={tarifaCheiaVendaField.onChange}
-            onFocus={tarifaCheiaVendaField.onFocus}
-            onBlur={tarifaCheiaVendaField.onBlur}
-            onKeyDown={tarifaCheiaVendaField.onKeyDown}
-          />
-          <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Custos Fixos da Conta de Energia (R$/MÊS)',
-            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              taxaMinimaInputEmpty
-                ? ''
-                : Number.isFinite(vendaForm.taxa_minima_mensal)
-                ? vendaForm.taxa_minima_mensal
-                : taxaMinima
-            }
-            onChange={(event) => {
-              const normalized = normalizeTaxaMinimaInputValue(event.target.value)
-              applyVendaUpdates({ taxa_minima_mensal: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.taxa_minima_mensal} />
-        </Field>
-      </div>
-      <TusdParametersSection
-        tusdPercent={tusdPercent}
-        tusdTipoCliente={tusdTipoCliente}
-        tusdSubtipo={tusdSubtipo}
-        tusdSimultaneidade={tusdSimultaneidade}
-        tusdTarifaRkwh={tusdTarifaRkwh}
-        tusdAnoReferencia={tusdAnoReferencia}
-        tusdOpcoesExpandidas={tusdOpcoesExpandidas}
-        segmentoCliente={segmentoCliente}
-        tipoEdificacaoOutro={tipoEdificacaoOutro}
-        tusdOptionsTitleId={tusdOptionsTitleId}
-        tusdOptionsToggleId={tusdOptionsToggleId}
-        tusdOptionsContentId={tusdOptionsContentId}
-        onTusdPercentChange={(normalized) => {
-          setTusdPercent(normalized)
-          applyVendaUpdates({ tusd_percentual: normalized })
-          resetRetorno()
-        }}
-        onTusdTipoClienteChange={handleTusdTipoClienteChange}
-        onTusdSubtipoChange={(value) => {
-          setTusdSubtipo(value)
-          applyVendaUpdates({ tusd_subtipo: value || undefined })
-          resetRetorno()
-        }}
-        onTusdSimultaneidadeChange={(value) => {
-          setTusdSimultaneidadeFromSource(value, 'manual')
-          resetRetorno()
-        }}
-        onTusdTarifaRkwhChange={(value) => {
-          setTusdTarifaRkwh(value)
-          applyVendaUpdates({ tusd_tarifa_r_kwh: value ?? undefined })
-          resetRetorno()
-        }}
-        onTusdAnoReferenciaChange={(value) => {
-          setTusdAnoReferencia(value)
-          applyVendaUpdates({ tusd_ano_referencia: value })
-          resetRetorno()
-        }}
-        onTusdOpcoesExpandidasChange={setTusdOpcoesExpandidas}
-        onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
-      />
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Inflação de energia (% a.a.)
-              <InfoTooltip text="Reajuste anual estimado para a tarifa de energia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            value={
-              Number.isFinite(vendaForm.inflacao_energia_aa_pct)
-                ? vendaForm.inflacao_energia_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setInflacaoAa(normalized)
-              applyVendaUpdates({ inflacao_energia_aa_pct: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Horizonte de análise (meses)',
-            'Quantidade de meses simulados para payback, ROI e fluxo de caixa projetado.',
-          )}
-        >
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={
-              Number.isFinite(vendaForm.horizonte_meses) ? vendaForm.horizonte_meses : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed)
-                ? Math.max(1, Math.round(parsed))
-                : 1
-              applyVendaUpdates({ horizonte_meses: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.horizonte_meses} />
-        </Field>
-        <Field
-          label={
-            <>
-              Taxa de desconto (% a.a.)
-              <InfoTooltip text="Opcional: utilizada para calcular o Valor Presente Líquido (VPL)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.taxa_desconto_aa_pct)
-                ? vendaForm.taxa_desconto_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              if (event.target.value === '') {
-                applyVendaUpdates({ taxa_desconto_aa_pct: undefined })
-                return
-              }
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              applyVendaUpdates({ taxa_desconto_aa_pct: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.taxa_desconto_aa_pct} />
-        </Field>
-      </div>
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'UF (ANEEL)',
-            'Estado utilizado para consultar automaticamente tarifas homologadas e irradiação base.',
-          )}
-        >
-          <select value={ufTarifa} onChange={(event) => handleParametrosUfChange(event.target.value)}>
-            <option value="">Selecione a UF</option>
-            {ufsDisponiveis.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf} — {UF_LABELS[uf] ?? uf}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Distribuidora (ANEEL)',
-            'Concessionária da UC; determina TE, TUSD e reajustes aplicados nas simulações.',
-          )}
-        >
-          <select
-            value={distribuidoraTarifa}
-            onChange={(event) => handleParametrosDistribuidoraChange(event.target.value)}
-            disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
-          >
-            <option value="">
-              {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
-            </option>
-            {distribuidorasDisponiveis.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Irradiação média (kWh/m²/dia)
-              <InfoTooltip text="Valor sugerido automaticamente conforme a UF ou distribuidora." />
-            </>
-          }
-          hint="Atualizado automaticamente conforme a região selecionada."
-        >
-          <input
-            readOnly
-            value={
-              baseIrradiacao > 0
-                ? formatNumberBRWithOptions(baseIrradiacao, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-    </section>
-  )
+  // renderVendaParametrosSection extracted to VendaParametrosSection component
 
 
   // renderVendaResumoPublicoSection extracted to VendaResumoPublicoSection component
@@ -20940,7 +20622,52 @@ export default function App() {
             ) : null}
             {modoOrcamento === 'manual' ? (
               <>
-                {renderVendaParametrosSection()}
+                <VendaParametrosSection
+                  vendaForm={vendaForm}
+                  vendaFormErrors={vendaFormErrors}
+                  taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                  taxaMinima={taxaMinima}
+                  tipoRedeLabel={tipoRedeLabel}
+                  tarifaCheiaVendaField={tarifaCheiaVendaField}
+                  baseIrradiacao={baseIrradiacao}
+                  tusdPercent={tusdPercent}
+                  tusdTipoCliente={tusdTipoCliente}
+                  tusdSubtipo={tusdSubtipo}
+                  tusdSimultaneidade={tusdSimultaneidade}
+                  tusdTarifaRkwh={tusdTarifaRkwh}
+                  tusdAnoReferencia={tusdAnoReferencia}
+                  tusdOpcoesExpandidas={tusdOpcoesExpandidas}
+                  segmentoCliente={segmentoCliente}
+                  tipoEdificacaoOutro={tipoEdificacaoOutro}
+                  tusdOptionsTitleId={tusdOptionsTitleId}
+                  tusdOptionsToggleId={tusdOptionsToggleId}
+                  tusdOptionsContentId={tusdOptionsContentId}
+                  ufTarifa={ufTarifa}
+                  ufsDisponiveis={ufsDisponiveis}
+                  distribuidoraTarifa={distribuidoraTarifa}
+                  distribuidorasDisponiveis={distribuidorasDisponiveis}
+                  calcularModulosPorGeracao={calcularModulosPorGeracao}
+                  calcularPotenciaSistemaKwp={calcularPotenciaSistemaKwp}
+                  estimarGeracaoPorPotencia={estimarGeracaoPorPotencia}
+                  normalizarGeracaoMensal={normalizarGeracaoMensal}
+                  normalizarPotenciaKwp={normalizarPotenciaKwp}
+                  normalizeTaxaMinimaInputValue={normalizeTaxaMinimaInputValue}
+                  onSetNumeroModulosManual={setNumeroModulosManual}
+                  onSetKcKwhMes={setKcKwhMes}
+                  onApplyVendaUpdates={applyVendaUpdates}
+                  onSetInflacaoAa={setInflacaoAa}
+                  onHandleParametrosUfChange={handleParametrosUfChange}
+                  onHandleParametrosDistribuidoraChange={handleParametrosDistribuidoraChange}
+                  onSetTusdPercent={setTusdPercent}
+                  onTusdTipoClienteChange={handleTusdTipoClienteChange}
+                  onSetTusdSubtipo={setTusdSubtipo}
+                  onTusdSimultaneidadeFromSource={setTusdSimultaneidadeFromSource}
+                  onSetTusdTarifaRkwh={setTusdTarifaRkwh}
+                  onSetTusdAnoReferencia={setTusdAnoReferencia}
+                  onSetTusdOpcoesExpandidas={setTusdOpcoesExpandidas}
+                  onSetTipoEdificacaoOutro={setTipoEdificacaoOutro}
+                  onResetRetorno={resetRetorno}
+                />
                 <VendaConfiguracaoSection
                   configuracaoUsinaObservacoesExpanded={configuracaoUsinaObservacoesExpanded}
                   configuracaoUsinaObservacoesVendaContainerId={configuracaoUsinaObservacoesVendaContainerId}
