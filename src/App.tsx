@@ -374,6 +374,7 @@ import { VendaConfiguracaoSection } from './components/VendaConfiguracaoSection'
 import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
 import { ClienteDadosSection } from './components/ClienteDadosSection'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
+import { VendaResumoPublicoSection } from './components/VendaResumoPublicoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
@@ -19549,28 +19550,6 @@ export default function App() {
   )
 
 
-  const renderVendaResumoPublicoSection = () => (
-    <section className="card">
-      <div className="card-header">
-        <h2>Resumo de valores (Página pública)</h2>
-      </div>
-      <div className="kpi-grid">
-        <div className="kpi kpi-highlight">
-          <span>Valor total da proposta</span>
-          <strong>{currency(valorTotalPropostaNormalizado)}</strong>
-        </div>
-        {economiaEstimativaValorCalculado != null ? (
-          <div className="kpi">
-            <span>{`Economia estimada (${ECONOMIA_ESTIMATIVA_PADRAO_ANOS} anos)`}</span>
-            <strong>{currency(economiaEstimativaValorCalculado)}</strong>
-          </div>
-        ) : null}
-      </div>
-      <p className="muted">
-        Preço final para aquisição da usina completa. Valores técnicos internos não são cobrados do cliente.
-      </p>
-    </section>
-  )
 
 
   const condicoesPagamentoSection = (
@@ -20994,7 +20973,10 @@ export default function App() {
                   inverterModelInputRef={inverterModelInputRef}
                   geracaoDiariaKwh={geracaoDiariaKwh}
                 />
-                {renderVendaResumoPublicoSection()}
+                <VendaResumoPublicoSection
+                  valorTotalPropostaNormalizado={valorTotalPropostaNormalizado}
+                  economiaEstimativaValorCalculado={economiaEstimativaValorCalculado}
+                />
                 <ComposicaoUfvSection
                   descontosMoneyField={descontosMoneyField}
                   capexBaseResumoField={capexBaseResumoField}
