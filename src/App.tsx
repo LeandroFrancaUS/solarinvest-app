@@ -360,6 +360,17 @@ import {
   type AprovacaoChecklistKey,
 } from './features/simulacoes/simulacoesConstants'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
+import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
+import {
+  selectAfCidadeDestino,
+  selectAfCidadeShowSuggestions,
+  selectAfCidadeSuggestions,
+  selectAfDeslocamentoCidadeLabel,
+  selectAfDeslocamentoErro,
+  selectAfDeslocamentoKm,
+  selectAfDeslocamentoRs,
+  selectAfDeslocamentoStatus,
+} from './features/simulacoes/afDeslocamentoSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -4222,6 +4233,14 @@ export default function App() {
   const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
   const [afCidadeSuggestions, setAfCidadeSuggestions] = useState<CidadeDB[]>([])
   const [afCidadeShowSuggestions, setAfCidadeShowSuggestions] = useState(false)
+  const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
+  const storeAfDeslocamentoKm = useAfDeslocamentoStore(selectAfDeslocamentoKm)
+  const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
+  const storeAfDeslocamentoStatus = useAfDeslocamentoStore(selectAfDeslocamentoStatus)
+  const storeAfDeslocamentoCidadeLabel = useAfDeslocamentoStore(selectAfDeslocamentoCidadeLabel)
+  const storeAfDeslocamentoErro = useAfDeslocamentoStore(selectAfDeslocamentoErro)
+  const storeAfCidadeSuggestions = useAfDeslocamentoStore(selectAfCidadeSuggestions)
+  const storeAfCidadeShowSuggestions = useAfDeslocamentoStore(selectAfCidadeShowSuggestions)
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
@@ -4336,6 +4355,48 @@ export default function App() {
   useEffect(() => {
     setAfTransporteCombustivel(afDeslocamentoRs)
   }, [afDeslocamentoRs])
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return
+    }
+    console.debug('[AF DEBUG]', {
+      afCidadeDestino: { state: afCidadeDestino, store: storeAfCidadeDestino },
+      afDeslocamentoKm: { state: afDeslocamentoKm, store: storeAfDeslocamentoKm },
+      afDeslocamentoRs: { state: afDeslocamentoRs, store: storeAfDeslocamentoRs },
+      afDeslocamentoStatus: { state: afDeslocamentoStatus, store: storeAfDeslocamentoStatus },
+      afDeslocamentoCidadeLabel: {
+        state: afDeslocamentoCidadeLabel,
+        store: storeAfDeslocamentoCidadeLabel,
+      },
+      afDeslocamentoErro: { state: afDeslocamentoErro, store: storeAfDeslocamentoErro },
+      afCidadeSuggestions: {
+        stateCount: afCidadeSuggestions.length,
+        storeCount: storeAfCidadeSuggestions.length,
+      },
+      afCidadeShowSuggestions: {
+        state: afCidadeShowSuggestions,
+        store: storeAfCidadeShowSuggestions,
+      },
+    })
+  }, [
+    afCidadeDestino,
+    afDeslocamentoKm,
+    afDeslocamentoRs,
+    afDeslocamentoStatus,
+    afDeslocamentoCidadeLabel,
+    afDeslocamentoErro,
+    afCidadeSuggestions,
+    afCidadeShowSuggestions,
+    storeAfCidadeDestino,
+    storeAfDeslocamentoKm,
+    storeAfDeslocamentoRs,
+    storeAfDeslocamentoStatus,
+    storeAfDeslocamentoCidadeLabel,
+    storeAfDeslocamentoErro,
+    storeAfCidadeSuggestions,
+    storeAfCidadeShowSuggestions,
+  ])
 
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
