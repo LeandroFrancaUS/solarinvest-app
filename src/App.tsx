@@ -188,9 +188,9 @@ import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
-import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
+import { useShellLayout } from './hooks/useShellLayout'
 import { useTheme } from './hooks/useTheme'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
@@ -264,7 +264,6 @@ import {
   TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
-import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
   currency,
   formatAxis,
@@ -381,6 +380,10 @@ import type { ClienteMensagens } from './types/cliente'
 import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
 import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
 import { isSegmentoCondominio } from './utils/segmento'
+import {
+  renderPrintableProposalToHtml,
+  renderPrintableBuyoutTableToHtml,
+} from './utils/renderPdf'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
@@ -420,7 +423,6 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
-const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
 const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
@@ -3838,122 +3840,6 @@ type BudgetPreviewOptions = {
   preOpenedWindow?: Window | null | undefined
 }
 
-function renderPrintableProposalToHtml(
-  dados: PrintableProposalProps,
-  userBentoPreference?: boolean
-): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  // Use Bento Grid for leasing proposals when user preference is enabled
-  if (shouldUseBentoGrid(dados, userBentoPreference)) {
-    return renderBentoLeasingToHtml(dados)
-  }
-
-  // Legacy rendering for other proposal types
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-
-    const cleanup = (root: ReturnType<typeof createRoot> | null) => {
-      if (root) {
-        root.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-      const localRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 8
-
-        const chartIsReady = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-          const chartWrapper = containerEl.querySelector('.recharts-wrapper')
-          if (!chartWrapper) {
-            return true
-          }
-          const chartSvg = chartWrapper.querySelector('svg')
-          if (!chartSvg) {
-            return false
-          }
-          return chartSvg.childNodes.length > 0
-        }
-
-        const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
-          if (resolved) {
-            return
-          }
-
-          const containerEl = wrapperRef.current
-
-          if (containerEl && chartIsReady(containerEl)) {
-            resolved = true
-            resolve(containerEl.outerHTML)
-            cleanup(root)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            resolved = true
-            resolve(containerEl ? containerEl.outerHTML : null)
-            cleanup(root)
-            return
-          }
-
-          const timeoutId = window.setTimeout(() => attemptCapture(root), 160)
-          timeouts.push(timeoutId)
-        }
-
-        const triggerResize = () => {
-          window.dispatchEvent(new Event('resize'))
-        }
-
-        const resizeTimeout = window.setTimeout(triggerResize, 120)
-        timeouts.push(resizeTimeout)
-
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 220)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="standard">
-          <React.Suspense fallback={null}>
-            <PrintableProposal ref={localRef} {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    const rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
-}
-
 function sanitizePrintableHtml(html: string | null): string | null {
   if (typeof html !== 'string') {
     return html
@@ -3989,100 +3875,6 @@ const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, varia
     <div class="preview-container">${safeHtml}</div>
   </body>
 </html>`
-}
-
-function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-    let rootInstance: ReturnType<typeof createRoot> | null = null
-
-    const cleanup = () => {
-      if (rootInstance) {
-        rootInstance.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const finalize = (html: string | null) => {
-      if (resolved) {
-        return
-      }
-      resolved = true
-      resolve(html)
-      cleanup()
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 12
-
-        const hasBuyoutContent = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-
-          return Boolean(containerEl.querySelector('[data-print-section="buyout"] .print-page'))
-        }
-
-        const attemptCapture = () => {
-          const containerEl = wrapperRef.current
-          if (hasBuyoutContent(containerEl)) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          const timeoutId = window.setTimeout(attemptCapture, 120)
-          timeouts.push(timeoutId)
-        }
-
-        const initialTimeout = window.setTimeout(attemptCapture, 200)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
-          finalize(html)
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="buyout">
-          <React.Suspense fallback={null}>
-            <PrintableBuyoutTable {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
 }
 
 export default function App() {
@@ -19937,71 +19729,9 @@ export default function App() {
     </React.Suspense>
   ) : null
 
-  const handleSidebarMenuToggle = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen((previous) => {
-        const next = !previous
-        if (next) {
-          setIsSidebarCollapsed(false)
-        }
-        return next
-      })
-      return
-    }
-
-    setIsSidebarCollapsed((previous) => !previous)
-  }, [isMobileViewport])
-
-  const handleSidebarNavigate = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen(false)
-    }
-  }, [isMobileViewport])
-
-  const handleSidebarClose = useCallback(() => {
-    setIsSidebarMobileOpen(false)
-  }, [])
-
   const contentActions = activePage === 'crm'
     ? <CrmPageActions {...crmState} onVoltar={() => setActivePage('app')} />
     : null
-  const contentSubtitle =
-    activePage === 'dashboard'
-      ? undefined
-      : activePage === 'crm'
-        ? 'CRM Gestão de Relacionamento e Operações'
-        : activePage === 'consultar'
-          ? 'Consulta de orçamentos salvos'
-          : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
-            : activePage === 'simulacoes'
-              ? 'Simulações financeiras, risco e aprovação interna'
-              : activePage === 'settings'
-                ? 'Preferências e integrações da proposta'
-                : undefined
-  const currentPageIndicator =
-    activePage === 'dashboard'
-      ? 'Dashboard'
-      : activePage === 'crm'
-        ? 'Central CRM'
-        : activePage === 'consultar'
-          ? 'Consultar'
-          : activePage === 'clientes'
-            ? 'Clientes'
-            : activePage === 'simulacoes'
-              ? 'Simulações'
-              : activePage === 'settings'
-                ? 'Configurações'
-                : activeTab === 'vendas'
-                  ? 'Vendas'
-                  : 'Leasing'
-  const topbarSubtitle = contentSubtitle
-  const isSimulacoesMobile = isMobileViewport && activePage === 'simulacoes'
-  const mobileTopbarSubtitle = isSimulacoesMobile ? undefined : currentPageIndicator
-  const shellTopbarSubtitle = isSimulacoesMobile ? undefined : topbarSubtitle
-  const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
-  const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
-
   const crmItems = [
     ...(canSeeProposalsEffective
       ? [
@@ -20076,35 +19806,37 @@ export default function App() {
     contatosEnvio,
   })
 
-  const mobileAllowedIds = [
-    ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
-    ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
-    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
-    ...(canSeeClientsEffective ? ['crm-clientes'] : []),
-    ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
-    ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
-    ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-  ]
-  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  const {
+    shellTopbarSubtitle,
+    mobileTopbarSubtitle,
+    shellContentSubtitle,
+    shellPageIndicator,
+    mobileSidebarGroups,
+    activeSidebarItem,
+    menuButtonLabel,
+    menuButtonExpanded,
+    handleSidebarMenuToggle,
+    handleSidebarNavigate,
+    handleSidebarClose,
+  } = useShellLayout({
+    activePage,
+    activeTab,
+    simulacoesSection,
+    isMobileViewport,
+    isSidebarCollapsed,
+    isSidebarMobileOpen,
+    isDesktopSimpleEnabled,
+    setIsSidebarCollapsed,
+    setIsSidebarMobileOpen,
+    sidebarGroups,
+    canSeeProposalsEffective,
+    canSeeContractsEffective,
+    canSeeClientsEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialAnalysisEffective,
+    canSeeFinancialManagementEffective,
+  })
 
-  const desktopSimpleSidebarGroups: SidebarGroup[] = sidebarGroups.filter(
-    (group) => group.id !== 'simulacoes' && group.id !== 'crm',
-  )
-
-  const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
-    ? [
-        {
-          id: 'mobile',
-          label: '',
-          items: mobileAllowedIds.flatMap((id) => {
-            const item = allSidebarItems.get(id)
-            return item ? [item] : []
-          }),
-        },
-      ]
-    : isDesktopSimpleEnabled
-    ? desktopSimpleSidebarGroups
-    : sidebarGroups
   const renderSimulacoesPage = () => {
     const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
     const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
@@ -20284,28 +20016,6 @@ export default function App() {
     )
   }
 
-  const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'carteira'
-            ? 'carteira-clientes'
-            : activePage === 'consultar'
-              ? 'orcamentos-importar'
-          : activePage === 'settings' || activePage === 'admin-users'
-                ? 'gestao-financeira-home'
-                : activePage === 'financial-management'
-                  ? 'gestao-financeira-home'
-                  : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                    : activeTab === 'vendas'
-                      ? 'propostas-vendas'
-                      : 'propostas-leasing'
-
-
   // If in print mode, render the Bento Grid print page
   if (isPrintMode) {
     return (
@@ -20331,12 +20041,8 @@ export default function App() {
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
             onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
-            menuButtonLabel: isMobileViewport
-              ? isSidebarMobileOpen
-                ? 'Fechar menu Painel SolarInvest'
-                : 'Abrir menu Painel SolarInvest'
-              : 'Painel SolarInvest',
-            menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+            menuButtonLabel: menuButtonLabel,
+            menuButtonExpanded: menuButtonExpanded,
             menuButtonText: 'Painel SolarInvest',
             userInfo: user?.displayName
               ? { name: user.displayName, role: userRole }
