@@ -358,12 +358,8 @@ import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
   type AprovacaoStatus,
   type AprovacaoChecklistKey,
-  SIMULACOES_SECTION_COPY,
 } from './features/simulacoes/simulacoesConstants'
-import { SimulacoesHeroCard } from './features/simulacoes/SimulacoesHeroCard'
-import { SimulacoesNav } from './features/simulacoes/SimulacoesNav'
-import { SimulacoesStaticModuleCard } from './features/simulacoes/SimulacoesStaticModuleCard'
-import { AnaliseFinanceiraSection } from './features/simulacoes/AnaliseFinanceiraSection'
+import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -378,6 +374,7 @@ import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
 import { ClienteDadosSection } from './components/ClienteDadosSection'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
+import { LeasingConfiguracaoUsinaSection } from './components/LeasingConfiguracaoUsinaSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
@@ -413,7 +410,6 @@ const PrintableProposal = React.lazy(() => import('./components/print/PrintableP
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
-const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
 
@@ -18771,257 +18767,7 @@ export default function App() {
     }
   }
 
-  const renderConfiguracaoUsinaSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da UF</h2>
-        <button
-          type="button"
-          className="configuracao-usina-card__toggle"
-          aria-expanded={configuracaoUsinaObservacoesExpanded}
-          aria-controls={configuracaoUsinaObservacoesLeasingContainerId}
-          onClick={() =>
-            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
-        >
-          {configuracaoUsinaObservacoesExpanded
-            ? 'Ocultar observações'
-            : configuracaoUsinaObservacoes.trim()
-            ? 'Editar observações'
-            : 'Adicionar observações'}
-        </button>
-      </div>
-      <div className={`norm-precheck-banner norm-precheck-banner--${normComplianceBanner.tone}`}>
-        <div className="norm-precheck-banner__header">
-          <strong>{normComplianceBanner.title}</strong>
-          <span className="norm-precheck-banner__status">{normComplianceBanner.statusLabel}</span>
-        </div>
-        <p>{normComplianceBanner.message}</p>
-        {normComplianceBanner.details.length > 0 ? (
-          <ul>
-            {normComplianceBanner.details.map((detail) => (
-              <li key={detail}>{detail}</li>
-            ))}
-          </ul>
-        ) : null}
-        {normCompliance?.status === 'FORA_DA_NORMA' ? (
-          <label className="norm-precheck-banner__ack flex items-center gap-3">
-            <CheckboxSmall
-              checked={precheckClienteCiente}
-              onChange={(event) => setPrecheckClienteCiente(event.target.checked)}
-            />
-            <span>Cliente ciente e fará adequação do padrão.</span>
-          </label>
-        ) : null}
-      </div>
-      <div
-        id={configuracaoUsinaObservacoesLeasingContainerId}
-        className="configuracao-usina-card__observacoes"
-        hidden={!configuracaoUsinaObservacoesExpanded}
-      >
-        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesLeasingId}>
-          Observações
-        </label>
-        <textarea
-          id={configuracaoUsinaObservacoesLeasingId}
-          value={configuracaoUsinaObservacoes}
-          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
-          placeholder="Inclua observações relevantes sobre a configuração da usina"
-          rows={3}
-        />
-      </div>
-      <div className="grid g4">
-        <Field
-          label={labelWithTooltip(
-            'Potência do módulo (Wp)',
-            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
-          )}
-        >
-          <select
-            value={potenciaModulo}
-            onChange={(event) => {
-              setPotenciaModuloDirty(true)
-              const parsed = Number(event.target.value)
-              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setPotenciaModulo(potenciaSelecionada)
-            }}
-          >
-            {PAINEL_OPCOES.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Nº de módulos (estimado)',
-            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            step={1}
-            ref={moduleQuantityInputRef}
-            value={
-              numeroModulosManual === ''
-                ? numeroModulosEstimado > 0
-                  ? numeroModulosEstimado
-                  : 0
-                : numeroModulosManual
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                return
-              }
-              const parsed = Number(value)
-              if (!Number.isFinite(parsed) || parsed <= 0) {
-                setNumeroModulosManual('')
-                return
-              }
-              const inteiro = Math.max(1, Math.round(parsed))
-              setNumeroModulosManual(inteiro)
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de rede',
-            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-          )}
-        >
-          <select
-            data-field="cliente-tipoRede"
-            value={tipoRede}
-            onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
-          >
-            {TIPOS_REDE.map((rede) => (
-              <option key={rede.value} value={rede.value}>
-                {rede.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Potência do sistema (kWp)
-              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={
-              potenciaFonteManual
-                ? vendaForm.potencia_instalada_kwp ?? ''
-                : potenciaInstaladaKwp || ''
-            }
-            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={
-            <>
-              Geração estimada (kWh/mês)
-              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
-            </>
-          }
-        >
-          <input
-            readOnly
-            value={formatNumberBRWithOptions(geracaoMensalKwh, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Área utilizada (m²)',
-            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
-          )}
-        >
-          <input
-            readOnly
-            value={
-              areaInstalacao > 0
-                ? formatNumberBRWithOptions(areaInstalacao, {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-      {tipoRedeCompatMessage ? (
-        <div className="warning rede-compat-warning" role="alert">
-          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
-        </div>
-      ) : null}
-      {estruturaTipoWarning ? (
-        <div className="estrutura-warning-alert" role="alert">
-          <div>
-            <h3>Estrutura utilizada não identificada</h3>
-            <p>
-              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
-            </p>
-          </div>
-          <div className="estrutura-warning-alert-actions">
-            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro arquivo
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'Modelo do módulo',
-            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
-          )}
-        >
-          <input
-            type="text"
-            value={vendaForm.modelo_modulo ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Modelo do inversor',
-            'Modelo comercial do inversor responsável pela conversão CC/CA.',
-          )}
-        >
-          <input
-            type="text"
-            ref={inverterModelInputRef}
-            value={vendaForm.modelo_inversor ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-      </div>
-      <div className="info-inline">
-        <span className="pill">
-          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
-          Consumo diário
-          <strong>
-            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })} kWh`}
-          </strong>
-        </span>
-      </div>
-    </section>
-  )
+  // renderConfiguracaoUsinaSection extracted to LeasingConfiguracaoUsinaSection component
 
   // renderVendaParametrosSection extracted to VendaParametrosSection component
 
@@ -19258,185 +19004,8 @@ export default function App() {
     setIsSidebarMobileOpen,
   })
 
-  const renderSimulacoesPage = () => {
-    const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
-    const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
-    const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
-      'nova',
-      'salvas',
-      'ia',
-      'risco',
-      'packs',
-      'packs-inteligentes',
-    ])
 
-    return (
-      <div
-        className={`simulacoes-page${
-          isMobileViewport && simulacoesSection === 'analise'
-            ? ' simulacoes-page--analise-mobile'
-            : ''
-        }`}
-      >
-        <SimulacoesHeroCard
-          aprovacaoStatus={aprovacaoStatus}
-          ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-          onRegistrarDecisao={registrarDecisaoInterna}
-          isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-          sectionCopy={sectionCopy}
-        />
-
-        <SimulacoesNav
-          simulacoesSection={simulacoesSection}
-          hiddenAnaliseMobileMenuIds={isAnaliseMobileSimpleView ? hiddenAnaliseMobileMenuIds : new Set<SimulacoesSection>()}
-          onAbrirSimulacoes={abrirSimulacoes}
-        />
-
-        <div className="simulacoes-panels">
-          <section
-            className="simulacoes-main-card"
-            hidden={!isSimulacoesWorkspaceActive}
-            aria-hidden={!isSimulacoesWorkspaceActive}
-            style={{ display: isSimulacoesWorkspaceActive ? 'flex' : 'none' }}
-          >
-            <header>
-              <div>
-                <p className="simulacoes-tag ghost">Workspace</p>
-                <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
-                <p className="simulacoes-description">
-                  Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
-                  área.
-                </p>
-              </div>
-            </header>
-            <React.Suspense fallback={null}>
-              <SimulacoesTab
-                consumoKwhMes={kcKwhMes}
-                valorInvestimento={capexSolarInvest}
-                tipoSistema={tipoSistema}
-                prazoLeasingAnos={leasingPrazo}
-              />
-            </React.Suspense>
-          </section>
-
-          <SimulacoesStaticModuleCard section={simulacoesSection} />
-
-          {simulacoesSection === 'analise' ? (
-            <AnaliseFinanceiraSection
-              afModo={afModo}
-              setAfModo={setAfModo}
-              afConsumoOverride={afConsumoOverride}
-              setAfConsumoOverride={setAfConsumoOverride}
-              afNumModulosOverride={afNumModulosOverride}
-              setAfNumModulosOverride={setAfNumModulosOverride}
-              afModuloWpOverride={afModuloWpOverride}
-              setAfModuloWpOverride={setAfModuloWpOverride}
-              afIrradiacaoOverride={afIrradiacaoOverride}
-              setAfIrradiacaoOverride={setAfIrradiacaoOverride}
-              afPROverride={afPROverride}
-              setAfPROverride={setAfPROverride}
-              afDiasOverride={afDiasOverride}
-              setAfDiasOverride={setAfDiasOverride}
-              potenciaModulo={potenciaModulo}
-              baseIrradiacao={baseIrradiacao}
-              eficienciaNormalizada={eficienciaNormalizada}
-              diasMesNormalizado={diasMesNormalizado}
-              afCustoKitField={afCustoKitField}
-              afValorContratoField={afValorContratoField}
-              afFreteField={afFreteField}
-              afDescarregamentoField={afDescarregamentoField}
-              afMaterialCAField={afMaterialCAField}
-              afPlacaField={afPlacaField}
-              afProjetoField={afProjetoField}
-              afCreaField={afCreaField}
-              afHotelPousadaField={afHotelPousadaField}
-              afTransporteCombustivelField={afTransporteCombustivelField}
-              afOutrosField={afOutrosField}
-              afMensalidadeBaseField={afMensalidadeBaseField}
-              afAutoMaterialCA={afAutoMaterialCA}
-              setAfAutoMaterialCA={setAfAutoMaterialCA}
-              afMaterialCAOverride={afMaterialCAOverride}
-              setAfMaterialCAOverride={setAfMaterialCAOverride}
-              afProjetoOverride={afProjetoOverride}
-              setAfProjetoOverride={setAfProjetoOverride}
-              afCreaOverride={afCreaOverride}
-              setAfCreaOverride={setAfCreaOverride}
-              afCustoKit={afCustoKit}
-              setAfCustoKit={setAfCustoKit}
-              setAfCustoKitManual={setAfCustoKitManual}
-              afFrete={afFrete}
-              setAfFrete={setAfFrete}
-              setAfFreteManual={setAfFreteManual}
-              afDescarregamento={afDescarregamento}
-              setAfDescarregamento={setAfDescarregamento}
-              afHotelPousada={afHotelPousada}
-              setAfHotelPousada={setAfHotelPousada}
-              afTransporteCombustivel={afTransporteCombustivel}
-              setAfTransporteCombustivel={setAfTransporteCombustivel}
-              afOutros={afOutros}
-              setAfOutros={setAfOutros}
-              afValorContrato={afValorContrato}
-              setAfValorContrato={setAfValorContrato}
-              afPlaca={afPlaca}
-              setAfPlaca={setAfPlaca}
-              afMensalidadeBase={afMensalidadeBase}
-              setAfMensalidadeBase={setAfMensalidadeBase}
-              afMensalidadeBaseAuto={afMensalidadeBaseAuto}
-              afImpostosVenda={afImpostosVenda}
-              setAfImpostosVenda={setAfImpostosVenda}
-              afImpostosLeasing={afImpostosLeasing}
-              setAfImpostosLeasing={setAfImpostosLeasing}
-              afMargemLiquidaVenda={afMargemLiquidaVenda}
-              setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
-              afMargemLiquidaMinima={afMargemLiquidaMinima}
-              setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
-              afComissaoMinimaPercent={afComissaoMinimaPercent}
-              setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
-              afTaxaDesconto={afTaxaDesconto}
-              setAfTaxaDesconto={setAfTaxaDesconto}
-              afInadimplencia={afInadimplencia}
-              setAfInadimplencia={setAfInadimplencia}
-              afCustoOperacional={afCustoOperacional}
-              setAfCustoOperacional={setAfCustoOperacional}
-              afMesesProjecao={afMesesProjecao}
-              setAfMesesProjecao={setAfMesesProjecao}
-              afCidadeDestino={afCidadeDestino}
-              setAfCidadeDestino={setAfCidadeDestino}
-              afCidadeSuggestions={afCidadeSuggestions}
-              setAfCidadeSuggestions={setAfCidadeSuggestions}
-              afCidadeShowSuggestions={afCidadeShowSuggestions}
-              setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
-              afDeslocamentoStatus={afDeslocamentoStatus}
-              setAfDeslocamentoStatus={setAfDeslocamentoStatus}
-              afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
-              setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
-              afDeslocamentoKm={afDeslocamentoKm}
-              setAfDeslocamentoKm={setAfDeslocamentoKm}
-              afDeslocamentoRs={afDeslocamentoRs}
-              setAfDeslocamentoRs={setAfDeslocamentoRs}
-              afDeslocamentoErro={afDeslocamentoErro}
-              setAfDeslocamentoErro={setAfDeslocamentoErro}
-              afCidadeBlurTimerRef={afCidadeBlurTimerRef}
-              handleSelectCidade={handleSelectCidade}
-              analiseFinanceiraResult={analiseFinanceiraResult}
-              indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-              vendasConfig={vendasConfig}
-              aprovacaoChecklist={aprovacaoChecklist}
-              toggleAprovacaoChecklist={toggleAprovacaoChecklist}
-              aprovacaoStatus={aprovacaoStatus}
-              ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-              registrarDecisaoInterna={registrarDecisaoInterna}
-              afBaseInitializedRef={afBaseInitializedRef}
-              selectNumberInputOnFocus={selectNumberInputOnFocus}
-              kcKwhMes={kcKwhMes}
-              isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-            />
-          ) : null}
-        </div>
-      </div>
-    )
-  }
-
+  // renderSimulacoesPage extracted to SimulacoesPage component (Subfase 2B-final)
 
 
   // If in print mode, render the Bento Grid print page
@@ -19542,7 +19111,122 @@ export default function App() {
             formConsultores={formConsultores}
           />
         ) : activePage === 'simulacoes' ? (
-          renderSimulacoesPage()
+          <SimulacoesPage
+            simulacoesSection={simulacoesSection}
+            isMobileViewport={isMobileViewport}
+            isMobileSimpleEnabled={isMobileSimpleEnabled}
+            isSimulacoesWorkspaceActive={isSimulacoesWorkspaceActive}
+            onAbrirSimulacoes={abrirSimulacoes}
+            capexSolarInvest={capexSolarInvest}
+            tipoSistema={tipoSistema}
+            leasingPrazo={leasingPrazo}
+            aprovacaoStatus={aprovacaoStatus}
+            ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
+            registrarDecisaoInterna={registrarDecisaoInterna}
+            kcKwhMes={kcKwhMes}
+            afModo={afModo}
+            setAfModo={setAfModo}
+            afConsumoOverride={afConsumoOverride}
+            setAfConsumoOverride={setAfConsumoOverride}
+            afNumModulosOverride={afNumModulosOverride}
+            setAfNumModulosOverride={setAfNumModulosOverride}
+            afModuloWpOverride={afModuloWpOverride}
+            setAfModuloWpOverride={setAfModuloWpOverride}
+            afIrradiacaoOverride={afIrradiacaoOverride}
+            setAfIrradiacaoOverride={setAfIrradiacaoOverride}
+            afPROverride={afPROverride}
+            setAfPROverride={setAfPROverride}
+            afDiasOverride={afDiasOverride}
+            setAfDiasOverride={setAfDiasOverride}
+            potenciaModulo={potenciaModulo}
+            baseIrradiacao={baseIrradiacao}
+            eficienciaNormalizada={eficienciaNormalizada}
+            diasMesNormalizado={diasMesNormalizado}
+            afCustoKitField={afCustoKitField}
+            afValorContratoField={afValorContratoField}
+            afFreteField={afFreteField}
+            afDescarregamentoField={afDescarregamentoField}
+            afMaterialCAField={afMaterialCAField}
+            afPlacaField={afPlacaField}
+            afProjetoField={afProjetoField}
+            afCreaField={afCreaField}
+            afHotelPousadaField={afHotelPousadaField}
+            afTransporteCombustivelField={afTransporteCombustivelField}
+            afOutrosField={afOutrosField}
+            afMensalidadeBaseField={afMensalidadeBaseField}
+            afAutoMaterialCA={afAutoMaterialCA}
+            setAfAutoMaterialCA={setAfAutoMaterialCA}
+            afMaterialCAOverride={afMaterialCAOverride}
+            setAfMaterialCAOverride={setAfMaterialCAOverride}
+            afProjetoOverride={afProjetoOverride}
+            setAfProjetoOverride={setAfProjetoOverride}
+            afCreaOverride={afCreaOverride}
+            setAfCreaOverride={setAfCreaOverride}
+            afCustoKit={afCustoKit}
+            setAfCustoKit={setAfCustoKit}
+            setAfCustoKitManual={setAfCustoKitManual}
+            afFrete={afFrete}
+            setAfFrete={setAfFrete}
+            setAfFreteManual={setAfFreteManual}
+            afDescarregamento={afDescarregamento}
+            setAfDescarregamento={setAfDescarregamento}
+            afHotelPousada={afHotelPousada}
+            setAfHotelPousada={setAfHotelPousada}
+            afTransporteCombustivel={afTransporteCombustivel}
+            setAfTransporteCombustivel={setAfTransporteCombustivel}
+            afOutros={afOutros}
+            setAfOutros={setAfOutros}
+            afValorContrato={afValorContrato}
+            setAfValorContrato={setAfValorContrato}
+            afPlaca={afPlaca}
+            setAfPlaca={setAfPlaca}
+            afMensalidadeBase={afMensalidadeBase}
+            setAfMensalidadeBase={setAfMensalidadeBase}
+            afMensalidadeBaseAuto={afMensalidadeBaseAuto}
+            afImpostosVenda={afImpostosVenda}
+            setAfImpostosVenda={setAfImpostosVenda}
+            afImpostosLeasing={afImpostosLeasing}
+            setAfImpostosLeasing={setAfImpostosLeasing}
+            afMargemLiquidaVenda={afMargemLiquidaVenda}
+            setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
+            afMargemLiquidaMinima={afMargemLiquidaMinima}
+            setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
+            afComissaoMinimaPercent={afComissaoMinimaPercent}
+            setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
+            afTaxaDesconto={afTaxaDesconto}
+            setAfTaxaDesconto={setAfTaxaDesconto}
+            afInadimplencia={afInadimplencia}
+            setAfInadimplencia={setAfInadimplencia}
+            afCustoOperacional={afCustoOperacional}
+            setAfCustoOperacional={setAfCustoOperacional}
+            afMesesProjecao={afMesesProjecao}
+            setAfMesesProjecao={setAfMesesProjecao}
+            afCidadeDestino={afCidadeDestino}
+            setAfCidadeDestino={setAfCidadeDestino}
+            afCidadeSuggestions={afCidadeSuggestions}
+            setAfCidadeSuggestions={setAfCidadeSuggestions}
+            afCidadeShowSuggestions={afCidadeShowSuggestions}
+            setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
+            afDeslocamentoStatus={afDeslocamentoStatus}
+            setAfDeslocamentoStatus={setAfDeslocamentoStatus}
+            afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
+            setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
+            afDeslocamentoKm={afDeslocamentoKm}
+            setAfDeslocamentoKm={setAfDeslocamentoKm}
+            afDeslocamentoRs={afDeslocamentoRs}
+            setAfDeslocamentoRs={setAfDeslocamentoRs}
+            afDeslocamentoErro={afDeslocamentoErro}
+            setAfDeslocamentoErro={setAfDeslocamentoErro}
+            afCidadeBlurTimerRef={afCidadeBlurTimerRef}
+            handleSelectCidade={handleSelectCidade}
+            analiseFinanceiraResult={analiseFinanceiraResult}
+            indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+            vendasConfig={vendasConfig}
+            aprovacaoChecklist={aprovacaoChecklist}
+            toggleAprovacaoChecklist={toggleAprovacaoChecklist}
+            afBaseInitializedRef={afBaseInitializedRef}
+            selectNumberInputOnFocus={selectNumberInputOnFocus}
+          />
         ) : activePage === 'settings' ? (
           <SettingsPage
             settingsTab={settingsTab}
@@ -20041,7 +19725,39 @@ export default function App() {
                     onHandleMultiUcRecarregarTarifas={handleMultiUcRecarregarTarifas}
                     onHandleMultiUcRemover={handleMultiUcRemover}
                   />
-                  {renderConfiguracaoUsinaSection()}
+                  <LeasingConfiguracaoUsinaSection
+                    configuracaoUsinaObservacoesExpanded={configuracaoUsinaObservacoesExpanded}
+                    configuracaoUsinaObservacoesLeasingContainerId={configuracaoUsinaObservacoesLeasingContainerId}
+                    setConfiguracaoUsinaObservacoesExpanded={setConfiguracaoUsinaObservacoesExpanded}
+                    configuracaoUsinaObservacoes={configuracaoUsinaObservacoes}
+                    configuracaoUsinaObservacoesLeasingId={configuracaoUsinaObservacoesLeasingId}
+                    setConfiguracaoUsinaObservacoes={setConfiguracaoUsinaObservacoes}
+                    normComplianceBanner={normComplianceBanner}
+                    normComplianceStatus={normCompliance?.status}
+                    precheckClienteCiente={precheckClienteCiente}
+                    setPrecheckClienteCiente={setPrecheckClienteCiente}
+                    potenciaModulo={potenciaModulo}
+                    setPotenciaModuloDirty={setPotenciaModuloDirty}
+                    setPotenciaModulo={setPotenciaModulo}
+                    numeroModulosManual={numeroModulosManual}
+                    numeroModulosEstimado={numeroModulosEstimado}
+                    moduleQuantityInputRef={moduleQuantityInputRef}
+                    setNumeroModulosManual={setNumeroModulosManual}
+                    tipoRede={tipoRede}
+                    handleTipoRedeSelection={handleTipoRedeSelection}
+                    potenciaFonteManual={potenciaFonteManual}
+                    vendaForm={vendaForm}
+                    potenciaInstaladaKwp={potenciaInstaladaKwp}
+                    handlePotenciaInstaladaChange={handlePotenciaInstaladaChange}
+                    geracaoMensalKwh={geracaoMensalKwh}
+                    areaInstalacao={areaInstalacao}
+                    tipoRedeCompatMessage={tipoRedeCompatMessage}
+                    estruturaTipoWarning={estruturaTipoWarning}
+                    handleMissingInfoUploadClick={handleMissingInfoUploadClick}
+                    inverterModelInputRef={inverterModelInputRef}
+                    applyVendaUpdates={applyVendaUpdates}
+                    geracaoDiariaKwh={geracaoDiariaKwh}
+                  />
                   {shouldHideSimpleViewItems ? null : (
                     <LeasingContratoSection
                       leasingContrato={leasingContrato}
