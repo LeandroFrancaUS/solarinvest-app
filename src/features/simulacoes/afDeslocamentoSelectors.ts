@@ -17,4 +17,8 @@ export const selectSetAfDeslocamentoCidadeLabel = (s: AfDeslocamentoStore) => s.
 export const selectSetAfDeslocamentoErro = (s: AfDeslocamentoStore) => s.setAfDeslocamentoErro
 export const selectSetAfCidadeSuggestions = (s: AfDeslocamentoStore) => s.setAfCidadeSuggestions
 export const selectSetAfCidadeShowSuggestions = (s: AfDeslocamentoStore) => s.setAfCidadeShowSuggestions
+export const selectSelectCidadeAndCalculateDeslocamento = (s: AfDeslocamentoStore) =>
+  s.selectCidadeAndCalculateDeslocamento
+export const selectClearCidadeAndDeslocamento = (s: AfDeslocamentoStore) =>
+  s.clearCidadeAndDeslocamento
 export const selectResetAfDeslocamento = (s: AfDeslocamentoStore) => s.resetAfDeslocamento
