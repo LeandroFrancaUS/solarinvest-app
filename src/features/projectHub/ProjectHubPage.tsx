@@ -485,7 +485,7 @@ function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilid
  *
  * Idempotent: skips update if the target parcela is already marked as paid.
  */
-function applyComissaoAutomation(
+export function applyComissaoAutomation(
   projeto: Projeto,
   newStatus: ProjetoStatus,
 ): Partial<Projeto> | null {
@@ -493,6 +493,9 @@ function applyComissaoAutomation(
 
   const comissao = projeto.comissaoConsultor
   if (!comissao.parcelas?.length) return null
+
+  // Guard: never update status for non-eligible commissions
+  if (comissao.status === 'nao_elegivel') return null
 
   const now = new Date().toISOString()
 
