@@ -126,6 +126,9 @@
   --input-text: var(--text-strong);
   --input-border: var(--border);
   --input-focus-ring: rgba(45, 140, 255, 0.35);
+
+  --color-surface-subtle: var(--surface-subtle, #f8fafc);
+  --color-muted: var(--muted, #64748b);
 }
 
 body {
@@ -4300,6 +4303,12 @@ table tbody tr:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .af-approval-decision {
+    position: static;
+  }
 }
 
 @media (max-width: 640px) {
@@ -9187,6 +9196,11 @@ i:hover {
   grid-template-columns: minmax(320px, 2fr) minmax(420px, 3fr);
   gap: 24px;
   align-items: start;
+}
+
+.af-input--primary {
+  outline: 2px solid var(--color-accent);
+  border-radius: 4px;
 }
 
 .af-inputs-column,
