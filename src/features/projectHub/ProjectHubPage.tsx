@@ -622,7 +622,12 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
           {/* Detail panel */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {selectedProject ? (
-              <ProjetoDetail projeto={selectedProject} onStatusChange={handleStatusChange} onDocumentalChange={handleDocumentalChange} onViabilidadeChange={handleViabilidadeChange} />
+              <ProjetoDetail
+                  projeto={selectedProject}
+                  onStatusChange={handleStatusChange}
+                  onDocumentalChange={handleDocumentalChange}
+                  onViabilidadeChange={handleViabilidadeChange}
+                />
             ) : (
               <div
                 style={{
