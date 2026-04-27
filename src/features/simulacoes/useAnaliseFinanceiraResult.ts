@@ -181,6 +181,7 @@ export function useAfSimEstadoMensalidade(ctx: TarifaContexto): SimulationState 
 export function useAnaliseFinanceiraResult(ctx: TarifaContexto): {
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   afMensalidadeBaseAuto: number
+  indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 } {
   // Step 1: AF-specific simulation state (used to derive afMensalidadeBaseAuto).
   // Declared first so afMensalidadeBaseAuto is available before analiseFinanceiraResult.
@@ -461,5 +462,39 @@ export function useAnaliseFinanceiraResult(ctx: TarifaContexto): {
     vendasConfig.af_lucro_minimo_percent,
   ])
 
-  return { analiseFinanceiraResult, afMensalidadeBaseAuto }
+  // Step 6: indicadorEficienciaProjeto — moved from App.tsx (Phase 3.5.4).
+  const indicadorEficienciaProjeto = useMemo(() => {
+    if (!analiseFinanceiraResult || afModo !== 'leasing') return null
+
+    const payback = analiseFinanceiraResult.payback_total_meses ?? Number.POSITIVE_INFINITY
+    const roi = analiseFinanceiraResult.roi_percent ?? 0
+    const tir = analiseFinanceiraResult.tir_anual_percent ?? 0
+    const investimento = analiseFinanceiraResult.investimento_total_leasing_rs ?? 0
+    const lucroMensal = analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0
+    const lucroRelativo = investimento > 0 ? (lucroMensal / investimento) * 100 : 0
+
+    const paybackScore = Math.max(0, Math.min(100, (60 - payback) / 60 * 100))
+    const roiScore = Math.max(0, Math.min(100, roi))
+    const tirScore = Math.max(0, Math.min(100, tir / 2))
+    const lucroRelativoScore = Math.max(0, Math.min(100, lucroRelativo * 12))
+
+    const score = Math.round(
+      paybackScore * 0.35 +
+      roiScore * 0.25 +
+      tirScore * 0.2 +
+      lucroRelativoScore * 0.2,
+    )
+
+    const classificacao = score >= 85
+      ? 'Excelente'
+      : score >= 70
+        ? 'Bom'
+        : score >= 50
+          ? 'Atenção'
+          : 'Fraco'
+
+    return { score, classificacao }
+  }, [afModo, analiseFinanceiraResult])
+
+  return { analiseFinanceiraResult, afMensalidadeBaseAuto, indicadorEficienciaProjeto }
 }
