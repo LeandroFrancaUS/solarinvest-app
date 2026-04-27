@@ -389,6 +389,18 @@ import {
   selectSetAfMargemLiquidaMinima,
   selectSetAfComissaoMinimaPercent,
   selectSetAfTaxaDesconto,
+  selectAfConsumoOverride,
+  selectAfIrradiacaoOverride,
+  selectAfPROverride,
+  selectAfDiasOverride,
+  selectAfModuloWpOverride,
+  selectAfNumModulosOverride,
+  selectSetAfConsumoOverride,
+  selectSetAfIrradiacaoOverride,
+  selectSetAfPROverride,
+  selectSetAfDiasOverride,
+  selectSetAfModuloWpOverride,
+  selectSetAfNumModulosOverride,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4236,14 +4248,19 @@ export default function App() {
   const setAfComissaoMinimaPercent = useAfInputStore(selectSetAfComissaoMinimaPercent)
   const setAfTaxaDesconto = useAfInputStore(selectSetAfTaxaDesconto)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
-  const [afConsumoOverride, setAfConsumoOverride] = useState(0)
-  const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
-  const [afPROverride, setAfPROverride] = useState(0)
-  const [afDiasOverride, setAfDiasOverride] = useState(0)
-  const [afModuloWpOverride, setAfModuloWpOverride] = useState(0)
+  const afConsumoOverride = useAfInputStore(selectAfConsumoOverride)
+  const afIrradiacaoOverride = useAfInputStore(selectAfIrradiacaoOverride)
+  const afPROverride = useAfInputStore(selectAfPROverride)
+  const afDiasOverride = useAfInputStore(selectAfDiasOverride)
+  const afModuloWpOverride = useAfInputStore(selectAfModuloWpOverride)
+  const setAfConsumoOverride = useAfInputStore(selectSetAfConsumoOverride)
+  const setAfIrradiacaoOverride = useAfInputStore(selectSetAfIrradiacaoOverride)
+  const setAfPROverride = useAfInputStore(selectSetAfPROverride)
+  const setAfDiasOverride = useAfInputStore(selectSetAfDiasOverride)
+  const setAfModuloWpOverride = useAfInputStore(selectSetAfModuloWpOverride)
+  const afNumModulosOverride = useAfInputStore(selectAfNumModulosOverride)
+  const setAfNumModulosOverride = useAfInputStore(selectSetAfNumModulosOverride)
   const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
-  // N modules / kWp mutual-calc (null = use engine value)
-  const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
   const [afPlaca, setAfPlaca] = useState(18)
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
