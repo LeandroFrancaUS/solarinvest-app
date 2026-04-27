@@ -289,123 +289,130 @@ export function AnaliseFinanceiraSection({
         </button>
       </div>
 
-      {/* System base info (editable overrides) */}
-      <AfBaseSistemaPanel
-        afConsumoOverride={afConsumoOverride}
-        setAfConsumoOverride={setAfConsumoOverride}
-        afNumModulosOverride={afNumModulosOverride}
-        setAfNumModulosOverride={setAfNumModulosOverride}
-        afModuloWpOverride={afModuloWpOverride}
-        setAfModuloWpOverride={setAfModuloWpOverride}
-        afIrradiacaoOverride={afIrradiacaoOverride}
-        setAfIrradiacaoOverride={setAfIrradiacaoOverride}
-        afPROverride={afPROverride}
-        setAfPROverride={setAfPROverride}
-        afDiasOverride={afDiasOverride}
-        setAfDiasOverride={setAfDiasOverride}
-        potenciaModulo={potenciaModulo}
-        baseIrradiacao={baseIrradiacao}
-        eficienciaNormalizada={eficienciaNormalizada}
-        diasMesNormalizado={diasMesNormalizado}
-        selectNumberInputOnFocus={selectNumberInputOnFocus}
-      />
-
-      {/* Editable inputs */}
-      <AfCustosDiretosPanel
-        afModo={afModo}
-        afCustoKitField={afCustoKitField}
-        afFreteField={afFreteField}
-        afDescarregamentoField={afDescarregamentoField}
-        afMaterialCAField={afMaterialCAField}
-        afPlacaField={afPlacaField}
-        afProjetoField={afProjetoField}
-        afCreaField={afCreaField}
-        afHotelPousadaField={afHotelPousadaField}
-        afTransporteCombustivelField={afTransporteCombustivelField}
-        afOutrosField={afOutrosField}
-        afMensalidadeBaseField={afMensalidadeBaseField}
-        afImpostosVenda={afImpostosVenda}
-        setAfImpostosVenda={setAfImpostosVenda}
-        afImpostosLeasing={afImpostosLeasing}
-        setAfImpostosLeasing={setAfImpostosLeasing}
-        afMargemLiquidaVenda={afMargemLiquidaVenda}
-        setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
-        afMargemLiquidaMinima={afMargemLiquidaMinima}
-        setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
-        afTaxaDesconto={afTaxaDesconto}
-        setAfTaxaDesconto={setAfTaxaDesconto}
-        afInadimplencia={afInadimplencia}
-        setAfInadimplencia={setAfInadimplencia}
-        afCustoOperacional={afCustoOperacional}
-        setAfCustoOperacional={setAfCustoOperacional}
-        afMesesProjecao={afMesesProjecao}
-        setAfMesesProjecao={setAfMesesProjecao}
-        afMensalidadeBaseAuto={afMensalidadeBaseAuto}
-        afCidadeDestino={afCidadeDestino}
-        setAfCidadeDestino={setAfCidadeDestino}
-        afCidadeSuggestions={afCidadeSuggestions}
-        afCidadeShowSuggestions={afCidadeShowSuggestions}
-        setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
-        afDeslocamentoStatus={afDeslocamentoStatus}
-        setAfDeslocamentoStatus={setAfDeslocamentoStatus}
-        afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
-        setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
-        afDeslocamentoKm={afDeslocamentoKm}
-        setAfDeslocamentoKm={setAfDeslocamentoKm}
-        afDeslocamentoRs={afDeslocamentoRs}
-        setAfDeslocamentoRs={setAfDeslocamentoRs}
-        afDeslocamentoErro={afDeslocamentoErro}
-        setAfDeslocamentoErro={setAfDeslocamentoErro}
-        setAfTransporteCombustivel={setAfTransporteCombustivel}
-        afCidadeBlurTimerRef={afCidadeBlurTimerRef}
-        handleSelectCidade={handleSelectCidade}
-        analiseFinanceiraResult={analiseFinanceiraResult}
-        vendasConfig={vendasConfig}
-        selectNumberInputOnFocus={selectNumberInputOnFocus}
-      />
-
-      {/* Results */}
-      {analiseFinanceiraResult ? (
-        <>
-          <AfResultadosVendaPanel
-            afModo={afModo}
-            afValorContratoField={afValorContratoField}
-            afComissaoMinimaPercent={afComissaoMinimaPercent}
-            setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
-            afValorContrato={afValorContrato}
-            afMargemLiquidaMinima={afMargemLiquidaMinima}
-            afMargemLiquidaVenda={afMargemLiquidaVenda}
-            afTaxaDesconto={afTaxaDesconto}
-            analiseFinanceiraResult={analiseFinanceiraResult}
+      <div className="af-section-layout">
+        {/* Left column — inputs */}
+        <div className="af-inputs-column">
+          {/* System base info (editable overrides) */}
+          <AfBaseSistemaPanel
+            afConsumoOverride={afConsumoOverride}
+            setAfConsumoOverride={setAfConsumoOverride}
+            afNumModulosOverride={afNumModulosOverride}
+            setAfNumModulosOverride={setAfNumModulosOverride}
+            afModuloWpOverride={afModuloWpOverride}
+            setAfModuloWpOverride={setAfModuloWpOverride}
+            afIrradiacaoOverride={afIrradiacaoOverride}
+            setAfIrradiacaoOverride={setAfIrradiacaoOverride}
+            afPROverride={afPROverride}
+            setAfPROverride={setAfPROverride}
+            afDiasOverride={afDiasOverride}
+            setAfDiasOverride={setAfDiasOverride}
+            potenciaModulo={potenciaModulo}
+            baseIrradiacao={baseIrradiacao}
+            eficienciaNormalizada={eficienciaNormalizada}
+            diasMesNormalizado={diasMesNormalizado}
             selectNumberInputOnFocus={selectNumberInputOnFocus}
           />
-          {/* Leasing results */}
-          <AfResultadosLeasingPanel
+
+          {/* Editable inputs */}
+          <AfCustosDiretosPanel
             afModo={afModo}
+            afCustoKitField={afCustoKitField}
+            afFreteField={afFreteField}
+            afDescarregamentoField={afDescarregamentoField}
+            afMaterialCAField={afMaterialCAField}
+            afPlacaField={afPlacaField}
+            afProjetoField={afProjetoField}
+            afCreaField={afCreaField}
+            afHotelPousadaField={afHotelPousadaField}
+            afTransporteCombustivelField={afTransporteCombustivelField}
+            afOutrosField={afOutrosField}
+            afMensalidadeBaseField={afMensalidadeBaseField}
+            afImpostosVenda={afImpostosVenda}
+            setAfImpostosVenda={setAfImpostosVenda}
             afImpostosLeasing={afImpostosLeasing}
+            setAfImpostosLeasing={setAfImpostosLeasing}
+            afMargemLiquidaVenda={afMargemLiquidaVenda}
+            setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
+            afMargemLiquidaMinima={afMargemLiquidaMinima}
+            setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
+            afTaxaDesconto={afTaxaDesconto}
+            setAfTaxaDesconto={setAfTaxaDesconto}
             afInadimplencia={afInadimplencia}
+            setAfInadimplencia={setAfInadimplencia}
             afCustoOperacional={afCustoOperacional}
+            setAfCustoOperacional={setAfCustoOperacional}
             afMesesProjecao={afMesesProjecao}
+            setAfMesesProjecao={setAfMesesProjecao}
+            afMensalidadeBaseAuto={afMensalidadeBaseAuto}
+            afCidadeDestino={afCidadeDestino}
+            setAfCidadeDestino={setAfCidadeDestino}
+            afCidadeSuggestions={afCidadeSuggestions}
+            afCidadeShowSuggestions={afCidadeShowSuggestions}
+            setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
+            afDeslocamentoStatus={afDeslocamentoStatus}
+            setAfDeslocamentoStatus={setAfDeslocamentoStatus}
+            afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
+            setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
+            afDeslocamentoKm={afDeslocamentoKm}
+            setAfDeslocamentoKm={setAfDeslocamentoKm}
+            afDeslocamentoRs={afDeslocamentoRs}
+            setAfDeslocamentoRs={setAfDeslocamentoRs}
+            afDeslocamentoErro={afDeslocamentoErro}
+            setAfDeslocamentoErro={setAfDeslocamentoErro}
+            setAfTransporteCombustivel={setAfTransporteCombustivel}
+            afCidadeBlurTimerRef={afCidadeBlurTimerRef}
+            handleSelectCidade={handleSelectCidade}
             analiseFinanceiraResult={analiseFinanceiraResult}
-            indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+            vendasConfig={vendasConfig}
+            selectNumberInputOnFocus={selectNumberInputOnFocus}
           />
-
-        </>
-      ) : (
-        <div className="simulacoes-module-tile">
-          <p className="simulacoes-description">
-            {afModo === 'venda'
-              ? 'Preencha o Custo do Kit e o Valor do Contrato para calcular a análise financeira.'
-              : 'Preencha o Custo do Kit para calcular a análise financeira de leasing.'}
-          </p>
         </div>
-      )}
 
-      {/* Approval checklist */}
-      <AfAprovacaoGrid
-        afModo={afModo}
-        isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-      />
+        {/* Right column — results + approval */}
+        <div className="af-results-column">
+          {/* Results */}
+          {analiseFinanceiraResult ? (
+            <>
+              <AfResultadosVendaPanel
+                afModo={afModo}
+                afValorContratoField={afValorContratoField}
+                afComissaoMinimaPercent={afComissaoMinimaPercent}
+                setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
+                afValorContrato={afValorContrato}
+                afMargemLiquidaMinima={afMargemLiquidaMinima}
+                afMargemLiquidaVenda={afMargemLiquidaVenda}
+                afTaxaDesconto={afTaxaDesconto}
+                analiseFinanceiraResult={analiseFinanceiraResult}
+                selectNumberInputOnFocus={selectNumberInputOnFocus}
+              />
+              {/* Leasing results */}
+              <AfResultadosLeasingPanel
+                afModo={afModo}
+                afImpostosLeasing={afImpostosLeasing}
+                afInadimplencia={afInadimplencia}
+                afCustoOperacional={afCustoOperacional}
+                afMesesProjecao={afMesesProjecao}
+                analiseFinanceiraResult={analiseFinanceiraResult}
+                indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+              />
+            </>
+          ) : (
+            <div className="simulacoes-module-tile">
+              <p className="simulacoes-description">
+                {afModo === 'venda'
+                  ? 'Preencha o Custo do Kit e o Valor do Contrato para calcular a análise financeira.'
+                  : 'Preencha o Custo do Kit para calcular a análise financeira de leasing.'}
+              </p>
+            </div>
+          )}
+
+          {/* Approval checklist */}
+          <AfAprovacaoGrid
+            afModo={afModo}
+            isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
+          />
+        </div>
+      </div>
     </section>
   )
 }
