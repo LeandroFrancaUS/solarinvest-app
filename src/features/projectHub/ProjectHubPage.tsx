@@ -44,12 +44,15 @@ interface ProjetoCardProps {
 
 function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
   const { cliente, tipo, status } = projeto
+  const [focused, setFocused] = useState(false)
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={() => onSelect(projeto.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(projeto.id) }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(projeto.id) } }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       style={{
         border: selected
           ? '2px solid var(--color-primary, #1d4ed8)'
@@ -63,7 +66,8 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
         flexDirection: 'column',
         gap: '0.3rem',
         cursor: 'pointer',
-        outline: 'none',
+        outline: focused ? '2px solid var(--color-primary, #1d4ed8)' : 'none',
+        outlineOffset: 2,
       }}
     >
       <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{cliente.nome}</div>
