@@ -470,6 +470,92 @@ function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilid
   )
 }
 
+// ---------------------------------------------------------------------------
+// Commission automation helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns a Partial<Projeto> patch that updates comissaoConsultor when a
+ * status-change triggers a commission payment rule, or null when no action
+ * is needed.
+ *
+ * Rules:
+ *  - leasing + status 'ativo'     → mark parcela 1 (40%) as paid
+ *  - venda   + status 'concluido' → mark single parcela as paid
+ *
+ * Idempotent: skips update if the target parcela is already marked as paid.
+ */
+function applyComissaoAutomation(
+  projeto: Projeto,
+  newStatus: ProjetoStatus,
+): Partial<Projeto> | null {
+  if (!projeto.comissaoConsultor) return null
+
+  const comissao = projeto.comissaoConsultor
+  if (!comissao.parcelas?.length) return null
+
+  const now = new Date().toISOString()
+
+  // --- Leasing rule: project activated → pay parcela 1 (40%) ---
+  if (projeto.tipo === 'leasing' && newStatus === 'ativo') {
+    const parcela0 = comissao.parcelas[0]
+    if (!parcela0 || parcela0.pago) return null // idempotency guard
+
+    const updatedParcelas = comissao.parcelas.map((p, idx) =>
+      idx === 0 ? { ...p, pago: true, pagoEm: now } : p,
+    )
+    const newValorPago = comissao.valorPago + parcela0.valor
+    const hasPending = updatedParcelas.some((p) => !p.pago)
+    const newComissaoStatus: ComissaoStatus = hasPending ? 'parcial_pago' : 'pago'
+
+    return {
+      comissaoConsultor: {
+        ...comissao,
+        parcelas: updatedParcelas,
+        valorPago: newValorPago,
+        status: newComissaoStatus,
+      },
+    }
+  }
+
+  // --- Venda rule: project concluded → pay single parcela ---
+  if (projeto.tipo === 'venda' && newStatus === 'concluido') {
+    const parcela0 = comissao.parcelas[0]
+    if (!parcela0 || parcela0.pago) return null // idempotency guard
+
+    const updatedParcelas = comissao.parcelas.map((p, idx) =>
+      idx === 0 ? { ...p, pago: true, pagoEm: now } : p,
+    )
+
+    return {
+      comissaoConsultor: {
+        ...comissao,
+        parcelas: updatedParcelas,
+        valorPago: comissao.valorPago + parcela0.valor,
+        status: 'pago',
+      },
+    }
+  }
+
+  // Future extension (not yet active):
+  // if (projeto.tipo === 'leasing' && newStatus === 'mensalidade_paga') {
+  //   // parcela 2 (60%) — first invoice paid
+  //   const parcela1 = comissao.parcelas[1]
+  //   if (!parcela1 || parcela1.pago) return null
+  //   const updatedParcelas = comissao.parcelas.map((p, idx) =>
+  //     idx === 1 ? { ...p, pago: true, pagoEm: now } : p,
+  //   )
+  //   const newValorPago = comissao.valorPago + parcela1.valor
+  //   const hasPending = updatedParcelas.some((p) => !p.pago)
+  //   const newComissaoStatus: ComissaoStatus = hasPending ? 'parcial_pago' : 'pago'
+  //   return { comissaoConsultor: { ...comissao, parcelas: updatedParcelas, valorPago: newValorPago, status: newComissaoStatus } }
+  // }
+
+  return null
+}
+
+// ---------------------------------------------------------------------------
+
 interface ProjectHubPageProps {
   onBack: () => void
 }
@@ -502,7 +588,8 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
         return
       }
     }
-    updateProjeto(id, { status })
+    const comissaoPatch = projeto ? applyComissaoAutomation(projeto, status) : null
+    updateProjeto(id, { status, ...(comissaoPatch ?? {}) })
   }
 
   function handleDocumentalChange(key: keyof AprovacaoDocumental, checked: boolean) {
