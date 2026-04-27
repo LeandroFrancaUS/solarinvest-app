@@ -4283,7 +4283,7 @@ export default function App() {
   const setAfMesesProjecao = useAfInputStore(selectSetAfMesesProjecao)
   const afMensalidadeBase = useAfInputStore(selectAfMensalidadeBase)
   const setAfMensalidadeBase = useAfInputStore(selectSetAfMensalidadeBase)
-  const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
+
   const afMargemLiquidaVenda = useAfInputStore(selectAfMargemLiquidaVenda)
   const afMargemLiquidaMinima = useAfInputStore(selectAfMargemLiquidaMinima)
   const afComissaoMinimaPercent = useAfInputStore(selectAfComissaoMinimaPercent)
@@ -10370,9 +10370,10 @@ export default function App() {
     () => (afSimEstadoMensalidade != null ? selectMensalidadesPorAno(afSimEstadoMensalidade) : []),
     [afSimEstadoMensalidade],
   )
-  useEffect(() => {
-    setAfMensalidadeBaseAuto(mensalidadesAfPorAno[0] ?? 0)
-  }, [mensalidadesAfPorAno])
+  const afMensalidadeBaseAuto = useMemo(
+    () => mensalidadesAfPorAno[0] ?? 0,
+    [mensalidadesAfPorAno],
+  )
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
