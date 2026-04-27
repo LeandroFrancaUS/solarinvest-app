@@ -401,6 +401,18 @@ import {
   selectSetAfDiasOverride,
   selectSetAfModuloWpOverride,
   selectSetAfNumModulosOverride,
+  selectAfCustoKit,
+  selectAfCustoKitManual,
+  selectAfFrete,
+  selectAfFreteManual,
+  selectAfAutoMaterialCA,
+  selectAfMaterialCAOverride,
+  selectSetAfCustoKit,
+  selectSetAfCustoKitManual,
+  selectSetAfFrete,
+  selectSetAfFreteManual,
+  selectSetAfAutoMaterialCA,
+  selectSetAfMaterialCAOverride,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4218,10 +4230,14 @@ export default function App() {
 
   // Financial Analysis (Spreadsheet v1) state
   const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
-  const [afCustoKit, setAfCustoKit] = useState(0)
-  const [afCustoKitManual, setAfCustoKitManual] = useState(false)
-  const [afFrete, setAfFrete] = useState(0)
-  const [afFreteManual, setAfFreteManual] = useState(false)
+  const afCustoKit = useAfInputStore(selectAfCustoKit)
+  const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
+  const afFrete = useAfInputStore(selectAfFrete)
+  const afFreteManual = useAfInputStore(selectAfFreteManual)
+  const setAfCustoKit = useAfInputStore(selectSetAfCustoKit)
+  const setAfCustoKitManual = useAfInputStore(selectSetAfCustoKitManual)
+  const setAfFrete = useAfInputStore(selectSetAfFrete)
+  const setAfFreteManual = useAfInputStore(selectSetAfFreteManual)
   const [afDescarregamento, setAfDescarregamento] = useState(0)
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
@@ -4265,8 +4281,10 @@ export default function App() {
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
   // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
-  const [afAutoMaterialCA, setAfAutoMaterialCA] = useState(0)
-  const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
+  const afAutoMaterialCA = useAfInputStore(selectAfAutoMaterialCA)
+  const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
+  const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
+  const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
   const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
   const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
