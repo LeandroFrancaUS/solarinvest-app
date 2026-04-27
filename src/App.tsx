@@ -361,59 +361,14 @@ import {
 } from './features/simulacoes/useAnaliseFinanceiraResult'
 import { useAfInputStore } from './features/simulacoes/useAfInputStore'
 import {
-  selectAfImpostosVenda,
-  selectAfImpostosLeasing,
-  selectAfInadimplencia,
-  selectAfCustoOperacional,
-  selectAfMesesProjecao,
-  selectAfMargemLiquidaVenda,
-  selectAfMargemLiquidaMinima,
-  selectAfComissaoMinimaPercent,
-  selectAfTaxaDesconto,
-  selectSetAfImpostosVenda,
-  selectSetAfImpostosLeasing,
-  selectSetAfInadimplencia,
-  selectSetAfCustoOperacional,
-  selectSetAfMesesProjecao,
-  selectSetAfMargemLiquidaVenda,
-  selectSetAfMargemLiquidaMinima,
-  selectSetAfComissaoMinimaPercent,
-  selectSetAfTaxaDesconto,
   selectAfConsumoOverride,
-  selectAfIrradiacaoOverride,
-  selectAfPROverride,
-  selectAfDiasOverride,
-  selectAfModuloWpOverride,
-  selectAfNumModulosOverride,
-  selectSetAfConsumoOverride,
-  selectSetAfIrradiacaoOverride,
-  selectSetAfPROverride,
-  selectSetAfDiasOverride,
-  selectSetAfModuloWpOverride,
-  selectSetAfNumModulosOverride,
   selectAfCustoKit,
   selectAfCustoKitManual,
-  selectAfFrete,
   selectAfFreteManual,
-  selectAfAutoMaterialCA,
   selectAfMaterialCAOverride,
   selectSetAfCustoKit,
   selectSetAfFrete,
   selectSetAfAutoMaterialCA,
-  selectAfDescarregamento,
-  selectAfHotelPousada,
-  selectAfOutros,
-  selectAfPlaca,
-  selectAfMensalidadeBase,
-  selectAfProjetoOverride,
-  selectAfCreaOverride,
-  selectAfTransporteCombustivel,
-  selectSetAfMensalidadeBase,
-  selectAfUfOverride,
-  selectSetAfUfOverride,
-  selectSetAfModo,
-  selectAfValorContrato,
-  selectSetAfValorContrato,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4230,64 +4185,16 @@ export default function App() {
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
 
   // Financial Analysis (Spreadsheet v1) state
-  const setAfModo = useAfInputStore(selectSetAfModo)
   const afCustoKit = useAfInputStore(selectAfCustoKit)
   const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
-  const afFrete = useAfInputStore(selectAfFrete)
   const afFreteManual = useAfInputStore(selectAfFreteManual)
   const setAfCustoKit = useAfInputStore(selectSetAfCustoKit)
   const setAfFrete = useAfInputStore(selectSetAfFrete)
-  const afDescarregamento = useAfInputStore(selectAfDescarregamento)
-  const afHotelPousada = useAfInputStore(selectAfHotelPousada)
-  const afTransporteCombustivel = useAfInputStore(selectAfTransporteCombustivel)
-  const afOutros = useAfInputStore(selectAfOutros)
-  const afValorContrato = useAfInputStore(selectAfValorContrato)
-  const setAfValorContrato = useAfInputStore(selectSetAfValorContrato)
-  const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
-  const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)
-  const afInadimplencia = useAfInputStore(selectAfInadimplencia)
-  const afCustoOperacional = useAfInputStore(selectAfCustoOperacional)
-  const afMesesProjecao = useAfInputStore(selectAfMesesProjecao)
-  const setAfImpostosVenda = useAfInputStore(selectSetAfImpostosVenda)
-  const setAfImpostosLeasing = useAfInputStore(selectSetAfImpostosLeasing)
-  const setAfInadimplencia = useAfInputStore(selectSetAfInadimplencia)
-  const setAfCustoOperacional = useAfInputStore(selectSetAfCustoOperacional)
-  const setAfMesesProjecao = useAfInputStore(selectSetAfMesesProjecao)
-  const afMensalidadeBase = useAfInputStore(selectAfMensalidadeBase)
-  const setAfMensalidadeBase = useAfInputStore(selectSetAfMensalidadeBase)
-
-  const afMargemLiquidaVenda = useAfInputStore(selectAfMargemLiquidaVenda)
-  const afMargemLiquidaMinima = useAfInputStore(selectAfMargemLiquidaMinima)
-  const afComissaoMinimaPercent = useAfInputStore(selectAfComissaoMinimaPercent)
-  const afTaxaDesconto = useAfInputStore(selectAfTaxaDesconto)
-  const setAfMargemLiquidaVenda = useAfInputStore(selectSetAfMargemLiquidaVenda)
-  const setAfMargemLiquidaMinima = useAfInputStore(selectSetAfMargemLiquidaMinima)
-  const setAfComissaoMinimaPercent = useAfInputStore(selectSetAfComissaoMinimaPercent)
-  const setAfTaxaDesconto = useAfInputStore(selectSetAfTaxaDesconto)
-  // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const afConsumoOverride = useAfInputStore(selectAfConsumoOverride)
-  const afIrradiacaoOverride = useAfInputStore(selectAfIrradiacaoOverride)
-  const afPROverride = useAfInputStore(selectAfPROverride)
-  const afDiasOverride = useAfInputStore(selectAfDiasOverride)
-  const afModuloWpOverride = useAfInputStore(selectAfModuloWpOverride)
-  const setAfConsumoOverride = useAfInputStore(selectSetAfConsumoOverride)
-  const setAfIrradiacaoOverride = useAfInputStore(selectSetAfIrradiacaoOverride)
-  const setAfPROverride = useAfInputStore(selectSetAfPROverride)
-  const setAfDiasOverride = useAfInputStore(selectSetAfDiasOverride)
-  const setAfModuloWpOverride = useAfInputStore(selectSetAfModuloWpOverride)
-  const afNumModulosOverride = useAfInputStore(selectAfNumModulosOverride)
-  const setAfNumModulosOverride = useAfInputStore(selectSetAfNumModulosOverride)
-  const afUfOverride = useAfInputStore(selectAfUfOverride)
-  const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
-  const afPlaca = useAfInputStore(selectAfPlaca)
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
-  // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
-  const afAutoMaterialCA = useAfInputStore(selectAfAutoMaterialCA)
   const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
   const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
-  const afProjetoOverride = useAfInputStore(selectAfProjetoOverride)
-  const afCreaOverride = useAfInputStore(selectAfCreaOverride)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
   const isVendaDiretaTab = activeTab === 'vendas'
