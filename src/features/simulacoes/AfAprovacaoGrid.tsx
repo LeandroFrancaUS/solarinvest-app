@@ -15,19 +15,7 @@ import {
   selectRegistrarDecisaoInterna,
   selectToggleAprovacaoChecklist,
 } from './useAprovacaoStore'
-
-const formatAprovacaoData = (timestamp: number | null): string => {
-  if (!timestamp) {
-    return '—'
-  }
-  try {
-    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
-      new Date(timestamp),
-    )
-  } catch (_error) {
-    return '—'
-  }
-}
+import { formatAprovacaoData } from '../../utils/formatters'
 
 export interface AfAprovacaoGridProps {
   afModo: 'venda' | 'leasing'
