@@ -28,6 +28,7 @@ import {
   selectSelectCidadeAndCalculateDeslocamento,
 } from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
+import { useConsumoBaseStore, selectKcKwhMes } from './useConsumoBaseStore'
 import { useUfTarifaStore, selectUfTarifa } from './useUfTarifaStore'
 import {
   useSimulacaoBaseStore,
@@ -75,7 +76,6 @@ export interface AnaliseFinanceiraSectionProps {
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 
-  kcKwhMes: number
   isAnaliseMobileSimpleView: boolean
 }
 
@@ -83,12 +83,12 @@ export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
   // Store reads — replaces props previously passed down from App.tsx
+  const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
   const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
   const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)

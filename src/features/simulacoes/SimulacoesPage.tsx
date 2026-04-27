@@ -12,6 +12,7 @@ import { SimulacoesNav } from './SimulacoesNav'
 import { SimulacoesStaticModuleCard } from './SimulacoesStaticModuleCard'
 import { AnaliseFinanceiraSection } from './AnaliseFinanceiraSection'
 import type { AnaliseFinanceiraSectionProps } from './AnaliseFinanceiraSection'
+import { useConsumoBaseStore, selectKcKwhMes } from './useConsumoBaseStore'
 
 const SimulacoesTab = React.lazy(() =>
   import('../../components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })),
@@ -39,9 +40,9 @@ export function SimulacoesPage({
   capexSolarInvest,
   tipoSistema,
   leasingPrazo,
-  kcKwhMes,
   ...analiseFinanceiraProps
 }: SimulacoesPageProps) {
+  const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
   const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
   const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
@@ -104,7 +105,6 @@ export function SimulacoesPage({
         {simulacoesSection === 'analise' ? (
           <AnaliseFinanceiraSection
             {...analiseFinanceiraProps}
-            kcKwhMes={kcKwhMes}
             isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
           />
         ) : null}
