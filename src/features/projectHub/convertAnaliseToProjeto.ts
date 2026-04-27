@@ -41,10 +41,10 @@ export function convertAnaliseToProjeto({
   const hasConsultor = Boolean(consultorNome?.trim())
 
   const consultor: Projeto['consultor'] = hasConsultor
-    ? { nome: consultorNome!.trim(), ...(consultorId ? { id: consultorId } : {}) }
+    ? { nome: consultorNome!.trim(), id: consultorId }
     : undefined
 
-  let comissaoConsultor: ComissaoConsultor | undefined = undefined
+  let comissaoConsultor: ComissaoConsultor | undefined
 
   if (hasConsultor) {
     if (tipo === 'leasing') {

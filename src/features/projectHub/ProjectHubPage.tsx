@@ -164,7 +164,7 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
       <div style={{ fontSize: '0.875rem' }}>
         <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Consultor</div>
         {projeto.consultor
-          ? <div>Consultor: <strong>{projeto.consultor.nome}</strong></div>
+          ? <div><strong>{projeto.consultor.nome}</strong></div>
           : <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Sem consultor vinculado</div>}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
