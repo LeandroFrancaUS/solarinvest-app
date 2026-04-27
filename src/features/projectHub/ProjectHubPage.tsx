@@ -17,6 +17,25 @@ function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function getTipoBadgeStyles(tipo: string): React.CSSProperties {
+  if (tipo === 'leasing') {
+    return {
+      background: 'var(--color-primary-light, #dbeafe)',
+      color: 'var(--color-primary, #1d4ed8)',
+      borderRadius: 4,
+      padding: '0.1rem 0.5rem',
+      fontWeight: 500,
+    }
+  }
+  return {
+    background: 'var(--color-success-light, #dcfce7)',
+    color: 'var(--color-success, #16a34a)',
+    borderRadius: 4,
+    padding: '0.1rem 0.5rem',
+    fontWeight: 500,
+  }
+}
+
 interface ProjetoCardProps {
   projeto: Projeto
 }
@@ -37,15 +56,7 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
     >
       <div style={{ fontWeight: 600, fontSize: '1rem' }}>{cliente.nome}</div>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-        <span
-          style={{
-            background: tipo === 'leasing' ? 'var(--color-primary-light, #dbeafe)' : 'var(--color-success-light, #dcfce7)',
-            color: tipo === 'leasing' ? 'var(--color-primary, #1d4ed8)' : 'var(--color-success, #16a34a)',
-            borderRadius: 4,
-            padding: '0.1rem 0.5rem',
-            fontWeight: 500,
-          }}
-        >
+        <span style={getTipoBadgeStyles(tipo)}>
           {tipo}
         </span>
         <span
