@@ -14,7 +14,6 @@ import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
-import type { MoneyFieldHandle } from './simulacoesTypes'
 import type { AprovacaoChecklistKey, AprovacaoStatus } from './simulacoesConstants'
 import { useAfDeslocamentoStore } from './useAfDeslocamentoStore'
 import {
@@ -50,7 +49,7 @@ import {
   selectAfProjetoOverride, selectSetAfProjetoOverride,
   selectAfCreaOverride, selectSetAfCreaOverride,
   selectAfValorContrato, selectSetAfValorContrato,
-  selectSetAfMensalidadeBase,
+  selectAfMensalidadeBase, selectSetAfMensalidadeBase,
   selectAfImpostosVenda, selectSetAfImpostosVenda,
   selectAfImpostosLeasing, selectSetAfImpostosLeasing,
   selectAfMargemLiquidaVenda, selectSetAfMargemLiquidaVenda,
@@ -67,9 +66,6 @@ export interface AnaliseFinanceiraSectionProps {
   baseIrradiacao: number
   eficienciaNormalizada: number
   diasMesNormalizado: number
-
-  afValorContratoField: MoneyFieldHandle
-  afMensalidadeBaseField: MoneyFieldHandle
 
   afMensalidadeBaseAuto: number
 
@@ -93,8 +89,6 @@ export function AnaliseFinanceiraSection({
   baseIrradiacao,
   eficienciaNormalizada,
   diasMesNormalizado,
-  afValorContratoField,
-  afMensalidadeBaseField,
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
@@ -135,7 +129,10 @@ export function AnaliseFinanceiraSection({
   const setAfOutros = useAfInputStore(selectSetAfOutros)
   const afValorContrato = useAfInputStore(selectAfValorContrato)
   const setAfValorContrato = useAfInputStore(selectSetAfValorContrato)
+  const afMensalidadeBase = useAfInputStore(selectAfMensalidadeBase)
   const setAfMensalidadeBase = useAfInputStore(selectSetAfMensalidadeBase)
+  const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
+  const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
   const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
   const setAfImpostosVenda = useAfInputStore(selectSetAfImpostosVenda)
   const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)

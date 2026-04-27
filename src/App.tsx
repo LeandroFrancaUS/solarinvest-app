@@ -4297,8 +4297,6 @@ export default function App() {
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
-  const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
-  const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -19138,8 +19136,6 @@ export default function App() {
             baseIrradiacao={baseIrradiacao}
             eficienciaNormalizada={eficienciaNormalizada}
             diasMesNormalizado={diasMesNormalizado}
-            afValorContratoField={afValorContratoField}
-            afMensalidadeBaseField={afMensalidadeBaseField}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
