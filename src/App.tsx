@@ -365,6 +365,18 @@ import {
   selectSetAfFrete,
   selectSetAfAutoMaterialCA,
 } from './features/simulacoes/afInputSelectors'
+import {
+  useSimulacaoBaseStore,
+  selectIrradiacao,
+  selectEficiencia,
+  selectDiasMes,
+  selectSetIrradiacao,
+  selectSetEficiencia,
+  selectSetDiasMes,
+  selectBaseIrradiacao,
+  selectEficienciaNormalizada,
+  selectDiasMesNormalizado,
+} from './features/simulacoes/useSimulacaoBaseStore'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -6320,9 +6332,12 @@ export default function App() {
   }, [])
 
   const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
-  const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
-  const [eficiencia, setEficiencia] = useState(INITIAL_VALUES.eficiencia)
-  const [diasMes, setDiasMes] = useState(INITIAL_VALUES.diasMes)
+  const irradiacao = useSimulacaoBaseStore(selectIrradiacao)
+  const setIrradiacao = useSimulacaoBaseStore(selectSetIrradiacao)
+  const eficiencia = useSimulacaoBaseStore(selectEficiencia)
+  const setEficiencia = useSimulacaoBaseStore(selectSetEficiencia)
+  const diasMes = useSimulacaoBaseStore(selectDiasMes)
+  const setDiasMes = useSimulacaoBaseStore(selectSetDiasMes)
   const [inflacaoAa, setInflacaoAa] = useState(INITIAL_VALUES.inflacaoAa)
 
   const [vendaForm, setVendaForm] = useState<VendaForm>(() => createInitialVendaForm())
@@ -7994,21 +8009,11 @@ export default function App() {
     }
   }, [clienteUf, ufTarifa])
 
-  const eficienciaNormalizada = useMemo(() => {
-    if (eficiencia <= 0) return 0
-    if (eficiencia >= 1.5) return eficiencia / 100
-    return eficiencia
-  }, [eficiencia])
+  const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
 
-  const baseIrradiacao = useMemo(
-    () => (irradiacao > 0 ? irradiacao : 0),
-    [irradiacao],
-  )
+  const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
 
-  const diasMesNormalizado = useMemo(
-    () => (diasMes > 0 ? diasMes : 0),
-    [diasMes],
-  )
+  const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)
 
   const vendaPotenciaCalculada = useMemo(() => {
     const dias = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
