@@ -77,33 +77,6 @@ export function AfResultadosLeasingPanel({
           <span className="pill">Resumo composto da eficiência financeira do leasing com base em retorno, prazo e capital investido.</span>
         </div>
       </div>
-
-      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-        <h4>Risco e Sensibilidade — Leasing</h4>
-        <div className="info-inline">
-          <span className="pill">Impacto da inadimplência no lucro mensal <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}</strong></span>
-          {[afInadimplencia, afInadimplencia + 3, afInadimplencia + 6].map((scenarioPct, index) => {
-            const pct = Math.max(0, scenarioPct)
-            const fator = 1 - (afImpostosLeasing + afCustoOperacional + pct) / 100
-            const receitaMensal = (analiseFinanceiraResult.comissao_leasing_rs ?? 0) * fator
-            const payback = receitaMensal > 0
-              ? (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0) / receitaMensal
-              : null
-            const meses = Math.max(1, afMesesProjecao)
-            const lucroTotal = receitaMensal * meses - (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)
-            const roi = (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0) > 0
-              ? (lucroTotal / (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)) * 100
-              : 0
-            const label = index === 0 ? 'Base' : index === 1 ? 'Moderado' : 'Estressado'
-            return (
-              <span key={label} className="pill">
-                Inadimplência {label} ({pct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%):
-                {' '}Lucro/mês <strong>{currency(receitaMensal)}</strong> · Payback <strong>{payback != null ? `${payback.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}m` : '—'}</strong> · ROI <strong>{roi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong>
-              </span>
-            )
-          })}
-        </div>
-      </div>
     </>
   )
 }

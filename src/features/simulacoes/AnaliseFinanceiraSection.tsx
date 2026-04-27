@@ -13,7 +13,6 @@ import { AfBaseSistemaPanel } from './AfBaseSistemaPanel'
 import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
-import { AfAprovacaoGrid } from './AfAprovacaoGrid'
 
 import { useAfDeslocamentoStore } from './useAfDeslocamentoStore'
 import {
@@ -75,15 +74,12 @@ export interface AnaliseFinanceiraSectionProps {
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
-
-  isAnaliseMobileSimpleView: boolean
 }
 
 export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
@@ -289,9 +285,7 @@ export function AnaliseFinanceiraSection({
         </button>
       </div>
 
-      <div className="af-section-layout">
-        {/* Left column — inputs */}
-        <div className="af-inputs-column">
+      <div className="af-cards-layout">
           {/* System base info (editable overrides) */}
           <AfBaseSistemaPanel
             afConsumoOverride={afConsumoOverride}
@@ -366,10 +360,7 @@ export function AnaliseFinanceiraSection({
             vendasConfig={vendasConfig}
             selectNumberInputOnFocus={selectNumberInputOnFocus}
           />
-        </div>
 
-        {/* Right column — results + approval */}
-        <div className="af-results-column">
           {/* Results */}
           {analiseFinanceiraResult ? (
             <>
@@ -408,13 +399,6 @@ export function AnaliseFinanceiraSection({
               </p>
             </div>
           )}
-
-          {/* Approval checklist */}
-          <AfAprovacaoGrid
-            afModo={afModo}
-            isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-          />
-        </div>
       </div>
     </section>
   )
