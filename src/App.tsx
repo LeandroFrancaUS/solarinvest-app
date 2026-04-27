@@ -341,6 +341,7 @@ import { convertClientToClosedDeal } from './services/deals/convert-client-to-cl
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
+import { setProjectChargesTokenProvider } from './features/projectHub/projectChargesApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
@@ -4052,6 +4053,7 @@ export default function App() {
     setFinancialManagementTokenProvider(getAccessToken)
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
+    setProjectChargesTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
