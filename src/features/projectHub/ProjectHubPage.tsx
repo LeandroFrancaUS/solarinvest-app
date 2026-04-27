@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, selectAddProjeto, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, selectAddProjeto, isDocumentacaoAprovada, isViabilidadeAprovada, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
 
 const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
   { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
@@ -394,6 +394,21 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
   const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
 
   function handleStatusChange(id: string, status: ProjetoStatus) {
+    const projeto = projetos.find((p) => p.id === id)
+    if (projeto) {
+      if (status === 'validacao_viabilidade' && !isDocumentacaoAprovada(projeto)) {
+        alert('A documentação deve ser aprovada antes de avançar para validação de viabilidade')
+        return
+      }
+      if (status === 'aprovado' && !isViabilidadeAprovada(projeto)) {
+        alert('A viabilidade técnica deve ser aprovada antes de marcar o projeto como aprovado')
+        return
+      }
+      if (status === 'ativo' && (!isDocumentacaoAprovada(projeto) || !isViabilidadeAprovada(projeto))) {
+        alert('O projeto requer aprovação de documentação e viabilidade antes da ativação')
+        return
+      }
+    }
     updateProjeto(id, { status })
   }
 
