@@ -381,6 +381,10 @@ import {
   selectSetPotenciaModulo,
   selectSetPotenciaModuloDirty,
 } from './features/simulacoes/useSimulacaoBaseStore'
+import {
+  useUfTarifaStore,
+  selectSetUfTarifa,
+} from './features/simulacoes/useUfTarifaStore'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -4468,6 +4472,7 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
+  const setStoreUfTarifa = useUfTarifaStore(selectSetUfTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
@@ -4976,8 +4981,9 @@ export default function App() {
         }
         return { ...current, ufTarifa: nextValue }
       })
+      setStoreUfTarifa(nextValue)
     },
-    [ufTarifa, updatePageSharedState],
+    [ufTarifa, updatePageSharedState, setStoreUfTarifa],
   )
 
   const setDistribuidoraTarifa = useCallback(
