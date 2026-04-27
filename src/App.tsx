@@ -376,6 +376,10 @@ import {
   selectBaseIrradiacao,
   selectEficienciaNormalizada,
   selectDiasMesNormalizado,
+  selectPotenciaModulo,
+  selectPotenciaModuloDirty,
+  selectSetPotenciaModulo,
+  selectSetPotenciaModuloDirty,
 } from './features/simulacoes/useSimulacaoBaseStore'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4513,14 +4517,16 @@ export default function App() {
     string | undefined
   >(undefined)
   const [ucGeradoraTitularBuscandoCep, setUcGeradoraTitularBuscandoCep] = useState(false)
-  const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
+  const potenciaModulo = useSimulacaoBaseStore(selectPotenciaModulo)
+  const potenciaModuloDirty = useSimulacaoBaseStore(selectPotenciaModuloDirty)
+  const setPotenciaModuloState = useSimulacaoBaseStore(selectSetPotenciaModulo)
+  const setPotenciaModuloDirtyState = useSimulacaoBaseStore(selectSetPotenciaModuloDirty)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'nenhum')
   const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
   const tipoRedeLabel = useMemo(
     () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
     [tipoRede],
   )
-  const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
     () => initialTipoInstalacao,
