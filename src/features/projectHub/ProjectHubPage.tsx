@@ -2,7 +2,7 @@
 // Temporary first version of ProjectHubPage — lists projects created via "Converter em Projeto".
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useProjectStore, selectProjetos, type Projeto } from './useProjectStore'
 
 function formatDate(iso: string): string {
@@ -38,27 +38,37 @@ function getTipoBadgeStyles(tipo: string): React.CSSProperties {
 
 interface ProjetoCardProps {
   projeto: Projeto
+  selected: boolean
+  onSelect: (id: string) => void
 }
 
-function ProjetoCard({ projeto }: ProjetoCardProps) {
-  const { cliente, tipo, status, financeiro, createdAt } = projeto
+function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
+  const { cliente, tipo, status } = projeto
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(projeto.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(projeto.id) }}
       style={{
-        border: '1px solid var(--color-border, #e2e8f0)',
+        border: selected
+          ? '2px solid var(--color-primary, #1d4ed8)'
+          : '1px solid var(--color-border, #e2e8f0)',
         borderRadius: 8,
-        padding: '1rem 1.25rem',
-        background: 'var(--color-surface, #fff)',
+        padding: '0.75rem 1rem',
+        background: selected
+          ? 'var(--color-primary-light, #dbeafe)'
+          : 'var(--color-surface, #fff)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.4rem',
+        gap: '0.3rem',
+        cursor: 'pointer',
+        outline: 'none',
       }}
     >
-      <div style={{ fontWeight: 600, fontSize: '1rem' }}>{cliente.nome}</div>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-        <span style={getTipoBadgeStyles(tipo)}>
-          {tipo}
-        </span>
+      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{cliente.nome}</div>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem' }}>
+        <span style={getTipoBadgeStyles(tipo)}>{tipo}</span>
         <span
           style={{
             background: 'var(--color-muted-bg, #f1f5f9)',
@@ -69,19 +79,63 @@ function ProjetoCard({ projeto }: ProjetoCardProps) {
           {status}
         </span>
       </div>
-      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary, #64748b)' }}>
-        <span>Contrato: {formatCurrency(financeiro.valorContrato)}</span>
-        {' · '}
-        <span>Custo: {formatCurrency(financeiro.custoTotal)}</span>
-        {' · '}
-        <span>Margem: {formatCurrency(financeiro.margem)}</span>
+    </div>
+  )
+}
+
+interface ProjetoDetailProps {
+  projeto: Projeto
+}
+
+function ProjetoDetail({ projeto }: ProjetoDetailProps) {
+  const { cliente, tipo, status, financeiro, createdAt } = projeto
+  return (
+    <div
+      style={{
+        border: '1px solid var(--color-border, #e2e8f0)',
+        borderRadius: 8,
+        padding: '1.5rem',
+        background: 'var(--color-surface, #fff)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+      }}
+    >
+      <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{cliente.nome}</div>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+        <span style={getTipoBadgeStyles(tipo)}>{tipo}</span>
+        <span
+          style={{
+            background: 'var(--color-muted-bg, #f1f5f9)',
+            borderRadius: 4,
+            padding: '0.1rem 0.5rem',
+          }}
+        >
+          {status}
+        </span>
       </div>
-      {tipo === 'leasing' && financeiro.mensalidade !== undefined && (
-        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary, #64748b)' }}>
-          Mensalidade: {formatCurrency(financeiro.mensalidade)}
+      <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
+        <div>
+          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor do Contrato: </span>
+          <strong>{formatCurrency(financeiro.valorContrato)}</strong>
         </div>
-      )}
-      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)', marginTop: '0.25rem' }}>
+        <div>
+          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Custo Total: </span>
+          <strong>{formatCurrency(financeiro.custoTotal)}</strong>
+        </div>
+        <div>
+          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Margem: </span>
+          <strong>{formatCurrency(financeiro.margem)}</strong>
+        </div>
+        {tipo === 'leasing' && financeiro.mensalidade !== undefined && (
+          <div>
+            <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Mensalidade: </span>
+            <strong>{formatCurrency(financeiro.mensalidade)}</strong>
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)' }}>
         Criado em {formatDate(createdAt)}
       </div>
     </div>
@@ -94,9 +148,12 @@ interface ProjectHubPageProps {
 
 export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
   const projetos = useProjectStore(selectProjetos)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+
+  const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '1.5rem', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
         <button type="button" className="ghost" onClick={onBack}>
           ← Voltar
@@ -131,10 +188,37 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {projetos.map((projeto) => (
-            <ProjetoCard key={projeto.id} projeto={projeto} />
-          ))}
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+          {/* Project list column */}
+          <div style={{ flex: '0 0 280px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {projetos.map((projeto) => (
+              <ProjetoCard
+                key={projeto.id}
+                projeto={projeto}
+                selected={projeto.id === selectedProjectId}
+                onSelect={setSelectedProjectId}
+              />
+            ))}
+          </div>
+
+          {/* Detail panel */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {selectedProject ? (
+              <ProjetoDetail projeto={selectedProject} />
+            ) : (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: '3rem 1rem',
+                  color: 'var(--color-text-secondary, #64748b)',
+                  border: '2px dashed var(--color-border, #e2e8f0)',
+                  borderRadius: 8,
+                }}
+              >
+                Selecione um projeto para ver os detalhes
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
