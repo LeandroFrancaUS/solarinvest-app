@@ -386,6 +386,11 @@ import {
   selectSetUfTarifa,
   selectUfTarifa,
 } from './features/simulacoes/useUfTarifaStore'
+import {
+  useConsumoBaseStore,
+  selectSetKcKwhMes,
+  selectSetConsumoManual,
+} from './features/simulacoes/useConsumoBaseStore'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -4491,6 +4496,8 @@ export default function App() {
   // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
   // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
+  const setStoreKcKwhMes = useConsumoBaseStore(selectSetKcKwhMes)
+  const setStoreConsumoManual = useConsumoBaseStore(selectSetConsumoManual)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
@@ -4874,6 +4881,7 @@ export default function App() {
   const setConsumoManual = useCallback(
     (value: boolean) => {
       setConsumoManualState(value)
+      setStoreConsumoManual(value)
       updatePageSharedState((current) => {
         if (current.consumoManual === value) {
           return current
@@ -4881,7 +4889,7 @@ export default function App() {
         return { ...current, consumoManual: value }
       })
     },
-    [updatePageSharedState],
+    [setStoreConsumoManual, updatePageSharedState],
   )
 
   const setKcKwhMes = useCallback(
@@ -4889,6 +4897,7 @@ export default function App() {
       const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
       setConsumoManual(origin === 'user')
       setKcKwhMesState(normalized)
+      setStoreKcKwhMes(normalized, origin)
       updatePageSharedState((current) => {
         if (current.kcKwhMes === normalized) {
           return current
@@ -4897,7 +4906,7 @@ export default function App() {
       })
       return normalized
     },
-    [setConsumoManual, setKcKwhMesState, updatePageSharedState],
+    [setConsumoManual, setKcKwhMesState, setStoreKcKwhMes, updatePageSharedState],
   )
 
   const setPotenciaFonteManual = useCallback(
