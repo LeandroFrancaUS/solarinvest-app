@@ -5209,6 +5209,8 @@ export default function App() {
   const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
   const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
   const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
+  // Tracks UFs whose municipality fetch already failed — prevents repeated warnings on retries.
+  const ibgeMunicipiosFailedRef = useRef(new Set<string>())
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
@@ -5265,7 +5267,10 @@ export default function App() {
           return municipios
         } catch (error) {
           if (!(error instanceof DOMException) || error.name !== 'AbortError') {
-            console.warn('[IBGE] Não foi possível carregar municípios:', error)
+            if (!ibgeMunicipiosFailedRef.current.has(normalizedUf)) {
+              ibgeMunicipiosFailedRef.current.add(normalizedUf)
+              console.warn('[IBGE] Não foi possível carregar municípios para', normalizedUf, '— lista de cidades ficará vazia.')
+            }
           }
           setIbgeMunicipiosPorUf((prev) => ({
             ...prev,
@@ -5308,6 +5313,15 @@ export default function App() {
       } catch (error) {
         if (!(error instanceof DOMException) || error.name !== 'AbortError') {
           console.warn('[IBGE] Não foi possível carregar estados:', error)
+          // Ensure GO and DF are always available even without network access.
+          setUfsDisponiveis((prev) => {
+            const hasFallback = prev.includes('GO') && prev.includes('DF')
+            if (hasFallback) return prev
+            const merged = Array.from(new Set([...prev, 'GO', 'DF'])).sort((a, b) =>
+              a.localeCompare(b, 'pt-BR'),
+            )
+            return merged
+          })
         }
       }
     }
