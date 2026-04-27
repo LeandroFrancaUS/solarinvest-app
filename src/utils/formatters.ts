@@ -149,6 +149,23 @@ export const formatKwhWithUnit = (value: number | null | undefined, digits = 2):
   return formatted ? `${formatted} kWh` : null
 }
 
+/**
+ * Formata um timestamp de aprovação para exibição em pt-BR.
+ * Retorna '—' para valores nulos/inválidos.
+ */
+export const formatAprovacaoData = (timestamp: number | null): string => {
+  if (!timestamp) {
+    return '—'
+  }
+  try {
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+      new Date(timestamp),
+    )
+  } catch (_error) {
+    return '—'
+  }
+}
+
 export const formatUcGeradoraTitularEndereco = (
   endereco?: LeasingEndereco | null,
 ): string => {
