@@ -136,8 +136,6 @@ import {
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
-import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
 import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
@@ -4320,49 +4318,43 @@ export default function App() {
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
   useEffect(() => {
-    const trimmed = afCidadeDestino.trim()
+    const trimmed = storeAfCidadeDestino.trim()
     if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
       setAfCidadeSuggestions([])
       return
     }
     setAfCidadeSuggestions(searchCidades(trimmed))
-  }, [afCidadeDestino])
+  }, [storeAfCidadeDestino])
 
   const handleSelectCidade = useCallback((city: CidadeDB) => {
-    setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
+    const travelConfig = {
+      faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
+      faixa1Valor: vendasConfig.af_deslocamento_faixa1_rs,
+      faixa2Km: vendasConfig.af_deslocamento_faixa2_km,
+      faixa2Valor: vendasConfig.af_deslocamento_faixa2_rs,
+      kmExcedenteValor: vendasConfig.af_deslocamento_km_excedente_rs,
+    }
+    const regioesIsentas = vendasConfig.af_deslocamento_regioes_isentas.map(
+      (r) => `${r.cidade} - ${r.uf}`,
+    )
+    const { ufOverride } = useAfDeslocamentoStore
+      .getState()
+      .selectCidadeAndCalculateDeslocamento(city, { travelConfig, regioesIsentas })
+    setAfUfOverride(ufOverride)
+    const snap = useAfDeslocamentoStore.getState()
+    setAfCidadeDestino(snap.afCidadeDestino)
     setAfCidadeSuggestions([])
     setAfCidadeShowSuggestions(false)
-    // Map to supported calculation UF: DF or GO (default for all other states)
-    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
-    const travelConfig = {
-      exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
-      faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
-      faixa1Rs: vendasConfig.af_deslocamento_faixa1_rs,
-      faixa2MaxKm: vendasConfig.af_deslocamento_faixa2_km,
-      faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
-      kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
-    }
-    const label = `${city.cidade}/${city.uf}`
-    if (isExemptRegion(city.cidade, city.uf, travelConfig.exemptRegions)) {
-      setAfDeslocamentoStatus('isenta')
-      setAfDeslocamentoKm(0)
-      setAfDeslocamentoRs(0)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    } else {
-      const km = calcRoundTripKm(city.lat, city.lng)
-      const custo = calculateInstallerTravelCost(km, travelConfig)
-      setAfDeslocamentoStatus('ok')
-      setAfDeslocamentoKm(km)
-      setAfDeslocamentoRs(custo)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    }
+    setAfDeslocamentoKm(snap.afDeslocamentoKm)
+    setAfDeslocamentoRs(snap.afDeslocamentoRs)
+    setAfDeslocamentoStatus(snap.afDeslocamentoStatus)
+    setAfDeslocamentoCidadeLabel(snap.afDeslocamentoCidadeLabel)
+    setAfDeslocamentoErro(snap.afDeslocamentoErro)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
 
   useEffect(() => {
-    setAfTransporteCombustivel(afDeslocamentoRs)
-  }, [afDeslocamentoRs])
+    setAfTransporteCombustivel(storeAfDeslocamentoRs)
+  }, [storeAfDeslocamentoRs])
 
   useEffect(() => {
     setStoreAfCidadeDestino(afCidadeDestino)
@@ -9940,7 +9932,7 @@ export default function App() {
       afHotelPousada +
       afTransporteCombustivel +
       afOutros +
-      afDeslocamentoRs
+      storeAfDeslocamentoRs
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
     // Build the projected mensalidades series for leasing mode using an AF-isolated
@@ -10034,7 +10026,7 @@ export default function App() {
         hotel_pousada_rs: afHotelPousada,
         transporte_combustivel_rs: afTransporteCombustivel,
         outros_rs: afOutros,
-        deslocamento_instaladores_rs: afDeslocamentoRs,
+        deslocamento_instaladores_rs: storeAfDeslocamentoRs,
         placa_rs_override: prePlaca,
         material_ca_rs_override: preMaterialCA,
         projeto_rs_override: preProjetoFinal,
@@ -10072,7 +10064,7 @@ export default function App() {
     afHotelPousada,
     afTransporteCombustivel,
     afOutros,
-    afDeslocamentoRs,
+    storeAfDeslocamentoRs,
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
@@ -19298,21 +19290,21 @@ export default function App() {
             setAfCustoOperacional={setAfCustoOperacional}
             afMesesProjecao={afMesesProjecao}
             setAfMesesProjecao={setAfMesesProjecao}
-            afCidadeDestino={afCidadeDestino}
+            afCidadeDestino={storeAfCidadeDestino}
             setAfCidadeDestino={setAfCidadeDestino}
-            afCidadeSuggestions={afCidadeSuggestions}
+            afCidadeSuggestions={storeAfCidadeSuggestions}
             setAfCidadeSuggestions={setAfCidadeSuggestions}
-            afCidadeShowSuggestions={afCidadeShowSuggestions}
+            afCidadeShowSuggestions={storeAfCidadeShowSuggestions}
             setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
-            afDeslocamentoStatus={afDeslocamentoStatus}
+            afDeslocamentoStatus={storeAfDeslocamentoStatus}
             setAfDeslocamentoStatus={setAfDeslocamentoStatus}
-            afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
+            afDeslocamentoCidadeLabel={storeAfDeslocamentoCidadeLabel}
             setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
-            afDeslocamentoKm={afDeslocamentoKm}
+            afDeslocamentoKm={storeAfDeslocamentoKm}
             setAfDeslocamentoKm={setAfDeslocamentoKm}
-            afDeslocamentoRs={afDeslocamentoRs}
+            afDeslocamentoRs={storeAfDeslocamentoRs}
             setAfDeslocamentoRs={setAfDeslocamentoRs}
-            afDeslocamentoErro={afDeslocamentoErro}
+            afDeslocamentoErro={storeAfDeslocamentoErro}
             setAfDeslocamentoErro={setAfDeslocamentoErro}
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             handleSelectCidade={handleSelectCidade}
