@@ -12,6 +12,8 @@ import {
   buildPlanIdFromContract,
 } from '../../domain/projects/mapPlanToProject'
 import { PROJECT_STATUSES, PROJECT_TYPES } from '../../domain/projects/types'
+import { applyComissaoAutomation } from '../../features/projectHub/ProjectHubPage'
+import type { Projeto } from '../../features/projectHub/useProjectStore'
 
 describe('src/domain/projects — ProjectType mapping', () => {
   it('maps contract_type to the canonical ProjectType', () => {
@@ -88,5 +90,81 @@ describe('src/domain/projects — buildPlanIdFromContract', () => {
   it('produces a stable plan_id', () => {
     expect(buildPlanIdFromContract(1)).toBe('contract:1')
     expect(buildPlanIdFromContract('99')).toBe('contract:99')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// applyComissaoAutomation — nao_elegivel guard
+// ---------------------------------------------------------------------------
+
+function makeProjetoBase(overrides: Partial<Projeto> = {}): Projeto {
+  return {
+    id: 'proj-test',
+    tipo: 'leasing',
+    status: 'proposta_emitida',
+    cliente: { nome: 'Test' },
+    financeiro: { valorContrato: 0, custoTotal: 0, margem: 0 },
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  } as Projeto
+}
+
+describe('applyComissaoAutomation — nao_elegivel guard', () => {
+  it('leasing with base 0 and status nao_elegivel stays nao_elegivel when advancing to ativo', () => {
+    const projeto = makeProjetoBase({
+      tipo: 'leasing',
+      comissaoConsultor: {
+        regra: 'leasing',
+        valorTotalEstimado: 0,
+        valorPago: 0,
+        status: 'nao_elegivel',
+        parcelas: [
+          { descricao: 'Parcela 1', percentual: 40, valor: 0, gatilho: 'ativo', pago: false },
+          { descricao: 'Parcela 2', percentual: 60, valor: 0, gatilho: 'mensalidade_paga', pago: false },
+        ],
+      },
+    })
+
+    const result = applyComissaoAutomation(projeto, 'ativo')
+    expect(result).toBeNull()
+  })
+
+  it('venda with base 0 and status nao_elegivel stays nao_elegivel when advancing to concluido', () => {
+    const projeto = makeProjetoBase({
+      tipo: 'venda',
+      comissaoConsultor: {
+        regra: 'venda',
+        valorTotalEstimado: 0,
+        valorPago: 0,
+        status: 'nao_elegivel',
+        parcelas: [
+          { descricao: 'Parcela única', percentual: 100, valor: 0, gatilho: 'concluido', pago: false },
+        ],
+      },
+    })
+
+    const result = applyComissaoAutomation(projeto, 'concluido')
+    expect(result).toBeNull()
+  })
+
+  it('leasing with eligible commission still triggers automation on ativo', () => {
+    const projeto = makeProjetoBase({
+      tipo: 'leasing',
+      comissaoConsultor: {
+        regra: 'leasing',
+        valorTotalEstimado: 1000,
+        valorPago: 0,
+        status: 'adiantamento_disponivel',
+        parcelas: [
+          { descricao: 'Parcela 1', percentual: 40, valor: 400, gatilho: 'ativo', pago: false },
+          { descricao: 'Parcela 2', percentual: 60, valor: 600, gatilho: 'mensalidade_paga', pago: false },
+        ],
+      },
+    })
+
+    const result = applyComissaoAutomation(projeto, 'ativo')
+    expect(result).not.toBeNull()
+    expect(result?.comissaoConsultor?.status).toBe('parcial_pago')
+    expect(result?.comissaoConsultor?.valorPago).toBe(400)
   })
 })
