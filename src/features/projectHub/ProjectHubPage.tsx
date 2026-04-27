@@ -128,6 +128,8 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
 interface ProjetoDetailProps {
   projeto: Projeto
   onStatusChange: (id: string, status: ProjetoStatus) => void
+  onCheckDocumental: (id: string, key: keyof AprovacaoDocumental, aprovado: boolean) => void
+  onCheckViabilidade: (id: string, key: keyof AprovacaoViabilidade, aprovado: boolean) => void
 }
 
 const STATUS_OPTIONS_LEASING: ProjetoStatusLeasing[] = [
@@ -154,7 +156,7 @@ function getStatusOptions(tipo: Projeto['tipo']): ProjetoStatus[] {
   return tipo === 'leasing' ? STATUS_OPTIONS_LEASING : STATUS_OPTIONS_VENDA
 }
 
-function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
+function ProjetoDetail({ projeto, onStatusChange, onCheckDocumental, onCheckViabilidade }: ProjetoDetailProps) {
   const { cliente, tipo, status, financeiro, createdAt, consultor, comissaoConsultor } = projeto
   return (
     <div
@@ -306,7 +308,19 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
                     gap: '0.5rem',
                   }}
                 >
-                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  <label
+                    htmlFor={`doc-${projeto.id}-${key}`}
+                    style={{ fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <input
+                      id={`doc-${projeto.id}-${key}`}
+                      type="checkbox"
+                      checked={item.aprovado}
+                      onChange={(e) => onCheckDocumental(projeto.id, key, e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    {label}
+                  </label>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                     <span
                       style={{
@@ -353,10 +367,22 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
                     gap: '0.5rem',
                   }}
                 >
-                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  <label
+                    htmlFor={`via-${projeto.id}-${key}`}
+                    style={{ fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <input
+                      id={`via-${projeto.id}-${key}`}
+                      type="checkbox"
+                      checked={item.aprovado}
+                      onChange={(e) => onCheckViabilidade(projeto.id, key, e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    {label}
+                  </label>
                   <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #64748b)' }}>
-                      Obrigatório
+                    <span style={{ fontSize: '0.75rem', color: item.obrigatorio ? 'var(--color-text-secondary, #64748b)' : 'var(--color-text-muted, #94a3b8)', fontStyle: item.obrigatorio ? 'normal' : 'italic' }}>
+                      {item.obrigatorio ? 'Obrigatório' : 'Opcional'}
                     </span>
                     {item.aprovado
                       ? <span style={{ color: 'var(--color-success, #16a34a)', fontWeight: 600 }}>✔ Aprovado</span>
@@ -393,8 +419,7 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
 
   const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
 
-  function handleStatusChange(id: string, status: ProjetoStatus) {
-    const projeto = projetos.find((p) => p.id === id)
+  function handleStatusChange(id: string, status: ProjetoStatus) {    const projeto = projetos.find((p) => p.id === id)
     if (projeto) {
       if (status === 'validacao_viabilidade' && !isDocumentacaoAprovada(projeto)) {
         alert('A documentação deve ser aprovada antes de avançar para validação de viabilidade')
@@ -410,6 +435,28 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
       }
     }
     updateProjeto(id, { status })
+  }
+
+  function handleCheckDocumental(id: string, key: keyof AprovacaoDocumental, aprovado: boolean) {
+    const projeto = projetos.find((p) => p.id === id)
+    if (!projeto?.aprovacaoDocumental) return
+    updateProjeto(id, {
+      aprovacaoDocumental: {
+        ...projeto.aprovacaoDocumental,
+        [key]: { ...projeto.aprovacaoDocumental[key], aprovado },
+      },
+    })
+  }
+
+  function handleCheckViabilidade(id: string, key: keyof AprovacaoViabilidade, aprovado: boolean) {
+    const projeto = projetos.find((p) => p.id === id)
+    if (!projeto?.aprovacaoViabilidade) return
+    updateProjeto(id, {
+      aprovacaoViabilidade: {
+        ...projeto.aprovacaoViabilidade,
+        [key]: { ...projeto.aprovacaoViabilidade[key], aprovado },
+      },
+    })
   }
 
   function handleSalvarProjeto() {
@@ -570,7 +617,7 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
           {/* Detail panel */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {selectedProject ? (
-              <ProjetoDetail projeto={selectedProject} onStatusChange={handleStatusChange} />
+              <ProjetoDetail projeto={selectedProject} onStatusChange={handleStatusChange} onCheckDocumental={handleCheckDocumental} onCheckViabilidade={handleCheckViabilidade} />
             ) : (
               <div
                 style={{
