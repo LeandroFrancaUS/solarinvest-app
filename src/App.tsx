@@ -347,6 +347,7 @@ import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
+import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
@@ -5211,6 +5212,8 @@ export default function App() {
   const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
   const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
   const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
+  // Tracks UFs whose municipality fetch already failed — prevents repeated warnings on retries.
+  const ibgeMunicipiosFailedRef = useRef(new Set<string>())
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
@@ -5267,7 +5270,10 @@ export default function App() {
           return municipios
         } catch (error) {
           if (!(error instanceof DOMException) || error.name !== 'AbortError') {
-            console.warn('[IBGE] Não foi possível carregar municípios:', error)
+            if (!ibgeMunicipiosFailedRef.current.has(normalizedUf)) {
+              ibgeMunicipiosFailedRef.current.add(normalizedUf)
+              console.warn('[IBGE] Não foi possível carregar municípios para', normalizedUf, '— lista de cidades ficará vazia.')
+            }
           }
           setIbgeMunicipiosPorUf((prev) => ({
             ...prev,
@@ -5310,6 +5316,15 @@ export default function App() {
       } catch (error) {
         if (!(error instanceof DOMException) || error.name !== 'AbortError') {
           console.warn('[IBGE] Não foi possível carregar estados:', error)
+          // Ensure GO and DF are always available even without network access.
+          setUfsDisponiveis((prev) => {
+            const hasFallback = prev.includes('GO') && prev.includes('DF')
+            if (hasFallback) return prev
+            const merged = Array.from(new Set([...prev, 'GO', 'DF'])).sort((a, b) =>
+              a.localeCompare(b, 'pt-BR'),
+            )
+            return merged
+          })
         }
       }
     }
@@ -18813,6 +18828,8 @@ export default function App() {
           canSeeDashboardEffective
             ? <OperationalDashboardPage />
             : null
+        ) : activePage === 'project-hub' ? (
+          <ProjectHubPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : (
           <div className="page">
             <div className="app-main">
@@ -19875,6 +19892,31 @@ export default function App() {
               </main>
             </div>
           </div>
+        )}
+        {/* TEMP: Project Hub quick-access button — remove when a sidebar entry is added */}
+        {activePage !== 'project-hub' && (
+          <button
+            type="button"
+            onClick={() => setActivePage('project-hub')}
+            title="Project Hub (acesso temporário)"
+            style={{
+              position: 'fixed',
+              bottom: '1.5rem',
+              right: '1.5rem',
+              zIndex: 9999,
+              background: 'var(--color-primary, #1d4ed8)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 24,
+              padding: '0.5rem 1.1rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            }}
+          >
+            🗂 Project Hub
+          </button>
         )}
       </AppShell>
       <input

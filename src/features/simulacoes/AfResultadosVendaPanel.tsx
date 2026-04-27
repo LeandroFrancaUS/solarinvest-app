@@ -39,17 +39,18 @@ export function AfResultadosVendaPanel({
     <>
       {/* Venda results — hidden for leasing */}
       {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
-        <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-          <h4>Resultados</h4>
-          {afModo === 'venda' ? (
-            <div style={{ marginBottom: '0.75rem' }}>
+        <>
+          {/* 1. Bloco Contrato */}
+          <div className="af-contract-block simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+            <h4>Contrato</h4>
+            <div style={{ marginTop: '0.5rem' }}>
               <Field label="Valor do Contrato (R$)">
                 <input
                   ref={afValorContratoField.ref}
                   type="text"
                   inputMode="decimal"
                   value={afValorContratoField.text}
-                  style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                  className="af-input--primary"
                   onChange={afValorContratoField.handleChange}
                   onBlur={afValorContratoField.handleBlur}
                   onFocus={afValorContratoField.handleFocus}
@@ -67,27 +68,28 @@ export function AfResultadosVendaPanel({
                 />
               </Field>
             </div>
-          ) : null}
-          <div className="info-inline">
-            <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
-            {afValorContrato > 0 ? (
-              <>
-                <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
-                <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
-                <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
-                <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                <span className="pill">Comissão <InfoTooltip text="Comissão mínima aplicada sobre o valor do contrato somente quando a margem líquida sem comissão já atinge a margem mínima." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
-                <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
-                <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
-                <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto sobre o valor do contrato para manter a margem líquida mínima já considerando a comissão mínima." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
-              </>
-            ) : null}
           </div>
+
+          {/* 2. Status de venda */}
+          {afValorContrato > 0 ? (
+            <div className="af-status-badge" style={{ marginBottom: '1rem' }}>
+              {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
+                <span className="pill pill--error">🚫 VENDA NÃO APROVADA</span>
+              ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
+                <span className="pill pill--warning">⚠️ SEM COMISSÃO</span>
+              ) : analiseFinanceiraResult.status_venda === 'COMISSAO_MINIMA' ? (
+                <span className="pill pill--info">💼 COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%</span>
+              ) : (
+                <span className="pill pill--success">✅ VENDA SAUDÁVEL — COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%</span>
+              )}
+            </div>
+          ) : null}
+
+          {/* 3. Faixa de preço */}
           {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
-            <div className="price-band">
-              <p className="price-band-title">Recomendações de Preço</p>
-              <div className="price-band-row">
+            <div className="af-price-band simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+              <h4>Faixa de Preço</h4>
+              <div className="price-band-row" style={{ marginTop: '0.5rem' }}>
                 {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
                   <span className="pill pill--warning pill--price">
                     Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
@@ -104,37 +106,37 @@ export function AfResultadosVendaPanel({
                   </span>
                 ) : null}
               </div>
-              {afValorContrato > 0 ? (
-                <div className="price-band-row">
-                  {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
-                    <span className="pill pill--error">
-                      🚫 VENDA NÃO APROVADA
-                    </span>
-                  ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
-                    <span className="pill pill--warning">
-                      ⚠️ SEM COMISSÃO
-                    </span>
-                  ) : analiseFinanceiraResult.status_venda === 'COMISSAO_MINIMA' ? (
-                    <span className="pill pill--info">
-                      💼 COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
-                    </span>
-                  ) : (
-                    <span className="pill pill--success">
-                      ✅ VENDA SAUDÁVEL — COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
-                    </span>
-                  )}
-                </div>
-              ) : null}
             </div>
           ) : null}
-        </div>
+
+          {/* 4. Resultados operacionais */}
+          <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
+            <h4>Resultados</h4>
+            <div className="af-results-pills info-inline">
+              <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
+              {afValorContrato > 0 ? (
+                <>
+                  <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
+                  <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
+                  <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
+                  <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
+                  <span className="pill">Comissão <InfoTooltip text="Comissão mínima aplicada sobre o valor do contrato somente quando a margem líquida sem comissão já atinge a margem mínima." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
+                  <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
+                  <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
+                  <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
+                  <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto sobre o valor do contrato para manter a margem líquida mínima já considerando a comissão mínima." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </>
       ) : null}
 
-      {/* KPIs */}
+      {/* 5. KPIs financeiros */}
       {afModo === 'venda' ? (
         <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
           <h4>Indicadores Financeiros — Venda</h4>
-          <div className="info-inline">
+          <div className="af-kpi-grid">
             <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
             <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
             <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). Não disponível quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>

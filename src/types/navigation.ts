@@ -14,12 +14,9 @@ export type ActivePage =
   | 'admin-users'
   | 'carteira'
   | 'financial-management'
+  | 'project-hub'
 
 export type SimulacoesSection =
   | 'nova'
   | 'salvas'
-  | 'ia'
-  | 'risco'
-  | 'packs'
-  | 'packs-inteligentes'
   | 'analise'

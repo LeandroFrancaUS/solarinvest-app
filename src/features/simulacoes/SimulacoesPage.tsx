@@ -9,7 +9,6 @@ import type { LeasingPrazoAnos } from '../../app/config'
 import { SIMULACOES_SECTION_COPY } from './simulacoesConstants'
 import { SimulacoesHeroCard } from './SimulacoesHeroCard'
 import { SimulacoesNav } from './SimulacoesNav'
-import { SimulacoesStaticModuleCard } from './SimulacoesStaticModuleCard'
 import { AnaliseFinanceiraSection } from './AnaliseFinanceiraSection'
 import type { AnaliseFinanceiraSectionProps } from './AnaliseFinanceiraSection'
 import { useConsumoBaseStore, selectKcKwhMes } from './useConsumoBaseStore'
@@ -18,9 +17,7 @@ const SimulacoesTab = React.lazy(() =>
   import('../../components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })),
 )
 
-type AnaliseFinanceiraSectionPassthroughProps = Omit<AnaliseFinanceiraSectionProps, 'isAnaliseMobileSimpleView'>
-
-export interface SimulacoesPageProps extends AnaliseFinanceiraSectionPassthroughProps {
+export interface SimulacoesPageProps extends AnaliseFinanceiraSectionProps {
   simulacoesSection: SimulacoesSection
   isMobileViewport: boolean
   isMobileSimpleEnabled: boolean
@@ -48,10 +45,6 @@ export function SimulacoesPage({
   const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
     'nova',
     'salvas',
-    'ia',
-    'risco',
-    'packs',
-    'packs-inteligentes',
   ])
 
   return (
@@ -85,8 +78,7 @@ export function SimulacoesPage({
               <p className="simulacoes-tag ghost">Workspace</p>
               <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
               <p className="simulacoes-description">
-                Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
-                área.
+                Layout full-width para criação, comparação e duplicação de cenários.
               </p>
             </div>
           </header>
@@ -100,12 +92,9 @@ export function SimulacoesPage({
           </React.Suspense>
         </section>
 
-        <SimulacoesStaticModuleCard section={simulacoesSection} />
-
         {simulacoesSection === 'analise' ? (
           <AnaliseFinanceiraSection
             {...analiseFinanceiraProps}
-            isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
           />
         ) : null}
       </div>

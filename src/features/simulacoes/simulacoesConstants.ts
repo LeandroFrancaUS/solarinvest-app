@@ -20,40 +20,16 @@ export const SIMULACOES_MENU: { id: SimulacoesSection; label: string; descriptio
     description: 'Acesse e compare simulações gravadas sem voltar para Preferências.',
   },
   {
-    id: 'ia',
-    label: 'Análises IA (AI Analytics)',
-    description: 'Insights automáticos sobre KPIs, alavancagem e oportunidades.',
-  },
-  {
-    id: 'risco',
-    label: 'Risco & Monte Carlo',
-    description: 'Cenários de risco e volatilidade com distribuição full-width.',
-  },
-  {
-    id: 'packs',
-    label: 'Packs',
-    description: 'Agrupe propostas e combos comerciais para reutilizar.',
-  },
-  {
-    id: 'packs-inteligentes',
-    label: 'Packs Inteligentes',
-    description: 'Automatize packs com IA e premissas dinâmicas.',
-  },
-  {
     id: 'analise',
     label: 'Análise Financeira',
-    description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
+    description: 'Cálculo completo de Venda e Leasing com preço mínimo saudável.',
   },
 ]
 
 export const SIMULACOES_SECTION_COPY: Record<SimulacoesSection, string> = {
   nova: 'Abra novas simulações em layout de tela cheia e compare resultados lado a lado.',
   salvas: 'Revise simulações existentes sem sair do módulo dedicado.',
-  ia: 'Centralize análises assistidas por IA e recomendações automáticas.',
-  risco: 'Use Monte Carlo e cenários de risco com gráficos em largura total.',
-  packs: 'Organize pacotes comerciais para acelerar a operação.',
-  'packs-inteligentes': 'Combine inteligência artificial e packs dinâmicos.',
-  analise: 'Aplique regras SolarInvest, checklist interno e selo de aprovação.',
+  analise: 'Análise financeira de Venda e Leasing com custos, parâmetros e resultados.',
 }
 
 export const APROVACAO_SELLOS: Record<AprovacaoStatus, string> = {
