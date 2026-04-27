@@ -4317,7 +4317,6 @@ export default function App() {
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
-  const afBaseInitializedRef = useRef(false)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
   const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
@@ -4336,23 +4335,6 @@ export default function App() {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  // Initialize AF base system overrides from proposal values on first visit to analise section
-  useEffect(() => {
-    if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
-      afBaseInitializedRef.current = true
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
-    }
-   
-  }, [simulacoesSection])
   // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
   // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
   // places it after the useEffect call site, which causes a Temporal Dead Zone (TDZ)
@@ -19204,7 +19186,7 @@ export default function App() {
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
             aprovacaoChecklist={aprovacaoChecklist}
             toggleAprovacaoChecklist={toggleAprovacaoChecklist}
-            afBaseInitializedRef={afBaseInitializedRef}
+            ufTarifa={ufTarifa}
           />
         ) : activePage === 'settings' ? (
           <SettingsPage
