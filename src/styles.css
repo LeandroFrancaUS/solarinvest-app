@@ -9040,3 +9040,25 @@ i:hover {
   color: var(--color-warning-fg);
   font-size: 0.92rem;
 }
+
+/* AnaliseFinanceira two-column desktop layout */
+.af-section-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) minmax(420px, 3fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.af-inputs-column,
+.af-results-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .af-section-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
