@@ -28,6 +28,22 @@ export type ComissaoConsultor = {
   parcelas: ComissaoParcela[]
 }
 
+export type AprovacaoItem = {
+  obrigatorio: boolean
+  aprovado: boolean
+}
+
+export type AprovacaoDocumental = {
+  comprovacaoRenda: AprovacaoItem
+  analiseCreditoSerasa: AprovacaoItem
+  faturasDistribuidoraSemAtraso: AprovacaoItem
+}
+
+export type AprovacaoViabilidade = {
+  areaInstalacaoCompativel: AprovacaoItem
+  padraoRelogioAprovadoEngenharia: AprovacaoItem
+}
+
 export type Projeto = {
   id: string
   tipo: ProjetoTipo
@@ -46,6 +62,11 @@ export type Projeto = {
     nome: string
   }
   comissaoConsultor?: ComissaoConsultor
+  aprovacaoDocumental?: AprovacaoDocumental
+  aprovacaoViabilidade?: AprovacaoViabilidade
+  pagamento?: {
+    modalidade?: 'avista' | 'parcelado'
+  }
   createdAt: string
 }
 
