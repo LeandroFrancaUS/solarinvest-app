@@ -431,6 +431,10 @@ import {
   selectSetAfCreaOverride,
   selectAfUfOverride,
   selectSetAfUfOverride,
+  selectAfModo,
+  selectSetAfModo,
+  selectAfValorContrato,
+  selectSetAfValorContrato,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4247,7 +4251,8 @@ export default function App() {
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
 
   // Financial Analysis (Spreadsheet v1) state
-  const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
+  const afModo = useAfInputStore(selectAfModo)
+  const setAfModo = useAfInputStore(selectSetAfModo)
   const afCustoKit = useAfInputStore(selectAfCustoKit)
   const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
   const afFrete = useAfInputStore(selectAfFrete)
@@ -4264,7 +4269,8 @@ export default function App() {
   const setAfTransporteCombustivel = useAfInputStore(selectSetAfTransporteCombustivel)
   const afOutros = useAfInputStore(selectAfOutros)
   const setAfOutros = useAfInputStore(selectSetAfOutros)
-  const [afValorContrato, setAfValorContrato] = useState(0)
+  const afValorContrato = useAfInputStore(selectAfValorContrato)
+  const setAfValorContrato = useAfInputStore(selectSetAfValorContrato)
   const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
   const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)
   const afInadimplencia = useAfInputStore(selectAfInadimplencia)
