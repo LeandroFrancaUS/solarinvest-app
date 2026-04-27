@@ -361,13 +361,7 @@ import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
   selectAfCidadeDestino,
-  selectAfCidadeShowSuggestions,
-  selectAfCidadeSuggestions,
-  selectAfDeslocamentoCidadeLabel,
-  selectAfDeslocamentoErro,
-  selectAfDeslocamentoKm,
   selectAfDeslocamentoRs,
-  selectAfDeslocamentoStatus,
 } from './features/simulacoes/afDeslocamentoSelectors'
 import { useAfInputStore } from './features/simulacoes/useAfInputStore'
 import {
@@ -4321,21 +4315,8 @@ export default function App() {
   const afCreaOverride = useAfInputStore(selectAfCreaOverride)
   const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
-  const storeAfDeslocamentoKm = useAfDeslocamentoStore(selectAfDeslocamentoKm)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
-  const storeAfDeslocamentoStatus = useAfDeslocamentoStore(selectAfDeslocamentoStatus)
-  const storeAfDeslocamentoCidadeLabel = useAfDeslocamentoStore(selectAfDeslocamentoCidadeLabel)
-  const storeAfDeslocamentoErro = useAfDeslocamentoStore(selectAfDeslocamentoErro)
-  const storeAfCidadeSuggestions = useAfDeslocamentoStore(selectAfCidadeSuggestions)
-  const storeAfCidadeShowSuggestions = useAfDeslocamentoStore(selectAfCidadeShowSuggestions)
-  const setStoreAfCidadeDestino = useAfDeslocamentoStore((state) => state.setAfCidadeDestino)
-  const setStoreAfDeslocamentoKm = useAfDeslocamentoStore((state) => state.setAfDeslocamentoKm)
-  const setStoreAfDeslocamentoRs = useAfDeslocamentoStore((state) => state.setAfDeslocamentoRs)
-  const setStoreAfDeslocamentoStatus = useAfDeslocamentoStore((state) => state.setAfDeslocamentoStatus)
-  const setStoreAfDeslocamentoCidadeLabel = useAfDeslocamentoStore((state) => state.setAfDeslocamentoCidadeLabel)
-  const setStoreAfDeslocamentoErro = useAfDeslocamentoStore((state) => state.setAfDeslocamentoErro)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
-  const setStoreAfCidadeShowSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeShowSuggestions)
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
@@ -19241,22 +19222,6 @@ export default function App() {
             afOutrosField={afOutrosField}
             afMensalidadeBaseField={afMensalidadeBaseField}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
-            afCidadeDestino={storeAfCidadeDestino}
-            setAfCidadeDestino={setStoreAfCidadeDestino}
-            afCidadeSuggestions={storeAfCidadeSuggestions}
-            setAfCidadeSuggestions={setStoreAfCidadeSuggestions}
-            afCidadeShowSuggestions={storeAfCidadeShowSuggestions}
-            setAfCidadeShowSuggestions={setStoreAfCidadeShowSuggestions}
-            afDeslocamentoStatus={storeAfDeslocamentoStatus}
-            setAfDeslocamentoStatus={setStoreAfDeslocamentoStatus}
-            afDeslocamentoCidadeLabel={storeAfDeslocamentoCidadeLabel}
-            setAfDeslocamentoCidadeLabel={setStoreAfDeslocamentoCidadeLabel}
-            afDeslocamentoKm={storeAfDeslocamentoKm}
-            setAfDeslocamentoKm={setStoreAfDeslocamentoKm}
-            afDeslocamentoRs={storeAfDeslocamentoRs}
-            setAfDeslocamentoRs={setStoreAfDeslocamentoRs}
-            afDeslocamentoErro={storeAfDeslocamentoErro}
-            setAfDeslocamentoErro={setStoreAfDeslocamentoErro}
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             handleSelectCidade={handleSelectCidade}
             analiseFinanceiraResult={analiseFinanceiraResult}
