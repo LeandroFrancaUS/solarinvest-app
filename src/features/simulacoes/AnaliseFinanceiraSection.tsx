@@ -14,23 +14,40 @@ import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
 import type { MoneyFieldHandle } from './simulacoesTypes'
+import type { AprovacaoChecklistKey, AprovacaoStatus } from './simulacoesConstants'
+import { useAfInputStore } from './useAfInputStore'
+import {
+  selectAfModo, selectSetAfModo,
+  selectAfConsumoOverride, selectSetAfConsumoOverride,
+  selectAfNumModulosOverride, selectSetAfNumModulosOverride,
+  selectAfModuloWpOverride, selectSetAfModuloWpOverride,
+  selectAfIrradiacaoOverride, selectSetAfIrradiacaoOverride,
+  selectAfPROverride, selectSetAfPROverride,
+  selectAfDiasOverride, selectSetAfDiasOverride,
+  selectSetAfCustoKit, selectSetAfCustoKitManual,
+  selectSetAfFrete, selectSetAfFreteManual,
+  selectSetAfDescarregamento,
+  selectSetAfHotelPousada,
+  selectSetAfTransporteCombustivel,
+  selectSetAfOutros,
+  selectAfValorContrato, selectSetAfValorContrato,
+  selectSetAfMensalidadeBase,
+  selectAfImpostosVenda, selectSetAfImpostosVenda,
+  selectAfImpostosLeasing, selectSetAfImpostosLeasing,
+  selectAfMargemLiquidaVenda, selectSetAfMargemLiquidaVenda,
+  selectAfMargemLiquidaMinima, selectSetAfMargemLiquidaMinima,
+  selectAfComissaoMinimaPercent, selectSetAfComissaoMinimaPercent,
+  selectAfTaxaDesconto, selectSetAfTaxaDesconto,
+  selectAfInadimplencia, selectSetAfInadimplencia,
+  selectAfCustoOperacional, selectSetAfCustoOperacional,
+  selectAfMesesProjecao, selectSetAfMesesProjecao,
+  selectSetAfAutoMaterialCA,
+  selectSetAfMaterialCAOverride,
+  selectSetAfProjetoOverride,
+  selectSetAfCreaOverride,
+} from './afInputSelectors'
 
 export interface AnaliseFinanceiraSectionProps {
-  afModo: 'venda' | 'leasing'
-  setAfModo: (modo: 'venda' | 'leasing') => void
-  afConsumoOverride: number
-  setAfConsumoOverride: (v: number) => void
-  afNumModulosOverride: number | null
-  setAfNumModulosOverride: (v: number | null) => void
-  afModuloWpOverride: number
-  setAfModuloWpOverride: (v: number) => void
-  afIrradiacaoOverride: number
-  setAfIrradiacaoOverride: (v: number) => void
-  afPROverride: number
-  setAfPROverride: (v: number) => void
-  afDiasOverride: number
-  setAfDiasOverride: (v: number) => void
-
   potenciaModulo: number
   baseIrradiacao: number
   eficienciaNormalizada: number
@@ -49,54 +66,7 @@ export interface AnaliseFinanceiraSectionProps {
   afOutrosField: MoneyFieldHandle
   afMensalidadeBaseField: MoneyFieldHandle
 
-  afAutoMaterialCA: number
-  setAfAutoMaterialCA: (v: number) => void
-  afMaterialCAOverride: number | null
-  setAfMaterialCAOverride: (v: number | null) => void
-  afProjetoOverride: number | null
-  setAfProjetoOverride: (v: number | null) => void
-  afCreaOverride: number | null
-  setAfCreaOverride: (v: number | null) => void
-  afCustoKit: number
-  setAfCustoKit: (v: number) => void
-  setAfCustoKitManual: (v: boolean) => void
-  afFrete: number
-  setAfFrete: (v: number) => void
-  setAfFreteManual: (v: boolean) => void
-  afDescarregamento: number
-  setAfDescarregamento: (v: number) => void
-  afHotelPousada: number
-  setAfHotelPousada: (v: number) => void
-  afTransporteCombustivel: number
-  setAfTransporteCombustivel: (v: number) => void
-  afOutros: number
-  setAfOutros: (v: number) => void
-  afValorContrato: number
-  setAfValorContrato: (v: number) => void
-  afPlaca: number
-  setAfPlaca: (v: number) => void
-  afMensalidadeBase: number
-  setAfMensalidadeBase: (v: number) => void
   afMensalidadeBaseAuto: number
-
-  afImpostosVenda: number
-  setAfImpostosVenda: (v: number) => void
-  afImpostosLeasing: number
-  setAfImpostosLeasing: (v: number) => void
-  afMargemLiquidaVenda: number
-  setAfMargemLiquidaVenda: (v: number) => void
-  afMargemLiquidaMinima: number
-  setAfMargemLiquidaMinima: (v: number) => void
-  afComissaoMinimaPercent: number
-  setAfComissaoMinimaPercent: (v: number) => void
-  afTaxaDesconto: number
-  setAfTaxaDesconto: (v: number) => void
-  afInadimplencia: number
-  setAfInadimplencia: (v: number) => void
-  afCustoOperacional: number
-  setAfCustoOperacional: (v: number) => void
-  afMesesProjecao: number
-  setAfMesesProjecao: (v: number) => void
 
   afCidadeDestino: string
   setAfCidadeDestino: (v: string) => void
@@ -130,25 +100,11 @@ export interface AnaliseFinanceiraSectionProps {
   afBaseInitializedRef: React.MutableRefObject<boolean>
   selectNumberInputOnFocus: (e: React.FocusEvent<HTMLInputElement>) => void
 
-  // Extra props used in the block but not in the original list
   kcKwhMes: number
   isAnaliseMobileSimpleView: boolean
 }
 
 export function AnaliseFinanceiraSection({
-  afModo,
-  setAfModo,
-  afConsumoOverride,
-  setAfConsumoOverride,
-  afNumModulosOverride,
-  setAfNumModulosOverride,
-  afModuloWpOverride,
-  setAfModuloWpOverride,
-  afIrradiacaoOverride,
-  setAfIrradiacaoOverride,
-  afPROverride,
-  setAfPROverride,
-  afDiasOverride,
   potenciaModulo,
   baseIrradiacao,
   eficienciaNormalizada,
@@ -165,40 +121,7 @@ export function AnaliseFinanceiraSection({
   afTransporteCombustivelField,
   afOutrosField,
   afMensalidadeBaseField,
-  setAfAutoMaterialCA,
-  setAfMaterialCAOverride,
-  setAfProjetoOverride,
-  setAfCreaOverride,
-  setAfCustoKit,
-  setAfCustoKitManual,
-  setAfFrete,
-  setAfFreteManual,
-  setAfDescarregamento,
-  setAfHotelPousada,
-  setAfTransporteCombustivel,
-  setAfOutros,
-  afValorContrato,
-  setAfValorContrato,
-  setAfMensalidadeBase,
   afMensalidadeBaseAuto,
-  afImpostosVenda,
-  setAfImpostosVenda,
-  afImpostosLeasing,
-  setAfImpostosLeasing,
-  afMargemLiquidaVenda,
-  setAfMargemLiquidaVenda,
-  afMargemLiquidaMinima,
-  setAfMargemLiquidaMinima,
-  afComissaoMinimaPercent,
-  setAfComissaoMinimaPercent,
-  afTaxaDesconto,
-  setAfTaxaDesconto,
-  afInadimplencia,
-  setAfInadimplencia,
-  afCustoOperacional,
-  setAfCustoOperacional,
-  afMesesProjecao,
-  setAfMesesProjecao,
   afCidadeDestino,
   setAfCidadeDestino,
   afCidadeSuggestions,
@@ -230,6 +153,54 @@ export function AnaliseFinanceiraSection({
   kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
+  // Store reads — replaces props previously passed down from App.tsx
+  const afModo = useAfInputStore(selectAfModo)
+  const setAfModo = useAfInputStore(selectSetAfModo)
+  const afConsumoOverride = useAfInputStore(selectAfConsumoOverride)
+  const setAfConsumoOverride = useAfInputStore(selectSetAfConsumoOverride)
+  const afNumModulosOverride = useAfInputStore(selectAfNumModulosOverride)
+  const setAfNumModulosOverride = useAfInputStore(selectSetAfNumModulosOverride)
+  const afModuloWpOverride = useAfInputStore(selectAfModuloWpOverride)
+  const setAfModuloWpOverride = useAfInputStore(selectSetAfModuloWpOverride)
+  const afIrradiacaoOverride = useAfInputStore(selectAfIrradiacaoOverride)
+  const setAfIrradiacaoOverride = useAfInputStore(selectSetAfIrradiacaoOverride)
+  const afPROverride = useAfInputStore(selectAfPROverride)
+  const setAfPROverride = useAfInputStore(selectSetAfPROverride)
+  const afDiasOverride = useAfInputStore(selectAfDiasOverride)
+  const setAfDiasOverride = useAfInputStore(selectSetAfDiasOverride)
+  const setAfCustoKit = useAfInputStore(selectSetAfCustoKit)
+  const setAfCustoKitManual = useAfInputStore(selectSetAfCustoKitManual)
+  const setAfFrete = useAfInputStore(selectSetAfFrete)
+  const setAfFreteManual = useAfInputStore(selectSetAfFreteManual)
+  const setAfDescarregamento = useAfInputStore(selectSetAfDescarregamento)
+  const setAfHotelPousada = useAfInputStore(selectSetAfHotelPousada)
+  const setAfTransporteCombustivel = useAfInputStore(selectSetAfTransporteCombustivel)
+  const setAfOutros = useAfInputStore(selectSetAfOutros)
+  const afValorContrato = useAfInputStore(selectAfValorContrato)
+  const setAfValorContrato = useAfInputStore(selectSetAfValorContrato)
+  const setAfMensalidadeBase = useAfInputStore(selectSetAfMensalidadeBase)
+  const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
+  const setAfImpostosVenda = useAfInputStore(selectSetAfImpostosVenda)
+  const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)
+  const setAfImpostosLeasing = useAfInputStore(selectSetAfImpostosLeasing)
+  const afMargemLiquidaVenda = useAfInputStore(selectAfMargemLiquidaVenda)
+  const setAfMargemLiquidaVenda = useAfInputStore(selectSetAfMargemLiquidaVenda)
+  const afMargemLiquidaMinima = useAfInputStore(selectAfMargemLiquidaMinima)
+  const setAfMargemLiquidaMinima = useAfInputStore(selectSetAfMargemLiquidaMinima)
+  const afComissaoMinimaPercent = useAfInputStore(selectAfComissaoMinimaPercent)
+  const setAfComissaoMinimaPercent = useAfInputStore(selectSetAfComissaoMinimaPercent)
+  const afTaxaDesconto = useAfInputStore(selectAfTaxaDesconto)
+  const setAfTaxaDesconto = useAfInputStore(selectSetAfTaxaDesconto)
+  const afInadimplencia = useAfInputStore(selectAfInadimplencia)
+  const setAfInadimplencia = useAfInputStore(selectSetAfInadimplencia)
+  const afCustoOperacional = useAfInputStore(selectAfCustoOperacional)
+  const setAfCustoOperacional = useAfInputStore(selectSetAfCustoOperacional)
+  const afMesesProjecao = useAfInputStore(selectAfMesesProjecao)
+  const setAfMesesProjecao = useAfInputStore(selectSetAfMesesProjecao)
+  const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
+  const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
+  const setAfProjetoOverride = useAfInputStore(selectSetAfProjetoOverride)
+  const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
   return (
     <section className="simulacoes-module-card af-section">
       <header>
