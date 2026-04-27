@@ -15,6 +15,17 @@ import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
 import type { MoneyFieldHandle } from './simulacoesTypes'
 import type { AprovacaoChecklistKey, AprovacaoStatus } from './simulacoesConstants'
+import { useAfDeslocamentoStore } from './useAfDeslocamentoStore'
+import {
+  selectAfCidadeDestino, selectSetAfCidadeDestino,
+  selectAfCidadeSuggestions, selectSetAfCidadeSuggestions,
+  selectAfCidadeShowSuggestions, selectSetAfCidadeShowSuggestions,
+  selectAfDeslocamentoStatus, selectSetAfDeslocamentoStatus,
+  selectAfDeslocamentoCidadeLabel, selectSetAfDeslocamentoCidadeLabel,
+  selectAfDeslocamentoKm, selectSetAfDeslocamentoKm,
+  selectAfDeslocamentoRs, selectSetAfDeslocamentoRs,
+  selectAfDeslocamentoErro, selectSetAfDeslocamentoErro,
+} from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
 import {
   selectAfModo, selectSetAfModo,
@@ -68,22 +79,6 @@ export interface AnaliseFinanceiraSectionProps {
 
   afMensalidadeBaseAuto: number
 
-  afCidadeDestino: string
-  setAfCidadeDestino: (v: string) => void
-  afCidadeSuggestions: CidadeDB[]
-  setAfCidadeSuggestions: (v: CidadeDB[]) => void
-  afCidadeShowSuggestions: boolean
-  setAfCidadeShowSuggestions: (v: boolean) => void
-  afDeslocamentoStatus: 'idle' | 'loading' | 'ok' | 'isenta' | 'error'
-  setAfDeslocamentoStatus: (v: 'idle' | 'loading' | 'ok' | 'isenta' | 'error') => void
-  afDeslocamentoCidadeLabel: string
-  setAfDeslocamentoCidadeLabel: (v: string) => void
-  afDeslocamentoKm: number
-  setAfDeslocamentoKm: (v: number) => void
-  afDeslocamentoRs: number
-  setAfDeslocamentoRs: (v: number) => void
-  afDeslocamentoErro: string
-  setAfDeslocamentoErro: (v: string) => void
   afCidadeBlurTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
   handleSelectCidade: (city: CidadeDB) => void
 
@@ -122,22 +117,6 @@ export function AnaliseFinanceiraSection({
   afOutrosField,
   afMensalidadeBaseField,
   afMensalidadeBaseAuto,
-  afCidadeDestino,
-  setAfCidadeDestino,
-  afCidadeSuggestions,
-  setAfCidadeSuggestions,
-  afCidadeShowSuggestions,
-  setAfCidadeShowSuggestions,
-  afDeslocamentoStatus,
-  setAfDeslocamentoStatus,
-  afDeslocamentoCidadeLabel,
-  setAfDeslocamentoCidadeLabel,
-  afDeslocamentoKm,
-  setAfDeslocamentoKm,
-  afDeslocamentoRs,
-  setAfDeslocamentoRs,
-  afDeslocamentoErro,
-  setAfDeslocamentoErro,
   afCidadeBlurTimerRef,
   handleSelectCidade,
   analiseFinanceiraResult,
@@ -201,6 +180,23 @@ export function AnaliseFinanceiraSection({
   const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
   const setAfProjetoOverride = useAfInputStore(selectSetAfProjetoOverride)
   const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
+  // Deslocamento state — read directly from store
+  const afCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
+  const setAfCidadeDestino = useAfDeslocamentoStore(selectSetAfCidadeDestino)
+  const afCidadeSuggestions = useAfDeslocamentoStore(selectAfCidadeSuggestions)
+  const setAfCidadeSuggestions = useAfDeslocamentoStore(selectSetAfCidadeSuggestions)
+  const afCidadeShowSuggestions = useAfDeslocamentoStore(selectAfCidadeShowSuggestions)
+  const setAfCidadeShowSuggestions = useAfDeslocamentoStore(selectSetAfCidadeShowSuggestions)
+  const afDeslocamentoStatus = useAfDeslocamentoStore(selectAfDeslocamentoStatus)
+  const setAfDeslocamentoStatus = useAfDeslocamentoStore(selectSetAfDeslocamentoStatus)
+  const afDeslocamentoCidadeLabel = useAfDeslocamentoStore(selectAfDeslocamentoCidadeLabel)
+  const setAfDeslocamentoCidadeLabel = useAfDeslocamentoStore(selectSetAfDeslocamentoCidadeLabel)
+  const afDeslocamentoKm = useAfDeslocamentoStore(selectAfDeslocamentoKm)
+  const setAfDeslocamentoKm = useAfDeslocamentoStore(selectSetAfDeslocamentoKm)
+  const afDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
+  const setAfDeslocamentoRs = useAfDeslocamentoStore(selectSetAfDeslocamentoRs)
+  const afDeslocamentoErro = useAfDeslocamentoStore(selectAfDeslocamentoErro)
+  const setAfDeslocamentoErro = useAfDeslocamentoStore(selectSetAfDeslocamentoErro)
   return (
     <section className="simulacoes-module-card af-section">
       <header>
