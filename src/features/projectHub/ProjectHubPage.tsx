@@ -419,7 +419,8 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
 
   const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
 
-  function handleStatusChange(id: string, status: ProjetoStatus) {    const projeto = projetos.find((p) => p.id === id)
+  function handleStatusChange(id: string, status: ProjetoStatus) {
+    const projeto = projetos.find((p) => p.id === id)
     if (projeto) {
       if (status === 'validacao_viabilidade' && !isDocumentacaoAprovada(projeto)) {
         alert('A documentação deve ser aprovada antes de avançar para validação de viabilidade')
