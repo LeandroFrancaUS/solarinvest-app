@@ -429,6 +429,8 @@ import {
   selectSetAfMensalidadeBase,
   selectSetAfProjetoOverride,
   selectSetAfCreaOverride,
+  selectAfUfOverride,
+  selectSetAfUfOverride,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4297,7 +4299,8 @@ export default function App() {
   const setAfModuloWpOverride = useAfInputStore(selectSetAfModuloWpOverride)
   const afNumModulosOverride = useAfInputStore(selectAfNumModulosOverride)
   const setAfNumModulosOverride = useAfInputStore(selectSetAfNumModulosOverride)
-  const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
+  const afUfOverride = useAfInputStore(selectAfUfOverride)
+  const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
   const afPlaca = useAfInputStore(selectAfPlaca)
   const setAfPlaca = useAfInputStore(selectSetAfPlaca)
   // null = auto (12% of kit), user can override
