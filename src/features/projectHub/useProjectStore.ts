@@ -20,6 +20,14 @@ export type ComissaoParcela = {
   pagoEm?: string
 }
 
+export type ComissaoConsultor = {
+  regra: 'leasing' | 'venda'
+  valorTotalEstimado: number
+  valorPago: number
+  status: ComissaoStatus
+  parcelas: ComissaoParcela[]
+}
+
 export type Projeto = {
   id: string
   tipo: ProjetoTipo
@@ -37,13 +45,7 @@ export type Projeto = {
     id?: string
     nome: string
   }
-  comissaoConsultor?: {
-    regra: 'leasing' | 'venda'
-    valorTotalEstimado: number
-    valorPago: number
-    status: ComissaoStatus
-    parcelas: ComissaoParcela[]
-  }
+  comissaoConsultor?: ComissaoConsultor
   createdAt: string
 }
 
