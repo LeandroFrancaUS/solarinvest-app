@@ -362,7 +362,6 @@ import {
 import { useAfInputStore } from './features/simulacoes/useAfInputStore'
 import {
   selectAfConsumoOverride,
-  selectAfCustoKit,
   selectAfCustoKitManual,
   selectAfFreteManual,
   selectAfMaterialCAOverride,
@@ -4185,7 +4184,6 @@ export default function App() {
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
 
   // Financial Analysis (Spreadsheet v1) state
-  const afCustoKit = useAfInputStore(selectAfCustoKit)
   const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
   const afFreteManual = useAfInputStore(selectAfFreteManual)
   const setAfCustoKit = useAfInputStore(selectSetAfCustoKit)
