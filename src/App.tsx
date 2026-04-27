@@ -4828,7 +4828,6 @@ export default function App() {
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   type PageSharedSettings = {
-    kcKwhMes: number
     tarifaCheia: number
     taxaMinima: number
     ufTarifa: string
@@ -4846,7 +4845,6 @@ export default function App() {
 }
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
-    kcKwhMes: INITIAL_VALUES.kcKwhMes,
     tarifaCheia: INITIAL_VALUES.tarifaCheia,
     taxaMinima: INITIAL_VALUES.taxaMinima,
     ufTarifa: INITIAL_VALUES.ufTarifa,
@@ -4900,15 +4898,9 @@ export default function App() {
       setConsumoManual(origin === 'user')
       setKcKwhMesState(normalized)
       setStoreKcKwhMes(normalized, origin)
-      updatePageSharedState((current) => {
-        if (current.kcKwhMes === normalized) {
-          return current
-        }
-        return { ...current, kcKwhMes: normalized }
-      })
       return normalized
     },
-    [setConsumoManual, setKcKwhMesState, setStoreKcKwhMes, updatePageSharedState],
+    [setConsumoManual, setKcKwhMesState, setStoreKcKwhMes],
   )
 
   const setPotenciaFonteManual = useCallback(
@@ -5745,7 +5737,6 @@ export default function App() {
   useEffect(() => {
     const snapshot = pageSharedState
 
-    setKcKwhMesState((prev) => (prev === snapshot.kcKwhMes ? prev : snapshot.kcKwhMes))
     setTarifaCheiaState((prev) => (prev === snapshot.tarifaCheia ? prev : snapshot.tarifaCheia))
     setTaxaMinimaState((prev) => (prev === snapshot.taxaMinima ? prev : snapshot.taxaMinima))
     setTaxaMinimaInputEmpty((prev) => (snapshot.taxaMinima > 0 ? false : prev))
@@ -12408,9 +12399,7 @@ export default function App() {
     }
 
     // 🔒 CRITICAL: Use refs to get current state, not closure variables
-    const kcAtual = Number(kcKwhMesRef.current ?? 0)
-    const kcFallback = Number(pageSharedStateRef.current?.kcKwhMes ?? 0)
-    const kcKwhMesFinal = kcAtual || kcFallback
+    const kcKwhMesFinal = Number(kcKwhMesRef.current ?? 0)
 
     if (isHydratingRef.current) {
       if (import.meta.env.DEV) console.debug('[getCurrentSnapshot] skipped during hydration', { budgetId })
