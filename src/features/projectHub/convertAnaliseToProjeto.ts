@@ -9,6 +9,10 @@ type Params = {
   consultorId?: string
 }
 
+const LEASING_ADVANCE_RATE = 0.4
+const LEASING_BALANCE_RATE = 0.6
+const COMMISSION_RATE_VENDA = 0.05
+
 export function convertAnaliseToProjeto({
   analiseFinanceiraResult,
   tipo,
@@ -51,14 +55,15 @@ export function convertAnaliseToProjeto({
       valorContrato,
       custoTotal,
       margem,
-      mensalidade,
+      ...(mensalidade !== undefined ? { mensalidade } : {}),
     },
     createdAt: new Date().toISOString(),
   }
 
   if (hasConsultor) {
+    const nomeTrimmed = (consultorNome as string).trim()
     projeto.consultor = {
-      nome: consultorNome!.trim(),
+      nome: nomeTrimmed,
       ...(consultorId ? { id: consultorId } : {}),
     }
 
@@ -67,15 +72,15 @@ export function convertAnaliseToProjeto({
       const parcelas: ComissaoParcela[] = [
         {
           descricao: 'Adiantamento',
-          percentual: 40,
-          valor: valorBase * 0.4,
+          percentual: LEASING_ADVANCE_RATE * 100,
+          valor: valorBase * LEASING_ADVANCE_RATE,
           gatilho: 'cliente ativado',
           pago: false,
         },
         {
           descricao: 'Saldo',
-          percentual: 60,
-          valor: valorBase * 0.6,
+          percentual: LEASING_BALANCE_RATE * 100,
+          valor: valorBase * LEASING_BALANCE_RATE,
           gatilho: 'primeira mensalidade paga',
           pago: false,
         },
@@ -88,7 +93,7 @@ export function convertAnaliseToProjeto({
         parcelas,
       }
     } else {
-      const valorBase = valorContrato * 0.05
+      const valorBase = valorContrato * COMMISSION_RATE_VENDA
       const parcelas: ComissaoParcela[] = [
         {
           descricao: 'Comissão de venda',
