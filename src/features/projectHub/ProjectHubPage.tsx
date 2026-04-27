@@ -397,15 +397,15 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
     const projeto = projetos.find((p) => p.id === id)
     if (projeto) {
       if (status === 'validacao_viabilidade' && !isDocumentacaoAprovada(projeto)) {
-        alert('Finalize a documentação antes de avançar')
+        alert('A documentação deve ser aprovada antes de avançar para validação de viabilidade')
         return
       }
       if (status === 'aprovado' && !isViabilidadeAprovada(projeto)) {
-        alert('Viabilidade ainda não aprovada')
+        alert('A viabilidade técnica deve ser aprovada antes de marcar o projeto como aprovado')
         return
       }
       if (status === 'ativo' && (!isDocumentacaoAprovada(projeto) || !isViabilidadeAprovada(projeto))) {
-        alert('Projeto ainda não está pronto para ativação')
+        alert('O projeto requer aprovação de documentação e viabilidade antes da ativação')
         return
       }
     }
