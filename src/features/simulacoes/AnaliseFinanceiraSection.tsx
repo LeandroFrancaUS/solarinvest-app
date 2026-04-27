@@ -29,6 +29,12 @@ import {
 } from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
 import {
+  useSimulacaoBaseStore,
+  selectBaseIrradiacao,
+  selectEficienciaNormalizada,
+  selectDiasMesNormalizado,
+} from './useSimulacaoBaseStore'
+import {
   selectAfModo, selectSetAfModo,
   selectAfConsumoOverride, selectSetAfConsumoOverride,
   selectAfNumModulosOverride, selectSetAfNumModulosOverride,
@@ -63,9 +69,6 @@ import {
 
 export interface AnaliseFinanceiraSectionProps {
   potenciaModulo: number
-  baseIrradiacao: number
-  eficienciaNormalizada: number
-  diasMesNormalizado: number
 
   afMensalidadeBaseAuto: number
 
@@ -80,9 +83,6 @@ export interface AnaliseFinanceiraSectionProps {
 
 export function AnaliseFinanceiraSection({
   potenciaModulo,
-  baseIrradiacao,
-  eficienciaNormalizada,
-  diasMesNormalizado,
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
@@ -93,6 +93,9 @@ export function AnaliseFinanceiraSection({
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
   // Store reads — replaces props previously passed down from App.tsx
+  const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
+  const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
+  const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
   const setAfModo = useAfInputStore(selectSetAfModo)
