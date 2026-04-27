@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, selectAddProjeto, isDocumentacaoAprovada, isViabilidadeAprovada, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, selectAddProjeto, isDocumentacaoAprovada, isViabilidadeAprovada, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type ComissaoConsultor, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
 
 const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
   { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
@@ -548,11 +548,11 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
 
     const consultor = { nome: nomeConsultor }
 
-    let comissaoConsultor: import('./useProjectStore').ComissaoConsultor
+    let comissaoConsultor: ComissaoConsultor
 
     if (projeto.tipo === 'leasing') {
       const base = projeto.financeiro.mensalidade || 0
-      const comissaoStatus: import('./useProjectStore').ComissaoStatus =
+      const comissaoStatus: ComissaoStatus =
         base > 0 ? 'adiantamento_disponivel' : 'nao_elegivel'
       comissaoConsultor = {
         regra: 'leasing',
