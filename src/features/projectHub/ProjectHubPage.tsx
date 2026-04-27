@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, type Projeto } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus } from './useProjectStore'
 
 function formatDate(iso: string): string {
   try {
@@ -89,9 +89,12 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
 
 interface ProjetoDetailProps {
   projeto: Projeto
+  onStatusChange: (id: string, status: ProjetoStatus) => void
 }
 
-function ProjetoDetail({ projeto }: ProjetoDetailProps) {
+const STATUS_OPTIONS: ProjetoStatus[] = ['aprovado', 'implantacao', 'ativo', 'monitoramento', 'finalizado']
+
+function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
   const { cliente, tipo, status, financeiro, createdAt } = projeto
   return (
     <div
@@ -108,15 +111,27 @@ function ProjetoDetail({ projeto }: ProjetoDetailProps) {
       <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{cliente.nome}</div>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
         <span style={getTipoBadgeStyles(tipo)}>{tipo}</span>
-        <span
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem' }}>
+        <label htmlFor={`status-select-${projeto.id}`} style={{ color: 'var(--color-text-secondary, #64748b)', whiteSpace: 'nowrap' }}>
+          Status:
+        </label>
+        <select
+          id={`status-select-${projeto.id}`}
+          value={status}
+          onChange={(e) => onStatusChange(projeto.id, e.target.value as ProjetoStatus)}
           style={{
-            background: 'var(--color-muted-bg, #f1f5f9)',
+            padding: '0.2rem 0.5rem',
             borderRadius: 4,
-            padding: '0.1rem 0.5rem',
+            border: '1px solid var(--color-border, #e2e8f0)',
+            background: 'var(--color-surface, #fff)',
+            fontSize: '0.875rem',
           }}
         >
-          {status}
-        </span>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
@@ -152,9 +167,14 @@ interface ProjectHubPageProps {
 
 export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
   const projetos = useProjectStore(selectProjetos)
+  const updateProjeto = useProjectStore(selectUpdateProjeto)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
   const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
+
+  function handleStatusChange(id: string, status: ProjetoStatus) {
+    updateProjeto(id, { status })
+  }
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1100, margin: '0 auto' }}>
@@ -208,7 +228,7 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
           {/* Detail panel */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {selectedProject ? (
-              <ProjetoDetail projeto={selectedProject} />
+              <ProjetoDetail projeto={selectedProject} onStatusChange={handleStatusChange} />
             ) : (
               <div
                 style={{

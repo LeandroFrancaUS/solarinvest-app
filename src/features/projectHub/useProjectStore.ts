@@ -59,3 +59,4 @@ export const selectProjetoById =
 
 // Action selectors
 export const selectAddProjeto = (s: ProjectStore) => s.addProjeto
+export const selectUpdateProjeto = (s: ProjectStore) => s.updateProjeto
