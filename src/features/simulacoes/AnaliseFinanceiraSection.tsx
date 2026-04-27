@@ -14,7 +14,7 @@ import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
-import type { AprovacaoChecklistKey, AprovacaoStatus } from './simulacoesConstants'
+
 import { useAfDeslocamentoStore } from './useAfDeslocamentoStore'
 import {
   selectAfCidadeDestino, selectSetAfCidadeDestino,
@@ -72,12 +72,6 @@ export interface AnaliseFinanceiraSectionProps {
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 
-  aprovacaoChecklist: Record<AprovacaoChecklistKey, boolean>
-  toggleAprovacaoChecklist: (key: AprovacaoChecklistKey) => void
-  aprovacaoStatus: AprovacaoStatus
-  ultimaDecisaoTimestamp: number | null
-  registrarDecisaoInterna: (status: AprovacaoStatus) => void
-
   ufTarifa: string
 
   kcKwhMes: number
@@ -92,11 +86,6 @@ export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  aprovacaoChecklist,
-  toggleAprovacaoChecklist,
-  aprovacaoStatus,
-  ultimaDecisaoTimestamp,
-  registrarDecisaoInterna,
   ufTarifa,
   kcKwhMes,
   isAnaliseMobileSimpleView,
@@ -414,11 +403,6 @@ export function AnaliseFinanceiraSection({
       {/* Approval checklist */}
       <AfAprovacaoGrid
         afModo={afModo}
-        aprovacaoChecklist={aprovacaoChecklist}
-        toggleAprovacaoChecklist={toggleAprovacaoChecklist}
-        aprovacaoStatus={aprovacaoStatus}
-        ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-        registrarDecisaoInterna={registrarDecisaoInterna}
         isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
       />
     </section>

@@ -346,10 +346,6 @@ import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
-import {
-  type AprovacaoStatus,
-  type AprovacaoChecklistKey,
-} from './features/simulacoes/simulacoesConstants'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
@@ -4169,20 +4165,6 @@ export default function App() {
       ? (stored as SimulacoesSection)
       : 'nova'
   })
-  const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
-  const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
-    Record<AprovacaoChecklistKey, boolean>
-  >({
-    roi: true,
-    tir: true,
-    spread: false,
-    vpl: false,
-    payback: true,
-    eficiencia: true,
-    lucro: true,
-  })
-  const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
-
   // Financial Analysis (Spreadsheet v1) state
   const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
   const afFreteManual = useAfInputStore(selectAfFreteManual)
@@ -18202,18 +18184,6 @@ export default function App() {
     voltarParaPaginaPrincipal()
   }
 
-  const toggleAprovacaoChecklist = useCallback((key: AprovacaoChecklistKey) => {
-    setAprovacaoChecklist((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
-  }, [])
-
-  const registrarDecisaoInterna = useCallback((status: AprovacaoStatus) => {
-    setAprovacaoStatus(status)
-    setUltimaDecisaoTimestamp(Date.now())
-  }, [])
-
   const isSimulacoesWorkspaceActive = simulacoesSection === 'nova' || simulacoesSection === 'salvas'
 
   const budgetCodeDisplay = useMemo(() => {
@@ -18690,9 +18660,6 @@ export default function App() {
             capexSolarInvest={capexSolarInvest}
             tipoSistema={tipoSistema}
             leasingPrazo={leasingPrazo}
-            aprovacaoStatus={aprovacaoStatus}
-            ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-            registrarDecisaoInterna={registrarDecisaoInterna}
             kcKwhMes={kcKwhMes}
             potenciaModulo={potenciaModulo}
             baseIrradiacao={baseIrradiacao}
@@ -18701,8 +18668,6 @@ export default function App() {
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            aprovacaoChecklist={aprovacaoChecklist}
-            toggleAprovacaoChecklist={toggleAprovacaoChecklist}
             ufTarifa={ufTarifa}
           />
         ) : activePage === 'settings' ? (

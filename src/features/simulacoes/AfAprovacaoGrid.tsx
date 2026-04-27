@@ -1,12 +1,20 @@
 // src/features/simulacoes/AfAprovacaoGrid.tsx
 // Extracted from AnaliseFinanceiraSection.tsx (Subfase 2B.12.4F).
 // Renders the approval checklist and decision stamp block.
+// Approval state is read directly from useAprovacaoStore (Fase 3.7-A).
 
 import {
   APROVACAO_SELLOS,
   type AprovacaoChecklistKey,
-  type AprovacaoStatus,
 } from './simulacoesConstants'
+import {
+  useAprovacaoStore,
+  selectAprovacaoStatus,
+  selectAprovacaoChecklist,
+  selectUltimaDecisaoTimestamp,
+  selectRegistrarDecisaoInterna,
+  selectToggleAprovacaoChecklist,
+} from './useAprovacaoStore'
 
 const formatAprovacaoData = (timestamp: number | null): string => {
   if (!timestamp) {
@@ -23,23 +31,18 @@ const formatAprovacaoData = (timestamp: number | null): string => {
 
 export interface AfAprovacaoGridProps {
   afModo: 'venda' | 'leasing'
-  aprovacaoChecklist: Record<AprovacaoChecklistKey, boolean>
-  toggleAprovacaoChecklist: (key: AprovacaoChecklistKey) => void
-  aprovacaoStatus: AprovacaoStatus
-  ultimaDecisaoTimestamp: number | null
-  registrarDecisaoInterna: (status: AprovacaoStatus) => void
   isAnaliseMobileSimpleView: boolean
 }
 
 export function AfAprovacaoGrid({
   afModo,
-  aprovacaoChecklist,
-  toggleAprovacaoChecklist,
-  aprovacaoStatus,
-  ultimaDecisaoTimestamp,
-  registrarDecisaoInterna,
   isAnaliseMobileSimpleView,
 }: AfAprovacaoGridProps) {
+  const aprovacaoChecklist = useAprovacaoStore(selectAprovacaoChecklist)
+  const toggleAprovacaoChecklist = useAprovacaoStore(selectToggleAprovacaoChecklist)
+  const aprovacaoStatus = useAprovacaoStore(selectAprovacaoStatus)
+  const ultimaDecisaoTimestamp = useAprovacaoStore(selectUltimaDecisaoTimestamp)
+  const registrarDecisaoInterna = useAprovacaoStore(selectRegistrarDecisaoInterna)
   return (
     <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
       <div className="simulacoes-module-tile">
