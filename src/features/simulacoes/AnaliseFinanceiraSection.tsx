@@ -3,6 +3,7 @@
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
 import type React from 'react'
+import { useCallback } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -25,6 +26,7 @@ import {
   selectAfDeslocamentoKm, selectSetAfDeslocamentoKm,
   selectAfDeslocamentoRs, selectSetAfDeslocamentoRs,
   selectAfDeslocamentoErro, selectSetAfDeslocamentoErro,
+  selectSelectCidadeAndCalculateDeslocamento,
 } from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
 import {
@@ -35,6 +37,7 @@ import {
   selectAfIrradiacaoOverride, selectSetAfIrradiacaoOverride,
   selectAfPROverride, selectSetAfPROverride,
   selectAfDiasOverride, selectSetAfDiasOverride,
+  selectSetAfUfOverride,
   selectSetAfCustoKit, selectSetAfCustoKitManual,
   selectSetAfFrete, selectSetAfFreteManual,
   selectSetAfDescarregamento,
@@ -80,7 +83,6 @@ export interface AnaliseFinanceiraSectionProps {
   afMensalidadeBaseAuto: number
 
   afCidadeBlurTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
-  handleSelectCidade: (city: CidadeDB) => void
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
@@ -118,7 +120,6 @@ export function AnaliseFinanceiraSection({
   afMensalidadeBaseField,
   afMensalidadeBaseAuto,
   afCidadeBlurTimerRef,
-  handleSelectCidade,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
   vendasConfig,
@@ -197,6 +198,23 @@ export function AnaliseFinanceiraSection({
   const setAfDeslocamentoRs = useAfDeslocamentoStore(selectSetAfDeslocamentoRs)
   const afDeslocamentoErro = useAfDeslocamentoStore(selectAfDeslocamentoErro)
   const setAfDeslocamentoErro = useAfDeslocamentoStore(selectSetAfDeslocamentoErro)
+  const selectCidadeAndCalculateDeslocamento = useAfDeslocamentoStore(selectSelectCidadeAndCalculateDeslocamento)
+  const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
+  const handleSelectCidade = useCallback((city: CidadeDB) => {
+    const travelConfig = {
+      faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
+      faixa1Valor: vendasConfig.af_deslocamento_faixa1_rs,
+      faixa2Km: vendasConfig.af_deslocamento_faixa2_km,
+      faixa2Valor: vendasConfig.af_deslocamento_faixa2_rs,
+      kmExcedenteValor: vendasConfig.af_deslocamento_km_excedente_rs,
+    }
+    const regioesIsentas = vendasConfig.af_deslocamento_regioes_isentas.map(
+      (r) => `${r.cidade} - ${r.uf}`,
+    )
+    const { ufOverride, deslocamentoRs } = selectCidadeAndCalculateDeslocamento(city, { travelConfig, regioesIsentas })
+    setAfUfOverride(ufOverride)
+    setAfTransporteCombustivel(deslocamentoRs)
+  }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs, selectCidadeAndCalculateDeslocamento, setAfUfOverride, setAfTransporteCombustivel])
   return (
     <section className="simulacoes-module-card af-section">
       <header>

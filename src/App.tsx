@@ -4396,27 +4396,6 @@ export default function App() {
     setStoreAfCidadeSuggestions(searchCidades(trimmed))
   }, [storeAfCidadeDestino])
 
-  const handleSelectCidade = useCallback((city: CidadeDB) => {
-    const travelConfig = {
-      faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
-      faixa1Valor: vendasConfig.af_deslocamento_faixa1_rs,
-      faixa2Km: vendasConfig.af_deslocamento_faixa2_km,
-      faixa2Valor: vendasConfig.af_deslocamento_faixa2_rs,
-      kmExcedenteValor: vendasConfig.af_deslocamento_km_excedente_rs,
-    }
-    const regioesIsentas = vendasConfig.af_deslocamento_regioes_isentas.map(
-      (r) => `${r.cidade} - ${r.uf}`,
-    )
-    const { ufOverride } = useAfDeslocamentoStore
-      .getState()
-      .selectCidadeAndCalculateDeslocamento(city, { travelConfig, regioesIsentas })
-    setAfUfOverride(ufOverride)
-  }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
-
-  useEffect(() => {
-    setAfTransporteCombustivel(storeAfDeslocamentoRs)
-  }, [storeAfDeslocamentoRs])
-
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
     if (
@@ -19223,7 +19202,6 @@ export default function App() {
             afMensalidadeBaseField={afMensalidadeBaseField}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
-            handleSelectCidade={handleSelectCidade}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
             vendasConfig={vendasConfig}
