@@ -400,11 +400,12 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
   function handleSalvarProjeto() {
     if (!formNome.trim()) return
     addProjeto({
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       tipo: formTipo,
       status: 'proposta_emitida',
       cliente: { nome: formNome.trim() },
-      financeiro: {} as Projeto['financeiro'],
+      financeiro: { valorContrato: 0, custoTotal: 0, margem: 0 },
+      pagamento: { modalidade: formPagamento },
       createdAt: new Date().toISOString(),
     })
     setFormNome('')
