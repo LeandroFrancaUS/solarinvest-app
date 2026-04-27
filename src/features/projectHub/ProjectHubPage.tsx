@@ -130,6 +130,7 @@ interface ProjetoDetailProps {
   onStatusChange: (id: string, status: ProjetoStatus) => void
   onDocumentalChange: (key: keyof AprovacaoDocumental, checked: boolean) => void
   onViabilidadeChange: (key: keyof AprovacaoViabilidade, checked: boolean) => void
+  onVincularConsultor: (id: string, nomeConsultor: string) => void
 }
 
 const STATUS_OPTIONS_LEASING: ProjetoStatusLeasing[] = [
@@ -156,8 +157,19 @@ function getStatusOptions(tipo: Projeto['tipo']): ProjetoStatus[] {
   return tipo === 'leasing' ? STATUS_OPTIONS_LEASING : STATUS_OPTIONS_VENDA
 }
 
-function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilidadeChange }: ProjetoDetailProps) {
+function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilidadeChange, onVincularConsultor }: ProjetoDetailProps) {
   const { cliente, tipo, status, financeiro, createdAt, consultor, comissaoConsultor } = projeto
+  const [consultorNome, setConsultorNome] = React.useState('')
+
+  function handleVincularConsultor() {
+    if (!consultorNome.trim()) {
+      alert('Informe o nome do consultor')
+      return
+    }
+    onVincularConsultor(projeto.id, consultorNome.trim())
+    setConsultorNome('')
+  }
+
   return (
     <div
       style={{
@@ -250,7 +262,35 @@ function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilid
               <strong>{consultor.nome}</strong>
             </div>
           )
-          : <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem consultor vinculado</div>}
+          : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem consultor vinculado</div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  value={consultorNome}
+                  onChange={(e) => setConsultorNome(e.target.value)}
+                  placeholder="Nome do consultor"
+                  style={{
+                    padding: '0.3rem 0.5rem',
+                    borderRadius: 4,
+                    border: '1px solid var(--color-border, #e2e8f0)',
+                    fontSize: '0.875rem',
+                    background: 'var(--color-surface, #fff)',
+                    minWidth: 180,
+                  }}
+                />
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleVincularConsultor}
+                  style={{ fontSize: '0.8rem', padding: '0.3rem 0.75rem' }}
+                >
+                  Vincular consultor
+                </button>
+              </div>
+            </div>
+          )}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
       {/* Commission section */}
@@ -502,6 +542,62 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
     setShowForm(false)
   }
 
+  function handleVincularConsultor(id: string, nomeConsultor: string) {
+    const projeto = projetos.find((p) => p.id === id)
+    if (!projeto) return
+
+    const consultor = { nome: nomeConsultor }
+
+    let comissaoConsultor: import('./useProjectStore').ComissaoConsultor
+
+    if (projeto.tipo === 'leasing') {
+      const base = projeto.financeiro.mensalidade || 0
+      const comissaoStatus: import('./useProjectStore').ComissaoStatus =
+        base > 0 ? 'adiantamento_disponivel' : 'nao_elegivel'
+      comissaoConsultor = {
+        regra: 'leasing',
+        valorTotalEstimado: base,
+        valorPago: 0,
+        status: comissaoStatus,
+        parcelas: [
+          {
+            descricao: 'Parcela 1 — Ativação',
+            percentual: 40,
+            valor: base * 0.4,
+            gatilho: 'cliente ativado',
+            pago: false,
+          },
+          {
+            descricao: 'Parcela 2 — Primeira mensalidade',
+            percentual: 60,
+            valor: base * 0.6,
+            gatilho: 'primeira mensalidade paga',
+            pago: false,
+          },
+        ],
+      }
+    } else {
+      const base = (projeto.financeiro.valorContrato || 0) * 0.05
+      comissaoConsultor = {
+        regra: 'venda',
+        valorTotalEstimado: base,
+        valorPago: 0,
+        status: 'nao_elegivel',
+        parcelas: [
+          {
+            descricao: 'Parcela única',
+            percentual: 100,
+            valor: base,
+            gatilho: 'pagamento do cliente conforme contrato',
+            pago: false,
+          },
+        ],
+      }
+    }
+
+    updateProjeto(id, { consultor, comissaoConsultor })
+  }
+
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -648,6 +744,7 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
                   onStatusChange={handleStatusChange}
                   onDocumentalChange={handleDocumentalChange}
                   onViabilidadeChange={handleViabilidadeChange}
+                  onVincularConsultor={handleVincularConsultor}
                 />
             ) : (
               <div
