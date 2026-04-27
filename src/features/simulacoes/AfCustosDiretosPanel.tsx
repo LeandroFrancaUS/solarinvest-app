@@ -132,7 +132,7 @@ export function AfCustosDiretosPanel({
                 type="text"
                 inputMode="decimal"
                 value={afCustoKitField.text}
-                style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                className="af-input--primary"
                 onChange={afCustoKitField.handleChange}
                 onBlur={afCustoKitField.handleBlur}
                 onFocus={afCustoKitField.handleFocus}

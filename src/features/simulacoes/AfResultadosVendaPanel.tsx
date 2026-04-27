@@ -50,7 +50,7 @@ export function AfResultadosVendaPanel({
                   type="text"
                   inputMode="decimal"
                   value={afValorContratoField.text}
-                  style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
+                  className="af-input--primary"
                   onChange={afValorContratoField.handleChange}
                   onBlur={afValorContratoField.handleBlur}
                   onFocus={afValorContratoField.handleFocus}
