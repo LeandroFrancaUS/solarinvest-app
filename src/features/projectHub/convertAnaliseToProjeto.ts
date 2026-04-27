@@ -57,8 +57,6 @@ export function convertAnaliseToProjeto({
       margem,
       ...(mensalidade !== undefined ? { mensalidade } : {}),
     },
-    ...(consultor ? { consultor } : {}),
-    ...(comissaoConsultor ? { comissaoConsultor } : {}),
     createdAt: new Date().toISOString(),
   }
 
