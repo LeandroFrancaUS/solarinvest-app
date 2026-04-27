@@ -4214,7 +4214,7 @@ export default function App() {
   // places it after the useEffect call site, which causes a Temporal Dead Zone (TDZ)
   // crash in production builds: Terser evaluates the deps array before the `const`
   // initializer has run, producing "Cannot access '<minified>' before initialization".
-  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   // Reactively auto-populate Kit, Frete and Material CA when consumo changes, unless manually edited.
   // Kit  : R$ = round(1500 + 9.5  × kWh/mês)  — fitted on real quotes, always positive margin
   // Frete: R$ = round(300  + 0.52 × kWh/mês)  — same approach; consumo-based (no module count needed)
@@ -4493,11 +4493,7 @@ export default function App() {
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  // kcKwhMes is declared earlier (before the useEffect that uses it in its dep array)
-  // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
-  // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
-  const storeKcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const setStoreKcKwhMes = useConsumoBaseStore(selectSetKcKwhMes)
   const setStoreConsumoManual = useConsumoBaseStore(selectSetConsumoManual)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
@@ -4896,11 +4892,10 @@ export default function App() {
     (value: number, origin: 'auto' | 'user' = 'auto') => {
       const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
       setConsumoManual(origin === 'user')
-      setKcKwhMesState(normalized)
       setStoreKcKwhMes(normalized, origin)
       return normalized
     },
-    [setConsumoManual, setKcKwhMesState, setStoreKcKwhMes],
+    [setConsumoManual, setStoreKcKwhMes],
   )
 
   const setPotenciaFonteManual = useCallback(
@@ -9607,7 +9602,7 @@ export default function App() {
 
   // Tariff/system context passed to the AF analysis hook.
   const tarifaContexto = useMemo<TarifaContexto>(() => ({
-    kcKwhMes: storeKcKwhMes,
+    kcKwhMes,
     tarifaCheia,
     descontoConsiderado,
     inflacaoAa,
@@ -9631,7 +9626,7 @@ export default function App() {
     ufTarifa: storeUfTarifa,
     aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
   }), [
-    storeKcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    kcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
     tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade, tusdTarifaRkwh,
     tusdAnoReferencia, mesReajuste, mesReferencia, encargosFixos, cidKwhBase,
     baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, storeUfTarifa,
