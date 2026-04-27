@@ -4318,7 +4318,6 @@ export default function App() {
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
   const afBaseInitializedRef = useRef(false)
-  const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
   const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
@@ -19201,7 +19200,6 @@ export default function App() {
             afOutrosField={afOutrosField}
             afMensalidadeBaseField={afMensalidadeBaseField}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
-            afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
             aprovacaoChecklist={aprovacaoChecklist}

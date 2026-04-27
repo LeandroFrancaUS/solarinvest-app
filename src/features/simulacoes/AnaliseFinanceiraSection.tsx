@@ -3,7 +3,7 @@
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
 import type React from 'react'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -83,8 +83,6 @@ export interface AnaliseFinanceiraSectionProps {
 
   afMensalidadeBaseAuto: number
 
-  afCidadeBlurTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
-
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 
@@ -118,7 +116,6 @@ export function AnaliseFinanceiraSection({
   afOutrosField,
   afMensalidadeBaseField,
   afMensalidadeBaseAuto,
-  afCidadeBlurTimerRef,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
   aprovacaoChecklist,
@@ -130,6 +127,7 @@ export function AnaliseFinanceiraSection({
   kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
+  const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Store reads — replaces props previously passed down from App.tsx
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
