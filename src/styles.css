@@ -9062,3 +9062,28 @@ i:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Phase 4D — AfCustosDiretosPanel visual groups */
+.af-custos-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.af-custos-group {
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px 14px;
+  background: var(--color-surface-subtle, transparent);
+}
+
+.af-custos-group-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-muted, #64748b);
+  margin: 0 0 10px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
