@@ -228,7 +228,6 @@ export function ProjectChargesTab({ projectId, projectType, activationDate }: Pr
         const updated = await updateProjectCharge(charge.id, {
           status: 'paga',
           valor_pago: charge.valor_cobrado ?? charge.valor_previsto ?? 0,
-          paid_at: new Date().toISOString(),
         })
         setCharges((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
       } catch (err) {

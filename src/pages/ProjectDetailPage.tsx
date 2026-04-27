@@ -631,7 +631,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
   const error = useProjectsStore((s) => s.detailError[projectId] ?? null)
 
   const [activeTab, setActiveTab] = useState<ProjectDetailTab>('projeto')
-  const [portfolioClientForCharges, setPortfolioClientForCharges] = useState<{ commissioning_date?: string | null } | null>(null)
+  const [commissioningData, setCommissioningData] = useState<{ commissioning_date?: string | null } | null>(null)
 
   useEffect(() => {
     void loadProjectById(projectId)
@@ -642,11 +642,11 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
 
   // Load portfolio client when the Cobranças tab is opened, to get commissioning_date
   useEffect(() => {
-    if (activeTab !== 'cobrancas' || !project?.client_id || portfolioClientForCharges !== null) return
+    if (activeTab !== 'cobrancas' || !project?.client_id || commissioningData !== null) return
     void fetchPortfolioClient(project.client_id)
-      .then((c) => setPortfolioClientForCharges(c ?? {}))
-      .catch(() => setPortfolioClientForCharges({}))
-  }, [activeTab, project?.client_id, portfolioClientForCharges])
+      .then((c) => setCommissioningData(c ?? {}))
+      .catch(() => setCommissioningData({}))
+  }, [activeTab, project?.client_id, commissioningData])
 
   if (isLoading && !project) {
     return (
@@ -743,7 +743,7 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
           <ProjectChargesTab
             projectId={projectId}
             projectType={project.project_type}
-            activationDate={portfolioClientForCharges?.commissioning_date ?? null}
+            activationDate={commissioningData?.commissioning_date ?? null}
           />
         )}
       </div>
