@@ -369,6 +369,27 @@ import {
   selectAfDeslocamentoRs,
   selectAfDeslocamentoStatus,
 } from './features/simulacoes/afDeslocamentoSelectors'
+import { useAfInputStore } from './features/simulacoes/useAfInputStore'
+import {
+  selectAfImpostosVenda,
+  selectAfImpostosLeasing,
+  selectAfInadimplencia,
+  selectAfCustoOperacional,
+  selectAfMesesProjecao,
+  selectAfMargemLiquidaVenda,
+  selectAfMargemLiquidaMinima,
+  selectAfComissaoMinimaPercent,
+  selectAfTaxaDesconto,
+  selectSetAfImpostosVenda,
+  selectSetAfImpostosLeasing,
+  selectSetAfInadimplencia,
+  selectSetAfCustoOperacional,
+  selectSetAfMesesProjecao,
+  selectSetAfMargemLiquidaVenda,
+  selectSetAfMargemLiquidaMinima,
+  selectSetAfComissaoMinimaPercent,
+  selectSetAfTaxaDesconto,
+} from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -4194,17 +4215,26 @@ export default function App() {
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
   const [afOutros, setAfOutros] = useState(0)
   const [afValorContrato, setAfValorContrato] = useState(0)
-  const [afImpostosVenda, setAfImpostosVenda] = useState(6)
-  const [afImpostosLeasing, setAfImpostosLeasing] = useState(4)
-  const [afInadimplencia, setAfInadimplencia] = useState(2)
-  const [afCustoOperacional, setAfCustoOperacional] = useState(3)
-  const [afMesesProjecao, setAfMesesProjecao] = useState(60)
+  const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
+  const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)
+  const afInadimplencia = useAfInputStore(selectAfInadimplencia)
+  const afCustoOperacional = useAfInputStore(selectAfCustoOperacional)
+  const afMesesProjecao = useAfInputStore(selectAfMesesProjecao)
+  const setAfImpostosVenda = useAfInputStore(selectSetAfImpostosVenda)
+  const setAfImpostosLeasing = useAfInputStore(selectSetAfImpostosLeasing)
+  const setAfInadimplencia = useAfInputStore(selectSetAfInadimplencia)
+  const setAfCustoOperacional = useAfInputStore(selectSetAfCustoOperacional)
+  const setAfMesesProjecao = useAfInputStore(selectSetAfMesesProjecao)
   const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
   const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
-  const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
-  const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
-  const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
-  const [afTaxaDesconto, setAfTaxaDesconto] = useState(20)
+  const afMargemLiquidaVenda = useAfInputStore(selectAfMargemLiquidaVenda)
+  const afMargemLiquidaMinima = useAfInputStore(selectAfMargemLiquidaMinima)
+  const afComissaoMinimaPercent = useAfInputStore(selectAfComissaoMinimaPercent)
+  const afTaxaDesconto = useAfInputStore(selectAfTaxaDesconto)
+  const setAfMargemLiquidaVenda = useAfInputStore(selectSetAfMargemLiquidaVenda)
+  const setAfMargemLiquidaMinima = useAfInputStore(selectSetAfMargemLiquidaMinima)
+  const setAfComissaoMinimaPercent = useAfInputStore(selectSetAfComissaoMinimaPercent)
+  const setAfTaxaDesconto = useAfInputStore(selectSetAfTaxaDesconto)
   // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
   const [afConsumoOverride, setAfConsumoOverride] = useState(0)
   const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
