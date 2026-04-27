@@ -8,6 +8,7 @@ import { patchProjectPvData } from '../services/projectsApi'
 import { fetchPortfolioClient } from '../services/clientPortfolioApi'
 import type { ProjectPvData, ProjectStatus } from '../domain/projects/types'
 import { PROJECT_STATUSES } from '../domain/projects/types'
+import { ProjectChargesTab } from '../features/projectHub/ProjectChargesTab'
 import {
   reverseGenerationToKwp,
   estimateMonthlyGenerationKWh,
@@ -612,11 +613,25 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
 // ProjectDetailPage
 // ─────────────────────────────────────────────────────────────────────────────
 
+type ProjectDetailTab = 'projeto' | 'usina' | 'financeiro' | 'cobrancas'
+
+const TAB_LABELS: Record<ProjectDetailTab, string> = {
+  projeto: '📋 Projeto',
+  usina: '☀️ Usina',
+  financeiro: '💰 Financeiro',
+  cobrancas: '💳 Cobranças',
+}
+
+const ALL_TABS: readonly ProjectDetailTab[] = ['projeto', 'usina', 'financeiro', 'cobrancas']
+
 export function ProjectDetailPage({ projectId, onBack }: Props) {
   const loadProjectById = useProjectsStore((s) => s.loadProjectById)
   const cached = useProjectsStore((s) => s.cache[projectId])
   const isLoading = useProjectsStore((s) => s.detailLoading[projectId] ?? false)
   const error = useProjectsStore((s) => s.detailError[projectId] ?? null)
+
+  const [activeTab, setActiveTab] = useState<ProjectDetailTab>('projeto')
+  const [portfolioClientForCharges, setPortfolioClientForCharges] = useState<{ commissioning_date?: string | null } | null>(null)
 
   useEffect(() => {
     void loadProjectById(projectId)
@@ -624,6 +639,14 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
 
   const project = cached?.project ?? null
   const pvData = cached?.pv_data ?? null
+
+  // Load portfolio client when the Cobranças tab is opened, to get commissioning_date
+  useEffect(() => {
+    if (activeTab !== 'cobrancas' || !project?.client_id || portfolioClientForCharges !== null) return
+    void fetchPortfolioClient(project.client_id)
+      .then((c) => setPortfolioClientForCharges(c ?? {}))
+      .catch(() => setPortfolioClientForCharges({}))
+  }, [activeTab, project?.client_id, portfolioClientForCharges])
 
   if (isLoading && !project) {
     return (
@@ -690,18 +713,40 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
         </div>
       </div>
 
-      {/* ── Section 1: Projeto ── */}
-      <ProjetoSection projectId={projectId} />
+      {/* ── Tab bar ── */}
+      <div className="fm-tab-bar" role="tablist">
+        {ALL_TABS.map((tab) => (
+          <button
+            key={tab}
+            role="tab"
+            aria-selected={activeTab === tab}
+            className={`fm-tab${activeTab === tab ? ' active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {TAB_LABELS[tab]}
+          </button>
+        ))}
+      </div>
 
-      {/* ── Section 2: Usina Fotovoltaica ── */}
-      <UsinaSection projectId={projectId} />
-
-      {/* ── Section 3: Financeiro ── */}
-      <ProjectFinanceSection
-        projectId={projectId}
-        pvData={pvData}
-        stateUf={project?.state_snapshot ?? null}
-      />
+      {/* ── Tab content ── */}
+      <div className="fm-tab-content" role="tabpanel">
+        {activeTab === 'projeto' && <ProjetoSection projectId={projectId} />}
+        {activeTab === 'usina' && <UsinaSection projectId={projectId} />}
+        {activeTab === 'financeiro' && (
+          <ProjectFinanceSection
+            projectId={projectId}
+            pvData={pvData}
+            stateUf={project?.state_snapshot ?? null}
+          />
+        )}
+        {activeTab === 'cobrancas' && project && (
+          <ProjectChargesTab
+            projectId={projectId}
+            projectType={project.project_type}
+            activationDate={portfolioClientForCharges?.commissioning_date ?? null}
+          />
+        )}
+      </div>
     </div>
   )
 }
