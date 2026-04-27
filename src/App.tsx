@@ -411,7 +411,6 @@ import {
   selectSetAfMensalidadeBase,
   selectAfUfOverride,
   selectSetAfUfOverride,
-  selectAfModo,
   selectSetAfModo,
   selectAfValorContrato,
   selectSetAfValorContrato,
@@ -4231,7 +4230,6 @@ export default function App() {
   const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
 
   // Financial Analysis (Spreadsheet v1) state
-  const afModo = useAfInputStore(selectAfModo)
   const setAfModo = useAfInputStore(selectSetAfModo)
   const afCustoKit = useAfInputStore(selectAfCustoKit)
   const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
@@ -9731,40 +9729,7 @@ export default function App() {
     baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, ufTarifa,
     vendaForm.aplica_taxa_minima,
   ])
-  const { analiseFinanceiraResult, afMensalidadeBaseAuto } = useAnaliseFinanceiraResult(tarifaContexto)
-
-  const indicadorEficienciaProjeto = useMemo(() => {
-    if (!analiseFinanceiraResult || afModo !== 'leasing') return null
-
-    const payback = analiseFinanceiraResult.payback_total_meses ?? Number.POSITIVE_INFINITY
-    const roi = analiseFinanceiraResult.roi_percent ?? 0
-    const tir = analiseFinanceiraResult.tir_anual_percent ?? 0
-    const investimento = analiseFinanceiraResult.investimento_total_leasing_rs ?? 0
-    const lucroMensal = analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0
-    const lucroRelativo = investimento > 0 ? (lucroMensal / investimento) * 100 : 0
-
-    const paybackScore = Math.max(0, Math.min(100, (60 - payback) / 60 * 100))
-    const roiScore = Math.max(0, Math.min(100, roi))
-    const tirScore = Math.max(0, Math.min(100, tir / 2))
-    const lucroRelativoScore = Math.max(0, Math.min(100, lucroRelativo * 12))
-
-    const score = Math.round(
-      paybackScore * 0.35 +
-      roiScore * 0.25 +
-      tirScore * 0.2 +
-      lucroRelativoScore * 0.2,
-    )
-
-    const classificacao = score >= 85
-      ? 'Excelente'
-      : score >= 70
-        ? 'Bom'
-        : score >= 50
-          ? 'Atenção'
-          : 'Fraco'
-
-    return { score, classificacao }
-  }, [afModo, analiseFinanceiraResult])
+  const { analiseFinanceiraResult, afMensalidadeBaseAuto, indicadorEficienciaProjeto } = useAnaliseFinanceiraResult(tarifaContexto)
 
   const custoFinalProjetadoCanonico = useMemo(() => {
     // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
