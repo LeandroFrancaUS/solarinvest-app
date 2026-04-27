@@ -388,6 +388,7 @@ import {
 } from './features/simulacoes/useUfTarifaStore'
 import {
   useConsumoBaseStore,
+  selectKcKwhMes,
   selectSetKcKwhMes,
   selectSetConsumoManual,
 } from './features/simulacoes/useConsumoBaseStore'
@@ -4496,6 +4497,7 @@ export default function App() {
   // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
   // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
+  const storeKcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const setStoreKcKwhMes = useConsumoBaseStore(selectSetKcKwhMes)
   const setStoreConsumoManual = useConsumoBaseStore(selectSetConsumoManual)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
@@ -9614,7 +9616,7 @@ export default function App() {
 
   // Tariff/system context passed to the AF analysis hook.
   const tarifaContexto = useMemo<TarifaContexto>(() => ({
-    kcKwhMes,
+    kcKwhMes: storeKcKwhMes,
     tarifaCheia,
     descontoConsiderado,
     inflacaoAa,
@@ -9638,7 +9640,7 @@ export default function App() {
     ufTarifa: storeUfTarifa,
     aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
   }), [
-    kcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    storeKcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
     tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade, tusdTarifaRkwh,
     tusdAnoReferencia, mesReajuste, mesReferencia, encargosFixos, cidKwhBase,
     baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, storeUfTarifa,
