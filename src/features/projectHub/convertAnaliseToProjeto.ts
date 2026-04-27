@@ -18,21 +18,21 @@ export function convertAnaliseToProjeto({
 
   const valorContrato =
     tipo === 'leasing'
-      ? (r.investimento_total_leasing_rs ?? 0)
-      : (r.custo_variavel_total_rs ?? 0)
+      ? (Number(r.investimento_total_leasing_rs) || 0)
+      : (Number(r.custo_variavel_total_rs) || 0)
 
   const custoTotal =
     tipo === 'leasing'
-      ? (r.custo_total_rs ?? 0)
-      : (r.custo_total_real_rs ?? 0)
+      ? (Number(r.custo_total_rs) || 0)
+      : (Number(r.custo_total_real_rs) || 0)
 
   const margem =
     tipo === 'leasing'
-      ? (r.lucro_rs ?? 0)
-      : (r.margem_rs ?? 0)
+      ? (Number(r.lucro_rs) || 0)
+      : (Number(r.margem_rs) || 0)
 
   const mensalidade =
-    tipo === 'leasing' ? (r.receita_liquida_mensal_rs ?? 0) : undefined
+    tipo === 'leasing' ? (Number(r.receita_liquida_mensal_rs) || 0) : undefined
 
   return {
     id: Date.now().toString(),
