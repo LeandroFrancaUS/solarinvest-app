@@ -197,23 +197,44 @@ function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilid
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
-        <div>
-          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor do Contrato: </span>
-          <strong>{formatCurrency(financeiro.valorContrato)}</strong>
-        </div>
-        <div>
-          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Custo Total: </span>
-          <strong>{formatCurrency(financeiro.custoTotal)}</strong>
-        </div>
-        <div>
-          <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Margem: </span>
-          <strong>{formatCurrency(financeiro.margem)}</strong>
-        </div>
-        {tipo === 'leasing' && financeiro.mensalidade !== undefined && (
-          <div>
-            <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Mensalidade: </span>
-            <strong>{formatCurrency(financeiro.mensalidade)}</strong>
-          </div>
+        {tipo === 'venda' ? (
+          <>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor do Contrato: </span>
+              <strong>{formatCurrency(financeiro.valorContrato)}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Custo Total: </span>
+              <strong>{formatCurrency(financeiro.custoTotal)}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Margem: </span>
+              <strong>{formatCurrency(financeiro.margem)}</strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Mensalidade: </span>
+              <strong>
+                {financeiro.mensalidade !== undefined && financeiro.mensalidade > 0
+                  ? formatCurrency(financeiro.mensalidade)
+                  : 'A definir'}
+              </strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Investimento estimado: </span>
+              <strong>
+                {financeiro.custoTotal > 0
+                  ? formatCurrency(financeiro.custoTotal)
+                  : 'A definir'}
+              </strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Receita recorrente: </span>
+              <strong>Mensalidade</strong>
+            </div>
+          </>
         )}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
