@@ -1,4 +1,4 @@
-import type { Projeto, ComissaoParcela } from './useProjectStore'
+import type { Projeto, ComissaoParcela, AprovacaoDocumental, AprovacaoViabilidade } from './useProjectStore'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 
 type Params = {
@@ -7,6 +7,7 @@ type Params = {
   clienteNome?: string
   consultorNome?: string
   consultorId?: string
+  pagamentoModalidade?: 'avista' | 'parcelado'
 }
 
 const LEASING_ADVANCE_RATE = 0.4
@@ -19,6 +20,7 @@ export function convertAnaliseToProjeto({
   clienteNome,
   consultorNome,
   consultorId,
+  pagamentoModalidade,
 }: Params): Projeto | null {
   if (!analiseFinanceiraResult) return null
 
@@ -42,6 +44,29 @@ export function convertAnaliseToProjeto({
   const mensalidade =
     tipo === 'leasing' ? (Number(r.receita_liquida_mensal_rs) || 0) : undefined
 
+  // isParcelado is false when pagamentoModalidade is undefined (unknown modality),
+  // which intentionally leaves comprovacaoRenda and analiseCreditoSerasa as optional
+  // for venda projects until a payment modality is confirmed.
+  const isParcelado = pagamentoModalidade === 'parcelado'
+
+  const aprovacaoDocumental: AprovacaoDocumental =
+    tipo === 'leasing'
+      ? {
+          comprovacaoRenda: { obrigatorio: true, aprovado: false },
+          analiseCreditoSerasa: { obrigatorio: true, aprovado: false },
+          faturasDistribuidoraSemAtraso: { obrigatorio: true, aprovado: false },
+        }
+      : {
+          comprovacaoRenda: { obrigatorio: isParcelado, aprovado: false },
+          analiseCreditoSerasa: { obrigatorio: isParcelado, aprovado: false },
+          faturasDistribuidoraSemAtraso: { obrigatorio: true, aprovado: false },
+        }
+
+  const aprovacaoViabilidade: AprovacaoViabilidade = {
+    areaInstalacaoCompativel: { obrigatorio: true, aprovado: false },
+    padraoRelogioAprovadoEngenharia: { obrigatorio: true, aprovado: false },
+  }
+
   const hasConsultor = typeof consultorNome === 'string' && consultorNome.trim().length > 0
 
   const projeto: Projeto = {
@@ -58,6 +83,9 @@ export function convertAnaliseToProjeto({
       ...(mensalidade !== undefined ? { mensalidade } : {}),
     },
     createdAt: new Date().toISOString(),
+    aprovacaoDocumental,
+    aprovacaoViabilidade,
+    ...(pagamentoModalidade !== undefined ? { pagamento: { modalidade: pagamentoModalidade } } : {}),
   }
 
   if (hasConsultor) {

@@ -3,7 +3,18 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+
+const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
+  { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
+  { key: 'analiseCreditoSerasa', label: 'Análise de Crédito (Serasa)' },
+  { key: 'faturasDistribuidoraSemAtraso', label: 'Faturas da Distribuidora Sem Atraso' },
+]
+
+const VIABILIDADE_ITEMS: { key: keyof AprovacaoViabilidade; label: string }[] = [
+  { key: 'areaInstalacaoCompativel', label: 'Área de Instalação Compatível' },
+  { key: 'padraoRelogioAprovadoEngenharia', label: 'Padrão de Relógio Aprovado pela Engenharia' },
+]
 
 function formatDate(iso: string): string {
   try {
@@ -235,6 +246,94 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
             </>
           )
           : <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem comissão de consultor vinculada</div>}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
+      {/* Aprovação Documental */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Aprovação Documental
+        </div>
+        {projeto.aprovacaoDocumental ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            {DOCUMENTAL_ITEMS.map(({ key, label }) => {
+              const item = projeto.aprovacaoDocumental![key]
+              return (
+                <div
+                  key={key}
+                  style={{
+                    background: 'var(--color-muted-bg, #f1f5f9)',
+                    borderRadius: 6,
+                    padding: '0.4rem 0.6rem',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        color: item.obrigatorio ? 'var(--color-text-secondary, #64748b)' : 'var(--color-text-muted, #94a3b8)',
+                        fontStyle: item.obrigatorio ? 'normal' : 'italic',
+                      }}
+                    >
+                      {item.obrigatorio ? 'Obrigatório' : 'Opcional'}
+                    </span>
+                    {item.aprovado
+                      ? <span style={{ color: 'var(--color-success, #16a34a)', fontWeight: 600 }}>✔ Aprovado</span>
+                      : <span style={{ color: 'var(--color-text-muted, #94a3b8)' }}>Pendente</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem aprovação documental registrada</div>
+        )}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
+      {/* Viabilidade Técnica */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Viabilidade Técnica
+        </div>
+        {projeto.aprovacaoViabilidade ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            {VIABILIDADE_ITEMS.map(({ key, label }) => {
+              const item = projeto.aprovacaoViabilidade![key]
+              return (
+                <div
+                  key={key}
+                  style={{
+                    background: 'var(--color-muted-bg, #f1f5f9)',
+                    borderRadius: 6,
+                    padding: '0.4rem 0.6rem',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>{label}</span>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary, #64748b)' }}>
+                      Obrigatório
+                    </span>
+                    {item.aprovado
+                      ? <span style={{ color: 'var(--color-success, #16a34a)', fontWeight: 600 }}>✔ Aprovado</span>
+                      : <span style={{ color: 'var(--color-text-muted, #94a3b8)' }}>Pendente</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem viabilidade técnica registrada</div>
+        )}
       </div>
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)' }}>
         Criado em {formatDate(createdAt)}
