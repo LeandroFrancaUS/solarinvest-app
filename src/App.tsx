@@ -19204,11 +19204,9 @@ export default function App() {
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            vendasConfig={vendasConfig}
             aprovacaoChecklist={aprovacaoChecklist}
             toggleAprovacaoChecklist={toggleAprovacaoChecklist}
             afBaseInitializedRef={afBaseInitializedRef}
-            selectNumberInputOnFocus={selectNumberInputOnFocus}
           />
         ) : activePage === 'settings' ? (
           <SettingsPage
