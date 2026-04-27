@@ -18690,7 +18690,6 @@ export default function App() {
             capexSolarInvest={capexSolarInvest}
             tipoSistema={tipoSistema}
             leasingPrazo={leasingPrazo}
-            kcKwhMes={kcKwhMes}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
