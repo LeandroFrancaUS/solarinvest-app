@@ -3,6 +3,31 @@ import { createStore } from '../../store/createStore'
 export type ProjetoTipo = 'venda' | 'leasing'
 export type ProjetoStatus = 'aprovado' | 'implantacao' | 'ativo' | 'finalizado' | 'monitoramento'
 
+export type ComissaoStatus =
+  | 'nao_elegivel'
+  | 'adiantamento_disponivel'
+  | 'adiantamento_pago'
+  | 'parcial_pago'
+  | 'pago'
+  | 'estornado'
+
+export type ParcelaComissao = {
+  descricao: string
+  percentual: number
+  valor: number
+  gatilho: string
+  pago: boolean
+  pagoEm?: string
+}
+
+export type ComissaoConsultor = {
+  regra: 'leasing' | 'venda'
+  valorTotalEstimado: number
+  valorPago: number
+  status: ComissaoStatus
+  parcelas: ParcelaComissao[]
+}
+
 export type Projeto = {
   id: string
   tipo: ProjetoTipo
@@ -16,6 +41,11 @@ export type Projeto = {
     margem: number
     mensalidade?: number
   }
+  consultor?: {
+    id?: string
+    nome: string
+  }
+  comissaoConsultor?: ComissaoConsultor
   createdAt: string
 }
 

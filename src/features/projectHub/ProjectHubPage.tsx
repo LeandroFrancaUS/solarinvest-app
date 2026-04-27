@@ -83,6 +83,11 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
           {status}
         </span>
       </div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary, #64748b)' }}>
+        {projeto.consultor
+          ? <>Consultor: <strong>{projeto.consultor.nome}</strong></>
+          : 'Sem consultor vinculado'}
+      </div>
     </div>
   )
 }
@@ -152,6 +157,74 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
             <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Mensalidade: </span>
             <strong>{formatCurrency(financeiro.mensalidade)}</strong>
           </div>
+        )}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
+      {/* Consultor */}
+      <div style={{ fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Consultor</div>
+        {projeto.consultor
+          ? <div><strong>{projeto.consultor.nome}</strong></div>
+          : <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Sem consultor vinculado</div>}
+      </div>
+      <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
+      {/* Comissão */}
+      <div style={{ fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Comissão de Consultor</div>
+        {projeto.comissaoConsultor ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Regra: </span>
+              <strong>{projeto.comissaoConsultor.regra}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor estimado: </span>
+              <strong>{formatCurrency(projeto.comissaoConsultor.valorTotalEstimado)}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor pago: </span>
+              <strong>{formatCurrency(projeto.comissaoConsultor.valorPago)}</strong>
+            </div>
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Status: </span>
+              <strong>{projeto.comissaoConsultor.status}</strong>
+            </div>
+            <div style={{ marginTop: '0.4rem', fontWeight: 600, fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)' }}>
+              Parcelas:
+            </div>
+            {projeto.comissaoConsultor.parcelas.map((parcela, i) => (
+              <div
+                key={i}
+                style={{
+                  background: 'var(--color-muted-bg, #f1f5f9)',
+                  borderRadius: 6,
+                  padding: '0.4rem 0.6rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.15rem',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>{parcela.descricao}</div>
+                <div>
+                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Percentual: </span>
+                  {parcela.percentual}%
+                  <span style={{ marginLeft: '0.75rem', color: 'var(--color-text-secondary, #64748b)' }}>Valor: </span>
+                  {formatCurrency(parcela.valor)}
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Gatilho: </span>
+                  {parcela.gatilho}
+                </div>
+                <div>
+                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Pago: </span>
+                  {parcela.pago ? `Sim${parcela.pagoEm ? ` (${formatDate(parcela.pagoEm)})` : ''}` : 'Não'}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Sem comissão de consultor vinculada</div>
         )}
       </div>
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)' }}>
