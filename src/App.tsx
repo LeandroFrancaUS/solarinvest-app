@@ -87,13 +87,6 @@ import {
 } from './lib/finance/roi'
 import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import {
-  calcularAnaliseFinanceira,
-  resolveCustoProjetoPorFaixa,
-  resolveCrea,
-  PRECO_PLACA_RS,
-} from './lib/finance/analiseFinanceiraSpreadsheet'
-import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
@@ -361,8 +354,11 @@ import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
   selectAfCidadeDestino,
-  selectAfDeslocamentoRs,
 } from './features/simulacoes/afDeslocamentoSelectors'
+import {
+  useAnaliseFinanceiraResult,
+  type TarifaContexto,
+} from './features/simulacoes/useAnaliseFinanceiraResult'
 import { useAfInputStore } from './features/simulacoes/useAfInputStore'
 import {
   selectAfImpostosVenda,
@@ -4295,7 +4291,6 @@ export default function App() {
   const afProjetoOverride = useAfInputStore(selectAfProjetoOverride)
   const afCreaOverride = useAfInputStore(selectAfCreaOverride)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
-  const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
@@ -9704,292 +9699,9 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
-  // AF-specific simulation state used ONLY to derive afMensalidadeBaseAuto.
-  // Built from AF's own raw inputs — never spread from simulationState (leasing proposal) —
-  // so that the auto mensalidade shown in Análise Financeira always reflects AF's local
-  // consumo and generation, not the Proposta de Leasing values ("local first" policy).
-  const afSimEstadoMensalidade = useMemo<SimulationState | null>(() => {
-    const resolveOverride = (override: number, fallback: number, def: number) => {
-      const v = override > 0 ? override : fallback
-      return v > 0 ? v : def
-    }
-    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
-    if (consumo <= 0) return null
-
-    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
-    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
-    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
-    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
-
-    let potenciaKwp = 0
-    if (afNumModulosOverride != null && afNumModulosOverride > 0) {
-      potenciaKwp = (afNumModulosOverride * modulo) / 1000
-    } else {
-      const computed = calcPotenciaSistemaKwp({
-        consumoKwhMes: consumo,
-        irradiacao: irr,
-        performanceRatio: pr,
-        diasMes: dias,
-        potenciaModuloWp: modulo,
-      })
-      potenciaKwp = computed?.potenciaKwp ?? 0
-    }
-    const afGeracaoKwh = potenciaKwp * irr * pr * dias
-
-    const tusdPercentual = Math.max(0, tusdPercent)
-    const tusdSubtipoNorm = tusdSubtipo.trim()
-    return {
-      kcKwhMes: consumo,
-      consumoMensalKwh: consumo,
-      geracaoMensalKwh: Math.max(0, afGeracaoKwh),
-      prazoMeses: afMesesProjecao,
-      entradaRs: 0,
-      modoEntrada: 'NONE',
-      // Tariff/TUSD fields — same normalization used in simulationState and afSimState
-      tarifaCheia: Math.max(0, tarifaCheia),
-      desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
-      inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
-      taxaMinima: taxaMinimaInputEmpty
-        ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-        : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
-      aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
-      tipoRede,
-      tusdPercent: tusdPercentual,
-      tusdPercentualFioB: tusdPercentual,
-      tusdTipoCliente,
-      tusdSubtipo: tusdSubtipoNorm.length > 0 ? tusdSubtipoNorm : null,
-      tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
-      tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
-      tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
-        ? Math.max(1, Math.trunc(tusdAnoReferencia))
-        : DEFAULT_TUSD_ANO_REFERENCIA,
-      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
-      encargosFixos,
-      cidKwhBase,
-      // Fields not consulted by selectMensalidades — safe zero defaults
-      vm0: 0,
-      depreciacaoAa: 0,
-      ipcaAa: 0,
-      inadimplenciaAa: 0,
-      tributosAa: 0,
-      custosFixosM: 0,
-      opexM: 0,
-      seguroM: 0,
-      cashbackPct: 0,
-      pagosAcumManual: 0,
-      duracaoMeses: 0,
-    }
-  }, [
-    afConsumoOverride, kcKwhMes,
-    afIrradiacaoOverride, baseIrradiacao,
-    afPROverride, eficienciaNormalizada,
-    afDiasOverride, diasMesNormalizado,
-    afModuloWpOverride, potenciaModulo,
-    afNumModulosOverride,
-    afMesesProjecao,
-    tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
-    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade,
-    tusdTarifaRkwh, tusdAnoReferencia, mesReajuste, mesReferencia,
-    vendaForm.aplica_taxa_minima, encargosFixos, cidKwhBase,
-  ])
-
-  const analiseFinanceiraResult = useMemo(() => {
-    const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
-      const v = override > 0 ? override : fallback
-      return v > 0 ? v : defaultVal
-    }
-    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
-    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
-    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
-    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
-    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
-    const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
-
-    if (consumo <= 0 || afCustoKit <= 0) {
-      return null
-    }
-
-    // Pre-compute base system using the same engine as the leasing proposals page
-    const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
-      ? afNumModulosOverride
-      : undefined
-    let baseSistema: { quantidade_modulos: number; potencia_sistema_kwp: number }
-    if (nModulosOverride != null) {
-      baseSistema = { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
-    } else {
-      const computed = calcPotenciaSistemaKwp({
-        consumoKwhMes: consumo,
-        irradiacao: irr,
-        performanceRatio: pr,
-        diasMes: dias,
-        potenciaModuloWp: modulo,
-      })
-      if (!computed) return null
-      const qtd = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
-      baseSistema = { quantidade_modulos: qtd, potencia_sistema_kwp: computed.potenciaKwp }
-    }
-    const instalacaoCalculada = baseSistema.quantidade_modulos * 70
-
-    // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
-    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afAutoMaterialCA
-    const preCrea = resolveCrea(uf)
-    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
-    const preProjetoFinal = afProjetoOverride != null ? afProjetoOverride : preProjetoCusto
-    const preCreaFinal = afCreaOverride != null ? afCreaOverride : preCrea
-    const preCustoVariavel =
-      afCustoKit +
-      afFrete +
-      afDescarregamento +
-      preProjetoFinal +
-      instalacaoCalculada +
-      preMaterialCA +
-      preCreaFinal +
-      prePlaca +
-      afHotelPousada +
-      afTransporteCombustivel +
-      afOutros +
-      storeAfDeslocamentoRs
-
-    const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    // Build the projected mensalidades series for leasing mode using an AF-isolated
-    // SimulationState. This prevents the Proposta de Leasing's simulationState (which
-    // uses the proposal's own consumo/geração/prazo) from contaminating the AF calculation.
-    // Each screen uses the same motor but with its own input context.
-    let mensalidadesFinal: number[]
-    if (afModo === 'leasing' && afMensalidadeBase <= 0) {
-      // Compute AF's monthly generation from its own irr/PR/dias/kWp inputs
-      const afGeracaoKwh = baseSistema.potencia_sistema_kwp * irr * pr * dias
-      // Build AF-specific SimulationState from raw component variables.
-      // IMPORTANT: do NOT spread `simulationState` here — it is declared later in this
-      // component and referencing it before its const-declaration would cause a
-      // Temporal Dead Zone (TDZ) crash ("Cannot access '...' before initialization").
-      // All fields are built from the same raw state/derived variables that
-      // `simulationState` uses, so the values are equivalent for the fields that
-      // selectMensalidades actually reads.
-      const afSimState: SimulationState = {
-        // AF-specific overrides
-        kcKwhMes: consumo,
-        consumoMensalKwh: consumo,
-        geracaoMensalKwh: afGeracaoKwh,
-        prazoMeses: afMesesProjecao,
-        entradaRs: 0,
-        modoEntrada: 'NONE',
-        // Shared tariff/TUSD fields — same normalization as simulationState
-        tarifaCheia: Math.max(0, tarifaCheia),
-        desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
-        inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
-        taxaMinima: taxaMinimaInputEmpty
-          ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-          : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
-        aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
-        tipoRede,
-        tusdPercent: Math.max(0, tusdPercent),
-        tusdPercentualFioB: Math.max(0, tusdPercent),
-        tusdTipoCliente,
-        tusdSubtipo: tusdSubtipo.trim().length > 0 ? tusdSubtipo.trim() : null,
-        tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
-        tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
-        tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
-          ? Math.max(1, Math.trunc(tusdAnoReferencia))
-          : DEFAULT_TUSD_ANO_REFERENCIA,
-        mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-        mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
-        encargosFixos,
-        cidKwhBase,
-        // Fields not consulted by selectMensalidades — safe zero defaults
-        vm0: 0,
-        depreciacaoAa: 0,
-        ipcaAa: 0,
-        inadimplenciaAa: 0,
-        tributosAa: 0,
-        custosFixosM: 0,
-        opexM: 0,
-        seguroM: 0,
-        cashbackPct: 0,
-        pagosAcumManual: 0,
-        duracaoMeses: 0,
-      }
-      const rawSeries = selectMensalidades(afSimState)
-      if (rawSeries.length >= afMesesProjecao) {
-        mensalidadesFinal = rawSeries.slice(0, afMesesProjecao)
-      } else if (rawSeries.length > 0) {
-        const last = rawSeries[rawSeries.length - 1]
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        mensalidadesFinal = [...rawSeries, ...Array(afMesesProjecao - rawSeries.length).fill(last)]
-      } else {
-        mensalidadesFinal = Array(afMesesProjecao).fill(afMensalidadeBaseAuto) as number[]
-      }
-    } else {
-      const base = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
-      mensalidadesFinal = Array(afMesesProjecao).fill(base) as number[]
-    }
-    const margemAlvo = afMargemLiquidaVenda
-
-    try {
-      const input: AnaliseFinanceiraInput = {
-        modo: afModo,
-        uf,
-        consumo_kwh_mes: consumo,
-        irradiacao_kwh_m2_dia: irr,
-        performance_ratio: pr,
-        dias_mes: dias,
-        potencia_modulo_wp: modulo,
-        ...(nModulosOverride != null ? { quantidade_modulos_override: nModulosOverride } : {}),
-        custo_kit_rs: afCustoKit,
-        frete_rs: afFrete,
-        descarregamento_rs: afDescarregamento,
-        instalacao_rs: instalacaoCalculada,
-        hotel_pousada_rs: afHotelPousada,
-        transporte_combustivel_rs: afTransporteCombustivel,
-        outros_rs: afOutros,
-        deslocamento_instaladores_rs: storeAfDeslocamentoRs,
-        placa_rs_override: prePlaca,
-        material_ca_rs_override: preMaterialCA,
-        projeto_rs_override: preProjetoFinal,
-        crea_rs_override: preCreaFinal,
-        valor_contrato_rs: valorContrato,
-        impostos_percent: afModo === 'venda' ? afImpostosVenda : afImpostosLeasing,
-        custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
-        lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
-        comissao_minima_percent: afComissaoMinimaPercent,
-        margem_liquida_alvo_percent: afModo === 'venda' ? margemAlvo : undefined,
-        margem_liquida_minima_percent: afModo === 'venda' ? afMargemLiquidaMinima : undefined,
-        inadimplencia_percent: afInadimplencia,
-        custo_operacional_percent: afCustoOperacional,
-        meses_projecao: mensalidadesFinal.length,
-        mensalidades_previstas_rs: mensalidadesFinal,
-        investimento_inicial_rs: preCustoVariavel,
-        taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
-      }
-      return calcularAnaliseFinanceira(input)
-    } catch {
-      return null
-    }
-  }, [
-    afConsumoOverride,
-    afIrradiacaoOverride,
-    afPROverride,
-    afDiasOverride,
-    afModuloWpOverride,
-    afUfOverride,
-    afNumModulosOverride,
-    afCustoKit,
-    afCustoOperacional,
-    afDescarregamento,
-    afFrete,
-    afHotelPousada,
-    afTransporteCombustivel,
-    afOutros,
-    storeAfDeslocamentoRs,
-    afInadimplencia,
-    afMensalidadeBase,
-    afMesesProjecao,
-    // NOTE: the raw deps below replace the former `simulationState` entry.
-    // `simulationState` is declared AFTER this useMemo in the component body,
-    // so referencing it caused a TDZ crash.  Instead, list the raw variables
-    // that afSimState actually reads (same set simulationState is built from).
+  // Tariff/system context passed to the AF analysis hook.
+  const tarifaContexto = useMemo<TarifaContexto>(() => ({
+    kcKwhMes,
     tarifaCheia,
     descontoConsiderado,
     inflacaoAa,
@@ -10004,32 +9716,22 @@ export default function App() {
     tusdAnoReferencia,
     mesReajuste,
     mesReferencia,
-    vendaForm.aplica_taxa_minima,
     encargosFixos,
     cidKwhBase,
-    afModo,
-    afValorContrato,
-    afImpostosVenda,
-    afImpostosLeasing,
-    afMargemLiquidaVenda,
-    afMargemLiquidaMinima,
-    afPlaca,
-    afMaterialCAOverride,
-    afAutoMaterialCA,
-    afProjetoOverride,
-    afCreaOverride,
     baseIrradiacao,
-    diasMesNormalizado,
     eficienciaNormalizada,
-    kcKwhMes,
-    afMensalidadeBaseAuto,
+    diasMesNormalizado,
     potenciaModulo,
     ufTarifa,
-    afComissaoMinimaPercent,
-    afTaxaDesconto,
-    vendasConfig.af_custo_fixo_rateado_percent,
-    vendasConfig.af_lucro_minimo_percent,
+    aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+  }), [
+    kcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade, tusdTarifaRkwh,
+    tusdAnoReferencia, mesReajuste, mesReferencia, encargosFixos, cidKwhBase,
+    baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, ufTarifa,
+    vendaForm.aplica_taxa_minima,
   ])
+  const { analiseFinanceiraResult, afMensalidadeBaseAuto } = useAnaliseFinanceiraResult(tarifaContexto)
 
   const indicadorEficienciaProjeto = useMemo(() => {
     if (!analiseFinanceiraResult || afModo !== 'leasing') return null
@@ -10272,16 +9974,6 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
-  // AF-specific mensalidades — derived from afSimEstadoMensalidade (AF's own inputs, not leasing's).
-  // This is what drives afMensalidadeBaseAuto so the AF section is isolated from the leasing proposal.
-  const mensalidadesAfPorAno = useMemo(
-    () => (afSimEstadoMensalidade != null ? selectMensalidadesPorAno(afSimEstadoMensalidade) : []),
-    [afSimEstadoMensalidade],
-  )
-  const afMensalidadeBaseAuto = useMemo(
-    () => mensalidadesAfPorAno[0] ?? 0,
-    [mensalidadesAfPorAno],
-  )
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
