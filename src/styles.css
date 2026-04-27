@@ -9190,31 +9190,16 @@ i:hover {
   font-size: 0.92rem;
 }
 
-/* AnaliseFinanceira two-column desktop layout */
-.af-section-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 2fr) minmax(420px, 3fr);
-  gap: 24px;
-  align-items: start;
+/* AnaliseFinanceira flat card layout */
+.af-cards-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .af-input--primary {
   outline: 2px solid var(--color-accent);
   border-radius: 4px;
-}
-
-.af-inputs-column,
-.af-results-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .af-section-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Phase 4D — AfCustosDiretosPanel visual groups */

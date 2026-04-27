@@ -19,8 +19,4 @@ export type ActivePage =
 export type SimulacoesSection =
   | 'nova'
   | 'salvas'
-  | 'ia'
-  | 'risco'
-  | 'packs'
-  | 'packs-inteligentes'
   | 'analise'
