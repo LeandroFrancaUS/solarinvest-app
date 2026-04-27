@@ -33,6 +33,7 @@ import {
   selectBaseIrradiacao,
   selectEficienciaNormalizada,
   selectDiasMesNormalizado,
+  selectPotenciaModulo,
 } from './useSimulacaoBaseStore'
 import {
   selectAfModo, selectSetAfModo,
@@ -68,8 +69,6 @@ import {
 } from './afInputSelectors'
 
 export interface AnaliseFinanceiraSectionProps {
-  potenciaModulo: number
-
   afMensalidadeBaseAuto: number
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
@@ -82,7 +81,6 @@ export interface AnaliseFinanceiraSectionProps {
 }
 
 export function AnaliseFinanceiraSection({
-  potenciaModulo,
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
@@ -96,6 +94,7 @@ export function AnaliseFinanceiraSection({
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
   const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
   const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)
+  const potenciaModulo = useSimulacaoBaseStore(selectPotenciaModulo)
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
   const setAfModo = useAfInputStore(selectSetAfModo)
