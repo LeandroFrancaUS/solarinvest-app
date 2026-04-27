@@ -11,7 +11,7 @@ export type ComissaoStatus =
   | 'pago'
   | 'estornado'
 
-export type ParcelaComissao = {
+export type ComissaoParcela = {
   descricao: string
   percentual: number
   valor: number
@@ -25,7 +25,7 @@ export type ComissaoConsultor = {
   valorTotalEstimado: number
   valorPago: number
   status: ComissaoStatus
-  parcelas: ParcelaComissao[]
+  parcelas: ComissaoParcela[]
 }
 
 export type Projeto = {

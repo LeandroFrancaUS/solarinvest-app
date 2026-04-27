@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
 
 function formatDate(iso: string): string {
   try {
@@ -42,8 +42,17 @@ interface ProjetoCardProps {
   onSelect: (id: string) => void
 }
 
+const COMISSAO_STATUS_LABEL: Record<ComissaoStatus, string> = {
+  nao_elegivel: 'Não elegível',
+  adiantamento_disponivel: 'Adiantamento disponível',
+  adiantamento_pago: 'Adiantamento pago',
+  parcial_pago: 'Parcialmente pago',
+  pago: 'Pago',
+  estornado: 'Estornado',
+}
+
 function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
-  const { cliente, tipo, status } = projeto
+  const { cliente, tipo, status, consultor } = projeto
   const [focused, setFocused] = useState(false)
   return (
     <div
@@ -84,9 +93,9 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
         </span>
       </div>
       <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary, #64748b)' }}>
-        {projeto.consultor
-          ? <>Consultor: <strong>{projeto.consultor.nome}</strong></>
-          : 'Sem consultor vinculado'}
+        {consultor
+          ? <>Consultor: <strong>{consultor.nome}</strong></>
+          : <em>Sem consultor vinculado</em>}
       </div>
     </div>
   )
@@ -100,7 +109,7 @@ interface ProjetoDetailProps {
 const STATUS_OPTIONS: ProjetoStatus[] = ['aprovado', 'implantacao', 'ativo', 'monitoramento', 'finalizado']
 
 function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
-  const { cliente, tipo, status, financeiro, createdAt } = projeto
+  const { cliente, tipo, status, financeiro, createdAt, consultor, comissaoConsultor } = projeto
   return (
     <div
       style={{
@@ -160,72 +169,72 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
         )}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
-      {/* Consultor */}
-      <div style={{ fontSize: '0.875rem' }}>
-        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Consultor</div>
-        {projeto.consultor
-          ? <div><strong>{projeto.consultor.nome}</strong></div>
-          : <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Sem consultor vinculado</div>}
+      {/* Consultant section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Consultor
+        </div>
+        {consultor
+          ? (
+            <div>
+              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Consultor: </span>
+              <strong>{consultor.nome}</strong>
+            </div>
+          )
+          : <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem consultor vinculado</div>}
       </div>
       <hr style={{ border: 'none', borderTop: '1px solid var(--color-border, #e2e8f0)', margin: 0 }} />
-      {/* Comissão */}
-      <div style={{ fontSize: '0.875rem' }}>
-        <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>Comissão de Consultor</div>
-        {projeto.comissaoConsultor ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Regra: </span>
-              <strong>{projeto.comissaoConsultor.regra}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor estimado: </span>
-              <strong>{formatCurrency(projeto.comissaoConsultor.valorTotalEstimado)}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor pago: </span>
-              <strong>{formatCurrency(projeto.comissaoConsultor.valorPago)}</strong>
-            </div>
-            <div>
-              <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Status: </span>
-              <strong>{projeto.comissaoConsultor.status}</strong>
-            </div>
-            <div style={{ marginTop: '0.4rem', fontWeight: 600, fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)' }}>
-              Parcelas:
-            </div>
-            {projeto.comissaoConsultor.parcelas.map((parcela, i) => (
-              <div
-                key={i}
-                style={{
-                  background: 'var(--color-muted-bg, #f1f5f9)',
-                  borderRadius: 6,
-                  padding: '0.4rem 0.6rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.15rem',
-                  fontSize: '0.82rem',
-                }}
-              >
-                <div style={{ fontWeight: 600 }}>{parcela.descricao}</div>
-                <div>
-                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Percentual: </span>
-                  {parcela.percentual}%
-                  <span style={{ marginLeft: '0.75rem', color: 'var(--color-text-secondary, #64748b)' }}>Valor: </span>
-                  {formatCurrency(parcela.valor)}
-                </div>
-                <div>
-                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Gatilho: </span>
-                  {parcela.gatilho}
-                </div>
-                <div>
-                  <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Pago: </span>
-                  {parcela.pago ? `Sim${parcela.pagoEm ? ` (${formatDate(parcela.pagoEm)})` : ''}` : 'Não'}
+      {/* Commission section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.875rem' }}>
+        <div style={{ fontWeight: 600, color: 'var(--color-text-secondary, #64748b)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Comissão do Consultor
+        </div>
+        {comissaoConsultor
+          ? (
+            <>
+              <div>
+                <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Regra: </span>
+                <strong>{comissaoConsultor.regra}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor estimado: </span>
+                <strong>{formatCurrency(comissaoConsultor.valorTotalEstimado)}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Valor pago: </span>
+                <strong>{formatCurrency(comissaoConsultor.valorPago)}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--color-text-secondary, #64748b)' }}>Status: </span>
+                <strong>{COMISSAO_STATUS_LABEL[comissaoConsultor.status]}</strong>
+              </div>
+              <div style={{ marginTop: '0.25rem' }}>
+                <div style={{ color: 'var(--color-text-secondary, #64748b)', marginBottom: '0.3rem' }}>Parcelas:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {comissaoConsultor.parcelas.map((parcela, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--color-muted-bg, #f1f5f9)',
+                        borderRadius: 6,
+                        padding: '0.4rem 0.6rem',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600 }}>{parcela.descricao} — {parcela.percentual}% — {formatCurrency(parcela.valor)}</div>
+                      <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Gatilho: {parcela.gatilho}</div>
+                      <div>
+                        {parcela.pago
+                          ? <span style={{ color: 'var(--color-success, #16a34a)' }}>✔ Pago{parcela.pagoEm ? ` em ${formatDate(parcela.pagoEm)}` : ''}</span>
+                          : <span style={{ color: 'var(--color-text-muted, #94a3b8)' }}>Pendente</span>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ color: 'var(--color-text-secondary, #64748b)' }}>Sem comissão de consultor vinculada</div>
-        )}
+            </>
+          )
+          : <div style={{ color: 'var(--color-text-muted, #94a3b8)', fontStyle: 'italic' }}>Sem comissão de consultor vinculada</div>}
       </div>
       <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted, #94a3b8)' }}>
         Criado em {formatDate(createdAt)}
