@@ -2,9 +2,7 @@
 // Extracted from App.tsx (Subfase 2B.12.4A).
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useProjectStore, selectAddProjeto } from '../projectHub/useProjectStore'
-import { convertAnaliseToProjeto } from '../projectHub/convertAnaliseToProjeto'
+import { useCallback, useEffect, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -89,8 +87,6 @@ export function AnaliseFinanceiraSection({
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
-  const addProjeto = useProjectStore(selectAddProjeto)
-  const [projectHubMessage, setProjectHubMessage] = useState<string | null>(null)
   // Store reads — replaces props previously passed down from App.tsx
   const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
@@ -222,18 +218,6 @@ export function AnaliseFinanceiraSection({
     setAfUfOverride(ufOverride)
     setAfTransporteCombustivel(deslocamentoRs)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs, selectCidadeAndCalculateDeslocamento, setAfUfOverride, setAfTransporteCombustivel])
-  const handleConverterEmProjeto = useCallback(() => {
-    console.info('[ProjectHub] converter click')
-    console.info('[ProjectHub] analiseFinanceiraResult present', Boolean(analiseFinanceiraResult))
-    const projeto = convertAnaliseToProjeto({ analiseFinanceiraResult, tipo: afModo })
-    if (projeto) {
-      addProjeto(projeto)
-      console.info('[ProjectHub] Projeto criado', projeto)
-      setProjectHubMessage('Projeto criado com sucesso')
-    } else {
-      setProjectHubMessage('Não foi possível criar projeto: análise financeira ausente')
-    }
-  }, [analiseFinanceiraResult, afModo, addProjeto])
   return (
     <section className="simulacoes-module-card af-section">
       <header>
@@ -411,16 +395,9 @@ export function AnaliseFinanceiraSection({
                 analiseFinanceiraResult={analiseFinanceiraResult}
                 indicadorEficienciaProjeto={indicadorEficienciaProjeto}
               />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <button type="button" className="primary" onClick={handleConverterEmProjeto}>
-                  Converter em Projeto
-                </button>
-              </div>
-              {projectHubMessage && (
-                <p style={{ textAlign: 'right', marginTop: '0.5rem', fontSize: '0.875rem', color: projectHubMessage.startsWith('Projeto criado') ? 'var(--color-success, green)' : 'var(--color-error, red)' }}>
-                  {projectHubMessage}
-                </p>
-              )}
+              <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)', fontStyle: 'italic' }}>
+                Esta análise é uma ferramenta de apoio e não cria projetos automaticamente.
+              </p>
             </>
           ) : (
             <div className="simulacoes-module-tile">

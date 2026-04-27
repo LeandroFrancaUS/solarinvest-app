@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, selectAddProjeto, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
 
 const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
   { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
@@ -384,12 +384,33 @@ interface ProjectHubPageProps {
 export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
   const projetos = useProjectStore(selectProjetos)
   const updateProjeto = useProjectStore(selectUpdateProjeto)
+  const addProjeto = useProjectStore(selectAddProjeto)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [formNome, setFormNome] = useState('')
+  const [formTipo, setFormTipo] = useState<'venda' | 'leasing'>('venda')
+  const [formPagamento, setFormPagamento] = useState<'avista' | 'parcelado'>('avista')
 
   const selectedProject = projetos.find((p) => p.id === selectedProjectId) ?? null
 
   function handleStatusChange(id: string, status: ProjetoStatus) {
     updateProjeto(id, { status })
+  }
+
+  function handleSalvarProjeto() {
+    if (!formNome.trim()) return
+    addProjeto({
+      id: Date.now().toString(),
+      tipo: formTipo,
+      status: 'proposta_emitida',
+      cliente: { nome: formNome.trim() },
+      financeiro: {} as Projeto['financeiro'],
+      createdAt: new Date().toISOString(),
+    })
+    setFormNome('')
+    setFormTipo('venda')
+    setFormPagamento('avista')
+    setShowForm(false)
   }
 
   return (
@@ -410,7 +431,96 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
         >
           {projetos.length} {projetos.length === 1 ? 'projeto' : 'projetos'}
         </span>
+        <div style={{ marginLeft: 'auto' }}>
+          <button type="button" className="primary" onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancelar' : 'Novo Projeto'}
+          </button>
+        </div>
       </div>
+
+      {showForm && (
+        <div
+          style={{
+            border: '1px solid var(--color-border, #e2e8f0)',
+            borderRadius: 8,
+            padding: '1rem 1.25rem',
+            background: 'var(--color-surface, #fff)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            alignItems: 'flex-end',
+            marginBottom: '1.5rem',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 200, flex: '1 1 200px' }}>
+            <label htmlFor="novo-projeto-nome" style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary, #64748b)' }}>
+              Nome do cliente *
+            </label>
+            <input
+              id="novo-projeto-nome"
+              type="text"
+              value={formNome}
+              onChange={(e) => setFormNome(e.target.value)}
+              placeholder="Ex: João Silva"
+              style={{
+                padding: '0.4rem 0.6rem',
+                borderRadius: 4,
+                border: '1px solid var(--color-border, #e2e8f0)',
+                fontSize: '0.875rem',
+                background: 'var(--color-surface, #fff)',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label htmlFor="novo-projeto-tipo" style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary, #64748b)' }}>
+              Tipo *
+            </label>
+            <select
+              id="novo-projeto-tipo"
+              value={formTipo}
+              onChange={(e) => setFormTipo(e.target.value as 'venda' | 'leasing')}
+              style={{
+                padding: '0.4rem 0.6rem',
+                borderRadius: 4,
+                border: '1px solid var(--color-border, #e2e8f0)',
+                fontSize: '0.875rem',
+                background: 'var(--color-surface, #fff)',
+              }}
+            >
+              <option value="venda">Venda</option>
+              <option value="leasing">Leasing</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <label htmlFor="novo-projeto-pagamento" style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--color-text-secondary, #64748b)' }}>
+              Pagamento
+            </label>
+            <select
+              id="novo-projeto-pagamento"
+              value={formPagamento}
+              onChange={(e) => setFormPagamento(e.target.value as 'avista' | 'parcelado')}
+              style={{
+                padding: '0.4rem 0.6rem',
+                borderRadius: 4,
+                border: '1px solid var(--color-border, #e2e8f0)',
+                fontSize: '0.875rem',
+                background: 'var(--color-surface, #fff)',
+              }}
+            >
+              <option value="avista">À vista</option>
+              <option value="parcelado">Parcelado</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            className="primary"
+            onClick={handleSalvarProjeto}
+            disabled={!formNome.trim()}
+          >
+            Salvar Projeto
+          </button>
+        </div>
+      )}
 
       {projetos.length === 0 ? (
         <div
@@ -424,7 +534,7 @@ export function ProjectHubPage({ onBack }: ProjectHubPageProps) {
         >
           <p style={{ margin: 0, fontSize: '1rem' }}>Nenhum projeto criado ainda.</p>
           <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem' }}>
-            Use o botão <strong>"Converter em Projeto"</strong> na Análise Financeira para criar projetos.
+            Use o botão <strong>"Novo Projeto"</strong> acima para criar o primeiro projeto.
           </p>
         </div>
       ) : (
