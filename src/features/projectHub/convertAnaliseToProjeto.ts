@@ -44,6 +44,9 @@ export function convertAnaliseToProjeto({
   const mensalidade =
     tipo === 'leasing' ? (Number(r.receita_liquida_mensal_rs) || 0) : undefined
 
+  // isParcelado is false when pagamentoModalidade is undefined (unknown modality),
+  // which intentionally leaves comprovacaoRenda and analiseCreditoSerasa as optional
+  // for venda projects until a payment modality is confirmed.
   const isParcelado = pagamentoModalidade === 'parcelado'
 
   const aprovacaoDocumental: AprovacaoDocumental =

@@ -3,7 +3,18 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+
+const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
+  { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
+  { key: 'analiseCreditoSerasa', label: 'Análise de Crédito (Serasa)' },
+  { key: 'faturasDistribuidoraSemAtraso', label: 'Faturas da Distribuidora Sem Atraso' },
+]
+
+const VIABILIDADE_ITEMS: { key: keyof AprovacaoViabilidade; label: string }[] = [
+  { key: 'areaInstalacaoCompativel', label: 'Área de Instalação Compatível' },
+  { key: 'padraoRelogioAprovadoEngenharia', label: 'Padrão de Relógio Aprovado pela Engenharia' },
+]
 
 function formatDate(iso: string): string {
   try {
@@ -244,13 +255,7 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
         </div>
         {projeto.aprovacaoDocumental ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {(
-              [
-                { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
-                { key: 'analiseCreditoSerasa', label: 'Análise de Crédito (Serasa)' },
-                { key: 'faturasDistribuidoraSemAtraso', label: 'Faturas da Distribuidora Sem Atraso' },
-              ] as const
-            ).map(({ key, label }) => {
+            {DOCUMENTAL_ITEMS.map(({ key, label }) => {
               const item = projeto.aprovacaoDocumental![key]
               return (
                 <div
@@ -297,12 +302,7 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
         </div>
         {projeto.aprovacaoViabilidade ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {(
-              [
-                { key: 'areaInstalacaoCompativel', label: 'Área de Instalação Compatível' },
-                { key: 'padraoRelogioAprovadoEngenharia', label: 'Padrão de Relógio Aprovado pela Engenharia' },
-              ] as const
-            ).map(({ key, label }) => {
+            {VIABILIDADE_ITEMS.map(({ key, label }) => {
               const item = projeto.aprovacaoViabilidade![key]
               return (
                 <div
