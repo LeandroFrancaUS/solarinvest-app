@@ -32,8 +32,8 @@ export function AfAprovacaoGrid({
   const ultimaDecisaoTimestamp = useAprovacaoStore(selectUltimaDecisaoTimestamp)
   const registrarDecisaoInterna = useAprovacaoStore(selectRegistrarDecisaoInterna)
   return (
-    <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
-      <div className="simulacoes-module-tile">
+    <div className="af-approval-panel" style={{ marginTop: '1.5rem' }}>
+      <section className="af-approval-checklist">
         <h4>Checklist de aprovação</h4>
         <ul className="simulacoes-checklist">
           {(afModo === 'leasing'
@@ -66,15 +66,17 @@ export function AfAprovacaoGrid({
             </li>
           ))}
         </ul>
-      </div>
+      </section>
       {isAnaliseMobileSimpleView ? null : (
-        <div className="simulacoes-module-tile">
-          <h4>Selo e decisão</h4>
-          <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
+        <section className="af-approval-decision">
+          <h4>Decisão final</h4>
+          <div className={`af-approval-status status-${aprovacaoStatus}`}>
+            {APROVACAO_SELLOS[aprovacaoStatus]}
+          </div>
           <p className="simulacoes-description">
             Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
           </p>
-          <div className="simulacoes-hero-buttons">
+          <div className="af-approval-actions">
             <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
               Aprovar
             </button>
@@ -89,7 +91,7 @@ export function AfAprovacaoGrid({
               Salvar decisão
             </button>
           </div>
-        </div>
+        </section>
       )}
     </div>
   )
