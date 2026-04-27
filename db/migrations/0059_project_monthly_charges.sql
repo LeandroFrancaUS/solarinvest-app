@@ -24,7 +24,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.project_monthly_charges (
   id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id       UUID        NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
-  client_id        BIGINT      REFERENCES public.clients(id),
+  client_id        BIGINT      REFERENCES public.clients(id) ON DELETE CASCADE,
 
   installment_num  INTEGER     NOT NULL,
   reference_month  DATE        NOT NULL,
@@ -57,6 +57,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS project_monthly_charges_project_installment_un
 
 CREATE INDEX IF NOT EXISTS project_monthly_charges_project_id_idx
   ON public.project_monthly_charges (project_id);
+
+CREATE INDEX IF NOT EXISTS project_monthly_charges_client_id_idx
+  ON public.project_monthly_charges (client_id);
 
 CREATE INDEX IF NOT EXISTS project_monthly_charges_status_idx
   ON public.project_monthly_charges (status);
