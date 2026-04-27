@@ -4318,13 +4318,13 @@ export default function App() {
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
   useEffect(() => {
-    const trimmed = afCidadeDestino.trim()
+    const trimmed = storeAfCidadeDestino.trim()
     if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
       setAfCidadeSuggestions([])
       return
     }
     setAfCidadeSuggestions(searchCidades(trimmed))
-  }, [afCidadeDestino])
+  }, [storeAfCidadeDestino])
 
   const handleSelectCidade = useCallback((city: CidadeDB) => {
     const travelConfig = {
@@ -4353,8 +4353,8 @@ export default function App() {
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
 
   useEffect(() => {
-    setAfTransporteCombustivel(afDeslocamentoRs)
-  }, [afDeslocamentoRs])
+    setAfTransporteCombustivel(storeAfDeslocamentoRs)
+  }, [storeAfDeslocamentoRs])
 
   useEffect(() => {
     setStoreAfCidadeDestino(afCidadeDestino)
@@ -9932,7 +9932,7 @@ export default function App() {
       afHotelPousada +
       afTransporteCombustivel +
       afOutros +
-      afDeslocamentoRs
+      storeAfDeslocamentoRs
 
     const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
     // Build the projected mensalidades series for leasing mode using an AF-isolated
@@ -10026,7 +10026,7 @@ export default function App() {
         hotel_pousada_rs: afHotelPousada,
         transporte_combustivel_rs: afTransporteCombustivel,
         outros_rs: afOutros,
-        deslocamento_instaladores_rs: afDeslocamentoRs,
+        deslocamento_instaladores_rs: storeAfDeslocamentoRs,
         placa_rs_override: prePlaca,
         material_ca_rs_override: preMaterialCA,
         projeto_rs_override: preProjetoFinal,
@@ -10064,7 +10064,7 @@ export default function App() {
     afHotelPousada,
     afTransporteCombustivel,
     afOutros,
-    afDeslocamentoRs,
+    storeAfDeslocamentoRs,
     afInadimplencia,
     afMensalidadeBase,
     afMesesProjecao,
@@ -19290,21 +19290,21 @@ export default function App() {
             setAfCustoOperacional={setAfCustoOperacional}
             afMesesProjecao={afMesesProjecao}
             setAfMesesProjecao={setAfMesesProjecao}
-            afCidadeDestino={afCidadeDestino}
+            afCidadeDestino={storeAfCidadeDestino}
             setAfCidadeDestino={setAfCidadeDestino}
-            afCidadeSuggestions={afCidadeSuggestions}
+            afCidadeSuggestions={storeAfCidadeSuggestions}
             setAfCidadeSuggestions={setAfCidadeSuggestions}
-            afCidadeShowSuggestions={afCidadeShowSuggestions}
+            afCidadeShowSuggestions={storeAfCidadeShowSuggestions}
             setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
-            afDeslocamentoStatus={afDeslocamentoStatus}
+            afDeslocamentoStatus={storeAfDeslocamentoStatus}
             setAfDeslocamentoStatus={setAfDeslocamentoStatus}
-            afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
+            afDeslocamentoCidadeLabel={storeAfDeslocamentoCidadeLabel}
             setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
-            afDeslocamentoKm={afDeslocamentoKm}
+            afDeslocamentoKm={storeAfDeslocamentoKm}
             setAfDeslocamentoKm={setAfDeslocamentoKm}
-            afDeslocamentoRs={afDeslocamentoRs}
+            afDeslocamentoRs={storeAfDeslocamentoRs}
             setAfDeslocamentoRs={setAfDeslocamentoRs}
-            afDeslocamentoErro={afDeslocamentoErro}
+            afDeslocamentoErro={storeAfDeslocamentoErro}
             setAfDeslocamentoErro={setAfDeslocamentoErro}
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             handleSelectCidade={handleSelectCidade}
