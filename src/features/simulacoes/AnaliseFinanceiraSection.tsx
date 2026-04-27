@@ -8,7 +8,8 @@ import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
-import type { VendasConfig } from '../../types/vendasConfig'
+import { useVendasConfigStore, vendasConfigSelectors } from '../../store/useVendasConfigStore'
+import { selectNumberInputOnFocus } from '../../utils/focusHandlers'
 import { AfBaseSistemaPanel } from './AfBaseSistemaPanel'
 import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
@@ -86,7 +87,6 @@ export interface AnaliseFinanceiraSectionProps {
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
-  vendasConfig: VendasConfig
 
   aprovacaoChecklist: Record<AprovacaoChecklistKey, boolean>
   toggleAprovacaoChecklist: (key: AprovacaoChecklistKey) => void
@@ -95,7 +95,6 @@ export interface AnaliseFinanceiraSectionProps {
   registrarDecisaoInterna: (status: AprovacaoStatus) => void
 
   afBaseInitializedRef: React.MutableRefObject<boolean>
-  selectNumberInputOnFocus: (e: React.FocusEvent<HTMLInputElement>) => void
 
   kcKwhMes: number
   isAnaliseMobileSimpleView: boolean
@@ -122,18 +121,17 @@ export function AnaliseFinanceiraSection({
   afCidadeBlurTimerRef,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  vendasConfig,
   aprovacaoChecklist,
   toggleAprovacaoChecklist,
   aprovacaoStatus,
   ultimaDecisaoTimestamp,
   registrarDecisaoInterna,
   afBaseInitializedRef,
-  selectNumberInputOnFocus,
   kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
   // Store reads — replaces props previously passed down from App.tsx
+  const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
   const setAfModo = useAfInputStore(selectSetAfModo)
   const afConsumoOverride = useAfInputStore(selectAfConsumoOverride)
