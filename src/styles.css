@@ -3969,18 +3969,40 @@ table tbody tr:hover {
 }
 
 .simulacoes-nav {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 10px;
   width: 100%;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.simulacoes-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.simulacoes-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.simulacoes-nav::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .simulacoes-nav-btn {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
   padding: 14px 16px;
+  min-width: 170px;
+  max-width: 260px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
