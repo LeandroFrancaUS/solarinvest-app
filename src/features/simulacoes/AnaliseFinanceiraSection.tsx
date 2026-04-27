@@ -2,8 +2,7 @@
 // Extracted from App.tsx (Subfase 2B.12.4A).
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
-import type React from 'react'
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -92,7 +91,7 @@ export interface AnaliseFinanceiraSectionProps {
   ultimaDecisaoTimestamp: number | null
   registrarDecisaoInterna: (status: AprovacaoStatus) => void
 
-  afBaseInitializedRef: React.MutableRefObject<boolean>
+  ufTarifa: string
 
   kcKwhMes: number
   isAnaliseMobileSimpleView: boolean
@@ -123,11 +122,12 @@ export function AnaliseFinanceiraSection({
   aprovacaoStatus,
   ultimaDecisaoTimestamp,
   registrarDecisaoInterna,
-  afBaseInitializedRef,
+  ufTarifa,
   kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const afBaseInitializedRef = useRef(false)
   // Store reads — replaces props previously passed down from App.tsx
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
@@ -196,6 +196,21 @@ export function AnaliseFinanceiraSection({
   const setAfDeslocamentoErro = useAfDeslocamentoStore(selectSetAfDeslocamentoErro)
   const selectCidadeAndCalculateDeslocamento = useAfDeslocamentoStore(selectSelectCidadeAndCalculateDeslocamento)
   const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
+  // Initialize AF base system overrides from proposal values on first mount.
+  // Component is only rendered when simulacoesSection === 'analise', so mount = first visit.
+  // Intentional stale closure: we seed from initial prop values once and never re-run,
+  // so that manual overrides the user sets are not reset if proposal values later change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!afBaseInitializedRef.current) {
+      afBaseInitializedRef.current = true
+      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
+      setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
+    }
+  }, [])
   const handleSelectCidade = useCallback((city: CidadeDB) => {
     const travelConfig = {
       faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
