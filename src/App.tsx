@@ -4193,13 +4193,6 @@ export default function App() {
   const [afHotelPousada, setAfHotelPousada] = useState(0)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
   const [afOutros, setAfOutros] = useState(0)
-  // Travel cost auto-calculation state
-  const [afCidadeDestino, setAfCidadeDestino] = useState('')
-  const [afDeslocamentoKm, setAfDeslocamentoKm] = useState(0)
-  const [afDeslocamentoRs, setAfDeslocamentoRs] = useState(0)
-  const [afDeslocamentoStatus, setAfDeslocamentoStatus] = useState<'idle' | 'loading' | 'isenta' | 'ok' | 'error'>('idle')
-  const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
-  const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
   const [afValorContrato, setAfValorContrato] = useState(0)
   const [afImpostosVenda, setAfImpostosVenda] = useState(6)
   const [afImpostosLeasing, setAfImpostosLeasing] = useState(4)
@@ -4229,8 +4222,6 @@ export default function App() {
   const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
   const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
   const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
-  const [afCidadeSuggestions, setAfCidadeSuggestions] = useState<CidadeDB[]>([])
-  const [afCidadeShowSuggestions, setAfCidadeShowSuggestions] = useState(false)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const storeAfDeslocamentoKm = useAfDeslocamentoStore(selectAfDeslocamentoKm)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
@@ -4320,10 +4311,10 @@ export default function App() {
   useEffect(() => {
     const trimmed = storeAfCidadeDestino.trim()
     if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
-      setAfCidadeSuggestions([])
+      setStoreAfCidadeSuggestions([])
       return
     }
-    setAfCidadeSuggestions(searchCidades(trimmed))
+    setStoreAfCidadeSuggestions(searchCidades(trimmed))
   }, [storeAfCidadeDestino])
 
   const handleSelectCidade = useCallback((city: CidadeDB) => {
@@ -4341,90 +4332,11 @@ export default function App() {
       .getState()
       .selectCidadeAndCalculateDeslocamento(city, { travelConfig, regioesIsentas })
     setAfUfOverride(ufOverride)
-    const snap = useAfDeslocamentoStore.getState()
-    setAfCidadeDestino(snap.afCidadeDestino)
-    setAfCidadeSuggestions([])
-    setAfCidadeShowSuggestions(false)
-    setAfDeslocamentoKm(snap.afDeslocamentoKm)
-    setAfDeslocamentoRs(snap.afDeslocamentoRs)
-    setAfDeslocamentoStatus(snap.afDeslocamentoStatus)
-    setAfDeslocamentoCidadeLabel(snap.afDeslocamentoCidadeLabel)
-    setAfDeslocamentoErro(snap.afDeslocamentoErro)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
 
   useEffect(() => {
     setAfTransporteCombustivel(storeAfDeslocamentoRs)
   }, [storeAfDeslocamentoRs])
-
-  useEffect(() => {
-    setStoreAfCidadeDestino(afCidadeDestino)
-    setStoreAfDeslocamentoKm(afDeslocamentoKm)
-    setStoreAfDeslocamentoRs(afDeslocamentoRs)
-    setStoreAfDeslocamentoStatus(afDeslocamentoStatus)
-    setStoreAfDeslocamentoCidadeLabel(afDeslocamentoCidadeLabel)
-    setStoreAfDeslocamentoErro(afDeslocamentoErro)
-    setStoreAfCidadeSuggestions(afCidadeSuggestions)
-    setStoreAfCidadeShowSuggestions(afCidadeShowSuggestions)
-  }, [
-    afCidadeDestino,
-    afDeslocamentoKm,
-    afDeslocamentoRs,
-    afDeslocamentoStatus,
-    afDeslocamentoCidadeLabel,
-    afDeslocamentoErro,
-    afCidadeSuggestions,
-    afCidadeShowSuggestions,
-    setStoreAfCidadeDestino,
-    setStoreAfDeslocamentoKm,
-    setStoreAfDeslocamentoRs,
-    setStoreAfDeslocamentoStatus,
-    setStoreAfDeslocamentoCidadeLabel,
-    setStoreAfDeslocamentoErro,
-    setStoreAfCidadeSuggestions,
-    setStoreAfCidadeShowSuggestions,
-  ])
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) {
-      return
-    }
-    console.debug('[AF DEBUG]', {
-      afCidadeDestino: { state: afCidadeDestino, store: storeAfCidadeDestino },
-      afDeslocamentoKm: { state: afDeslocamentoKm, store: storeAfDeslocamentoKm },
-      afDeslocamentoRs: { state: afDeslocamentoRs, store: storeAfDeslocamentoRs },
-      afDeslocamentoStatus: { state: afDeslocamentoStatus, store: storeAfDeslocamentoStatus },
-      afDeslocamentoCidadeLabel: {
-        state: afDeslocamentoCidadeLabel,
-        store: storeAfDeslocamentoCidadeLabel,
-      },
-      afDeslocamentoErro: { state: afDeslocamentoErro, store: storeAfDeslocamentoErro },
-      afCidadeSuggestions: {
-        stateCount: afCidadeSuggestions.length,
-        storeCount: storeAfCidadeSuggestions.length,
-      },
-      afCidadeShowSuggestions: {
-        state: afCidadeShowSuggestions,
-        store: storeAfCidadeShowSuggestions,
-      },
-    })
-  }, [
-    afCidadeDestino,
-    afDeslocamentoKm,
-    afDeslocamentoRs,
-    afDeslocamentoStatus,
-    afDeslocamentoCidadeLabel,
-    afDeslocamentoErro,
-    afCidadeSuggestions,
-    afCidadeShowSuggestions,
-    storeAfCidadeDestino,
-    storeAfDeslocamentoKm,
-    storeAfDeslocamentoRs,
-    storeAfDeslocamentoStatus,
-    storeAfDeslocamentoCidadeLabel,
-    storeAfDeslocamentoErro,
-    storeAfCidadeSuggestions,
-    storeAfCidadeShowSuggestions,
-  ])
 
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
@@ -19291,21 +19203,21 @@ export default function App() {
             afMesesProjecao={afMesesProjecao}
             setAfMesesProjecao={setAfMesesProjecao}
             afCidadeDestino={storeAfCidadeDestino}
-            setAfCidadeDestino={setAfCidadeDestino}
+            setAfCidadeDestino={setStoreAfCidadeDestino}
             afCidadeSuggestions={storeAfCidadeSuggestions}
-            setAfCidadeSuggestions={setAfCidadeSuggestions}
+            setAfCidadeSuggestions={setStoreAfCidadeSuggestions}
             afCidadeShowSuggestions={storeAfCidadeShowSuggestions}
-            setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
+            setAfCidadeShowSuggestions={setStoreAfCidadeShowSuggestions}
             afDeslocamentoStatus={storeAfDeslocamentoStatus}
-            setAfDeslocamentoStatus={setAfDeslocamentoStatus}
+            setAfDeslocamentoStatus={setStoreAfDeslocamentoStatus}
             afDeslocamentoCidadeLabel={storeAfDeslocamentoCidadeLabel}
-            setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
+            setAfDeslocamentoCidadeLabel={setStoreAfDeslocamentoCidadeLabel}
             afDeslocamentoKm={storeAfDeslocamentoKm}
-            setAfDeslocamentoKm={setAfDeslocamentoKm}
+            setAfDeslocamentoKm={setStoreAfDeslocamentoKm}
             afDeslocamentoRs={storeAfDeslocamentoRs}
-            setAfDeslocamentoRs={setAfDeslocamentoRs}
+            setAfDeslocamentoRs={setStoreAfDeslocamentoRs}
             afDeslocamentoErro={storeAfDeslocamentoErro}
-            setAfDeslocamentoErro={setAfDeslocamentoErro}
+            setAfDeslocamentoErro={setStoreAfDeslocamentoErro}
             afCidadeBlurTimerRef={afCidadeBlurTimerRef}
             handleSelectCidade={handleSelectCidade}
             analiseFinanceiraResult={analiseFinanceiraResult}
