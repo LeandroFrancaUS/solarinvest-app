@@ -370,6 +370,7 @@ import {
   selectAfDeslocamentoKm,
   selectAfDeslocamentoRs,
   selectAfDeslocamentoStatus,
+  selectSelectCidadeAndCalculateDeslocamento,
 } from './features/simulacoes/afDeslocamentoSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4249,6 +4250,7 @@ export default function App() {
   const setStoreAfDeslocamentoErro = useAfDeslocamentoStore((state) => state.setAfDeslocamentoErro)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
   const setStoreAfCidadeShowSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeShowSuggestions)
+  const selectCidadeAndCalculateDeslocamento = useAfDeslocamentoStore(selectSelectCidadeAndCalculateDeslocamento)
   const afBaseInitializedRef = useRef(false)
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
@@ -4329,36 +4331,32 @@ export default function App() {
   }, [afCidadeDestino])
 
   const handleSelectCidade = useCallback((city: CidadeDB) => {
-    setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
-    setAfCidadeSuggestions([])
-    setAfCidadeShowSuggestions(false)
-    // Map to supported calculation UF: DF or GO (default for all other states)
-    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
     const travelConfig = {
-      exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
-      faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
-      faixa1Rs: vendasConfig.af_deslocamento_faixa1_rs,
-      faixa2MaxKm: vendasConfig.af_deslocamento_faixa2_km,
-      faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
-      kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
+      faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
+      faixa1Valor: vendasConfig.af_deslocamento_faixa1_rs,
+      faixa2Km: vendasConfig.af_deslocamento_faixa2_km,
+      faixa2Valor: vendasConfig.af_deslocamento_faixa2_rs,
+      kmExcedenteValor: vendasConfig.af_deslocamento_km_excedente_rs,
     }
-    const label = `${city.cidade}/${city.uf}`
-    if (isExemptRegion(city.cidade, city.uf, travelConfig.exemptRegions)) {
-      setAfDeslocamentoStatus('isenta')
-      setAfDeslocamentoKm(0)
-      setAfDeslocamentoRs(0)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    } else {
-      const km = calcRoundTripKm(city.lat, city.lng)
-      const custo = calculateInstallerTravelCost(km, travelConfig)
-      setAfDeslocamentoStatus('ok')
-      setAfDeslocamentoKm(km)
-      setAfDeslocamentoRs(custo)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    }
-  }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
+    const regioesIsentas = vendasConfig.af_deslocamento_regioes_isentas.map(
+      (r) => `${r.cidade}/${r.uf}`,
+    )
+    const { ufOverride, deslocamentoRs } = selectCidadeAndCalculateDeslocamento(city, {
+      travelConfig,
+      regioesIsentas,
+    })
+    setAfUfOverride(ufOverride)
+    setAfTransporteCombustivel(deslocamentoRs)
+    const snap = useAfDeslocamentoStore.getState()
+    setAfCidadeDestino(snap.afCidadeDestino)
+    setAfCidadeSuggestions(snap.afCidadeSuggestions)
+    setAfCidadeShowSuggestions(snap.afCidadeShowSuggestions)
+    setAfDeslocamentoKm(snap.afDeslocamentoKm)
+    setAfDeslocamentoRs(snap.afDeslocamentoRs)
+    setAfDeslocamentoStatus(snap.afDeslocamentoStatus)
+    setAfDeslocamentoCidadeLabel(snap.afDeslocamentoCidadeLabel)
+    setAfDeslocamentoErro(snap.afDeslocamentoErro)
+  }, [selectCidadeAndCalculateDeslocamento, vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
 
   useEffect(() => {
     setAfTransporteCombustivel(afDeslocamentoRs)
