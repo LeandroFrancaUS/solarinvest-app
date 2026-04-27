@@ -413,6 +413,20 @@ import {
   selectSetAfFreteManual,
   selectSetAfAutoMaterialCA,
   selectSetAfMaterialCAOverride,
+  selectAfDescarregamento,
+  selectAfHotelPousada,
+  selectAfOutros,
+  selectAfPlaca,
+  selectAfMensalidadeBase,
+  selectAfProjetoOverride,
+  selectAfCreaOverride,
+  selectSetAfDescarregamento,
+  selectSetAfHotelPousada,
+  selectSetAfOutros,
+  selectSetAfPlaca,
+  selectSetAfMensalidadeBase,
+  selectSetAfProjetoOverride,
+  selectSetAfCreaOverride,
 } from './features/simulacoes/afInputSelectors'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4238,10 +4252,13 @@ export default function App() {
   const setAfCustoKitManual = useAfInputStore(selectSetAfCustoKitManual)
   const setAfFrete = useAfInputStore(selectSetAfFrete)
   const setAfFreteManual = useAfInputStore(selectSetAfFreteManual)
-  const [afDescarregamento, setAfDescarregamento] = useState(0)
-  const [afHotelPousada, setAfHotelPousada] = useState(0)
+  const afDescarregamento = useAfInputStore(selectAfDescarregamento)
+  const setAfDescarregamento = useAfInputStore(selectSetAfDescarregamento)
+  const afHotelPousada = useAfInputStore(selectAfHotelPousada)
+  const setAfHotelPousada = useAfInputStore(selectSetAfHotelPousada)
   const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
-  const [afOutros, setAfOutros] = useState(0)
+  const afOutros = useAfInputStore(selectAfOutros)
+  const setAfOutros = useAfInputStore(selectSetAfOutros)
   const [afValorContrato, setAfValorContrato] = useState(0)
   const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
   const afImpostosLeasing = useAfInputStore(selectAfImpostosLeasing)
@@ -4253,7 +4270,8 @@ export default function App() {
   const setAfInadimplencia = useAfInputStore(selectSetAfInadimplencia)
   const setAfCustoOperacional = useAfInputStore(selectSetAfCustoOperacional)
   const setAfMesesProjecao = useAfInputStore(selectSetAfMesesProjecao)
-  const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
+  const afMensalidadeBase = useAfInputStore(selectAfMensalidadeBase)
+  const setAfMensalidadeBase = useAfInputStore(selectSetAfMensalidadeBase)
   const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
   const afMargemLiquidaVenda = useAfInputStore(selectAfMargemLiquidaVenda)
   const afMargemLiquidaMinima = useAfInputStore(selectAfMargemLiquidaMinima)
@@ -4277,7 +4295,8 @@ export default function App() {
   const afNumModulosOverride = useAfInputStore(selectAfNumModulosOverride)
   const setAfNumModulosOverride = useAfInputStore(selectSetAfNumModulosOverride)
   const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
-  const [afPlaca, setAfPlaca] = useState(18)
+  const afPlaca = useAfInputStore(selectAfPlaca)
+  const setAfPlaca = useAfInputStore(selectSetAfPlaca)
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
   // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
@@ -4285,8 +4304,10 @@ export default function App() {
   const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
   const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
   const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
-  const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
-  const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
+  const afProjetoOverride = useAfInputStore(selectAfProjetoOverride)
+  const setAfProjetoOverride = useAfInputStore(selectSetAfProjetoOverride)
+  const afCreaOverride = useAfInputStore(selectAfCreaOverride)
+  const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const storeAfDeslocamentoKm = useAfDeslocamentoStore(selectAfDeslocamentoKm)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
