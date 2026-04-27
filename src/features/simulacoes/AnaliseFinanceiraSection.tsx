@@ -28,6 +28,7 @@ import {
   selectSelectCidadeAndCalculateDeslocamento,
 } from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
+import { useUfTarifaStore, selectUfTarifa } from './useUfTarifaStore'
 import {
   useSimulacaoBaseStore,
   selectBaseIrradiacao,
@@ -74,8 +75,6 @@ export interface AnaliseFinanceiraSectionProps {
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 
-  ufTarifa: string
-
   kcKwhMes: number
   isAnaliseMobileSimpleView: boolean
 }
@@ -84,7 +83,6 @@ export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  ufTarifa,
   kcKwhMes,
   isAnaliseMobileSimpleView,
 }: AnaliseFinanceiraSectionProps) {
@@ -95,6 +93,7 @@ export function AnaliseFinanceiraSection({
   const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
   const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)
   const potenciaModulo = useSimulacaoBaseStore(selectPotenciaModulo)
+  const ufTarifa = useUfTarifaStore(selectUfTarifa)
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const afModo = useAfInputStore(selectAfModo)
   const setAfModo = useAfInputStore(selectSetAfModo)

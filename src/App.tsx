@@ -18681,7 +18681,6 @@ export default function App() {
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            ufTarifa={ufTarifa}
           />
         ) : activePage === 'settings' ? (
           <SettingsPage
