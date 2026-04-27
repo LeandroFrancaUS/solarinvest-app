@@ -3,7 +3,7 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectUpdateProjeto, type Projeto, type ProjetoStatus, type ProjetoStatusLeasing, type ProjetoStatusVenda, type ComissaoStatus, type AprovacaoDocumental, type AprovacaoViabilidade } from './useProjectStore'
 
 const DOCUMENTAL_ITEMS: { key: keyof AprovacaoDocumental; label: string }[] = [
   { key: 'comprovacaoRenda', label: 'Comprovação de Renda' },
@@ -62,6 +62,19 @@ const COMISSAO_STATUS_LABEL: Record<ComissaoStatus, string> = {
   estornado: 'Estornado',
 }
 
+const PROJETO_STATUS_LABEL: Record<ProjetoStatus, string> = {
+  proposta_emitida: 'Proposta emitida',
+  contrato_emitido: 'Contrato emitido',
+  contrato_assinado: 'Contrato assinado',
+  validacao_documental: 'Validação documental',
+  validacao_viabilidade: 'Validação de viabilidade',
+  aprovado: 'Aprovado',
+  ativo: 'Ativo',
+  desativado: 'Desativado',
+  concluido: 'Concluído',
+  cancelado: 'Cancelado',
+}
+
 function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
   const { cliente, tipo, status, consultor } = projeto
   const [focused, setFocused] = useState(false)
@@ -100,7 +113,7 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
             padding: '0.1rem 0.5rem',
           }}
         >
-          {status}
+          {PROJETO_STATUS_LABEL[status]}
         </span>
       </div>
       <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary, #64748b)' }}>
@@ -117,7 +130,29 @@ interface ProjetoDetailProps {
   onStatusChange: (id: string, status: ProjetoStatus) => void
 }
 
-const STATUS_OPTIONS: ProjetoStatus[] = ['aprovado', 'implantacao', 'ativo', 'monitoramento', 'finalizado']
+const STATUS_OPTIONS_LEASING: ProjetoStatusLeasing[] = [
+  'proposta_emitida',
+  'contrato_emitido',
+  'contrato_assinado',
+  'validacao_documental',
+  'validacao_viabilidade',
+  'aprovado',
+  'ativo',
+  'desativado',
+  'cancelado',
+]
+
+const STATUS_OPTIONS_VENDA: ProjetoStatusVenda[] = [
+  'proposta_emitida',
+  'contrato_assinado',
+  'aprovado',
+  'concluido',
+  'cancelado',
+]
+
+function getStatusOptions(tipo: Projeto['tipo']): ProjetoStatus[] {
+  return tipo === 'leasing' ? STATUS_OPTIONS_LEASING : STATUS_OPTIONS_VENDA
+}
 
 function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
   const { cliente, tipo, status, financeiro, createdAt, consultor, comissaoConsultor } = projeto
@@ -153,8 +188,8 @@ function ProjetoDetail({ projeto, onStatusChange }: ProjetoDetailProps) {
             fontSize: '0.875rem',
           }}
         >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}</option>
+          {getStatusOptions(tipo).map((s) => (
+            <option key={s} value={s}>{PROJETO_STATUS_LABEL[s]}</option>
           ))}
         </select>
       </div>

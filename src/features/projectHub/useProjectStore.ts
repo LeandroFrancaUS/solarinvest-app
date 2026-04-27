@@ -1,7 +1,26 @@
 import { createStore } from '../../store/createStore'
 
 export type ProjetoTipo = 'venda' | 'leasing'
-export type ProjetoStatus = 'aprovado' | 'implantacao' | 'ativo' | 'finalizado' | 'monitoramento'
+
+export type ProjetoStatusLeasing =
+  | 'proposta_emitida'
+  | 'contrato_emitido'
+  | 'contrato_assinado'
+  | 'validacao_documental'
+  | 'validacao_viabilidade'
+  | 'aprovado'
+  | 'ativo'
+  | 'desativado'
+  | 'cancelado'
+
+export type ProjetoStatusVenda =
+  | 'proposta_emitida'
+  | 'contrato_assinado'
+  | 'aprovado'
+  | 'concluido'
+  | 'cancelado'
+
+export type ProjetoStatus = ProjetoStatusLeasing | ProjetoStatusVenda
 
 export type ComissaoStatus =
   | 'nao_elegivel'
@@ -111,3 +130,16 @@ export const selectProjetoById =
 // Action selectors
 export const selectAddProjeto = (s: ProjectStore) => s.addProjeto
 export const selectUpdateProjeto = (s: ProjectStore) => s.updateProjeto
+
+// Automation helpers — prepared for future use, not yet used to block UI
+export function isDocumentacaoAprovada(projeto: Projeto): boolean {
+  const doc = projeto.aprovacaoDocumental
+  if (!doc) return false
+  return Object.values(doc).every((item) => !item.obrigatorio || item.aprovado)
+}
+
+export function isViabilidadeAprovada(projeto: Projeto): boolean {
+  const via = projeto.aprovacaoViabilidade
+  if (!via) return false
+  return Object.values(via).every((item) => !item.obrigatorio || item.aprovado)
+}
