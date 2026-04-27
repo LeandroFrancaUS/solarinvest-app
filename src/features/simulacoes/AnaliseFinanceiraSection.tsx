@@ -3,6 +3,8 @@
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
 import { useCallback, useEffect, useRef } from 'react'
+import { useProjectStore, selectAddProjeto } from '../projectHub/useProjectStore'
+import { convertAnaliseToProjeto } from '../projectHub/convertAnaliseToProjeto'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -87,6 +89,7 @@ export function AnaliseFinanceiraSection({
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
+  const addProjeto = useProjectStore(selectAddProjeto)
   // Store reads — replaces props previously passed down from App.tsx
   const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
@@ -218,6 +221,10 @@ export function AnaliseFinanceiraSection({
     setAfUfOverride(ufOverride)
     setAfTransporteCombustivel(deslocamentoRs)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs, selectCidadeAndCalculateDeslocamento, setAfUfOverride, setAfTransporteCombustivel])
+  const handleConverterEmProjeto = useCallback(() => {
+    const projeto = convertAnaliseToProjeto({ analiseFinanceiraResult, tipo: afModo })
+    if (projeto) addProjeto(projeto)
+  }, [analiseFinanceiraResult, afModo, addProjeto])
   return (
     <section className="simulacoes-module-card af-section">
       <header>
@@ -395,6 +402,11 @@ export function AnaliseFinanceiraSection({
                 analiseFinanceiraResult={analiseFinanceiraResult}
                 indicadorEficienciaProjeto={indicadorEficienciaProjeto}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button type="button" className="primary" onClick={handleConverterEmProjeto}>
+                  Converter em Projeto
+                </button>
+              </div>
             </>
           ) : (
             <div className="simulacoes-module-tile">

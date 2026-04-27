@@ -56,3 +56,6 @@ export const selectProjetoById =
   (id: string) =>
   (s: ProjectStore): Projeto | undefined =>
     s.projetos.find((p) => p.id === id)
+
+// Action selectors
+export const selectAddProjeto = (s: ProjectStore) => s.addProjeto
