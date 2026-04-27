@@ -18672,7 +18672,6 @@ export default function App() {
             tipoSistema={tipoSistema}
             leasingPrazo={leasingPrazo}
             kcKwhMes={kcKwhMes}
-            potenciaModulo={potenciaModulo}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
