@@ -402,11 +402,8 @@ import {
   selectAfAutoMaterialCA,
   selectAfMaterialCAOverride,
   selectSetAfCustoKit,
-  selectSetAfCustoKitManual,
   selectSetAfFrete,
-  selectSetAfFreteManual,
   selectSetAfAutoMaterialCA,
-  selectSetAfMaterialCAOverride,
   selectAfDescarregamento,
   selectAfHotelPousada,
   selectAfOutros,
@@ -414,15 +411,8 @@ import {
   selectAfMensalidadeBase,
   selectAfProjetoOverride,
   selectAfCreaOverride,
-  selectSetAfDescarregamento,
-  selectSetAfHotelPousada,
   selectAfTransporteCombustivel,
-  selectSetAfTransporteCombustivel,
-  selectSetAfOutros,
-  selectSetAfPlaca,
   selectSetAfMensalidadeBase,
-  selectSetAfProjetoOverride,
-  selectSetAfCreaOverride,
   selectAfUfOverride,
   selectSetAfUfOverride,
   selectAfModo,
@@ -4256,13 +4246,9 @@ export default function App() {
   const setAfFrete = useAfInputStore(selectSetAfFrete)
   const setAfFreteManual = useAfInputStore(selectSetAfFreteManual)
   const afDescarregamento = useAfInputStore(selectAfDescarregamento)
-  const setAfDescarregamento = useAfInputStore(selectSetAfDescarregamento)
   const afHotelPousada = useAfInputStore(selectAfHotelPousada)
-  const setAfHotelPousada = useAfInputStore(selectSetAfHotelPousada)
   const afTransporteCombustivel = useAfInputStore(selectAfTransporteCombustivel)
-  const setAfTransporteCombustivel = useAfInputStore(selectSetAfTransporteCombustivel)
   const afOutros = useAfInputStore(selectAfOutros)
-  const setAfOutros = useAfInputStore(selectSetAfOutros)
   const afValorContrato = useAfInputStore(selectAfValorContrato)
   const setAfValorContrato = useAfInputStore(selectSetAfValorContrato)
   const afImpostosVenda = useAfInputStore(selectAfImpostosVenda)
@@ -4302,34 +4288,19 @@ export default function App() {
   const afUfOverride = useAfInputStore(selectAfUfOverride)
   const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
   const afPlaca = useAfInputStore(selectAfPlaca)
-  const setAfPlaca = useAfInputStore(selectSetAfPlaca)
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
   // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
   const afAutoMaterialCA = useAfInputStore(selectAfAutoMaterialCA)
   const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
   const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
-  const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
   const afProjetoOverride = useAfInputStore(selectAfProjetoOverride)
-  const setAfProjetoOverride = useAfInputStore(selectSetAfProjetoOverride)
   const afCreaOverride = useAfInputStore(selectAfCreaOverride)
-  const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
   const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const storeAfDeslocamentoRs = useAfDeslocamentoStore(selectAfDeslocamentoRs)
   const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
-  // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
-  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
   const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
-  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => { setAfFrete(v ?? 0); setAfFreteManual(true) } })
-  const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
-  const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
-  const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
-  const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
-  const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
   const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
-  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? afAutoMaterialCA, onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
-  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
-  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
@@ -19169,17 +19140,7 @@ export default function App() {
             baseIrradiacao={baseIrradiacao}
             eficienciaNormalizada={eficienciaNormalizada}
             diasMesNormalizado={diasMesNormalizado}
-            afCustoKitField={afCustoKitField}
             afValorContratoField={afValorContratoField}
-            afFreteField={afFreteField}
-            afDescarregamentoField={afDescarregamentoField}
-            afMaterialCAField={afMaterialCAField}
-            afPlacaField={afPlacaField}
-            afProjetoField={afProjetoField}
-            afCreaField={afCreaField}
-            afHotelPousadaField={afHotelPousadaField}
-            afTransporteCombustivelField={afTransporteCombustivelField}
-            afOutrosField={afOutrosField}
             afMensalidadeBaseField={afMensalidadeBaseField}
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}

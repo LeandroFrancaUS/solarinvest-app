@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
-import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
+import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 import { useVendasConfigStore, vendasConfigSelectors } from '../../store/useVendasConfigStore'
@@ -38,12 +38,17 @@ import {
   selectAfPROverride, selectSetAfPROverride,
   selectAfDiasOverride, selectSetAfDiasOverride,
   selectSetAfUfOverride,
-  selectSetAfCustoKit, selectSetAfCustoKitManual,
-  selectSetAfFrete, selectSetAfFreteManual,
-  selectSetAfDescarregamento,
-  selectSetAfHotelPousada,
-  selectSetAfTransporteCombustivel,
-  selectSetAfOutros,
+  selectAfCustoKit, selectSetAfCustoKit, selectSetAfCustoKitManual,
+  selectAfFrete, selectSetAfFrete, selectSetAfFreteManual,
+  selectAfDescarregamento, selectSetAfDescarregamento,
+  selectAfHotelPousada, selectSetAfHotelPousada,
+  selectAfTransporteCombustivel, selectSetAfTransporteCombustivel,
+  selectAfOutros, selectSetAfOutros,
+  selectAfPlaca, selectSetAfPlaca,
+  selectAfAutoMaterialCA, selectSetAfAutoMaterialCA,
+  selectAfMaterialCAOverride, selectSetAfMaterialCAOverride,
+  selectAfProjetoOverride, selectSetAfProjetoOverride,
+  selectAfCreaOverride, selectSetAfCreaOverride,
   selectAfValorContrato, selectSetAfValorContrato,
   selectSetAfMensalidadeBase,
   selectAfImpostosVenda, selectSetAfImpostosVenda,
@@ -55,10 +60,6 @@ import {
   selectAfInadimplencia, selectSetAfInadimplencia,
   selectAfCustoOperacional, selectSetAfCustoOperacional,
   selectAfMesesProjecao, selectSetAfMesesProjecao,
-  selectSetAfAutoMaterialCA,
-  selectSetAfMaterialCAOverride,
-  selectSetAfProjetoOverride,
-  selectSetAfCreaOverride,
 } from './afInputSelectors'
 
 export interface AnaliseFinanceiraSectionProps {
@@ -67,17 +68,7 @@ export interface AnaliseFinanceiraSectionProps {
   eficienciaNormalizada: number
   diasMesNormalizado: number
 
-  afCustoKitField: MoneyFieldHandle
   afValorContratoField: MoneyFieldHandle
-  afFreteField: MoneyFieldHandle
-  afDescarregamentoField: MoneyFieldHandle
-  afMaterialCAField: MoneyFieldHandle
-  afPlacaField: MoneyFieldHandle
-  afProjetoField: MoneyFieldHandle
-  afCreaField: MoneyFieldHandle
-  afHotelPousadaField: MoneyFieldHandle
-  afTransporteCombustivelField: MoneyFieldHandle
-  afOutrosField: MoneyFieldHandle
   afMensalidadeBaseField: MoneyFieldHandle
 
   afMensalidadeBaseAuto: number
@@ -102,17 +93,7 @@ export function AnaliseFinanceiraSection({
   baseIrradiacao,
   eficienciaNormalizada,
   diasMesNormalizado,
-  afCustoKitField,
   afValorContratoField,
-  afFreteField,
-  afDescarregamentoField,
-  afMaterialCAField,
-  afPlacaField,
-  afProjetoField,
-  afCreaField,
-  afHotelPousadaField,
-  afTransporteCombustivelField,
-  afOutrosField,
   afMensalidadeBaseField,
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
@@ -177,6 +158,19 @@ export function AnaliseFinanceiraSection({
   const setAfMaterialCAOverride = useAfInputStore(selectSetAfMaterialCAOverride)
   const setAfProjetoOverride = useAfInputStore(selectSetAfProjetoOverride)
   const setAfCreaOverride = useAfInputStore(selectSetAfCreaOverride)
+  // Value reads for the 10 cost fields created locally
+  const afCustoKit = useAfInputStore(selectAfCustoKit)
+  const afFrete = useAfInputStore(selectAfFrete)
+  const afDescarregamento = useAfInputStore(selectAfDescarregamento)
+  const afHotelPousada = useAfInputStore(selectAfHotelPousada)
+  const afTransporteCombustivel = useAfInputStore(selectAfTransporteCombustivel)
+  const afOutros = useAfInputStore(selectAfOutros)
+  const afPlaca = useAfInputStore(selectAfPlaca)
+  const setAfPlaca = useAfInputStore(selectSetAfPlaca)
+  const afAutoMaterialCA = useAfInputStore(selectAfAutoMaterialCA)
+  const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
+  const afProjetoOverride = useAfInputStore(selectAfProjetoOverride)
+  const afCreaOverride = useAfInputStore(selectAfCreaOverride)
   // Deslocamento state — read directly from store
   const afCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
   const setAfCidadeDestino = useAfDeslocamentoStore(selectSetAfCidadeDestino)
@@ -196,6 +190,17 @@ export function AnaliseFinanceiraSection({
   const setAfDeslocamentoErro = useAfDeslocamentoStore(selectSetAfDeslocamentoErro)
   const selectCidadeAndCalculateDeslocamento = useAfDeslocamentoStore(selectSelectCidadeAndCalculateDeslocamento)
   const setAfUfOverride = useAfInputStore(selectSetAfUfOverride)
+  // BR money fields for the 10 cost inputs — created here, passed to AfCustosDiretosPanel
+  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
+  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => { setAfFrete(v ?? 0); setAfFreteManual(true) } })
+  const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
+  const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
+  const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
+  const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
+  const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
+  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? afAutoMaterialCA, onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
+  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
+  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
   // Initialize AF base system overrides from proposal values on first mount.
   // Component is only rendered when simulacoesSection === 'analise', so mount = first visit.
   // Intentional stale closure: we seed from initial prop values once and never re-run,
