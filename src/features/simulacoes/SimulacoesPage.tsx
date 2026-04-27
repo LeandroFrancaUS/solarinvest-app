@@ -7,7 +7,6 @@ import type { SimulacoesSection } from '../../types/navigation'
 import type { TipoSistema } from '../../lib/finance/roi'
 import type { LeasingPrazoAnos } from '../../app/config'
 import { SIMULACOES_SECTION_COPY } from './simulacoesConstants'
-import type { AprovacaoStatus } from './simulacoesConstants'
 import { SimulacoesHeroCard } from './SimulacoesHeroCard'
 import { SimulacoesNav } from './SimulacoesNav'
 import { SimulacoesStaticModuleCard } from './SimulacoesStaticModuleCard'
@@ -40,9 +39,6 @@ export function SimulacoesPage({
   capexSolarInvest,
   tipoSistema,
   leasingPrazo,
-  aprovacaoStatus,
-  ultimaDecisaoTimestamp,
-  registrarDecisaoInterna,
   kcKwhMes,
   ...analiseFinanceiraProps
 }: SimulacoesPageProps) {
@@ -66,9 +62,6 @@ export function SimulacoesPage({
       }`}
     >
       <SimulacoesHeroCard
-        aprovacaoStatus={aprovacaoStatus}
-        ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-        onRegistrarDecisao={registrarDecisaoInterna}
         isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
         sectionCopy={sectionCopy}
       />
@@ -111,9 +104,6 @@ export function SimulacoesPage({
         {simulacoesSection === 'analise' ? (
           <AnaliseFinanceiraSection
             {...analiseFinanceiraProps}
-            aprovacaoStatus={aprovacaoStatus}
-            ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-            registrarDecisaoInterna={registrarDecisaoInterna}
             kcKwhMes={kcKwhMes}
             isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
           />
@@ -122,3 +112,4 @@ export function SimulacoesPage({
     </div>
   )
 }
+
