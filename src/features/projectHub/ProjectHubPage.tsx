@@ -471,7 +471,7 @@ function ProjetoDetail({ projeto, onStatusChange, onDocumentalChange, onViabilid
 }
 
 // ---------------------------------------------------------------------------
-// Commission automation helper — pure function, no side effects
+// Commission automation helper
 // ---------------------------------------------------------------------------
 
 /**
@@ -492,6 +492,8 @@ function applyComissaoAutomation(
   if (!projeto.comissaoConsultor) return null
 
   const comissao = projeto.comissaoConsultor
+  if (!comissao.parcelas?.length) return null
+
   const now = new Date().toISOString()
 
   // --- Leasing rule: project activated → pay parcela 1 (40%) ---
@@ -529,7 +531,7 @@ function applyComissaoAutomation(
       comissaoConsultor: {
         ...comissao,
         parcelas: updatedParcelas,
-        valorPago: comissao.valorTotalEstimado,
+        valorPago: comissao.valorPago + parcela0.valor,
         status: 'pago',
       },
     }
