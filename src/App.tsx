@@ -422,6 +422,8 @@ import {
   selectAfCreaOverride,
   selectSetAfDescarregamento,
   selectSetAfHotelPousada,
+  selectAfTransporteCombustivel,
+  selectSetAfTransporteCombustivel,
   selectSetAfOutros,
   selectSetAfPlaca,
   selectSetAfMensalidadeBase,
@@ -4256,7 +4258,8 @@ export default function App() {
   const setAfDescarregamento = useAfInputStore(selectSetAfDescarregamento)
   const afHotelPousada = useAfInputStore(selectAfHotelPousada)
   const setAfHotelPousada = useAfInputStore(selectSetAfHotelPousada)
-  const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
+  const afTransporteCombustivel = useAfInputStore(selectAfTransporteCombustivel)
+  const setAfTransporteCombustivel = useAfInputStore(selectSetAfTransporteCombustivel)
   const afOutros = useAfInputStore(selectAfOutros)
   const setAfOutros = useAfInputStore(selectSetAfOutros)
   const [afValorContrato, setAfValorContrato] = useState(0)
