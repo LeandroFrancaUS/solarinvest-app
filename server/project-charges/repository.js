@@ -10,6 +10,9 @@
 
 export const ALLOWED_STATUSES = Object.freeze(['prevista', 'emitida', 'paga', 'vencida', 'cancelada'])
 
+const DEFAULT_VALOR_PAGO = 0
+const DEFAULT_STATUS = 'prevista'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Row mapper
 // ─────────────────────────────────────────────────────────────────────────────
@@ -97,7 +100,7 @@ export async function batchInsertCharges(sql, projectId, clientId, installments)
     const base = params.length - 7
     return (
       `($${base + 1}::uuid, $${base + 2}, $${base + 3}, $${base + 4}::date, ` +
-      `$${base + 5}::date, $${base + 6}, $${base + 7}, 0, 'prevista')`
+      `$${base + 5}::date, $${base + 6}, $${base + 7}, ${DEFAULT_VALOR_PAGO}, '${DEFAULT_STATUS}')`
     )
   })
 

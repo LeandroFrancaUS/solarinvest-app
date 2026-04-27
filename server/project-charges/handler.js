@@ -100,6 +100,10 @@ function referenceMonth(startDate, offset) {
  *
  * refMonth — "YYYY-MM-01" string
  * dueDay   — integer 1..31
+ *
+ * Note: Date.UTC(y, m, 0) exploits JS day-0 wrap-around: month m with day 0
+ * backs up to the last day of month m-1 (i.e. the last day of the target
+ * month when m is the 1-based month number from the YYYY-MM-01 string).
  */
 function dueDate(refMonth, dueDay) {
   const [y, m] = refMonth.split('-').map(Number)
