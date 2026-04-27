@@ -384,6 +384,7 @@ import {
 import {
   useUfTarifaStore,
   selectSetUfTarifa,
+  selectUfTarifa,
 } from './features/simulacoes/useUfTarifaStore'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
@@ -4473,6 +4474,7 @@ export default function App() {
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
   const setStoreUfTarifa = useUfTarifaStore(selectSetUfTarifa)
+  const storeUfTarifa = useUfTarifaStore(selectUfTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
@@ -9624,13 +9626,13 @@ export default function App() {
     eficienciaNormalizada,
     diasMesNormalizado,
     potenciaModulo,
-    ufTarifa,
+    ufTarifa: storeUfTarifa,
     aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
   }), [
     kcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
     tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade, tusdTarifaRkwh,
     tusdAnoReferencia, mesReajuste, mesReferencia, encargosFixos, cidKwhBase,
-    baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, ufTarifa,
+    baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, storeUfTarifa,
     vendaForm.aplica_taxa_minima,
   ])
   const { analiseFinanceiraResult, afMensalidadeBaseAuto, indicadorEficienciaProjeto } = useAnaliseFinanceiraResult(tarifaContexto)
