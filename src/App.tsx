@@ -136,8 +136,6 @@ import {
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
-import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
 import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
@@ -4329,35 +4327,29 @@ export default function App() {
   }, [afCidadeDestino])
 
   const handleSelectCidade = useCallback((city: CidadeDB) => {
-    setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
+    const travelConfig = {
+      faixa1Km: vendasConfig.af_deslocamento_faixa1_km,
+      faixa1Valor: vendasConfig.af_deslocamento_faixa1_rs,
+      faixa2Km: vendasConfig.af_deslocamento_faixa2_km,
+      faixa2Valor: vendasConfig.af_deslocamento_faixa2_rs,
+      kmExcedenteValor: vendasConfig.af_deslocamento_km_excedente_rs,
+    }
+    const regioesIsentas = vendasConfig.af_deslocamento_regioes_isentas.map(
+      (r) => `${r.cidade} - ${r.uf}`,
+    )
+    const { ufOverride } = useAfDeslocamentoStore
+      .getState()
+      .selectCidadeAndCalculateDeslocamento(city, { travelConfig, regioesIsentas })
+    setAfUfOverride(ufOverride)
+    const snap = useAfDeslocamentoStore.getState()
+    setAfCidadeDestino(snap.afCidadeDestino)
     setAfCidadeSuggestions([])
     setAfCidadeShowSuggestions(false)
-    // Map to supported calculation UF: DF or GO (default for all other states)
-    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
-    const travelConfig = {
-      exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
-      faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
-      faixa1Rs: vendasConfig.af_deslocamento_faixa1_rs,
-      faixa2MaxKm: vendasConfig.af_deslocamento_faixa2_km,
-      faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
-      kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
-    }
-    const label = `${city.cidade}/${city.uf}`
-    if (isExemptRegion(city.cidade, city.uf, travelConfig.exemptRegions)) {
-      setAfDeslocamentoStatus('isenta')
-      setAfDeslocamentoKm(0)
-      setAfDeslocamentoRs(0)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    } else {
-      const km = calcRoundTripKm(city.lat, city.lng)
-      const custo = calculateInstallerTravelCost(km, travelConfig)
-      setAfDeslocamentoStatus('ok')
-      setAfDeslocamentoKm(km)
-      setAfDeslocamentoRs(custo)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    }
+    setAfDeslocamentoKm(snap.afDeslocamentoKm)
+    setAfDeslocamentoRs(snap.afDeslocamentoRs)
+    setAfDeslocamentoStatus(snap.afDeslocamentoStatus)
+    setAfDeslocamentoCidadeLabel(snap.afDeslocamentoCidadeLabel)
+    setAfDeslocamentoErro(snap.afDeslocamentoErro)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
 
   useEffect(() => {
