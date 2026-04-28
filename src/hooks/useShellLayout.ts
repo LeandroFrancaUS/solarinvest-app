@@ -100,7 +100,9 @@ export function useShellLayout({
     ...(canSeeClientsEffective ? ['crm-clientes'] : []),
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
-    ...(canSeeFinancialManagementEffective ? ['cobrancas-mensalidades'] : []),
+    ...(canSeeFinancialManagementEffective
+      ? ['cobrancas-mensalidades', 'cobrancas-recebimentos', 'cobrancas-inadimplencia']
+      : []),
   ]
 
   // Flatten all sidebar items (including nested) into a map for quick lookup
@@ -144,6 +146,9 @@ export function useShellLayout({
     settings: 'configuracoes-home',
     'admin-users': 'configuracoes-home',
     'financial-management': 'cobrancas-mensalidades',
+    'cobrancas-mensalidades': 'cobrancas-mensalidades',
+    'cobrancas-recebimentos': 'cobrancas-recebimentos',
+    'cobrancas-inadimplencia': 'cobrancas-inadimplencia',
     'operational-dashboard': 'operational-dashboard',
     'operacao-agenda': 'operacao-agenda',
     'operacao-chamados': 'operacao-chamados',

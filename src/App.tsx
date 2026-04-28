@@ -334,6 +334,8 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
+import { CobrancasDashboardPage } from './features/cobrancas/CobrancasDashboardPage'
+import type { CobrancasTab } from './features/cobrancas/CobrancasDashboardPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
@@ -4184,6 +4186,9 @@ export default function App() {
       storedPage === 'admin-users' ||
       storedPage === 'carteira' ||
       storedPage === 'financial-management' ||
+      storedPage === 'cobrancas-mensalidades' ||
+      storedPage === 'cobrancas-recebimentos' ||
+      storedPage === 'cobrancas-inadimplencia' ||
       storedPage === 'operacao-agenda' ||
       storedPage === 'operacao-chamados' ||
       storedPage === 'operacao-manutencoes' ||
@@ -16744,6 +16749,27 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
 
+  const abrirCobrancasMensalidades = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-mensalidades')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirCobrancasRecebimentos = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-recebimentos')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirCobrancasInadimplencia = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-inadimplencia')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
   const abrirDashboardOperacional = useCallback(async () => {
     if (!canSeeDashboardEffective) return false
     return runWithUnsavedChangesGuard(() => {
@@ -18493,7 +18519,13 @@ export default function App() {
                       ? 'Carteira de clientes ativos'
                       : activePage === 'financial-management'
                         ? 'Cobranças e gestão financeira'
-                        : activePage === 'operational-dashboard'
+                        : activePage === 'cobrancas-mensalidades'
+                          ? 'Mensalidades de todos os projetos'
+                          : activePage === 'cobrancas-recebimentos'
+                            ? 'Recebimentos confirmados'
+                            : activePage === 'cobrancas-inadimplencia'
+                              ? 'Cobranças em atraso'
+                              : activePage === 'operational-dashboard'
                           ? 'Painel operacional'
                           : (activePage === 'operacao-agenda' ||
                               activePage === 'operacao-chamados' ||
@@ -18523,7 +18555,13 @@ export default function App() {
                       ? 'Clientes'
                       : activePage === 'financial-management'
                         ? 'Cobranças'
-                        : activePage === 'operational-dashboard'
+                        : activePage === 'cobrancas-mensalidades'
+                          ? 'Cobranças'
+                          : activePage === 'cobrancas-recebimentos'
+                            ? 'Cobranças'
+                            : activePage === 'cobrancas-inadimplencia'
+                              ? 'Cobranças'
+                              : activePage === 'operational-dashboard'
                           ? 'Operação'
                           : (activePage === 'operacao-agenda' ||
                           activePage === 'operacao-chamados' ||
@@ -18611,6 +18649,9 @@ export default function App() {
     abrirOperacaoPlaceholder,
     abrirComercialLeads,
     abrirComercialPropostas,
+    abrirCobrancasMensalidades,
+    abrirCobrancasRecebimentos,
+    abrirCobrancasInadimplencia,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -18925,6 +18966,29 @@ export default function App() {
             ? <FinancialManagementPage
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
+              />
+            : null
+        ) : (activePage === 'cobrancas-mensalidades' ||
+             activePage === 'cobrancas-recebimentos' ||
+             activePage === 'cobrancas-inadimplencia') ? (
+          canSeeFinancialManagementEffective
+            ? <CobrancasDashboardPage
+                tab={
+                  activePage === 'cobrancas-recebimentos'
+                    ? 'recebimentos'
+                    : activePage === 'cobrancas-inadimplencia'
+                      ? 'inadimplencia'
+                      : 'mensalidades'
+                }
+                onTabChange={(t: CobrancasTab) => {
+                  setActivePage(
+                    t === 'recebimentos'
+                      ? 'cobrancas-recebimentos'
+                      : t === 'inadimplencia'
+                        ? 'cobrancas-inadimplencia'
+                        : 'cobrancas-mensalidades',
+                  )
+                }}
               />
             : null
         ) : activePage === 'operational-dashboard' ? (
