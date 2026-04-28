@@ -28,22 +28,21 @@ function requireAccess(actor, sendJson) {
     return false
   }
 
-  // Use central permissionMap: indicadores:read → ADMIN, DIRETORIA
-  if (hasPermission(actor, 'indicadores:read')) return true
-
-  // Legacy fallback: page_financial_management stack permission
-  const perms = actor.permissions ?? []
-  if (perms.includes('page_financial_management') || perms.includes('page:financial_management')) {
-    return true
+  if (!hasPermission(actor, 'indicadores:read')) {
+    // Legacy fallback: page_financial_management stack permission
+    const perms = actor.permissions ?? []
+    if (perms.includes('page_financial_management') || perms.includes('page:financial_management')) {
+      return true
+    }
+    sendJson(403, {
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Acesso à Gestão Financeira requer permissão de admin, diretoria ou page_financial_management.',
+      },
+    })
+    return false
   }
-
-  sendJson(403, {
-    error: {
-      code: 'FORBIDDEN',
-      message: 'Acesso à Gestão Financeira requer permissão de admin ou diretoria.',
-    },
-  })
-  return false
+  return true
 }
 
 async function getScopedSql(actor) {

@@ -106,7 +106,14 @@ export function actorDomainRole(actor) {
   if (actor.isOperacao)   return ROLES.OPERACAO
   if (actor.isSuporte)    return ROLES.SUPORTE
   // Fallback: ADMIN for backward compatibility when no role is assigned.
-  // This preserves access for existing users during the RBAC migration period.
+  // ⚠️  SECURITY NOTE: This grants full access to authenticated users with no
+  // explicit role. This intentional fallback preserves access during the RBAC
+  // migration period (Etapa 8). Once all users have been assigned explicit roles
+  // via Stack Auth, this fallback should be removed and `null` returned instead,
+  // so that un-roled users are denied access.
+  console.warn('[RBAC] actorDomainRole: no recognized role for user, falling back to ADMIN', {
+    userId: actor.userId ?? 'unknown',
+  })
   return ROLES.ADMIN
 }
 
