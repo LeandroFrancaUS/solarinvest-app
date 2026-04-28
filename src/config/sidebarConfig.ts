@@ -41,6 +41,11 @@ export interface SidebarConfigParams {
   abrirCobrancasMensalidades: () => void
   abrirCobrancasRecebimentos: () => void
   abrirCobrancasInadimplencia: () => void
+  // Navigation handlers — Área Indicadores (Etapa 6)
+  abrirIndicadoresVisaoGeral: () => void
+  abrirIndicadoresLeasing: () => void
+  abrirIndicadoresVendas: () => void
+  abrirIndicadoresFluxoCaixa: () => void
   // Legacy CRM items (kept for backward compat, no longer in primary nav)
   crmItems: SidebarItem[]
   // State
@@ -61,7 +66,6 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     abrirDashboard,
     abrirCarteira,
     abrirGestaoFinanceira,
-    handleNavigateToProposalTab,
     abrirSimulacoes,
     handleGerarContratosComConfirmacao,
     abrirEnvioPropostaModal,
@@ -77,6 +81,10 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     abrirCobrancasMensalidades,
     abrirCobrancasRecebimentos,
     abrirCobrancasInadimplencia,
+    abrirIndicadoresVisaoGeral,
+    abrirIndicadoresLeasing,
+    abrirIndicadoresVendas,
+    abrirIndicadoresFluxoCaixa,
     gerandoContratos,
     contatosEnvio,
   } = params
@@ -298,13 +306,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           id: 'indicadores-visao-geral',
           label: 'Visão Geral',
           icon: '📈',
-          onSelect: () => { void abrirGestaoFinanceira() },
+          onSelect: abrirIndicadoresVisaoGeral,
         },
         {
           id: 'indicadores-fluxo-caixa',
           label: 'Fluxo de Caixa',
           icon: '💵',
-          onSelect: () => { void abrirGestaoFinanceira() },
+          onSelect: abrirIndicadoresFluxoCaixa,
         },
       )
     }
@@ -315,13 +323,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           id: 'indicadores-leasing',
           label: 'Leasing',
           icon: '🔆',
-          onSelect: () => { void handleNavigateToProposalTab('leasing') },
+          onSelect: abrirIndicadoresLeasing,
         },
         {
           id: 'indicadores-vendas',
           label: 'Vendas',
           icon: '📦',
-          onSelect: () => { void handleNavigateToProposalTab('vendas') },
+          onSelect: abrirIndicadoresVendas,
         },
       )
     }

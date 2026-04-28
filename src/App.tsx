@@ -336,6 +336,8 @@ import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { CobrancasDashboardPage } from './features/cobrancas/CobrancasDashboardPage'
 import type { CobrancasTab } from './features/cobrancas/CobrancasDashboardPage'
+import { IndicadoresDashboardPage } from './features/indicadores/IndicadoresDashboardPage'
+import type { IndicadoresTab } from './features/indicadores/IndicadoresDashboardPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
@@ -4193,7 +4195,11 @@ export default function App() {
       storedPage === 'operacao-chamados' ||
       storedPage === 'operacao-manutencoes' ||
       storedPage === 'operacao-limpezas' ||
-      storedPage === 'operacao-seguros'
+      storedPage === 'operacao-seguros' ||
+      storedPage === 'indicadores-visao-geral' ||
+      storedPage === 'indicadores-leasing' ||
+      storedPage === 'indicadores-vendas' ||
+      storedPage === 'indicadores-fluxo-caixa'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -16770,6 +16776,35 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
 
+  // ── Área Indicadores (Etapa 6) ──────────────────────────────────────────────
+  const abrirIndicadoresVisaoGeral = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-visao-geral')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirIndicadoresLeasing = useCallback(() => {
+    if (!canSeeFinancialManagementEffective && !canSeeProposalsEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-leasing')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective, canSeeProposalsEffective])
+
+  const abrirIndicadoresVendas = useCallback(() => {
+    if (!canSeeFinancialManagementEffective && !canSeeProposalsEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-vendas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective, canSeeProposalsEffective])
+
+  const abrirIndicadoresFluxoCaixa = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-fluxo-caixa')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
   const abrirDashboardOperacional = useCallback(async () => {
     if (!canSeeDashboardEffective) return false
     return runWithUnsavedChangesGuard(() => {
@@ -18518,14 +18553,22 @@ export default function App() {
                     : activePage === 'carteira'
                       ? 'Carteira de clientes ativos'
                       : activePage === 'financial-management'
-                        ? 'Cobranças e gestão financeira'
+                        ? 'Indicadores — Visão Geral'
                         : activePage === 'cobrancas-mensalidades'
                           ? 'Mensalidades de todos os projetos'
                           : activePage === 'cobrancas-recebimentos'
                             ? 'Recebimentos confirmados'
                             : activePage === 'cobrancas-inadimplencia'
                               ? 'Cobranças em atraso'
-                              : activePage === 'operational-dashboard'
+                              : activePage === 'indicadores-visao-geral'
+                                ? 'Indicadores — Visão Geral do negócio'
+                                : activePage === 'indicadores-leasing'
+                                  ? 'Indicadores — Análise de Leasing'
+                                  : activePage === 'indicadores-vendas'
+                                    ? 'Indicadores — Análise de Vendas'
+                                    : activePage === 'indicadores-fluxo-caixa'
+                                      ? 'Indicadores — Fluxo de Caixa'
+                                      : activePage === 'operational-dashboard'
                           ? 'Painel operacional'
                           : (activePage === 'operacao-agenda' ||
                               activePage === 'operacao-chamados' ||
@@ -18554,14 +18597,22 @@ export default function App() {
                     : activePage === 'carteira'
                       ? 'Clientes'
                       : activePage === 'financial-management'
-                        ? 'Cobranças'
+                        ? 'Indicadores'
                         : activePage === 'cobrancas-mensalidades'
                           ? 'Cobranças'
                           : activePage === 'cobrancas-recebimentos'
                             ? 'Cobranças'
                             : activePage === 'cobrancas-inadimplencia'
                               ? 'Cobranças'
-                              : activePage === 'operational-dashboard'
+                              : activePage === 'indicadores-visao-geral'
+                                ? 'Indicadores'
+                                : activePage === 'indicadores-leasing'
+                                  ? 'Indicadores'
+                                  : activePage === 'indicadores-vendas'
+                                    ? 'Indicadores'
+                                    : activePage === 'indicadores-fluxo-caixa'
+                                      ? 'Indicadores'
+                                      : activePage === 'operational-dashboard'
                           ? 'Operação'
                           : (activePage === 'operacao-agenda' ||
                           activePage === 'operacao-chamados' ||
@@ -18652,6 +18703,10 @@ export default function App() {
     abrirCobrancasMensalidades,
     abrirCobrancasRecebimentos,
     abrirCobrancasInadimplencia,
+    abrirIndicadoresVisaoGeral,
+    abrirIndicadoresLeasing,
+    abrirIndicadoresVendas,
+    abrirIndicadoresFluxoCaixa,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -18961,9 +19016,23 @@ export default function App() {
                 }}
               />
             : null
-        ) : activePage === 'financial-management' ? (
+        ) : (activePage === 'financial-management' ||
+             activePage === 'indicadores-visao-geral' ||
+             activePage === 'indicadores-leasing' ||
+             activePage === 'indicadores-vendas' ||
+             activePage === 'indicadores-fluxo-caixa') ? (
+          // financial-management is kept as a backward-compat alias → Indicadores > Visão Geral
           canSeeFinancialManagementEffective
-            ? <FinancialManagementPage
+            ? <IndicadoresDashboardPage
+                tab={
+                  activePage === 'indicadores-leasing'
+                    ? 'leasing'
+                    : activePage === 'indicadores-vendas'
+                      ? 'vendas'
+                      : activePage === 'indicadores-fluxo-caixa'
+                        ? 'fluxo-caixa'
+                        : 'visao-geral'
+                }
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
               />
