@@ -1,6 +1,8 @@
 // server/clients/repository.js
 // Database queries for clients with CPF and CNPJ deduplication.
 
+import { VALID_STATUS_COMERCIAL, VALID_STATUS_CLIENTE } from './client-status-values.js'
+
 /**
  * Normalize CPF: strip non-digits, validate 11 digits.
  */
@@ -243,8 +245,6 @@ export async function updateClient(sql, clientId, data, options = {}) {
   ) ? parseInt(String(consultant_id), 10) : null
 
   // Validate status_comercial — only accept known values; treat anything else as "no change".
-  const VALID_STATUS_COMERCIAL = new Set(['LEAD', 'PROPOSTA_ENVIADA', 'NEGOCIANDO', 'CONTRATO_ENVIADO', 'GANHO', 'PERDIDO'])
-  const VALID_STATUS_CLIENTE = new Set(['NAO_CLIENTE', 'ATIVO', 'INATIVO', 'CANCELADO', 'FINALIZADO'])
   const resolvedStatusComercial = (status_comercial !== undefined && VALID_STATUS_COMERCIAL.has(status_comercial)) ? status_comercial : null
   const resolvedStatusCliente = (status_cliente !== undefined && VALID_STATUS_CLIENTE.has(status_cliente)) ? status_cliente : null
 

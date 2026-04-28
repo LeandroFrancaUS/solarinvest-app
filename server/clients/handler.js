@@ -25,6 +25,7 @@ import {
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 import { validateClientDuplicates } from './duplicateValidation.js'
+import { VALID_STATUS_COMERCIAL, VALID_STATUS_CLIENTE } from './client-status-values.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
@@ -172,8 +173,6 @@ function toClientWritePayload(body) {
 
   // Client status domain (migration 0061).
   // Only accepted values are forwarded; repository.js validates and ignores unknown values.
-  const VALID_STATUS_COMERCIAL = new Set(['LEAD', 'PROPOSTA_ENVIADA', 'NEGOCIANDO', 'CONTRATO_ENVIADO', 'GANHO', 'PERDIDO'])
-  const VALID_STATUS_CLIENTE = new Set(['NAO_CLIENTE', 'ATIVO', 'INATIVO', 'CANCELADO', 'FINALIZADO'])
   if (body.status_comercial !== undefined && VALID_STATUS_COMERCIAL.has(body.status_comercial)) {
     accepted.status_comercial = body.status_comercial
   }
