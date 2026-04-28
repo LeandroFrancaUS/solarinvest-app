@@ -18699,14 +18699,6 @@ export default function App() {
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            serverClientId={
-              clienteEmEdicaoId
-                ? (Number(clientServerIdMapRef.current[clienteEmEdicaoId]) || null)
-                : null
-            }
-            clienteNome={cliente.nome ?? undefined}
-            consultorNome={cliente.consultorNome ?? undefined}
-            consultorId={cliente.consultorId ?? undefined}
           />
         ) : activePage === 'settings' ? (
           <SettingsPage
