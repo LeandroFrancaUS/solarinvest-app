@@ -43,7 +43,7 @@ import {
   isInsuranceStatus,
   isOperationEventStatus,
   isOperationEventSourceType,
-} from '../../src/domain/operations/operation-status.js'
+} from './operation-status-values.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

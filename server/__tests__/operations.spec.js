@@ -8,8 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Validators (pure domain — no mocks needed)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// We import the compiled JS path that the server handler uses.
-// In tests the TS source is loaded by vitest directly.
+// We test validators from the server-side JS mirror (as the handler uses it).
 import {
   isTicketPriority,
   isTicketStatus,
@@ -19,7 +18,7 @@ import {
   isInsuranceStatus,
   isOperationEventStatus,
   isOperationEventSourceType,
-} from '../../src/domain/operations/operation-status.js'
+} from '../operations/operation-status-values.js'
 
 describe('validators', () => {
   it('isTicketPriority: valid values', () => {
