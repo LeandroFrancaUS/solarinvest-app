@@ -85,6 +85,8 @@ export interface AnaliseFinanceiraSectionProps {
   consultorId?: string
 }
 
+type ConversionStatus = 'idle' | 'saving' | 'success' | 'error'
+
 export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
@@ -97,7 +99,6 @@ export function AnaliseFinanceiraSection({
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
   const addProjeto = useProjectStore(selectAddProjeto)
-  type ConversionStatus = 'idle' | 'saving' | 'success' | 'error'
   const [conversionStatus, setConversionStatus] = useState<ConversionStatus>('idle')
   const [conversionError, setConversionError] = useState<string | null>(null)
   // Store reads — replaces props previously passed down from App.tsx
@@ -439,7 +440,7 @@ export function AnaliseFinanceiraSection({
                   type="button"
                   className="primary"
                   disabled={conversionStatus === 'saving'}
-                  onClick={() => { void handleConverterEmProjeto() }}
+                  onClick={handleConverterEmProjeto}
                 >
                   {conversionStatus === 'saving' ? 'Criando projeto…' : '🗂 Converter em Projeto'}
                 </button>

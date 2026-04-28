@@ -51,10 +51,8 @@ export async function persistConvertedProjeto(
   }
 
   // Assign a proper UUID so the id is backend-stable when clientId is known.
-  const uuid: string =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  // crypto.randomUUID() is available in all modern browsers targeted by this app.
+  const uuid: string = crypto.randomUUID()
 
   const projeto: Projeto = { ...baseProjeto, id: uuid }
 
