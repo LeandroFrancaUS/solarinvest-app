@@ -2,7 +2,7 @@
 // Extracted from App.tsx (Subfase 2B.12.4A).
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -13,8 +13,6 @@ import { AfBaseSistemaPanel } from './AfBaseSistemaPanel'
 import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
-import { persistConvertedProjeto } from '../projectHub/persistConvertedProjeto'
-import { useProjectStore, selectAddProjeto } from '../projectHub/useProjectStore'
 
 import { useAfDeslocamentoStore } from './useAfDeslocamentoStore'
 import {
@@ -76,36 +74,15 @@ export interface AnaliseFinanceiraSectionProps {
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
-
-  /** Numeric DB client_id (BIGINT) from the backend. When present, the project
-   *  is persisted via POST /api/projects/from-analise with a real UUID.
-   *  When absent the project is created in-memory only. */
-  serverClientId?: number | null
-  clienteNome?: string
-  consultorNome?: string
-  consultorId?: string
 }
-
-type ConversionStatus = 'idle' | 'saving' | 'success' | 'error'
 
 export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  serverClientId,
-  clienteNome,
-  consultorNome,
-  consultorId,
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
-  const addProjeto = useProjectStore(selectAddProjeto)
-  const [conversionStatus, setConversionStatus] = useState<ConversionStatus>('idle')
-  const [conversionError, setConversionError] = useState<string | null>(null)
-  // Stable plan_id for the current conversion attempt. Generated once on first
-  // click and reused for retries so repeated clicks / network retries don't
-  // create duplicate projects. Reset to null after a successful conversion.
-  const conversionPlanIdRef = useRef<string | null>(null)
   // Store reads — replaces props previously passed down from App.tsx
   const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
@@ -238,39 +215,6 @@ export function AnaliseFinanceiraSection({
     setAfTransporteCombustivel(deslocamentoRs)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs, selectCidadeAndCalculateDeslocamento, setAfUfOverride, setAfTransporteCombustivel])
 
-  const handleConverterEmProjeto = useCallback(async () => {
-    if (!analiseFinanceiraResult) return
-    // Generate plan_id once for this attempt; reuse on retries for idempotency.
-    if (!conversionPlanIdRef.current) {
-      conversionPlanIdRef.current = `analise:${crypto.randomUUID()}`
-    }
-    setConversionStatus('saving')
-    setConversionError(null)
-    try {
-      const projeto = await persistConvertedProjeto({
-        analiseFinanceiraResult,
-        tipo: afModo,
-        clienteNome,
-        consultorNome,
-        consultorId,
-        serverClientId,
-        planId: conversionPlanIdRef.current,
-      })
-      if (!projeto) {
-        setConversionStatus('error')
-        setConversionError('Não foi possível criar o projeto — análise incompleta.')
-        return
-      }
-      addProjeto(projeto)
-      setConversionStatus('success')
-      // Reset so a new conversion (different analysis) gets a fresh plan_id.
-      conversionPlanIdRef.current = null
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao criar projeto.'
-      setConversionStatus('error')
-      setConversionError(msg)
-    }
-  }, [analiseFinanceiraResult, afModo, clienteNome, consultorNome, consultorId, serverClientId, addProjeto])
   return (
     <section className="simulacoes-module-card af-section">
       <header>
@@ -444,28 +388,40 @@ export function AnaliseFinanceiraSection({
                 indicadorEficienciaProjeto={indicadorEficienciaProjeto}
               />
               <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)', fontStyle: 'italic' }}>
-                Esta análise é uma ferramenta de apoio. Use o botão abaixo para criar um projeto a partir desta análise.
+                Esta análise é uma ferramenta de apoio. Para convertê-la em projeto, complete o fluxo de cliente/proposta na aba correspondente.
               </p>
-              {/* Converter em Projeto */}
-              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+              {/*
+               * PONTO DE CONVERSÃO CORRETO:
+               * A conversão real para projeto operacional deve ocorrer na tela de
+               * Cliente/Proposta aprovada, após o cliente estar vinculado ao backend,
+               * ter dados pessoais completos e proposta aceita.
+               * Nunca inicie a conversão diretamente a partir da Análise Financeira.
+               */}
+              {/* Guardrail: pré-requisitos para entrar no Project Hub */}
+              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'var(--color-surface-secondary, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                <p style={{ margin: 0, marginBottom: '0.375rem', fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-primary, #1e293b)' }}>
+                  Pré-requisitos para conversão em projeto:
+                </p>
+                {[
+                  'Cliente vinculado',
+                  'Dados pessoais completos',
+                  'Pré-aprovação concluída',
+                  'Proposta aceita',
+                ].map((item) => (
+                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary, #64748b)' }}>
+                    <span style={{ color: 'var(--color-warning, #d97706)', fontWeight: 700 }}>○</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
                 <button
                   type="button"
                   className="primary"
-                  disabled={conversionStatus === 'saving'}
-                  onClick={handleConverterEmProjeto}
+                  disabled
+                  title="Para converter em projeto, complete os dados do cliente e finalize a pré-aprovação."
+                  style={{ marginTop: '0.5rem', cursor: 'not-allowed', opacity: 0.5, alignSelf: 'flex-start' }}
                 >
-                  {conversionStatus === 'saving' ? 'Criando projeto…' : '🗂 Converter em Projeto'}
+                  🗂 Preparar Projeto
                 </button>
-                {conversionStatus === 'success' && (
-                  <span style={{ color: 'var(--color-success, #16a34a)', fontSize: '0.875rem', fontWeight: 500 }}>
-                    ✔ Projeto criado{!serverClientId ? ' (local — cliente não vinculado)' : ''}
-                  </span>
-                )}
-                {conversionStatus === 'error' && conversionError && (
-                  <span style={{ color: 'var(--color-danger, #dc2626)', fontSize: '0.875rem' }}>
-                    ✕ {conversionError}
-                  </span>
-                )}
               </div>
             </>
           ) : (
