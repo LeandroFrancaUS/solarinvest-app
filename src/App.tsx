@@ -350,6 +350,7 @@ import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplay
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { isBackendProjectId } from './utils/isBackendProjectId'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
@@ -18849,7 +18850,13 @@ export default function App() {
           ) : (
             <ProjectHubPage
               onBack={() => setActivePage(lastPrimaryPageRef.current)}
-              onOpenProjectDetail={(id) => setSelectedHubProjectId(id)}
+              onOpenProjectDetail={(id) => {
+                if (!isBackendProjectId(id)) {
+                  console.warn('[ProjectHub] Ignored open: id is not a backend UUID', id)
+                  return
+                }
+                setSelectedHubProjectId(id)
+              }}
             />
           )
         ) : (

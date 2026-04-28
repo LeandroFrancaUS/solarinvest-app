@@ -3,7 +3,8 @@
 // Access is provided by a temporary button in App.tsx and can be removed without side effects.
 
 import React, { useState } from 'react'
-import { useProjectStore, selectProjetos, selectAddProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
+import { useProjectStore, selectProjetos, selectAddProjeto, selectRemoveProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
+import { isBackendProjectId } from '../../utils/isBackendProjectId'
 
 function getTipoBadgeStyles(tipo: string): React.CSSProperties {
   if (tipo === 'leasing') {
@@ -42,16 +43,32 @@ const PROJETO_STATUS_LABEL: Record<ProjetoStatus, string> = {
   cancelado: 'Cancelado',
 }
 
+const LOCAL_BADGE_STYLE: React.CSSProperties = {
+  background: 'var(--color-warning-light, #fef9c3)',
+  color: 'var(--color-warning, #a16207)',
+  borderRadius: 4,
+  padding: '0.1rem 0.5rem',
+  fontWeight: 500,
+}
+
 function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
   const { cliente, tipo, status, consultor } = projeto
   const [focused, setFocused] = useState(false)
+  const isBackend = isBackendProjectId(projeto.id)
+
+  function handleActivate() {
+    if (!isBackend) return
+    onSelect(projeto.id)
+  }
+
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(projeto.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(projeto.id) } }}
-      onFocus={() => setFocused(true)}
+      role={isBackend ? 'button' : undefined}
+      tabIndex={isBackend ? 0 : undefined}
+      aria-disabled={!isBackend || undefined}
+      onClick={handleActivate}
+      onKeyDown={(e) => { if (isBackend && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(projeto.id) } }}
+      onFocus={() => isBackend && setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
         border: '1px solid var(--color-border, #e2e8f0)',
@@ -61,7 +78,8 @@ function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
         display: 'flex',
         flexDirection: 'column',
         gap: '0.3rem',
-        cursor: 'pointer',
+        cursor: isBackend ? 'pointer' : 'default',
+        opacity: isBackend ? 1 : 0.7,
         outline: focused ? '2px solid var(--color-primary, #1d4ed8)' : 'none',
         outlineOffset: 2,
       }}
@@ -78,12 +96,20 @@ function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
         >
           {PROJETO_STATUS_LABEL[status]}
         </span>
+        {!isBackend && (
+          <span style={LOCAL_BADGE_STYLE}>local</span>
+        )}
       </div>
       <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary, #64748b)' }}>
         {consultor
           ? <>Consultor: <strong>{consultor.nome}</strong></>
           : <em>Sem consultor vinculado</em>}
       </div>
+      {!isBackend && (
+        <div style={{ fontSize: '0.78rem', color: 'var(--color-warning, #a16207)', marginTop: '0.2rem' }}>
+          Projeto local — converta novamente com cliente vinculado para habilitar cobranças.
+        </div>
+      )}
     </div>
   )
 }
@@ -185,10 +211,13 @@ interface ProjectHubPageProps {
 export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPageProps) {
   const projetos = useProjectStore(selectProjetos)
   const addProjeto = useProjectStore(selectAddProjeto)
+  const removeProjeto = useProjectStore(selectRemoveProjeto)
   const [showForm, setShowForm] = useState(false)
   const [formNome, setFormNome] = useState('')
   const [formTipo, setFormTipo] = useState<'venda' | 'leasing'>('venda')
   const [formPagamento, setFormPagamento] = useState<'avista' | 'parcelado'>('avista')
+
+  const localProjects = projetos.filter((p) => !isBackendProjectId(p.id))
 
   function handleSalvarProjeto() {
     if (!formNome.trim()) return
@@ -205,6 +234,10 @@ export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPagePr
     setFormTipo('venda')
     setFormPagamento('avista')
     setShowForm(false)
+  }
+
+  function handleLimparLocais() {
+    localProjects.forEach((p) => removeProjeto(p.id))
   }
 
   return (
@@ -225,7 +258,17 @@ export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPagePr
         >
           {projetos.length} {projetos.length === 1 ? 'projeto' : 'projetos'}
         </span>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+          {localProjects.length > 0 && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={handleLimparLocais}
+              title="Remove projetos sem ID de backend (não afeta dados no servidor)"
+            >
+              Limpar projetos locais ({localProjects.length})
+            </button>
+          )}
           <button type="button" className="primary" onClick={() => setShowForm((v) => !v)}>
             {showForm ? 'Cancelar' : 'Novo Projeto'}
           </button>
