@@ -42,8 +42,13 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.updated_at                           AS client_updated_at,
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
-        c.portfolio_exported_by_user_id        AS exported_by_user_id
+        c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        cc.contractual_term_months,
+        cc.contract_start_date,
+        cc.contract_type,
+        cc.contract_status
       FROM public.clients c
+      LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
       ORDER BY c.created_at DESC
@@ -72,8 +77,13 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.updated_at                           AS client_updated_at,
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
-        c.portfolio_exported_by_user_id        AS exported_by_user_id
+        c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        cc.contractual_term_months,
+        cc.contract_start_date,
+        cc.contract_type,
+        cc.contract_status
       FROM public.clients c
+      LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
         AND (
