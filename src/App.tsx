@@ -18816,7 +18816,17 @@ export default function App() {
           </React.Suspense>
         </div>
         {activePage === 'dashboard' ? (
-          <DashboardPage />
+          <DashboardPage
+            onNavigateToClientes={() => { void abrirCarteira() }}
+            onNavigateToCobrancasMensalidades={abrirCobrancasMensalidades}
+            onNavigateToCobrancasRecebimentos={abrirCobrancasRecebimentos}
+            onNavigateToCobrancasInadimplencia={abrirCobrancasInadimplencia}
+            onNavigateToOperacaoChamados={() => { abrirOperacaoPlaceholder('operacao-chamados') }}
+            onNavigateToOperacaoManutencoes={() => { abrirOperacaoPlaceholder('operacao-manutencoes') }}
+            onNavigateToComercialLeads={abrirComercialLeads}
+            onNavigateToComercialContratos={() => { void abrirPesquisaOrcamentos() }}
+            onNavigateToComercialPropostas={() => { abrirComercialPropostas('leasing') }}
+          />
         ) : activePage === 'crm' ? (
           <CrmPage {...crmState} />
         ) : activePage === 'comercial-leads' ? (
