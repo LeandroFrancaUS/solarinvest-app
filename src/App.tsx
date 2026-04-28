@@ -348,7 +348,9 @@ import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
-import type { ActivePage, SimulacoesSection } from './types/navigation'
+import type { ActivePage, SimulacoesSection, OperacaoSection } from './types/navigation'
+import { OPERACAO_SECTION_LABELS } from './types/navigation'
+import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { useProjectStore } from './features/projectHub/useProjectStore'
@@ -4179,7 +4181,12 @@ export default function App() {
       storedPage === 'simulacoes' ||
       storedPage === 'admin-users' ||
       storedPage === 'carteira' ||
-      storedPage === 'financial-management'
+      storedPage === 'financial-management' ||
+      storedPage === 'operacao-agenda' ||
+      storedPage === 'operacao-chamados' ||
+      storedPage === 'operacao-manutencoes' ||
+      storedPage === 'operacao-limpezas' ||
+      storedPage === 'operacao-seguros'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -16748,6 +16755,12 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
+  const abrirOperacaoPlaceholder = useCallback((section: OperacaoSection) => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage(section)
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
   const iniciarNovaProposta = useCallback(async () => {
     if (novaPropostaEmAndamentoRef.current) {
       console.warn('[Nova Proposta] Ignored (already running)')
@@ -18454,23 +18467,47 @@ export default function App() {
               ? 'Simulações financeiras, risco e aprovação interna'
               : activePage === 'settings'
                 ? 'Preferências e integrações da proposta'
-                : undefined
+                : activePage === 'carteira'
+                  ? 'Carteira de clientes ativos'
+                  : activePage === 'financial-management'
+                    ? 'Cobranças e gestão financeira'
+                    : activePage === 'operational-dashboard'
+                      ? 'Painel operacional'
+                      : (activePage === 'operacao-agenda' ||
+                          activePage === 'operacao-chamados' ||
+                          activePage === 'operacao-manutencoes' ||
+                          activePage === 'operacao-limpezas' ||
+                          activePage === 'operacao-seguros')
+                        ? `Operação — ${OPERACAO_SECTION_LABELS[activePage]}`
+                        : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
       : activePage === 'crm'
-        ? 'Central CRM'
+        ? 'Leads'
         : activePage === 'consultar'
-          ? 'Consultar'
+          ? 'Relatórios'
           : activePage === 'clientes'
             ? 'Clientes'
             : activePage === 'simulacoes'
               ? 'Simulações'
               : activePage === 'settings'
                 ? 'Configurações'
-                : activeTab === 'vendas'
-                  ? 'Vendas'
-                  : 'Leasing'
+                : activePage === 'carteira'
+                  ? 'Clientes'
+                  : activePage === 'financial-management'
+                    ? 'Cobranças'
+                    : activePage === 'operational-dashboard'
+                      ? 'Operação'
+                      : (activePage === 'operacao-agenda' ||
+                          activePage === 'operacao-chamados' ||
+                          activePage === 'operacao-manutencoes' ||
+                          activePage === 'operacao-limpezas' ||
+                          activePage === 'operacao-seguros')
+                        ? OPERACAO_SECTION_LABELS[activePage]
+                        : activeTab === 'vendas'
+                          ? 'Vendas'
+                          : 'Leasing'
 
   const crmItems = [
     ...(canSeeProposalsEffective
@@ -18541,6 +18578,11 @@ export default function App() {
     abrirEnvioPropostaModal,
     abrirPesquisaOrcamentos,
     setActivePage,
+    abrirCrmCentral,
+    abrirClientesPainel,
+    abrirConfiguracoes: () => { void abrirConfiguracoes() },
+    handleLogout,
+    abrirOperacaoPlaceholder,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -18858,6 +18900,12 @@ export default function App() {
               }}
             />
           )
+        ) : (activePage === 'operacao-agenda' ||
+            activePage === 'operacao-chamados' ||
+            activePage === 'operacao-manutencoes' ||
+            activePage === 'operacao-limpezas' ||
+            activePage === 'operacao-seguros') ? (
+          <PlaceholderPage title={OPERACAO_SECTION_LABELS[activePage]} />
         ) : (
           <div className="page">
             <div className="app-main">
