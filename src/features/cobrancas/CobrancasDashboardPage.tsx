@@ -116,7 +116,9 @@ function useAllCharges(): {
           (p: ProjectRow) => p.project_type === 'leasing' && p.deleted_at == null,
         )
 
-        // Fetch charges for each project in parallel
+        // Fetch charges for each project in parallel.
+        // Limit 500 is sufficient for current scale; pagination can be added
+        // when the portfolio grows significantly beyond this threshold.
         const results = await Promise.all(
           leasingProjects.map(async (project: ProjectRow) => {
             try {
@@ -300,6 +302,8 @@ function RecebimentosTab({ charges }: { charges: EnrichedCharge[] }) {
 
 function InadimplenciaTab({ charges }: { charges: EnrichedCharge[] }) {
   const today = todayIso()
+  // ISO date strings (YYYY-MM-DD) are lexicographically comparable.
+  // All due_date values from the API are guaranteed to be in this format.
   const overdue = charges.filter(
     (c) => c.status === 'vencida' && c.due_date != null && c.due_date < today,
   )
