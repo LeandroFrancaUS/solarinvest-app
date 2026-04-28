@@ -501,12 +501,13 @@ export async function handlePortfolioPlanPatch(req, res, { method, clientId, rea
     // don't create a new contract row and break project.contract_id linkage.
     // Whenever prazo_meses is updated in client_energy_profile, mirror it to
     // client_contracts.contractual_term_months for the same client.
+    // NOTE: Do NOT call upsertClientContract here — that function uses INSERT
+    // semantics when no id is provided and would create a duplicate contract
+    // row with contract_status='draft', silently overriding any 'active'
+    // contract the user had already set via the Contrato tab.
     const hasPlanTerm = Object.prototype.hasOwnProperty.call(body ?? {}, 'prazo_meses')
     if (hasPlanTerm) {
       await updateClientContractualTermByClientId(sql, clientId, profile.prazo_meses)
-      await upsertClientContract(sql, clientId, {
-        contractual_term_months: profile.prazo_meses,
-      })
     }
 
     console.info('[portfolio][plan] success', {

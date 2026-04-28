@@ -997,6 +997,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_attachments: contractAttachments,
       })
       onSaved({
+        contract_id: savedContractId,
         contract_type: form.contract_type,
         contract_status: form.contract_status,
         source_proposal_id: form.source_proposal_record_id || form.source_proposal_id || null,
