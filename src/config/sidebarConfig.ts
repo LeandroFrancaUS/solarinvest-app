@@ -49,6 +49,12 @@ export interface SidebarConfigParams {
   abrirIndicadoresLeasing: () => void
   abrirIndicadoresVendas: () => void
   abrirIndicadoresFluxoCaixa: () => void
+  // Navigation handlers — Área Relatórios (Etapa 9)
+  abrirRelatoriosPropostas: () => void
+  abrirRelatoriosContratos: () => void
+  abrirRelatoriosFinanceiro: () => void
+  abrirRelatoriosClientes: () => void
+  abrirRelatoriosOperacao: () => void
   // Legacy CRM items (kept for backward compat, no longer in primary nav)
   crmItems: SidebarItem[]
   // State
@@ -69,13 +75,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     userRole,
     abrirDashboard,
     abrirCarteira,
-    abrirGestaoFinanceira,
+    abrirGestaoFinanceira: _abrirGestaoFinanceira,
     abrirSimulacoes,
     handleGerarContratosComConfirmacao,
     abrirEnvioPropostaModal,
     abrirPesquisaOrcamentos,
     setActivePage,
-    abrirCrmCentral,
+    abrirCrmCentral: _abrirCrmCentral,
     abrirClientesPainel,
     abrirConfiguracoes,
     handleLogout,
@@ -89,6 +95,11 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     abrirIndicadoresLeasing,
     abrirIndicadoresVendas,
     abrirIndicadoresFluxoCaixa,
+    abrirRelatoriosPropostas,
+    abrirRelatoriosContratos,
+    abrirRelatoriosFinanceiro,
+    abrirRelatoriosClientes,
+    abrirRelatoriosOperacao,
     gerandoContratos,
     contatosEnvio,
   } = params
@@ -378,7 +389,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
   }
 
   // ── Relatórios ────────────────────────────────────────────────────────────
-  if (canSeeProposalsEffective || canSeeClientsEffective) {
+  if (canSeeProposalsEffective || canSeeClientsEffective || canSeeFinancialManagementEffective) {
     const relatoriosItems: SidebarItem[] = []
 
     if (canSeeProposalsEffective) {
@@ -387,13 +398,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           id: 'relatorios-pdfs',
           label: 'Propostas',
           icon: '📂',
-          onSelect: () => { void abrirPesquisaOrcamentos() },
+          onSelect: abrirRelatoriosPropostas,
         },
         {
           id: 'relatorios-contratos',
           label: 'Contratos',
           icon: '🖋️',
-          onSelect: () => { void abrirPesquisaOrcamentos() },
+          onSelect: abrirRelatoriosContratos,
         },
       )
     }
@@ -403,7 +414,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
         id: 'relatorios-financeiro',
         label: 'Financeiro',
         icon: '💰',
-        onSelect: () => { void abrirGestaoFinanceira() },
+        onSelect: abrirRelatoriosFinanceiro,
       })
     }
 
@@ -412,7 +423,16 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
         id: 'relatorios-clientes',
         label: 'Clientes',
         icon: '👥',
-        onSelect: () => { void abrirClientesPainel() },
+        onSelect: abrirRelatoriosClientes,
+      })
+    }
+
+    if (hasPermission(userRole, 'relatorios-operacao')) {
+      relatoriosItems.push({
+        id: 'relatorios-operacao',
+        label: 'Operação',
+        icon: '⚙️',
+        onSelect: abrirRelatoriosOperacao,
       })
     }
 

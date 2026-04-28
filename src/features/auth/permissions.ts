@@ -51,6 +51,11 @@ export const permissionMap: Record<UserRole, ActivePage[]> = {
     'indicadores-leasing',
     'indicadores-vendas',
     'indicadores-fluxo-caixa',
+    'relatorios-propostas',
+    'relatorios-contratos',
+    'relatorios-financeiro',
+    'relatorios-clientes',
+    'relatorios-operacao',
   ],
 
   /** DIRETORIA: acesso amplo — equivale a role_office no Stack Auth. */
@@ -78,6 +83,11 @@ export const permissionMap: Record<UserRole, ActivePage[]> = {
     'indicadores-leasing',
     'indicadores-vendas',
     'indicadores-fluxo-caixa',
+    'relatorios-propostas',
+    'relatorios-contratos',
+    'relatorios-financeiro',
+    'relatorios-clientes',
+    'relatorios-operacao',
   ],
 
   /** COMERCIAL: acesso a propostas, clientes e indicadores comerciais. */
@@ -92,6 +102,9 @@ export const permissionMap: Record<UserRole, ActivePage[]> = {
     'simulacoes',
     'indicadores-leasing',
     'indicadores-vendas',
+    'relatorios-propostas',
+    'relatorios-contratos',
+    'relatorios-clientes',
   ],
 
   /** FINANCEIRO: acesso a cobranças, carteira e indicadores financeiros. */
@@ -106,6 +119,8 @@ export const permissionMap: Record<UserRole, ActivePage[]> = {
     'cobrancas-inadimplencia',
     'indicadores-visao-geral',
     'indicadores-fluxo-caixa',
+    'relatorios-financeiro',
+    'relatorios-clientes',
   ],
 
   /** OPERACAO: acesso à área de operação e leitura de clientes. */
@@ -119,6 +134,7 @@ export const permissionMap: Record<UserRole, ActivePage[]> = {
     'clientes',
     'crm',
     'project-hub',
+    'relatorios-operacao',
   ],
 
   /** SUPORTE: acesso restrito a chamados, agenda e leitura de clientes. */
