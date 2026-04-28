@@ -53,6 +53,24 @@ function requireWriteAccess(actor, sendJson) {
   return true
 }
 
+/**
+ * Billing-specific write access: admin, office, AND financeiro may register/remove
+ * payments and edit installment values.  Other write operations (contract, project,
+ * profile) still require requireWriteAccess (admin|office only).
+ */
+function requireBillingWriteAccess(actor, sendJson) {
+  if (!actor) {
+    sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
+    return false
+  }
+  const role = actorRole(actor)
+  if (!['role_admin', 'role_office', 'role_financeiro'].includes(role)) {
+    sendError(sendJson, 403, 'FORBIDDEN', 'Operação de cobrança requer perfil admin, office ou financeiro.')
+    return false
+  }
+  return true
+}
+
 async function getScopedSql(actor) {
   const db = getDatabaseClient()
   if (!db?.sql) {
@@ -331,10 +349,11 @@ export async function handlePortfolioProjectPatch(req, res, { method, clientId, 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/client-portfolio/:clientId/billing
+// Access: admin | office | financeiro (billing write access)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
-  if (!requireWriteAccess(actor, sendJson)) return
+  if (!requireBillingWriteAccess(actor, sendJson)) return
 
   if (method !== 'PATCH') {
     sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
@@ -376,6 +395,20 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
       }
     }
 
+    // Validate installment_valor sub-object if present (valor override per installment)
+    if (body.installment_valor !== undefined) {
+      const iv = body.installment_valor
+      if (!iv || typeof iv.number !== 'number' || !Number.isFinite(iv.number) || iv.number <= 0) {
+        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Número da parcela deve ser um valor inteiro positivo válido.' } })
+        return
+      }
+      const valor = iv.valor_override
+      if (valor !== null && valor !== undefined && (!Number.isFinite(valor) || valor < 0)) {
+        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Valor da parcela deve ser um número não-negativo.' } })
+        return
+      }
+    }
+
     const sql = await getScopedSql(actor)
 
     // ── installment_payment merge ────────────────────────────────────────────
@@ -395,6 +428,11 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
       })
 
       const existing = await getBillingInstallmentsJson(sql, clientId)
+      // Preserve valor_override from any existing record when not explicitly provided
+      const existingRecord = existing.find((p) => p.number === payment.number)
+      if (existingRecord?.valor_override != null && payment.valor_override === undefined) {
+        payment.valor_override = existingRecord.valor_override
+      }
       const merged = existing.filter((p) => p.number !== payment.number)
       merged.push(payment)
       merged.sort((a, b) => a.number - b.number)
@@ -404,6 +442,40 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
         clientId,
         totalInstallments: merged.length,
         confirmedCount: merged.filter((p) => p.status === 'confirmado').length,
+      })
+    }
+
+    // ── installment_valor merge ──────────────────────────────────────────────
+    // Updates (or creates) the installments_json entry for a single installment
+    // setting only the valor_override field, leaving payment status untouched.
+    if (body.installment_valor !== undefined) {
+      const iv = body.installment_valor
+      console.info('[portfolio][billing] installment_valor merge', {
+        clientId,
+        installmentNumber: iv.number,
+        valor_override: iv.valor_override ?? null,
+      })
+
+      const existing = await getBillingInstallmentsJson(sql, clientId)
+      const existingRecord = existing.find((p) => p.number === iv.number)
+      const updatedRecord = {
+        number: iv.number,
+        status: existingRecord?.status ?? 'pendente',
+        paid_at: existingRecord?.paid_at ?? null,
+        receipt_number: existingRecord?.receipt_number ?? null,
+        transaction_number: existingRecord?.transaction_number ?? null,
+        attachment_url: existingRecord?.attachment_url ?? null,
+        confirmed_by: existingRecord?.confirmed_by ?? null,
+        valor_override: iv.valor_override != null ? Number(iv.valor_override) : null,
+      }
+      const merged = existing.filter((p) => p.number !== iv.number)
+      merged.push(updatedRecord)
+      merged.sort((a, b) => a.number - b.number)
+      body.installments_json = merged
+
+      console.info('[portfolio][billing] installments_json after valor merge', {
+        clientId,
+        totalInstallments: merged.length,
       })
     }
 

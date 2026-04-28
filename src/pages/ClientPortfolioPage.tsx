@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import '../styles/portfolio.css'
+import { useStackRbac } from '../lib/auth/rbac'
 import {
   useClientPortfolio,
   usePortfolioClient,
@@ -1662,6 +1663,9 @@ function ProjetoTab({
 // Billing Tab
 // ─────────────────────────────────────────────────────────────────────────────
 function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+  const { isAdmin, isOffice, isFinanceiro } = useStackRbac()
+  const canManageBilling = isAdmin || isOffice || isFinanceiro
+
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [editMode, setEditMode] = useState(false)
@@ -1670,6 +1674,13 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
   const [proofError, setProofError] = useState<string | null>(null)
+  const [removePaymentModal, setRemovePaymentModal] = useState<{ installmentNumber: number } | null>(null)
+  const [removingPayment, setRemovingPayment] = useState(false)
+  const [removePaymentError, setRemovePaymentError] = useState<string | null>(null)
+  // Per-installment valor editing: tracks which installment is being edited and its current input value
+  const [editingValorInstallment, setEditingValorInstallment] = useState<number | null>(null)
+  const [editingValorValue, setEditingValorValue] = useState('')
+  const [savingValorInstallment, setSavingValorInstallment] = useState<number | null>(null)
 
   // Build the confirmed-payments map from an installments array.
   // Handles both 'confirmado' (canonical) and 'pago' (legacy alias) statuses.
@@ -1685,16 +1696,35 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     return map
   }
 
+  // Build a map of per-installment valor overrides from installments_json
+  const buildValorOverrideMap = (installments: typeof client.installments_json) => {
+    const map: Record<number, number> = {}
+    if (installments) {
+      for (const p of installments) {
+        if (p.valor_override != null) {
+          map[p.number] = p.valor_override
+        }
+      }
+    }
+    return map
+  }
+
   // Local confirmed-payments map for instant UI feedback before full reload.
   // Seeded from client.installments_json on mount (now populated by normalizer).
   const [confirmedPayments, setConfirmedPayments] = useState<Record<number, { receipt_number: string | null; paid_at: string }>>(() =>
     buildConfirmedMap(client.installments_json),
   )
 
-  // Keep confirmedPayments in sync when client.installments_json is updated
+  // Local valor-override map for instant UI feedback
+  const [valorOverrides, setValorOverrides] = useState<Record<number, number>>(() =>
+    buildValorOverrideMap(client.installments_json),
+  )
+
+  // Keep confirmedPayments and valorOverrides in sync when client.installments_json is updated
   // by the parent (e.g. after onSaved merges the server response).
   useEffect(() => {
     setConfirmedPayments(buildConfirmedMap(client.installments_json))
+    setValorOverrides(buildValorOverrideMap(client.installments_json))
    
   }, [client.installments_json])
   const [form, setForm] = useState({
@@ -2055,12 +2085,61 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   {installments.map((inst) => {
                     const confirmed = confirmedPayments[inst.numero]
                     const isConfirmed = !!confirmed
+                    const displayValor = valorOverrides[inst.numero] ?? inst.valor
+                    const isEditingValor = editMode && canManageBilling && editingValorInstallment === inst.numero
                     return (
                       <tr key={inst.numero}>
                         <td>{inst.numero}</td>
                         <td>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
                         <td className="right">
-                          {inst.valor > 0 ? `R$ ${inst.valor.toFixed(2).replace('.', ',')}` : '—'}
+                          {isEditingValor ? (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={editingValorValue}
+                              onChange={(e) => setEditingValorValue(e.target.value)}
+                              onBlur={() => {
+                                const num = parseFloat(editingValorValue)
+                                if (!isNaN(num) && num >= 0) {
+                                  const newValor = parseFloat(num.toFixed(2))
+                                  setSavingValorInstallment(inst.numero)
+                                  void patchPortfolioBilling(client.id, {
+                                    installment_valor: { number: inst.numero, valor_override: newValor },
+                                  }).then((updatedInstallments) => {
+                                    setValorOverrides((prev) => ({ ...prev, [inst.numero]: newValor }))
+                                    setEditingValorInstallment(null)
+                                    onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
+                                  }).catch((err: unknown) => {
+                                    setSaveError(err instanceof Error ? err.message : `Falha ao atualizar o valor da parcela #${inst.numero}. Tente novamente.`)
+                                  }).finally(() => setSavingValorInstallment(null))
+                                } else {
+                                  setEditingValorInstallment(null)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                if (e.key === 'Escape') setEditingValorInstallment(null)
+                              }}
+                              style={{ width: 90, fontSize: 12, textAlign: 'right', padding: '2px 4px', borderRadius: 4, border: '1px solid var(--accent)', background: 'var(--surface)', color: 'var(--text-base)' }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              title={editMode && canManageBilling ? 'Clique para editar o valor desta parcela' : undefined}
+                              style={editMode && canManageBilling ? { cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 3 } : undefined}
+                              onClick={editMode && canManageBilling ? () => {
+                                setEditingValorInstallment(inst.numero)
+                                setEditingValorValue(displayValor > 0 ? displayValor.toFixed(2) : '')
+                              } : undefined}
+                            >
+                              {savingValorInstallment === inst.numero
+                                ? '…'
+                                : displayValor > 0
+                                  ? `R$ ${displayValor.toFixed(2).replace('.', ',')}${valorOverrides[inst.numero] != null ? ' ✏️' : ''}`
+                                  : '—'}
+                            </span>
+                          )}
                         </td>
                         <td className="center">
                           {isConfirmed
@@ -2077,20 +2156,29 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                             : '—'}
                         </td>
                         <td className="center">
-                          {editMode && !isConfirmed && (
+                          {editMode && canManageBilling && !isConfirmed && (
                             <button
                               type="button"
                               onClick={() => {
                                 setProofError(null)
                                 setPaymentProof({ receipt_number: '', transaction_number: '' })
-                                setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
+                                setPaymentModal({ installmentNumber: inst.numero, valor: displayValor, vencimento: inst.data_vencimento.toISOString() })
                               }}
                               style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--color-success-border)', background: 'var(--color-success-bg)', color: 'var(--color-success-fg)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
                             >
                               Pagar
                             </button>
                           )}
-                          {isConfirmed && (
+                          {editMode && canManageBilling && isConfirmed && (
+                            <button
+                              type="button"
+                              onClick={() => { setRemovePaymentError(null); setRemovePaymentModal({ installmentNumber: inst.numero }) }}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--ds-danger, #ef4444)', background: 'rgba(239,68,68,0.08)', color: 'var(--ds-danger, #ef4444)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
+                            >
+                              Remover
+                            </button>
+                          )}
+                          {!editMode && isConfirmed && (
                             <span style={{ fontSize: 13, color: 'var(--color-success-fg)' }}>✓</span>
                           )}
                         </td>
@@ -2194,6 +2282,63 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </div>
       )}
 
+      {/* Remove payment confirmation modal */}
+      {removePaymentModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface, #122040)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 400, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: 'var(--text-strong)' }}>
+              🗑️ Remover Pagamento — Parcela #{removePaymentModal.installmentNumber}
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px' }}>
+              Tem certeza que deseja remover o registro de pagamento desta parcela? O status voltará para <strong>Pendente</strong>.
+            </p>
+            {removePaymentError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginBottom: 8 }}>{removePaymentError}</p>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                disabled={removingPayment}
+                onClick={() => {
+                  setRemovingPayment(true)
+                  setRemovePaymentError(null)
+                  void patchPortfolioBilling(client.id, {
+                    installment_payment: {
+                      number: removePaymentModal.installmentNumber,
+                      status: 'pendente',
+                      paid_at: null,
+                      receipt_number: null,
+                      transaction_number: null,
+                      attachment_url: null,
+                      confirmed_by: null,
+                    },
+                  }).then((updatedInstallments) => {
+                    setConfirmedPayments((prev) => {
+                      const next = { ...prev }
+                      delete next[removePaymentModal.installmentNumber]
+                      return next
+                    })
+                    setRemovePaymentModal(null)
+                    onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
+                  }).catch((err: unknown) => {
+                    setRemovePaymentError(err instanceof Error ? err.message : `Falha ao remover o pagamento da parcela #${removePaymentModal.installmentNumber}. Tente novamente.`)
+                  }).finally(() => setRemovingPayment(false))
+                }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'var(--ds-danger, #ef4444)', color: '#fff', fontWeight: 700, cursor: removingPayment ? 'not-allowed' : 'pointer', fontSize: 13, opacity: removingPayment ? 0.7 : 1 }}
+              >
+                {removingPayment ? 'Removendo…' : '🗑️ Remover Pagamento'}
+              </button>
+              <button
+                type="button"
+                disabled={removingPayment}
+                onClick={() => { setRemovePaymentModal(null); setRemovePaymentError(null) }}
+                className="pf-btn pf-btn-cancel"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Notification preview */}
       {pendingNotifCount > 0 && (
         <div className="pf-section-card">
@@ -2219,7 +2364,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
       <div className="pf-footer-actions">
-        {!editMode && (
+        {!editMode && canManageBilling && (
           <button type="button" onClick={() => setShowEditPrompt(true)}
             className="pf-btn pf-btn-edit">
             ✏️ Editar

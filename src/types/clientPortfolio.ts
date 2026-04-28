@@ -210,6 +210,8 @@ export interface InstallmentPayment {
   transaction_number: string | null
   attachment_url: string | null
   confirmed_by: string | null
+  /** Per-installment value override in BRL. When set, overrides the global valor_mensalidade for this installment. */
+  valor_override?: number | null
 }
 
 /** Single contract attachment record stored inside contract_attachments_json */
