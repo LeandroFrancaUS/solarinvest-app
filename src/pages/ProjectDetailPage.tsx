@@ -1,7 +1,7 @@
 // src/pages/ProjectDetailPage.tsx
 // Gestão Financeira > Projetos > Detalhe do Projeto.
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import '../styles/financial-management.css'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { patchProjectPvData } from '../services/projectsApi'
@@ -21,6 +21,15 @@ import {
 } from '../shared/projects/portfolioProjectOps'
 import type { PortfolioClientRow } from '../types/clientPortfolio'
 import { ProjectFinanceSection } from '../features/project-finance/ProjectFinanceSection'
+import {
+  fetchProjectAfSnapshot,
+  saveProjectAfSnapshot,
+} from '../features/project-finance/financialAnalysisApi'
+import type { ProjectAfSnapshotResponse } from '../features/project-finance/financialAnalysisApi'
+import { AnaliseFinanceiraSection } from '../features/simulacoes/AnaliseFinanceiraSection'
+import { useAnaliseFinanceiraResult } from '../features/simulacoes/useAnaliseFinanceiraResult'
+import type { AfInputState } from '../features/simulacoes/useAfInputStore'
+import type { AnaliseFinanceiraOutput } from '../types/analiseFinanceira'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -610,8 +619,158 @@ function UsinaSection({ projectId }: UsinaSectionProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ProjectDetailPage
+// PR 5: Embedded Análise Financeira Section
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Default TarifaContexto used for the embedded AF engine in ProjectDetailPage.
+ *  The context values are zero/defaults; the AF relies on store overrides loaded
+ *  from the snapshot (afConsumoOverride, afMensalidadeBase, etc.) so these
+ *  context fallbacks are not consulted in normal operation. */
+const DEFAULT_AF_CONTEXTO = {
+  kcKwhMes: 0,
+  tarifaCheia: 0,
+  descontoConsiderado: 0,
+  inflacaoAa: 0,
+  taxaMinima: 0,
+  taxaMinimaInputEmpty: true,
+  tipoRede: '',
+  tusdPercent: 0,
+  tusdTipoCliente: '',
+  tusdSubtipo: '',
+  tusdSimultaneidade: 0,
+  tusdTarifaRkwh: 0,
+  tusdAnoReferencia: 2024,
+  mesReajuste: 6,
+  mesReferencia: 1,
+  encargosFixos: 0,
+  cidKwhBase: 0,
+  baseIrradiacao: 5.0,
+  eficienciaNormalizada: 0.8,
+  diasMesNormalizado: 30,
+  potenciaModulo: 550,
+  ufTarifa: 'GO',
+  aplicaTaxaMinima: false,
+} as const
+
+interface ProjectAfAnalysisSectionProps {
+  projectId: string
+  projectType: 'leasing' | 'venda'
+}
+
+function ProjectAfAnalysisSection({ projectId, projectType }: ProjectAfAnalysisSectionProps) {
+  const [snapshot, setSnapshot] = useState<ProjectAfSnapshotResponse | null>(null)
+  const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const snapshotLoadedRef = useRef(false)
+
+  // Load snapshot on first render
+  useEffect(() => {
+    if (snapshotLoadedRef.current) return
+    snapshotLoadedRef.current = true
+    setIsLoadingSnapshot(true)
+    fetchProjectAfSnapshot(projectId)
+      .then((data) => {
+        setSnapshot(data)
+      })
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : 'Erro ao carregar análise financeira.')
+      })
+      .finally(() => setIsLoadingSnapshot(false))
+  }, [projectId])
+
+  // AF engine result (uses global AF stores; snapshot loading populates them)
+  const { analiseFinanceiraResult, afMensalidadeBaseAuto, indicadorEficienciaProjeto } =
+    useAnaliseFinanceiraResult(DEFAULT_AF_CONTEXTO)
+
+  const handleSaveSnapshot = useCallback(
+    async (inputs: AfInputState, outputs: AnaliseFinanceiraOutput | null) => {
+      const saved = await saveProjectAfSnapshot(projectId, {
+        inputs_json: inputs,
+        outputs_json: outputs,
+      })
+      setSnapshot(saved)
+    },
+    [projectId],
+  )
+
+  if (isLoadingSnapshot) {
+    return (
+      <div className="fm-project-section">
+        <div className="fm-project-section-header">
+          <span className="fm-project-section-icon" aria-hidden="true">📊</span>
+          <h2 className="fm-project-section-title">Análise Financeira do Projeto</h2>
+        </div>
+        <div className="fm-project-section-body">
+          <div className="fm-loading">
+            <span className="fm-loading-spinner fm-loading-spinner--sm" aria-hidden="true" />
+            Carregando análise…
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="fm-project-section">
+        <div className="fm-project-section-header">
+          <span className="fm-project-section-icon" aria-hidden="true">📊</span>
+          <h2 className="fm-project-section-title">Análise Financeira do Projeto</h2>
+        </div>
+        <div className="fm-project-section-body">
+          <div className="fm-error-banner fm-error-banner--inline" role="alert">
+            ⚠️ {loadError}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isSaved = snapshot?.saved_at != null
+  const modeLabel = projectType === 'leasing' ? 'Modo Leasing' : 'Modo Venda'
+  const savedLabel = isSaved ? 'Snapshot salvo' : 'Não salvo'
+  const savedAt = snapshot?.saved_at
+    ? new Date(snapshot.saved_at).toLocaleString('pt-BR')
+    : null
+
+  return (
+    <div className="fm-project-section">
+      <div className="fm-project-section-header">
+        <span className="fm-project-section-icon" aria-hidden="true">📊</span>
+        <h2 className="fm-project-section-title">Análise Financeira do Projeto</h2>
+        <span
+          className={`fm-badge fm-badge--${projectType}`}
+          style={{ marginLeft: 8, fontSize: 11 }}
+          title={`Tipo de contrato: ${modeLabel}`}
+        >
+          {modeLabel}
+        </span>
+        <span
+          style={{
+            marginLeft: 8,
+            fontSize: 11,
+            color: isSaved ? 'var(--ds-success, #22c55e)' : 'var(--ds-warning, #f59e0b)',
+          }}
+          title={savedAt ? `Última gravação: ${savedAt}` : 'Nenhum snapshot salvo ainda'}
+        >
+          {isSaved ? '✓' : '○'} {savedLabel}
+        </span>
+      </div>
+      <div className="fm-project-section-body">
+        <AnaliseFinanceiraSection
+          analysisMode="embedded"
+          lockedProjectType={projectType}
+          initialInputsSnapshot={snapshot?.inputs_json ?? undefined}
+          onSaveSnapshot={handleSaveSnapshot}
+          afMensalidadeBaseAuto={afMensalidadeBaseAuto}
+          analiseFinanceiraResult={analiseFinanceiraResult}
+          indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+        />
+      </div>
+    </div>
+  )
+}
+
 
 type ProjectDetailTab = 'projeto' | 'usina' | 'financeiro' | 'cobrancas'
 
@@ -733,11 +892,19 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
         {activeTab === 'projeto' && <ProjetoSection projectId={projectId} />}
         {activeTab === 'usina' && <UsinaSection projectId={projectId} />}
         {activeTab === 'financeiro' && (
-          <ProjectFinanceSection
-            projectId={projectId}
-            pvData={pvData}
-            stateUf={project?.state_snapshot ?? null}
-          />
+          <>
+            <ProjectFinanceSection
+              projectId={projectId}
+              pvData={pvData}
+              stateUf={project?.state_snapshot ?? null}
+            />
+            {project && (project.project_type === 'leasing' || project.project_type === 'venda') && (
+              <ProjectAfAnalysisSection
+                projectId={projectId}
+                projectType={project.project_type as 'leasing' | 'venda'}
+              />
+            )}
+          </>
         )}
         {activeTab === 'cobrancas' && project && (
           <ProjectChargesTab

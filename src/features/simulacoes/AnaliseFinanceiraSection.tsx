@@ -15,7 +15,7 @@
 //   embedded + lockedProjectType='venda'   → abre em modo Venda; tabs Venda/Leasing ocultas.
 //   Os campos serão populados a partir dos dados salvos do projeto no banco (fora do escopo atual).
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Field } from '../../components/ui/Field'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
@@ -40,6 +40,7 @@ import {
   selectSelectCidadeAndCalculateDeslocamento,
 } from './afDeslocamentoSelectors'
 import { useAfInputStore } from './useAfInputStore'
+import type { AfInputState } from './useAfInputStore'
 import { useConsumoBaseStore, selectKcKwhMes } from './useConsumoBaseStore'
 import { useUfTarifaStore, selectUfTarifa } from './useUfTarifaStore'
 import {
@@ -87,12 +88,26 @@ export interface AnaliseFinanceiraSectionProps {
 
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
+
+  /** 'standalone' (default) = free mode used in SimulacoesPage.
+   *  'embedded' = used inside Central de Projetos; locks modo to lockedProjectType. */
+  analysisMode?: 'standalone' | 'embedded'
+  /** Required when analysisMode='embedded'. Prevents mode switching. */
+  lockedProjectType?: 'leasing' | 'venda'
+  /** When provided, populates the AF store with these values on first mount (embedded only). */
+  initialInputsSnapshot?: Partial<AfInputState>
+  /** Called when the user requests a snapshot save. Receives current store state + result. */
+  onSaveSnapshot?: (inputs: AfInputState, outputs: AnaliseFinanceiraOutput | null) => Promise<void>
 }
 
 export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
+  analysisMode = 'standalone',
+  lockedProjectType,
+  initialInputsSnapshot,
+  onSaveSnapshot,
 }: AnaliseFinanceiraSectionProps) {
   const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const afBaseInitializedRef = useRef(false)
@@ -227,6 +242,136 @@ export function AnaliseFinanceiraSection({
     setAfUfOverride(ufOverride)
     setAfTransporteCombustivel(deslocamentoRs)
   }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs, selectCidadeAndCalculateDeslocamento, setAfUfOverride, setAfTransporteCombustivel])
+  // ── Embedded mode ──────────────────────────────────────────────────────────
+  const isEmbedded = analysisMode === 'embedded'
+  const embeddedSnapshotInitializedRef = useRef(false)
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false)
+  const [saveSnapshotError, setSaveSnapshotError] = useState<string | null>(null)
+  const [saveSnapshotSuccess, setSaveSnapshotSuccess] = useState(false)
+
+  // Validate embedded mode configuration
+  const embeddedConfigError = isEmbedded && !lockedProjectType
+    ? 'lockedProjectType ausente no modo embedded. Configure a aba corretamente.'
+    : null
+
+  // Read current full store state for snapshot saving
+  const currentAfInputState = useAfInputStore((s) => ({
+    afModo: s.afModo,
+    afConsumoOverride: s.afConsumoOverride,
+    afNumModulosOverride: s.afNumModulosOverride,
+    afModuloWpOverride: s.afModuloWpOverride,
+    afIrradiacaoOverride: s.afIrradiacaoOverride,
+    afPROverride: s.afPROverride,
+    afDiasOverride: s.afDiasOverride,
+    afUfOverride: s.afUfOverride,
+    afCustoKit: s.afCustoKit,
+    afCustoKitManual: s.afCustoKitManual,
+    afFrete: s.afFrete,
+    afFreteManual: s.afFreteManual,
+    afDescarregamento: s.afDescarregamento,
+    afHotelPousada: s.afHotelPousada,
+    afTransporteCombustivel: s.afTransporteCombustivel,
+    afOutros: s.afOutros,
+    afPlaca: s.afPlaca,
+    afValorContrato: s.afValorContrato,
+    afMensalidadeBase: s.afMensalidadeBase,
+    afImpostosVenda: s.afImpostosVenda,
+    afImpostosLeasing: s.afImpostosLeasing,
+    afInadimplencia: s.afInadimplencia,
+    afCustoOperacional: s.afCustoOperacional,
+    afMesesProjecao: s.afMesesProjecao,
+    afMargemLiquidaVenda: s.afMargemLiquidaVenda,
+    afMargemLiquidaMinima: s.afMargemLiquidaMinima,
+    afComissaoMinimaPercent: s.afComissaoMinimaPercent,
+    afTaxaDesconto: s.afTaxaDesconto,
+    afAutoMaterialCA: s.afAutoMaterialCA,
+    afMaterialCAOverride: s.afMaterialCAOverride,
+    afProjetoOverride: s.afProjetoOverride,
+    afCreaOverride: s.afCreaOverride,
+  }))
+
+  // When an initialInputsSnapshot is provided in embedded mode, populate the
+  // AF store from it on the first mount (one-shot, does not re-run on prop changes).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isEmbedded || embeddedSnapshotInitializedRef.current) return
+    embeddedSnapshotInitializedRef.current = true
+
+    const snap = initialInputsSnapshot ?? {}
+    // Force the locked mode first
+    if (lockedProjectType) setAfModo(lockedProjectType)
+
+    // Populate overrides from snapshot when provided
+    if (snap.afConsumoOverride != null) setAfConsumoOverride(snap.afConsumoOverride)
+    if (snap.afNumModulosOverride !== undefined) setAfNumModulosOverride(snap.afNumModulosOverride)
+    if (snap.afModuloWpOverride != null && snap.afModuloWpOverride > 0) setAfModuloWpOverride(snap.afModuloWpOverride)
+    if (snap.afIrradiacaoOverride != null && snap.afIrradiacaoOverride > 0) setAfIrradiacaoOverride(snap.afIrradiacaoOverride)
+    if (snap.afPROverride != null && snap.afPROverride > 0) setAfPROverride(snap.afPROverride)
+    if (snap.afDiasOverride != null && snap.afDiasOverride > 0) setAfDiasOverride(snap.afDiasOverride)
+    if (snap.afUfOverride) setAfUfOverride(snap.afUfOverride)
+    if (snap.afCustoKit != null) { setAfCustoKit(snap.afCustoKit); if (snap.afCustoKitManual) setAfCustoKitManual(true) }
+    if (snap.afFrete != null) { setAfFrete(snap.afFrete); if (snap.afFreteManual) setAfFreteManual(true) }
+    if (snap.afDescarregamento != null) setAfDescarregamento(snap.afDescarregamento)
+    if (snap.afHotelPousada != null) setAfHotelPousada(snap.afHotelPousada)
+    if (snap.afTransporteCombustivel != null) setAfTransporteCombustivel(snap.afTransporteCombustivel)
+    if (snap.afOutros != null) setAfOutros(snap.afOutros)
+    if (snap.afPlaca != null) setAfPlaca(snap.afPlaca)
+    if (snap.afValorContrato != null) setAfValorContrato(snap.afValorContrato)
+    if (snap.afMensalidadeBase != null) setAfMensalidadeBase(snap.afMensalidadeBase)
+    if (snap.afImpostosVenda != null) setAfImpostosVenda(snap.afImpostosVenda)
+    if (snap.afImpostosLeasing != null) setAfImpostosLeasing(snap.afImpostosLeasing)
+    if (snap.afInadimplencia != null) setAfInadimplencia(snap.afInadimplencia)
+    if (snap.afCustoOperacional != null) setAfCustoOperacional(snap.afCustoOperacional)
+    if (snap.afMesesProjecao != null) setAfMesesProjecao(snap.afMesesProjecao)
+    if (snap.afMargemLiquidaVenda != null) setAfMargemLiquidaVenda(snap.afMargemLiquidaVenda)
+    if (snap.afMargemLiquidaMinima != null) setAfMargemLiquidaMinima(snap.afMargemLiquidaMinima)
+    if (snap.afComissaoMinimaPercent != null) setAfComissaoMinimaPercent(snap.afComissaoMinimaPercent)
+    if (snap.afTaxaDesconto != null) setAfTaxaDesconto(snap.afTaxaDesconto)
+    if (snap.afAutoMaterialCA != null) setAfAutoMaterialCA(snap.afAutoMaterialCA)
+    if (snap.afMaterialCAOverride !== undefined) setAfMaterialCAOverride(snap.afMaterialCAOverride ?? null)
+    if (snap.afProjetoOverride !== undefined) setAfProjetoOverride(snap.afProjetoOverride ?? null)
+    if (snap.afCreaOverride !== undefined) setAfCreaOverride(snap.afCreaOverride ?? null)
+
+    // Apply base system defaults for fields not covered by the snapshot
+    if (!snap.afIrradiacaoOverride || snap.afIrradiacaoOverride <= 0) {
+      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
+    }
+    if (!snap.afPROverride || snap.afPROverride <= 0) {
+      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
+    }
+    if (!snap.afDiasOverride || snap.afDiasOverride <= 0) {
+      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
+    }
+    if (!snap.afModuloWpOverride || snap.afModuloWpOverride <= 0) {
+      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
+    }
+    afBaseInitializedRef.current = true
+  }, [])
+
+  const handleSaveSnapshot = useCallback(async () => {
+    if (!onSaveSnapshot) return
+    setIsSavingSnapshot(true)
+    setSaveSnapshotError(null)
+    setSaveSnapshotSuccess(false)
+    try {
+      await onSaveSnapshot(currentAfInputState as AfInputState, analiseFinanceiraResult)
+      setSaveSnapshotSuccess(true)
+      setTimeout(() => setSaveSnapshotSuccess(false), 3000)
+    } catch (err) {
+      setSaveSnapshotError(err instanceof Error ? err.message : 'Erro ao salvar análise.')
+    } finally {
+      setIsSavingSnapshot(false)
+    }
+  }, [onSaveSnapshot, currentAfInputState, analiseFinanceiraResult])
+
+  // ── Embedded config error guard ─────────────────────────────────────────────
+  if (embeddedConfigError) {
+    return (
+      <div className="fm-error-banner" role="alert">
+        ⚠️ {embeddedConfigError}
+      </div>
+    )
+  }
 
   return (
     <section className="simulacoes-module-card af-section">
@@ -235,69 +380,73 @@ export function AnaliseFinanceiraSection({
         <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
       </header>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            setAfConsumoOverride(0)
-            setAfNumModulosOverride(null)
-            // Clear manual-edit flags so future consumo changes auto-update Kit, Frete and Material CA
-            setAfCustoKitManual(false)
-            setAfFreteManual(false)
-            // Directly apply the updated formulas using current proposal consumo
-            setAfCustoKit(kcKwhMes > 0 ? Math.round(1500 + 9.5 * kcKwhMes) : 0)
-            setAfFrete(kcKwhMes > 0 ? Math.round(300 + 0.52 * kcKwhMes) : 0)
-            setAfAutoMaterialCA(kcKwhMes > 0 ? Math.max(1000, Math.round(850 + 0.4 * kcKwhMes)) : 0)
-            setAfValorContrato(0)
-            setAfDescarregamento(0)
-            setAfHotelPousada(0)
-            setAfTransporteCombustivel(0)
-            setAfOutros(0)
-            setAfCidadeDestino('')
-            setAfDeslocamentoKm(0)
-            setAfDeslocamentoRs(0)
-            setAfDeslocamentoStatus('idle')
-            setAfDeslocamentoCidadeLabel('')
-            setAfDeslocamentoErro('')
-            setAfMaterialCAOverride(null)
-            setAfProjetoOverride(null)
-            setAfCreaOverride(null)
-            setAfCidadeSuggestions([])
-            setAfCidadeShowSuggestions(false)
-            setAfMensalidadeBase(0)
-            afBaseInitializedRef.current = false
-          }}
-        >
-          Nova Análise
-        </button>
+        {!isEmbedded && (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              setAfConsumoOverride(0)
+              setAfNumModulosOverride(null)
+              // Clear manual-edit flags so future consumo changes auto-update Kit, Frete and Material CA
+              setAfCustoKitManual(false)
+              setAfFreteManual(false)
+              // Directly apply the updated formulas using current proposal consumo
+              setAfCustoKit(kcKwhMes > 0 ? Math.round(1500 + 9.5 * kcKwhMes) : 0)
+              setAfFrete(kcKwhMes > 0 ? Math.round(300 + 0.52 * kcKwhMes) : 0)
+              setAfAutoMaterialCA(kcKwhMes > 0 ? Math.max(1000, Math.round(850 + 0.4 * kcKwhMes)) : 0)
+              setAfValorContrato(0)
+              setAfDescarregamento(0)
+              setAfHotelPousada(0)
+              setAfTransporteCombustivel(0)
+              setAfOutros(0)
+              setAfCidadeDestino('')
+              setAfDeslocamentoKm(0)
+              setAfDeslocamentoRs(0)
+              setAfDeslocamentoStatus('idle')
+              setAfDeslocamentoCidadeLabel('')
+              setAfDeslocamentoErro('')
+              setAfMaterialCAOverride(null)
+              setAfProjetoOverride(null)
+              setAfCreaOverride(null)
+              setAfCidadeSuggestions([])
+              setAfCidadeShowSuggestions(false)
+              setAfMensalidadeBase(0)
+              afBaseInitializedRef.current = false
+            }}
+          >
+            Nova Análise
+          </button>
+        )}
       </div>
 
-      {/* Mode tabs */}
-      <div
-        className="cfg-tabs af-mode-tabs"
-        role="tablist"
-        aria-label="Modo de análise"
-        style={{ marginBottom: '1rem' }}
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={afModo === 'venda'}
-          className={`cfg-tab af-mode-tab${afModo === 'venda' ? ' is-active' : ''}`}
-          onClick={() => setAfModo('venda')}
+      {/* Mode tabs — hidden in embedded mode (mode is locked to lockedProjectType) */}
+      {!isEmbedded && (
+        <div
+          className="cfg-tabs af-mode-tabs"
+          role="tablist"
+          aria-label="Modo de análise"
+          style={{ marginBottom: '1rem' }}
         >
-          Venda
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={afModo === 'leasing'}
-          className={`cfg-tab af-mode-tab${afModo === 'leasing' ? ' is-active' : ''}`}
-          onClick={() => setAfModo('leasing')}
-        >
-          Leasing
-        </button>
-      </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={afModo === 'venda'}
+            className={`cfg-tab af-mode-tab${afModo === 'venda' ? ' is-active' : ''}`}
+            onClick={() => setAfModo('venda')}
+          >
+            Venda
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={afModo === 'leasing'}
+            className={`cfg-tab af-mode-tab${afModo === 'leasing' ? ' is-active' : ''}`}
+            onClick={() => setAfModo('leasing')}
+          >
+            Leasing
+          </button>
+        </div>
+      )}
 
       <div className="af-cards-layout">
           {/* System base info (editable overrides) */}
@@ -411,6 +560,26 @@ export function AnaliseFinanceiraSection({
             </div>
           )}
       </div>
+
+      {/* Embedded mode: save snapshot button + feedback */}
+      {isEmbedded && onSaveSnapshot && (
+        <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => { void handleSaveSnapshot() }}
+            disabled={isSavingSnapshot}
+          >
+            {isSavingSnapshot ? 'Salvando…' : '💾 Salvar análise do projeto'}
+          </button>
+          {saveSnapshotSuccess && (
+            <span style={{ fontSize: 13, color: 'var(--ds-success, #22c55e)' }}>✓ Análise salva</span>
+          )}
+          {saveSnapshotError && (
+            <span style={{ fontSize: 13, color: 'var(--ds-danger, #ef4444)' }}>⚠️ {saveSnapshotError}</span>
+          )}
+        </div>
+      )}
     </section>
   )
 }
