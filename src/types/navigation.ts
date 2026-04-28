@@ -15,13 +15,50 @@ export type ActivePage =
   | 'carteira'
   | 'financial-management'
   | 'project-hub'
+  // Área Comercial (Etapa 3)
+  | 'comercial-leads'
+  | 'comercial-propostas'
+  // Área Cobranças (Etapa 4)
+  | 'cobrancas-mensalidades'
+  | 'cobrancas-recebimentos'
+  | 'cobrancas-inadimplencia'
+  // Operação placeholder sections (Etapa 1 — sem página real ainda)
+  | 'operacao-agenda'
+  | 'operacao-chamados'
+  | 'operacao-manutencoes'
+  | 'operacao-limpezas'
+  | 'operacao-seguros'
+  // Área Indicadores (Etapa 6) — financial-management kept as alias → indicadores-visao-geral
+  | 'indicadores-visao-geral'
+  | 'indicadores-leasing'
+  | 'indicadores-vendas'
+  | 'indicadores-fluxo-caixa'
+  // Área Relatórios (Etapa 9)
+  | 'relatorios-propostas'
+  | 'relatorios-contratos'
+  | 'relatorios-financeiro'
+  | 'relatorios-clientes'
+  | 'relatorios-operacao'
+  // Etapa 8: Permissions UI — shown when the user lacks permission for the requested page
+  | 'no-permission'
+
+export type SimulacoesSection =
+  | 'nova'
+  | 'salvas'
+  | 'analise'
+
+/** Subset of ActivePage values that represent Operação placeholder sections. */
+export type OperacaoSection =
   | 'operacao-agenda'
   | 'operacao-chamados'
   | 'operacao-manutencoes'
   | 'operacao-limpezas'
   | 'operacao-seguros'
 
-export type SimulacoesSection =
-  | 'nova'
-  | 'salvas'
-  | 'analise'
+export const OPERACAO_SECTION_LABELS: Record<OperacaoSection, string> = {
+  'operacao-agenda': 'Agenda',
+  'operacao-chamados': 'Chamados',
+  'operacao-manutencoes': 'Manutenções',
+  'operacao-limpezas': 'Limpezas',
+  'operacao-seguros': 'Seguros',
+}

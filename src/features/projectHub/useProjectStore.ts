@@ -67,6 +67,16 @@ export type Projeto = {
   id: string
   tipo: ProjetoTipo
   status: ProjetoStatus
+  /**
+   * True when this project has been successfully persisted in the backend.
+   * Absence or false means the project is local-only and cannot open ProjectDetailPage.
+   */
+  persisted?: boolean
+  /**
+   * True when this project was intentionally kept local (no backend client linked,
+   * or no serverClientId at conversion time). Complementary to persisted.
+   */
+  localOnly?: boolean
   cliente: {
     nome: string
   }
@@ -96,6 +106,7 @@ export interface ProjectState {
 export interface ProjectActions {
   addProjeto: (projeto: Projeto) => void
   updateProjeto: (id: string, patch: Partial<Projeto>) => void
+  removeProjeto: (id: string) => void
   setProjetos: (lista: Projeto[]) => void
   reset: () => void
 }
@@ -116,6 +127,8 @@ export const useProjectStore = createStore<ProjectStore>((set, get) => ({
         p.id === id ? { ...p, ...patch } : p,
       ),
     }),
+  removeProjeto: (id) =>
+    set({ projetos: get().projetos.filter((p) => p.id !== id) }),
   setProjetos: (lista) => set({ projetos: lista }),
   reset: () => set({ ...PROJECT_DEFAULTS }),
 }))
@@ -130,6 +143,7 @@ export const selectProjetoById =
 // Action selectors
 export const selectAddProjeto = (s: ProjectStore) => s.addProjeto
 export const selectUpdateProjeto = (s: ProjectStore) => s.updateProjeto
+export const selectRemoveProjeto = (s: ProjectStore) => s.removeProjeto
 
 // Automation helpers — prepared for future use, not yet used to block UI
 export function isDocumentacaoAprovada(projeto: Projeto): boolean {

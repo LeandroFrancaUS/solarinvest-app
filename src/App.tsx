@@ -184,6 +184,8 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
+import { resolveUserRole } from './features/auth/permissions'
+import { NoPermissionPage } from './pages/NoPermissionPage'
 import { useTheme } from './hooks/useTheme'
 import { useShellLayout } from './hooks/useShellLayout'
 import { CHART_THEME } from './helpers/ChartTheme'
@@ -334,6 +336,12 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
+import { CobrancasDashboardPage } from './features/cobrancas/CobrancasDashboardPage'
+import type { CobrancasTab } from './features/cobrancas/CobrancasDashboardPage'
+import { IndicadoresDashboardPage } from './features/indicadores/IndicadoresDashboardPage'
+import type { IndicadoresTab } from './features/indicadores/IndicadoresDashboardPage'
+import { RelatoriosPage } from './features/relatorios/RelatoriosPage'
+import type { RelatoriosTab } from './features/relatorios/reportTypes'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
@@ -341,14 +349,19 @@ import { convertClientToClosedDeal } from './services/deals/convert-client-to-cl
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
+import { setProjectAfTokenProvider } from './features/project-finance/financialAnalysisApi'
 import { setProjectChargesTokenProvider } from './features/projectHub/projectChargesApi'
 import { setProjectHubTokenProvider } from './features/projectHub/projectsApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
-import type { ActivePage, SimulacoesSection } from './types/navigation'
+import type { ActivePage, SimulacoesSection, OperacaoSection } from './types/navigation'
+import { OPERACAO_SECTION_LABELS } from './types/navigation'
+import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { useProjectStore } from './features/projectHub/useProjectStore'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { setOperationsTokenProvider } from './features/operacao/operationsApi'
 import { AgendaPage } from './features/operacao/AgendaPage'
@@ -406,6 +419,8 @@ import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
 import { BudgetSearchPage } from './pages/BudgetSearchPage'
+import { ComercialLeadsPage } from './pages/ComercialLeadsPage'
+import { ComercialPropostasPage } from './pages/ComercialPropostasPage'
 import { PrecheckModal } from './pages/PrecheckModal'
 import { PropostaImagensSection } from './components/PropostaImagensSection'
 import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
@@ -3981,6 +3996,9 @@ export default function App() {
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
   const isRbacLoading = isStackPermLoading || meAuthState === 'loading'
+  // Resolve the frontend role for the permissions UI (Etapa 8).
+  // Falls back to 'ADMIN' while loading or when no role is recognized.
+  const userRoleFrontend = resolveUserRole({ isAdmin, isOffice, isFinanceiro, isComercial, isLoading: isRbacLoading })
   const showAdminDiagnostics = useMemo(() => {
     if (typeof window === 'undefined') return false
     const params = new URLSearchParams(window.location.search)
@@ -4060,6 +4078,7 @@ export default function App() {
     setFinancialManagementTokenProvider(getAccessToken)
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
+    setProjectAfTokenProvider(getAccessToken)
     setProjectChargesTokenProvider(getAccessToken)
     setProjectHubTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
@@ -4183,11 +4202,27 @@ export default function App() {
       storedPage === 'admin-users' ||
       storedPage === 'carteira' ||
       storedPage === 'financial-management' ||
+      storedPage === 'cobrancas-mensalidades' ||
+      storedPage === 'cobrancas-recebimentos' ||
+      storedPage === 'cobrancas-inadimplencia' ||
       storedPage === 'operacao-agenda' ||
       storedPage === 'operacao-chamados' ||
       storedPage === 'operacao-manutencoes' ||
       storedPage === 'operacao-limpezas' ||
-      storedPage === 'operacao-seguros'
+      storedPage === 'operacao-seguros' ||
+      storedPage === 'indicadores-visao-geral' ||
+      storedPage === 'indicadores-leasing' ||
+      storedPage === 'indicadores-vendas' ||
+      storedPage === 'indicadores-fluxo-caixa' ||
+      storedPage === 'relatorios-propostas' ||
+      storedPage === 'relatorios-contratos' ||
+      storedPage === 'relatorios-financeiro' ||
+      storedPage === 'relatorios-clientes' ||
+      storedPage === 'comercial-leads' ||
+      storedPage === 'comercial-propostas' ||
+      storedPage === 'project-hub' ||
+      storedPage === 'no-permission' ||
+      storedPage === 'relatorios-operacao'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -4269,6 +4304,7 @@ export default function App() {
   }, [storeAfCidadeDestino])
 
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
+  const [selectedHubProjectId, setSelectedHubProjectId] = useState<string | null>(null)
   useEffect(() => {
     if (
       activePage === 'dashboard' ||
@@ -4280,14 +4316,15 @@ export default function App() {
     }
   }, [activePage])
 
-  // Guard protected pages: redirect unauthorized users away from 'settings',
-  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
-  // have been resolved. The isRbacLoading check prevents premature redirects.
+  // Guard protected pages: redirect unauthorized users to 'no-permission'.
+  // Uses both the frontend permissionMap (userRoleFrontend) and the existing
+  // canSee* flags for fine-grained Stack Auth-derived checks.
   useRouteGuard({
     activePage,
     simulacoesSection,
     isRbacLoading,
     isAdmin,
+    userRole: userRoleFrontend,
     canSeeFinancialAnalysisEffective,
     canSeeUsersEffective,
     canSeeDashboardEffective,
@@ -16742,6 +16779,87 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
 
+  const abrirCobrancasMensalidades = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-mensalidades')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirCobrancasRecebimentos = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-recebimentos')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirCobrancasInadimplencia = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('cobrancas-inadimplencia')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  // ── Área Indicadores (Etapa 6) ──────────────────────────────────────────────
+  const abrirIndicadoresVisaoGeral = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-visao-geral')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  const abrirIndicadoresLeasing = useCallback(() => {
+    if (!canSeeFinancialManagementEffective && !canSeeProposalsEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-leasing')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective, canSeeProposalsEffective])
+
+  const abrirIndicadoresVendas = useCallback(() => {
+    if (!canSeeFinancialManagementEffective && !canSeeProposalsEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-vendas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective, canSeeProposalsEffective])
+
+  const abrirIndicadoresFluxoCaixa = useCallback(() => {
+    if (!canSeeFinancialManagementEffective) return
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('indicadores-fluxo-caixa')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
+
+  // ── Área Relatórios (Etapa 9) ───────────────────────────────────────────────
+  const abrirRelatoriosPropostas = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-propostas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosContratos = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-contratos')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosFinanceiro = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-financeiro')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosClientes = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-clientes')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosOperacao = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-operacao')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
   const abrirDashboardOperacional = useCallback(async () => {
     if (!canSeeDashboardEffective) return false
     return runWithUnsavedChangesGuard(() => {
@@ -16752,6 +16870,28 @@ export default function App() {
   const abrirCrmCentral = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('crm')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirComercialLeads = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('comercial-leads')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const [comercialPropostasTab, setComercialPropostasTab] = useState<'leasing' | 'vendas'>('leasing')
+  const abrirComercialPropostas = useCallback((tab: 'leasing' | 'vendas') => {
+    setComercialPropostasTab(tab)
+    void runWithUnsavedChangesGuard(async () => {
+      const registros = await carregarOrcamentosPrioritarios()
+      setOrcamentosSalvos(registros)
+      setActivePage('comercial-propostas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, carregarOrcamentosPrioritarios, setOrcamentosSalvos])
+
+  const abrirOperacaoPlaceholder = useCallback((section: OperacaoSection) => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage(section)
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
@@ -18453,31 +18593,107 @@ export default function App() {
       ? undefined
       : activePage === 'crm'
         ? 'CRM Gestão de Relacionamento e Operações'
-        : activePage === 'consultar'
-          ? 'Consulta de orçamentos salvos'
-          : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
-            : activePage === 'simulacoes'
-              ? 'Simulações financeiras, risco e aprovação interna'
-              : activePage === 'settings'
-                ? 'Preferências e integrações da proposta'
-                : undefined
+        : activePage === 'comercial-leads'
+          ? 'Leads em andamento — Área Comercial'
+          : activePage === 'comercial-propostas'
+            ? 'Propostas por tipo e status — Área Comercial'
+            : activePage === 'consultar'
+              ? 'Consulta de orçamentos salvos'
+              : activePage === 'clientes'
+                ? 'Gestão de clientes salvos'
+                : activePage === 'simulacoes'
+                  ? 'Simulações financeiras, risco e aprovação interna'
+                  : activePage === 'settings'
+                    ? 'Preferências e integrações da proposta'
+                    : activePage === 'carteira'
+                      ? 'Carteira de clientes ativos'
+                      : activePage === 'financial-management'
+                        ? 'Indicadores — Visão Geral'
+                        : activePage === 'cobrancas-mensalidades'
+                          ? 'Mensalidades de todos os projetos'
+                          : activePage === 'cobrancas-recebimentos'
+                            ? 'Recebimentos confirmados'
+                            : activePage === 'cobrancas-inadimplencia'
+                              ? 'Cobranças em atraso'
+                              : activePage === 'indicadores-visao-geral'
+                                ? 'Indicadores — Visão Geral do negócio'
+                                : activePage === 'indicadores-leasing'
+                                  ? 'Indicadores — Análise de Leasing'
+                                  : activePage === 'indicadores-vendas'
+                                    ? 'Indicadores — Análise de Vendas'
+                                    : activePage === 'indicadores-fluxo-caixa'
+                                      ? 'Indicadores — Fluxo de Caixa'
+                                      : activePage === 'relatorios-propostas'
+                                        ? 'Relatórios — Propostas por período'
+                                        : activePage === 'relatorios-contratos'
+                                          ? 'Relatórios — Contratos assinados'
+                                          : activePage === 'relatorios-financeiro'
+                                            ? 'Relatórios — Mensalidades e cobranças'
+                                            : activePage === 'relatorios-clientes'
+                                              ? 'Relatórios — Clientes'
+                                              : activePage === 'relatorios-operacao'
+                                                ? 'Relatórios — Chamados e manutenções'
+                                                : activePage === 'operational-dashboard'
+                          ? 'Painel operacional'
+                          : (activePage === 'operacao-agenda' ||
+                              activePage === 'operacao-chamados' ||
+                              activePage === 'operacao-manutencoes' ||
+                              activePage === 'operacao-limpezas' ||
+                              activePage === 'operacao-seguros')
+                            ? `Operação — ${OPERACAO_SECTION_LABELS[activePage]}`
+                            : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
       : activePage === 'crm'
-        ? 'Central CRM'
-        : activePage === 'consultar'
-          ? 'Consultar'
-          : activePage === 'clientes'
-            ? 'Clientes'
-            : activePage === 'simulacoes'
-              ? 'Simulações'
-              : activePage === 'settings'
-                ? 'Configurações'
-                : activeTab === 'vendas'
-                  ? 'Vendas'
-                  : 'Leasing'
+        ? 'Leads'
+        : activePage === 'comercial-leads'
+          ? 'Leads'
+          : activePage === 'comercial-propostas'
+            ? 'Propostas'
+            : activePage === 'consultar'
+              ? 'Relatórios'
+              : activePage === 'clientes'
+                ? 'Clientes'
+                : activePage === 'simulacoes'
+                  ? 'Simulações'
+                  : activePage === 'settings'
+                    ? 'Configurações'
+                    : activePage === 'carteira'
+                      ? 'Clientes'
+                      : activePage === 'financial-management'
+                        ? 'Indicadores'
+                        : activePage === 'cobrancas-mensalidades'
+                          ? 'Cobranças'
+                          : activePage === 'cobrancas-recebimentos'
+                            ? 'Cobranças'
+                            : activePage === 'cobrancas-inadimplencia'
+                              ? 'Cobranças'
+                              : activePage === 'indicadores-visao-geral'
+                                ? 'Indicadores'
+                                : activePage === 'indicadores-leasing'
+                                  ? 'Indicadores'
+                                  : activePage === 'indicadores-vendas'
+                                    ? 'Indicadores'
+                                    : activePage === 'indicadores-fluxo-caixa'
+                                      ? 'Indicadores'
+                                      : (activePage === 'relatorios-propostas' ||
+                                         activePage === 'relatorios-contratos' ||
+                                         activePage === 'relatorios-financeiro' ||
+                                         activePage === 'relatorios-clientes' ||
+                                         activePage === 'relatorios-operacao')
+                                        ? 'Relatórios'
+                                        : activePage === 'operational-dashboard'
+                          ? 'Operação'
+                          : (activePage === 'operacao-agenda' ||
+                          activePage === 'operacao-chamados' ||
+                          activePage === 'operacao-manutencoes' ||
+                          activePage === 'operacao-limpezas' ||
+                          activePage === 'operacao-seguros')
+                        ? OPERACAO_SECTION_LABELS[activePage]
+                        : activeTab === 'vendas'
+                          ? 'Vendas'
+                          : 'Leasing'
 
   const crmItems = [
     ...(canSeeProposalsEffective
@@ -18538,6 +18754,7 @@ export default function App() {
     canSeeClientsEffective,
     canSeeFinancialAnalysisEffective,
     isAdmin,
+    userRole: userRoleFrontend,
     abrirDashboard,
     abrirCarteira,
     abrirGestaoFinanceira,
@@ -18548,6 +18765,25 @@ export default function App() {
     abrirEnvioPropostaModal,
     abrirPesquisaOrcamentos,
     setActivePage,
+    abrirCrmCentral,
+    abrirClientesPainel,
+    abrirConfiguracoes: () => { void abrirConfiguracoes() },
+    handleLogout,
+    abrirOperacaoPlaceholder,
+    abrirComercialLeads,
+    abrirComercialPropostas,
+    abrirCobrancasMensalidades,
+    abrirCobrancasRecebimentos,
+    abrirCobrancasInadimplencia,
+    abrirIndicadoresVisaoGeral,
+    abrirIndicadoresLeasing,
+    abrirIndicadoresVendas,
+    abrirIndicadoresFluxoCaixa,
+    abrirRelatoriosPropostas,
+    abrirRelatoriosContratos,
+    abrirRelatoriosFinanceiro,
+    abrirRelatoriosClientes,
+    abrirRelatoriosOperacao,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -18656,10 +18892,44 @@ export default function App() {
             <PrintableProposal ref={printableRef} {...printableData} />
           </React.Suspense>
         </div>
-        {activePage === 'dashboard' ? (
-          <DashboardPage />
+        {activePage === 'no-permission' ? (
+          <NoPermissionPage />
+        ) : activePage === 'dashboard' ? (
+          <DashboardPage
+            onNavigateToClientes={() => { void abrirCarteira() }}
+            onNavigateToCobrancasMensalidades={abrirCobrancasMensalidades}
+            onNavigateToCobrancasRecebimentos={abrirCobrancasRecebimentos}
+            onNavigateToCobrancasInadimplencia={abrirCobrancasInadimplencia}
+            onNavigateToOperacaoChamados={() => { abrirOperacaoPlaceholder('operacao-chamados') }}
+            onNavigateToOperacaoManutencoes={() => { abrirOperacaoPlaceholder('operacao-manutencoes') }}
+            onNavigateToComercialLeads={abrirComercialLeads}
+            onNavigateToComercialContratos={() => { void abrirPesquisaOrcamentos() }}
+            onNavigateToComercialPropostas={() => { abrirComercialPropostas('leasing') }}
+          />
         ) : activePage === 'crm' ? (
           <CrmPage {...crmState} />
+        ) : activePage === 'comercial-leads' ? (
+          <ComercialLeadsPage
+            leads={crmState.crmDataset.leads}
+            onAbrirLead={(leadId) => {
+              crmState.handleSelecionarLead(leadId)
+              setActivePage('crm')
+            }}
+            onAbrirCrmCompleto={() => { void abrirCrmCentral() }}
+          />
+        ) : activePage === 'comercial-propostas' ? (
+          <ComercialPropostasPage
+            propostas={orcamentosSalvos}
+            initialTab={comercialPropostasTab}
+            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+            isProposalReadOnly={isProposalReadOnly}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onCarregarProposta={carregarOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onAbrirProposta={abrirOrcamentoSalvo}
+            onAbrirBudgetSearch={() => { void abrirPesquisaOrcamentos() }}
+            onEnviarProposta={() => { abrirEnvioPropostaModal() }}
+          />
         ) : activePage === 'consultar' ? (
           <BudgetSearchPage
             registros={orcamentosSalvos}
@@ -18708,14 +18978,6 @@ export default function App() {
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            serverClientId={
-              clienteEmEdicaoId
-                ? (Number(clientServerIdMapRef.current[clienteEmEdicaoId]) || null)
-                : null
-            }
-            clienteNome={cliente.nome ?? undefined}
-            consultorNome={cliente.consultorNome ?? undefined}
-            consultorId={cliente.consultorId ?? undefined}
           />
         ) : activePage === 'settings' ? (
           <SettingsPage
@@ -18837,20 +19099,114 @@ export default function App() {
                   setPendingFinancialProjectId(projectId)
                   setActivePage('financial-management')
                 }}
+                onOpenProjectHub={(projectId) => {
+                  setSelectedHubProjectId(projectId)
+                  setActivePage('project-hub')
+                }}
               />
             : null
-        ) : activePage === 'financial-management' ? (
+        ) : (activePage === 'financial-management' ||
+             activePage === 'indicadores-visao-geral' ||
+             activePage === 'indicadores-leasing' ||
+             activePage === 'indicadores-vendas' ||
+             activePage === 'indicadores-fluxo-caixa') ? (
+          // financial-management is kept as a backward-compat alias → Indicadores > Visão Geral
           canSeeFinancialManagementEffective
-            ? <FinancialManagementPage
+            ? <IndicadoresDashboardPage
+                tab={
+                  activePage === 'indicadores-leasing'
+                    ? 'leasing'
+                    : activePage === 'indicadores-vendas'
+                      ? 'vendas'
+                      : activePage === 'indicadores-fluxo-caixa'
+                        ? 'fluxo-caixa'
+                        : 'visao-geral'
+                }
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
+              />
+            : null
+        ) : (activePage === 'cobrancas-mensalidades' ||
+             activePage === 'cobrancas-recebimentos' ||
+             activePage === 'cobrancas-inadimplencia') ? (
+          canSeeFinancialManagementEffective
+            ? <CobrancasDashboardPage
+                tab={
+                  activePage === 'cobrancas-recebimentos'
+                    ? 'recebimentos'
+                    : activePage === 'cobrancas-inadimplencia'
+                      ? 'inadimplencia'
+                      : 'mensalidades'
+                }
+                onTabChange={(t: CobrancasTab) => {
+                  setActivePage(
+                    t === 'recebimentos'
+                      ? 'cobrancas-recebimentos'
+                      : t === 'inadimplencia'
+                        ? 'cobrancas-inadimplencia'
+                        : 'cobrancas-mensalidades',
+                  )
+                }}
               />
             : null
         ) : activePage === 'operational-dashboard' ? (
           canSeeDashboardEffective
             ? <OperationalDashboardPage />
             : null
+        ) : (activePage === 'relatorios-propostas' ||
+             activePage === 'relatorios-contratos' ||
+             activePage === 'relatorios-financeiro' ||
+             activePage === 'relatorios-clientes' ||
+             activePage === 'relatorios-operacao') ? (
+          <RelatoriosPage
+            tab={
+              activePage === 'relatorios-contratos'
+                ? 'contratos'
+                : activePage === 'relatorios-financeiro'
+                  ? 'financeiro'
+                  : activePage === 'relatorios-clientes'
+                    ? 'clientes'
+                    : activePage === 'relatorios-operacao'
+                      ? 'operacao'
+                      : 'propostas'
+            }
+            onTabChange={(t: RelatoriosTab) => {
+              const pageMap: Record<RelatoriosTab, ActivePage> = {
+                propostas: 'relatorios-propostas',
+                contratos: 'relatorios-contratos',
+                financeiro: 'relatorios-financeiro',
+                clientes: 'relatorios-clientes',
+                operacao: 'relatorios-operacao',
+              }
+              setActivePage(pageMap[t])
+            }}
+            userRole={userRoleFrontend}
+          />
         ) : activePage === 'project-hub' ? (
+          selectedHubProjectId !== null ? (
+            <ProjectDetailPage
+              projectId={selectedHubProjectId}
+              onBack={() => setSelectedHubProjectId(null)}
+            />
+          ) : (
+            <ProjectHubPage
+              onBack={() => setActivePage(lastPrimaryPageRef.current)}
+              onOpenProjectDetail={(id) => {
+                const projeto = useProjectStore.getState().projetos.find((p) => p.id === id)
+                if (!projeto || projeto.persisted !== true) {
+                  console.warn('[ProjectHub] Ignored open: project is not persisted in backend', id)
+                  return
+                }
+                setSelectedHubProjectId(id)
+              }}
+            />
+          )
+        ) : (activePage === 'operacao-agenda' ||
+            activePage === 'operacao-chamados' ||
+            activePage === 'operacao-manutencoes' ||
+            activePage === 'operacao-limpezas' ||
+            activePage === 'operacao-seguros') ? (
+          <PlaceholderPage title={OPERACAO_SECTION_LABELS[activePage]} />
           <ProjectHubPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : activePage === 'operacao-agenda' ? (
           <AgendaPage />
@@ -19929,7 +20285,7 @@ export default function App() {
         {activePage !== 'project-hub' && (
           <button
             type="button"
-            onClick={() => setActivePage('project-hub')}
+            onClick={() => { setSelectedHubProjectId(null); setActivePage('project-hub') }}
             title="Project Hub (acesso temporário)"
             style={{
               position: 'fixed',

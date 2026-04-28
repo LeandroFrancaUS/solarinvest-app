@@ -1,9 +1,12 @@
 // src/config/sidebarConfig.ts
 // Pure builder that constructs the sidebar group structure for the main navigation.
-// Extracted from App.tsx to keep App.tsx leaner. Zero visual or behavioural change.
+// Etapa 1: Nova arquitetura — Dashboard / Comercial / Clientes / Cobranças /
+//          Operação / Indicadores / Relatórios / Configurações / Sair.
+// Backward-compatible: old ActivePage values and handlers are preserved unchanged.
 
 import type { SidebarGroup, SidebarItem } from '../layout/Sidebar'
-import type { ActivePage, SimulacoesSection } from '../types/navigation'
+import type { ActivePage, OperacaoSection, SimulacoesSection } from '../types/navigation'
+import { hasPermission, type UserRole } from '../features/auth/permissions'
 
 export interface SidebarConfigParams {
   // Permissions
@@ -15,7 +18,9 @@ export interface SidebarConfigParams {
   canSeeClientsEffective: boolean
   canSeeFinancialAnalysisEffective: boolean
   isAdmin: boolean
-  // Handlers
+  /** Resolved frontend role — used to filter sections via the permissionMap. */
+  userRole: UserRole
+  // Navigation handlers — existing
   abrirDashboard: () => void
   abrirCarteira: () => void
   abrirGestaoFinanceira: () => void
@@ -26,6 +31,31 @@ export interface SidebarConfigParams {
   abrirEnvioPropostaModal: () => void
   abrirPesquisaOrcamentos: () => void
   setActivePage: (page: ActivePage) => void
+  // Navigation handlers — new (Etapa 1)
+  abrirCrmCentral: () => void
+  abrirClientesPainel: () => void
+  abrirConfiguracoes: () => void
+  handleLogout: () => void
+  abrirOperacaoPlaceholder: (section: OperacaoSection) => void
+  // Navigation handlers — Área Comercial (Etapa 3)
+  abrirComercialLeads: () => void
+  abrirComercialPropostas: (tab: 'leasing' | 'vendas') => void
+  // Navigation handlers — Área Cobranças (Etapa 4)
+  abrirCobrancasMensalidades: () => void
+  abrirCobrancasRecebimentos: () => void
+  abrirCobrancasInadimplencia: () => void
+  // Navigation handlers — Área Indicadores (Etapa 6)
+  abrirIndicadoresVisaoGeral: () => void
+  abrirIndicadoresLeasing: () => void
+  abrirIndicadoresVendas: () => void
+  abrirIndicadoresFluxoCaixa: () => void
+  // Navigation handlers — Área Relatórios (Etapa 9)
+  abrirRelatoriosPropostas: () => void
+  abrirRelatoriosContratos: () => void
+  abrirRelatoriosFinanceiro: () => void
+  abrirRelatoriosClientes: () => void
+  abrirRelatoriosOperacao: () => void
+  // Legacy CRM items (kept for backward compat, no longer in primary nav)
   crmItems: SidebarItem[]
   // State
   gerandoContratos: boolean
@@ -42,305 +72,395 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     canSeeClientsEffective,
     canSeeFinancialAnalysisEffective,
     isAdmin,
+    userRole,
     abrirDashboard,
     abrirCarteira,
-    abrirGestaoFinanceira,
-    abrirDashboardOperacional,
-    handleNavigateToProposalTab,
+    abrirGestaoFinanceira: _abrirGestaoFinanceira,
     abrirSimulacoes,
     handleGerarContratosComConfirmacao,
     abrirEnvioPropostaModal,
     abrirPesquisaOrcamentos,
     setActivePage,
-    crmItems,
+    abrirCrmCentral: _abrirCrmCentral,
+    abrirClientesPainel,
+    abrirConfiguracoes,
+    handleLogout,
+    abrirOperacaoPlaceholder,
+    abrirComercialLeads,
+    abrirComercialPropostas,
+    abrirCobrancasMensalidades,
+    abrirCobrancasRecebimentos,
+    abrirCobrancasInadimplencia,
+    abrirIndicadoresVisaoGeral,
+    abrirIndicadoresLeasing,
+    abrirIndicadoresVendas,
+    abrirIndicadoresFluxoCaixa,
+    abrirRelatoriosPropostas,
+    abrirRelatoriosContratos,
+    abrirRelatoriosFinanceiro,
+    abrirRelatoriosClientes,
+    abrirRelatoriosOperacao,
     gerandoContratos,
     contatosEnvio,
   } = params
 
-  return [
-    ...((canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective)
-      ? [
-          {
-            id: 'dashboard',
-            label: 'Dashboard',
-            items: [
-              ...(canSeeDashboardEffective
-                ? [
-                    {
-                      id: 'dashboard-home',
-                      label: 'Dashboard',
-                      icon: '📊',
-                      onSelect: () => {
-                        void abrirDashboard()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeePortfolioEffective
-                ? [
-                    {
-                      id: 'carteira-clientes',
-                      label: 'Carteira Ativa',
-                      icon: '💼',
-                      onSelect: () => {
-                        void abrirCarteira()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeeFinancialManagementEffective
-                ? [
-                    {
-                      id: 'gestao-financeira-home',
-                      label: 'Receita e Cobrança',
-                      icon: '💰',
-                      onSelect: () => {
-                        void abrirGestaoFinanceira()
-                      },
-                    },
-                  ]
-                : []),
-              ...(canSeeDashboardEffective
-                ? [
-                    {
-                      id: 'operational-dashboard',
-                      label: 'Painel Operacional',
-                      icon: '⚙️',
-                      onSelect: () => {
-                        void abrirDashboardOperacional()
-                      },
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ]
-      : []),
-    ...((canSeeProposalsEffective || canSeeContractsEffective)
-      ? [
-          {
-            id: 'propostas',
-            label: 'Propostas',
-            items: [
-              ...(canSeeProposalsEffective
-                ? [
-                    {
-                      id: 'propostas-leasing',
-                      label: 'Leasing',
-                      icon: '📝',
-                      onSelect: () => {
-                        void handleNavigateToProposalTab('leasing')
-                      },
-                    },
-                    {
-                      id: 'propostas-vendas',
-                      label: 'Vendas',
-                      icon: '🧾',
-                      onSelect: () => {
-                        void handleNavigateToProposalTab('vendas')
-                      },
-                    },
-                    ...(canSeeFinancialAnalysisEffective
-                      ? [
-                          {
-                            id: 'simulacoes-analise',
-                            label: 'Análise Financeira',
-                            icon: '✅',
-                            onSelect: () => {
-                              void abrirSimulacoes('analise')
-                            },
-                          },
-                        ]
-                      : []),
-                  ]
-                : []),
-              ...(canSeeContractsEffective
-                ? [
-                    {
-                      id: 'propostas-contratos',
-                      label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
-                      icon: '🖋️',
-                      onSelect: () => {
-                        void handleGerarContratosComConfirmacao()
-                      },
-                      disabled: gerandoContratos,
-                    },
-                  ]
-                : []),
-              ...(canSeeProposalsEffective
-                ? [
-                    {
-                      id: 'propostas-enviar',
-                      label: 'Enviar proposta',
-                      icon: '📨',
-                      onSelect: () => {
-                        abrirEnvioPropostaModal()
-                      },
-                      disabled: contatosEnvio.length === 0,
-                      title:
-                        contatosEnvio.length === 0
-                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-                          : undefined,
-                    },
-                  ]
-                : []),
-            ],
-          },
-        ]
-      : []),
-    ...(isAdmin
-      ? [
-          {
-            id: 'simulacoes',
-            label: 'Simulações',
-            items: [
-        {
-          id: 'simulacoes-nova',
-          label: 'Nova Simulação',
-          icon: '🧮',
-          onSelect: () => {
-            void abrirSimulacoes('nova')
-          },
-        },
-        {
-          id: 'simulacoes-salvas',
-          label: 'Simulações Salvas',
-          icon: '💾',
-          onSelect: () => {
-            void abrirSimulacoes('salvas')
-          },
-        },
-        {
-          id: 'simulacoes-ia',
-          label: 'Análises IA (AI Analytics)',
-          icon: '🤖',
-          onSelect: () => {
-            void abrirSimulacoes('ia')
-          },
-        },
-        {
-          id: 'simulacoes-risco',
-          label: 'Risco & Monte Carlo',
-          icon: '🎲',
-          onSelect: () => {
-            void abrirSimulacoes('risco')
-          },
-        },
-        {
-          id: 'simulacoes-packs',
-          label: 'Packs',
-          icon: '📦',
-          onSelect: () => {
-            void abrirSimulacoes('packs')
-          },
-        },
-        {
-          id: 'simulacoes-packs-inteligentes',
-          label: 'Packs Inteligentes',
-          icon: '🧠',
-          onSelect: () => {
-            void abrirSimulacoes('packs-inteligentes')
-          },
-        },
-            ],
-          },
-        ]
-      : []),
-    ...(canSeeProposalsEffective
-      ? [
-          {
-            id: 'relatorios',
-            label: 'Relatórios',
-            items: [
-              {
-                id: 'relatorios-pdfs',
-                label: 'Ver propostas',
-                icon: '📂',
-                onSelect: () => {
-                  void abrirPesquisaOrcamentos()
-                },
-              },
-              {
-                id: 'relatorios-exportacoes',
-                label: 'Exportar',
-                icon: '📤',
-                onSelect: () => {
-                  setActivePage('app')
-                },
-              },
-            ],
-          },
-        ]
-      : []),
-    ...((canSeeClientsEffective || canSeeProposalsEffective)
-      ? [
-          {
-            id: 'orcamentos',
-            label: 'Orçamentos',
-            items: [
-              {
-                id: 'orcamentos-importar',
-                label: 'Consultar',
-                icon: '📄',
-                onSelect: () => {
-                  void abrirPesquisaOrcamentos()
-                },
-              },
-            ],
-          },
-        ]
-      : []),
-    ...(crmItems.length > 0
-      ? [
-          {
-            id: 'crm',
-            label: 'CRM',
-            items: crmItems,
-          },
-        ]
-      : []),
-    {
-      id: 'operacao',
-      label: 'Operação',
-      items: [
-        {
-          id: 'operacao-agenda',
-          label: 'Agenda',
-          icon: '📅',
-          onSelect: () => setActivePage('operacao-agenda'),
-        },
-        {
-          id: 'operacao-chamados',
-          label: 'Chamados',
-          icon: '🎫',
-          onSelect: () => setActivePage('operacao-chamados'),
-        },
-        {
-          id: 'operacao-manutencoes',
-          label: 'Manutenções',
-          icon: '🔧',
-          onSelect: () => setActivePage('operacao-manutencoes'),
-        },
-        {
-          id: 'operacao-limpezas',
-          label: 'Limpezas',
-          icon: '🧹',
-          onSelect: () => setActivePage('operacao-limpezas'),
-        },
-        {
-          id: 'operacao-seguros',
-          label: 'Seguros',
-          icon: '🛡️',
-          onSelect: () => setActivePage('operacao-seguros'),
-        },
-      ],
-    },
-    {
-      id: 'configuracoes',
+  const groups: SidebarGroup[] = []
+
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  if (canSeeDashboardEffective || canSeePortfolioEffective || canSeeFinancialManagementEffective) {
+    groups.push({
+      id: 'dashboard',
       label: '',
       items: [
-        // Portfolio and Financial Management moved to top - removed from here
+        {
+          id: 'dashboard-home',
+          label: 'Dashboard',
+          icon: '📊',
+          onSelect: () => { void abrirDashboard() },
+        },
       ],
-    },
+    })
+  }
+
+  // ── Comercial ─────────────────────────────────────────────────────────────
+  if (canSeeProposalsEffective || canSeeContractsEffective) {
+    const comercialItems: SidebarItem[] = []
+
+    // Leads → Área Comercial Leads (filtro etapa !== 'fechado')
+    if (canSeeProposalsEffective) {
+      comercialItems.push({
+        id: 'comercial-leads',
+        label: 'Leads',
+        icon: '🛰️',
+        onSelect: abrirComercialLeads,
+      })
+    }
+
+    // Propostas → submenu (Leasing / Vendas / Enviar proposta)
+    if (canSeeProposalsEffective) {
+      const propostasChildren: SidebarItem[] = [
+        {
+          id: 'propostas-leasing',
+          label: 'Leasing',
+          icon: '📝',
+          onSelect: () => { abrirComercialPropostas('leasing') },
+        },
+        {
+          id: 'propostas-vendas',
+          label: 'Vendas',
+          icon: '🧾',
+          onSelect: () => { abrirComercialPropostas('vendas') },
+        },
+        {
+          id: 'propostas-enviar',
+          label: 'Enviar proposta',
+          icon: '📨',
+          onSelect: () => { abrirEnvioPropostaModal() },
+          disabled: contatosEnvio.length === 0,
+          ...(contatosEnvio.length === 0
+            ? { title: 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.' }
+            : {}),
+        },
+      ]
+
+      // Análise Financeira (admin / canSeeFinancialAnalysis)
+      if (canSeeFinancialAnalysisEffective) {
+        propostasChildren.push({
+          id: 'simulacoes-analise',
+          label: 'Análise Financeira',
+          icon: '✅',
+          onSelect: () => { void abrirSimulacoes('analise') },
+        })
+      }
+
+      comercialItems.push({
+        id: 'comercial-propostas',
+        label: 'Propostas',
+        icon: '📋',
+        items: propostasChildren,
+      })
+    }
+
+    // Contratos → submenu (Gerar / Ver)
+    if (canSeeContractsEffective) {
+      comercialItems.push({
+        id: 'comercial-contratos',
+        label: 'Contratos',
+        icon: '🖋️',
+        items: [
+          {
+            id: 'comercial-contratos-gerar',
+            label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
+            icon: '🖋️',
+            onSelect: () => { void handleGerarContratosComConfirmacao() },
+            disabled: gerandoContratos,
+          },
+          {
+            id: 'comercial-contratos-ver',
+            label: 'Ver contratos',
+            icon: '📂',
+            onSelect: () => { void abrirPesquisaOrcamentos() },
+          },
+        ],
+      })
+    }
+
+    groups.push({ id: 'comercial', label: 'Comercial', items: comercialItems })
+  }
+
+  // ── Clientes ───────────────────────────────────────────────────────────────
+  if (canSeePortfolioEffective || canSeeClientsEffective) {
+    const clientesItems: SidebarItem[] = []
+
+    if (canSeePortfolioEffective) {
+      clientesItems.push({
+        id: 'carteira-clientes',
+        label: 'Todos os clientes',
+        icon: '💼',
+        onSelect: () => { void abrirCarteira() },
+      })
+    }
+
+    if (canSeeClientsEffective) {
+      clientesItems.push({
+        id: 'crm-clientes',
+        label: 'Clientes salvos',
+        icon: '👥',
+        onSelect: () => { void abrirClientesPainel() },
+      })
+    }
+
+    if (clientesItems.length > 0) {
+      groups.push({ id: 'clientes', label: 'Clientes', items: clientesItems })
+    }
+  }
+
+  // ── Cobranças ──────────────────────────────────────────────────────────────
+  if (canSeeFinancialManagementEffective) {
+    groups.push({
+      id: 'cobrancas',
+      label: 'Cobranças',
+      items: [
+        {
+          id: 'cobrancas-mensalidades',
+          label: 'Mensalidades',
+          icon: '💰',
+          onSelect: abrirCobrancasMensalidades,
+        },
+        {
+          id: 'cobrancas-recebimentos',
+          label: 'Recebimentos',
+          icon: '💳',
+          onSelect: abrirCobrancasRecebimentos,
+        },
+        {
+          id: 'cobrancas-inadimplencia',
+          label: 'Inadimplência',
+          icon: '⚠️',
+          onSelect: abrirCobrancasInadimplencia,
+        },
+      ],
+    })
+  }
+
+  // ── Operação ───────────────────────────────────────────────────────────────
+  // Show only when the user's role grants access to at least one operacao page.
+  const operacaoPageIds: ActivePage[] = [
+    'operacao-agenda', 'operacao-chamados', 'operacao-manutencoes',
+    'operacao-limpezas', 'operacao-seguros',
   ]
+  if (operacaoPageIds.some((p) => hasPermission(userRole, p))) {
+    const operacaoItems: SidebarItem[] = [
+      {
+        id: 'operacao-agenda',
+        label: 'Agenda',
+        icon: '📅',
+        onSelect: () => { abrirOperacaoPlaceholder('operacao-agenda') },
+      },
+      {
+        id: 'operacao-chamados',
+        label: 'Chamados',
+        icon: '🎫',
+        onSelect: () => { abrirOperacaoPlaceholder('operacao-chamados') },
+      },
+      {
+        id: 'operacao-manutencoes',
+        label: 'Manutenções',
+        icon: '🔧',
+        onSelect: () => { abrirOperacaoPlaceholder('operacao-manutencoes') },
+      },
+      {
+        id: 'operacao-limpezas',
+        label: 'Limpezas',
+        icon: '🧹',
+        onSelect: () => { abrirOperacaoPlaceholder('operacao-limpezas') },
+      },
+      {
+        id: 'operacao-seguros',
+        label: 'Seguros',
+        icon: '🛡️',
+        onSelect: () => { abrirOperacaoPlaceholder('operacao-seguros') },
+      },
+    ]
+
+    // Keep Painel Operacional accessible for canSeeDashboard users
+    if (canSeeDashboardEffective) {
+      operacaoItems.unshift({
+        id: 'operational-dashboard',
+        label: 'Painel Operacional',
+        icon: '⚙️',
+        onSelect: () => { setActivePage('operational-dashboard') },
+      })
+    }
+
+    groups.push({ id: 'operacao', label: 'Operação', items: operacaoItems })
+  }
+
+  // ── Indicadores ────────────────────────────────────────────────────────────
+  if (canSeeFinancialAnalysisEffective || canSeeFinancialManagementEffective || isAdmin) {
+    const indicadoresItems: SidebarItem[] = []
+
+    if (canSeeFinancialManagementEffective) {
+      indicadoresItems.push(
+        {
+          id: 'indicadores-visao-geral',
+          label: 'Visão Geral',
+          icon: '📈',
+          onSelect: abrirIndicadoresVisaoGeral,
+        },
+        {
+          id: 'indicadores-fluxo-caixa',
+          label: 'Fluxo de Caixa',
+          icon: '💵',
+          onSelect: abrirIndicadoresFluxoCaixa,
+        },
+      )
+    }
+
+    if (canSeeProposalsEffective) {
+      indicadoresItems.push(
+        {
+          id: 'indicadores-leasing',
+          label: 'Leasing',
+          icon: '🔆',
+          onSelect: abrirIndicadoresLeasing,
+        },
+        {
+          id: 'indicadores-vendas',
+          label: 'Vendas',
+          icon: '📦',
+          onSelect: abrirIndicadoresVendas,
+        },
+      )
+    }
+
+    // Admin-only Simulações items preserved under Indicadores
+    if (isAdmin) {
+      indicadoresItems.push({
+        id: 'simulacoes-admin',
+        label: 'Simulações',
+        icon: '🧮',
+        items: [
+          {
+            id: 'simulacoes-nova',
+            label: 'Nova Simulação',
+            icon: '🧮',
+            onSelect: () => { void abrirSimulacoes('nova') },
+          },
+          {
+            id: 'simulacoes-salvas',
+            label: 'Simulações Salvas',
+            icon: '💾',
+            onSelect: () => { void abrirSimulacoes('salvas') },
+          },
+          {
+            id: 'simulacoes-analise-ind',
+            label: 'Análise Financeira',
+            icon: '✅',
+            onSelect: () => { void abrirSimulacoes('analise') },
+          },
+        ],
+      })
+    }
+
+    if (indicadoresItems.length > 0) {
+      groups.push({ id: 'indicadores', label: 'Indicadores', items: indicadoresItems })
+    }
+  }
+
+  // ── Relatórios ────────────────────────────────────────────────────────────
+  if (canSeeProposalsEffective || canSeeClientsEffective || canSeeFinancialManagementEffective) {
+    const relatoriosItems: SidebarItem[] = []
+
+    if (canSeeProposalsEffective) {
+      relatoriosItems.push(
+        {
+          id: 'relatorios-pdfs',
+          label: 'Propostas',
+          icon: '📂',
+          onSelect: abrirRelatoriosPropostas,
+        },
+        {
+          id: 'relatorios-contratos',
+          label: 'Contratos',
+          icon: '🖋️',
+          onSelect: abrirRelatoriosContratos,
+        },
+      )
+    }
+
+    if (canSeeFinancialManagementEffective) {
+      relatoriosItems.push({
+        id: 'relatorios-financeiro',
+        label: 'Financeiro',
+        icon: '💰',
+        onSelect: abrirRelatoriosFinanceiro,
+      })
+    }
+
+    if (canSeeClientsEffective) {
+      relatoriosItems.push({
+        id: 'relatorios-clientes',
+        label: 'Clientes',
+        icon: '👥',
+        onSelect: abrirRelatoriosClientes,
+      })
+    }
+
+    if (hasPermission(userRole, 'relatorios-operacao')) {
+      relatoriosItems.push({
+        id: 'relatorios-operacao',
+        label: 'Operação',
+        icon: '⚙️',
+        onSelect: abrirRelatoriosOperacao,
+      })
+    }
+
+    if (relatoriosItems.length > 0) {
+      groups.push({ id: 'relatorios', label: 'Relatórios', items: relatoriosItems })
+    }
+  }
+
+  // ── Configurações + Sair — always visible ─────────────────────────────────
+  groups.push({
+    id: 'configuracoes',
+    label: '',
+    items: [
+      {
+        id: 'configuracoes-home',
+        label: 'Configurações',
+        icon: '⚙️',
+        onSelect: () => { void abrirConfiguracoes() },
+      },
+      {
+        id: 'sair',
+        label: 'Sair',
+        icon: '🚪',
+        onSelect: () => { void handleLogout() },
+      },
+    ],
+  })
+
+  return groups
 }
+

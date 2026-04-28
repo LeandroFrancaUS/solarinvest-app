@@ -10,8 +10,8 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
-import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, StatusCliente } from '../types/clientPortfolio'
+import { DUE_DAY_OPTIONS, resolveStatusCliente, STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
   buildProjetoSavePayload,
@@ -36,6 +36,7 @@ import {
   exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
 import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract } from '../services/projectsApi'
+import { useProjectStore, selectAddProjeto } from '../features/projectHub/useProjectStore'
 import { upsertClientByDocument } from '../lib/api/clientsApi'
 import {
   isValidCpfOrCnpj,
@@ -71,6 +72,8 @@ interface Props {
   onClientRemovedFromPortfolio?: () => void
   /** Called when the user wants to navigate to a specific project in Gestão Financeira. */
   onOpenFinancialProject?: (projectId: string) => void
+  /** Called after a project is created from a contract so the caller can navigate to Project Hub. */
+  onOpenProjectHub?: (projectId: string) => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -451,20 +454,38 @@ function ClientCard({
   )
   const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
   const clientName = client.name?.trim() || '—'
+  const statusCliente = resolveStatusCliente(client)
+  const statusColor = STATUS_CLIENTE_COLORS[statusCliente]
 
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
         <div className="pf-card-info">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="pf-card-name-button"
-            aria-label={`Abrir cliente ${clientName}`}
-            title={`Abrir cliente ${clientName}`}
-          >
-            <span className="pf-card-name">{clientName}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="pf-card-name-button"
+              aria-label={`Abrir cliente ${clientName}`}
+              title={`Abrir cliente ${clientName}`}
+            >
+              <span className="pf-card-name">{clientName}</span>
+            </button>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '2px 7px',
+                borderRadius: 20,
+                background: statusColor.bg,
+                color: statusColor.text,
+                letterSpacing: '0.03em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {STATUS_CLIENTE_LABELS[statusCliente]}
+            </span>
+          </div>
           <div className="pf-card-doc">{client.document ?? '—'}</div>
           <div className="pf-card-meta">
             <span className="pf-card-contract">{contractLabel}</span>
@@ -1387,10 +1408,12 @@ function ProjetoTab({
   client,
   onSaved,
   onOpenFinancialProject,
+  onOpenProjectHub,
 }: {
   client: PortfolioClientRow
   onSaved: (patch: Partial<PortfolioClientRow>) => void
   onOpenFinancialProject?: (projectId: string) => void
+  onOpenProjectHub?: (projectId: string) => void
 }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -1400,6 +1423,14 @@ function ProjetoTab({
 
   // Financial project linked to this client in Gestão Financeira
   const [financialProjectId, setFinancialProjectId] = useState<string | null>(null)
+  // True once the initial project lookup has settled (success or 404) so we
+  // don't show "Criar Projeto" before the fetch resolves.
+  const [projectFetchDone, setProjectFetchDone] = useState(false)
+
+  // "Criar Projeto" state
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [createProjectError, setCreateProjectError] = useState<string | null>(null)
+  const addProjetoToStore = useProjectStore(selectAddProjeto)
 
   // Personnel lists loaded from the API
   const [engineers, setEngineers] = useState<Engineer[]>([])
@@ -1410,7 +1441,9 @@ function ProjetoTab({
     void fetchInstallers(true).then(setInstallers).catch(() => { /* graceful */ })
     void fetchProjectByClientId(client.id).then((p) => {
       if (p) setFinancialProjectId(p.id)
-    }).catch(() => { /* graceful */ })
+    }).catch(() => { /* graceful */ }).finally(() => {
+      setProjectFetchDone(true)
+    })
   }, [client.id])
 
   const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
@@ -1449,6 +1482,34 @@ function ProjetoTab({
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleCreateProject() {
+    if (!client.contract_id || creatingProject || financialProjectId) return
+    setCreatingProject(true)
+    setCreateProjectError(null)
+    try {
+      const { project } = await createProjectFromContract(client.contract_id)
+      // Mirror the new project into the local hub store so it appears in Project Hub list.
+      // Financial values default to 0 here — the authoritative data lives in the backend;
+      // ProjectDetailPage loads them from /api/projects/:id directly.
+      addProjetoToStore({
+        id: project.id,
+        tipo: project.project_type,
+        status: 'contrato_assinado',
+        persisted: true,
+        localOnly: false,
+        cliente: { nome: client.name ?? project.client_name_snapshot ?? '' },
+        financeiro: { valorContrato: 0, custoTotal: 0, margem: 0 },
+        createdAt: project.created_at,
+      })
+      setFinancialProjectId(project.id)
+      onOpenProjectHub?.(project.id)
+    } catch (err: unknown) {
+      setCreateProjectError(err instanceof Error ? err.message : 'Erro ao criar projeto.')
+    } finally {
+      setCreatingProject(false)
     }
   }
 
@@ -1611,6 +1672,23 @@ function ProjetoTab({
           >
             📂 Gerenciar projeto
           </button>
+        </div>
+      )}
+      {projectFetchDone && !financialProjectId && client.contract_id !== null &&
+        client.contract_id !== undefined &&
+        (client.contract_status === 'active' || client.contract_status === 'signed') && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="pf-btn pf-btn-save"
+            onClick={() => void handleCreateProject()}
+            disabled={creatingProject}
+          >
+            {creatingProject ? '⏳ Criando projeto…' : '🚀 Criar Projeto'}
+          </button>
+          {createProjectError && (
+            <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginTop: 6 }}>{createProjectError}</p>
+          )}
         </div>
       )}
       <div className="pf-footer-actions">
@@ -2968,6 +3046,7 @@ function ClientDetailPanel({
   onDeleted,
   onToast,
   onOpenFinancialProject,
+  onOpenProjectHub,
 }: {
   clientId: number
   onClose: () => void
@@ -2976,6 +3055,7 @@ function ClientDetailPanel({
   onDeleted: (clientId: number) => void
   onToast: (msg: string, type: 'success' | 'error') => void
   onOpenFinancialProject?: (projectId: string) => void
+  onOpenProjectHub?: (projectId: string) => void
 }) {
   const { client, isLoading, error, reloadSilent, setClient: setHookClient } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
@@ -3130,7 +3210,7 @@ function ClientDetailPanel({
         {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} onOpenProjectHub={onOpenProjectHub} />}
         {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
@@ -3191,7 +3271,7 @@ function ClientDetailPanel({
             {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} onOpenProjectHub={onOpenProjectHub} />}
             {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
@@ -3205,7 +3285,7 @@ function ClientDetailPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOpenFinancialProject }: Props) {
+export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOpenFinancialProject, onOpenProjectHub }: Props) {
   const { clients, isLoading, error, reload, setSearch, removeClient } = useClientPortfolio()
   const { deleting, deleteClient } = usePortfolioDelete()
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
@@ -3215,6 +3295,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [showAddClient, setShowAddClient] = useState(false)
   const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'city'>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [statusFilter, setStatusFilter] = useState<StatusCliente | 'TODOS'>('TODOS')
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3269,9 +3350,14 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const total = clients.length
   const hasClients = total > 0
 
-  // Sort clients based on selected criteria
+  // Sort + filter clients by status and sort criteria
   const sortedClients = useMemo(() => {
-    const sorted = [...clients].sort((a, b) => {
+    // Apply status filter first (before sort so counts are correct)
+    const filtered = statusFilter === 'TODOS'
+      ? clients
+      : clients.filter((c) => resolveStatusCliente(c) === statusFilter)
+
+    return [...filtered].sort((a, b) => {
       let compareResult = 0
       if (sortBy === 'name') {
         const nameA = (a.name ?? '').toLowerCase()
@@ -3288,8 +3374,22 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       }
       return sortDir === 'asc' ? compareResult : -compareResult
     })
-    return sorted
-  }, [clients, sortBy, sortDir])
+  }, [clients, sortBy, sortDir, statusFilter])
+
+  // Per-status counts for the filter tab badges
+  const statusCounts = useMemo<Record<StatusCliente | 'TODOS', number>>(() => {
+    const counts: Record<StatusCliente | 'TODOS', number> = {
+      TODOS: clients.length,
+      ATIVO: 0,
+      INATIVO: 0,
+      CANCELADO: 0,
+      FINALIZADO: 0,
+    }
+    for (const c of clients) {
+      counts[resolveStatusCliente(c)]++
+    }
+    return counts
+  }, [clients])
 
   const toggleSort = useCallback((field: 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
@@ -3399,7 +3499,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
         <div style={{ position: 'relative', maxWidth: 480, marginTop: 4 }}>
           <input
             type="search"
-            placeholder="Buscar por nome, e-mail, documento, cidade, UC…"
+            placeholder="Buscar por nome, e-mail, documento, telefone, cidade, UC…"
             value={searchInput}
             onChange={handleSearch}
             className="pf-search-input"
@@ -3420,9 +3520,78 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           )}
         </div>
 
+        {/* Status filter tabs */}
+        {!isLoading && hasClients && (
+          <div
+            style={{
+              marginTop: 12,
+              display: 'flex',
+              gap: 6,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+            role="tablist"
+            aria-label="Filtrar por status do cliente"
+          >
+            {([
+              { key: 'TODOS' as const, label: 'Todos' },
+              { key: 'ATIVO' as const, label: STATUS_CLIENTE_LABELS.ATIVO },
+              { key: 'INATIVO' as const, label: STATUS_CLIENTE_LABELS.INATIVO },
+              { key: 'CANCELADO' as const, label: STATUS_CLIENTE_LABELS.CANCELADO },
+              { key: 'FINALIZADO' as const, label: STATUS_CLIENTE_LABELS.FINALIZADO },
+            ] as const).map(({ key, label }) => {
+              const isActive = statusFilter === key
+              const count = statusCounts[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setStatusFilter(key)
+                    setSelectedClientId(null)
+                  }}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: 12,
+                    borderRadius: 20,
+                    border: isActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: isActive ? 'var(--accent-bg, rgba(255,140,0,0.1))' : 'transparent',
+                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontWeight: isActive ? 700 : 400,
+                    transition: 'all 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title={`Mostrar clientes com status: ${label}`}
+                >
+                  {label}
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '0 5px',
+                      borderRadius: 10,
+                      background: isActive ? 'var(--accent)' : 'var(--surface-2, rgba(148,163,184,0.1))',
+                      color: isActive ? '#fff' : 'var(--text-muted)',
+                      minWidth: 18,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Sort controls */}
         {!isLoading && hasClients && (
-          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Ordenar por:</span>
             <button
               type="button"
@@ -3552,7 +3721,32 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               )}
             </div>
           )}
-          {!isLoading && !error && hasClients && (
+          {!isLoading && !error && hasClients && sortedClients.length === 0 && (() => {
+            const statusLabel = statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]
+            return (
+              <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+                <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nenhum cliente encontrado</p>
+                <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>
+                  {searchInput
+                    ? `Nenhum cliente "${searchInput}" com status "${statusLabel}".`
+                    : `Nenhum cliente com status "${statusLabel}".`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('TODOS')
+                    setSearchInput('')
+                    setSearch('')
+                  }}
+                  style={{ marginTop: 10, padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+                >
+                  Ver todos
+                </button>
+              </div>
+            )
+          })()}
+          {!isLoading && !error && hasClients && sortedClients.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {sortedClients.map((c) => (
                 <ClientCard
@@ -3586,6 +3780,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               onDeleted={handleDeleted}
               onToast={showToast}
               onOpenFinancialProject={onOpenFinancialProject}
+              onOpenProjectHub={onOpenProjectHub}
             />
           </div>
         )}

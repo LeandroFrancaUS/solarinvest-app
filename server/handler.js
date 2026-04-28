@@ -124,6 +124,7 @@ import {
   handleProjectFromPlan,
   handleProjectFromAnalise,
 } from './projects/handler.js'
+import { handleProjectFinancialAnalysis } from './projects/financialAnalysisHandler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
 import { handleProjectFinanceAnalysis } from './project-finance/analysisHandler.js'
 import {
@@ -1756,12 +1757,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // POST /api/projects/from-analise
-    if (pathname === '/api/projects/from-analise') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
-      return
+    // GET|PUT /api/projects/:id/financial-analysis
+    {
+      const afMatch = pathname.match(/^\/api\/projects\/([^/]+)\/financial-analysis$/)
+      if (afMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectFinancialAnalysis(req, res, { method, projectId: afMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
     }
 
     // GET|PUT /api/projects/:id/financial-analysis
