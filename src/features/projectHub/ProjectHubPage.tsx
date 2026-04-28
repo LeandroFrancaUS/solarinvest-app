@@ -65,7 +65,7 @@ function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
     <div
       role={isBackend ? 'button' : undefined}
       tabIndex={isBackend ? 0 : undefined}
-      aria-disabled={!isBackend || undefined}
+      aria-disabled={!isBackend ? true : undefined}
       onClick={handleActivate}
       onKeyDown={(e) => { if (isBackend && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSelect(projeto.id) } }}
       onFocus={() => isBackend && setFocused(true)}
@@ -107,7 +107,7 @@ function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
       </div>
       {!isBackend && (
         <div style={{ fontSize: '0.78rem', color: 'var(--color-warning, #a16207)', marginTop: '0.2rem' }}>
-          Projeto local — converta novamente com cliente vinculado para habilitar cobranças.
+          Projeto local — para habilitar cobranças, acesse a análise e use "Converter em Projeto" com um cliente vinculado.
         </div>
       )}
     </div>
