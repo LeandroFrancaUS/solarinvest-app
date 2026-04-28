@@ -155,6 +155,23 @@ import {
   handleNotificationPreferencesGetRequest,
   handleNotificationPreferencesUpdateRequest,
 } from './operational-tasks/handler.js'
+import {
+  handleTicketsList,
+  handleTicketsCreate,
+  handleTicketsPatch,
+  handleMaintenanceList,
+  handleMaintenanceCreate,
+  handleMaintenancePatch,
+  handleCleaningsList,
+  handleCleaningsCreate,
+  handleCleaningsPatch,
+  handleInsuranceList,
+  handleInsuranceCreate,
+  handleInsurancePatch,
+  handleEventsList,
+  handleEventsCreate,
+  handleEventsPatch,
+} from './operations/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1486,6 +1503,173 @@ export default async function handler(req, res) {
         sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
       }
       return
+    }
+
+    // ── Operations (Operação) routes ──────────────────────────────────────────
+    //
+    // GET  /api/operations/tickets               — list service tickets
+    // POST /api/operations/tickets               — create service ticket
+    // PATCH /api/operations/tickets/:id          — update service ticket
+    //
+    // GET  /api/operations/maintenance           — list maintenance jobs
+    // POST /api/operations/maintenance           — create maintenance job
+    // PATCH /api/operations/maintenance/:id      — update maintenance job
+    //
+    // GET  /api/operations/cleanings             — list cleaning jobs
+    // POST /api/operations/cleanings             — create cleaning job
+    // PATCH /api/operations/cleanings/:id        — update cleaning job
+    //
+    // GET  /api/operations/insurance             — list insurance policies
+    // POST /api/operations/insurance             — create insurance policy
+    // PATCH /api/operations/insurance/:id        — update insurance policy
+    //
+    // GET  /api/operations/events                — list operation events (agenda)
+    // POST /api/operations/events                — create operation event
+    // PATCH /api/operations/events/:id           — update operation event
+
+    if (pathname === '/api/operations/tickets') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleTicketsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleTicketsCreate(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    {
+      const ticketIdMatch = pathname.match(/^\/api\/operations\/tickets\/([^/]+)$/)
+      if (ticketIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        if (method === 'PATCH') {
+          const body = await readJsonBody(req)
+          await handleTicketsPatch(req, res, { method, sendJson: sj, body, id: ticketIdMatch[1] })
+        } else {
+          sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+        }
+        return
+      }
+    }
+
+    if (pathname === '/api/operations/maintenance') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleMaintenanceList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleMaintenanceCreate(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    {
+      const maintenanceIdMatch = pathname.match(/^\/api\/operations\/maintenance\/([^/]+)$/)
+      if (maintenanceIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        if (method === 'PATCH') {
+          const body = await readJsonBody(req)
+          await handleMaintenancePatch(req, res, { method, sendJson: sj, body, id: maintenanceIdMatch[1] })
+        } else {
+          sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+        }
+        return
+      }
+    }
+
+    if (pathname === '/api/operations/cleanings') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleCleaningsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleCleaningsCreate(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    {
+      const cleaningIdMatch = pathname.match(/^\/api\/operations\/cleanings\/([^/]+)$/)
+      if (cleaningIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        if (method === 'PATCH') {
+          const body = await readJsonBody(req)
+          await handleCleaningsPatch(req, res, { method, sendJson: sj, body, id: cleaningIdMatch[1] })
+        } else {
+          sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+        }
+        return
+      }
+    }
+
+    if (pathname === '/api/operations/insurance') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleInsuranceList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleInsuranceCreate(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    {
+      const insuranceIdMatch = pathname.match(/^\/api\/operations\/insurance\/([^/]+)$/)
+      if (insuranceIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        if (method === 'PATCH') {
+          const body = await readJsonBody(req)
+          await handleInsurancePatch(req, res, { method, sendJson: sj, body, id: insuranceIdMatch[1] })
+        } else {
+          sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+        }
+        return
+      }
+    }
+
+    if (pathname === '/api/operations/events') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      if (method === 'GET') {
+        await handleEventsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      } else if (method === 'POST') {
+        const body = await readJsonBody(req)
+        await handleEventsCreate(req, res, { method, sendJson: sj, body })
+      } else {
+        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+      }
+      return
+    }
+
+    {
+      const eventIdMatch = pathname.match(/^\/api\/operations\/events\/([^/]+)$/)
+      if (eventIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        if (method === 'PATCH') {
+          const body = await readJsonBody(req)
+          await handleEventsPatch(req, res, { method, sendJson: sj, body, id: eventIdMatch[1] })
+        } else {
+          sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+        }
+        return
+      }
     }
 
     // ── Financial Management routes ───────────────────────────────────────────
