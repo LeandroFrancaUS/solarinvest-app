@@ -58,7 +58,7 @@ function requireWrite(actor, sendJson) {
 async function getScopedSql(actor) {
   const db = getDatabaseClient()
   if (!db?.sql) {
-    const err = new Error('Database not configured')
+    const err = new Error('Database client not available or not configured')
     err.statusCode = 503
     throw err
   }
@@ -69,6 +69,8 @@ async function getScopedSql(actor) {
  * Derives locked_project_type ('leasing' | 'venda') from the project row and
  * contract.  project_type on the projects row is the authoritative source;
  * the contract can refine it ('sale' | 'buyout' → 'venda').
+ * Falls back to 'leasing' as the default when neither source specifies a type,
+ * matching the default used across the billing and financial engines.
  */
 function deriveLockedProjectType(project, contract) {
   const raw = contract?.contract_type ?? project?.project_type ?? 'leasing'
