@@ -15,6 +15,11 @@ export type ActivePage =
   | 'carteira'
   | 'financial-management'
   | 'project-hub'
+  | 'operacao-agenda'
+  | 'operacao-chamados'
+  | 'operacao-manutencoes'
+  | 'operacao-limpezas'
+  | 'operacao-seguros'
 
 export type SimulacoesSection =
   | 'nova'

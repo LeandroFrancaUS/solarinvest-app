@@ -300,6 +300,42 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
         ]
       : []),
     {
+      id: 'operacao',
+      label: 'Operação',
+      items: [
+        {
+          id: 'operacao-agenda',
+          label: 'Agenda',
+          icon: '📅',
+          onSelect: () => setActivePage('operacao-agenda'),
+        },
+        {
+          id: 'operacao-chamados',
+          label: 'Chamados',
+          icon: '🎫',
+          onSelect: () => setActivePage('operacao-chamados'),
+        },
+        {
+          id: 'operacao-manutencoes',
+          label: 'Manutenções',
+          icon: '🔧',
+          onSelect: () => setActivePage('operacao-manutencoes'),
+        },
+        {
+          id: 'operacao-limpezas',
+          label: 'Limpezas',
+          icon: '🧹',
+          onSelect: () => setActivePage('operacao-limpezas'),
+        },
+        {
+          id: 'operacao-seguros',
+          label: 'Seguros',
+          icon: '🛡️',
+          onSelect: () => setActivePage('operacao-seguros'),
+        },
+      ],
+    },
+    {
       id: 'configuracoes',
       label: '',
       items: [
