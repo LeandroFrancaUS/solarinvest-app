@@ -1571,6 +1571,14 @@ export default async function handler(req, res) {
       }
     }
 
+    // POST /api/projects/from-analise
+    if (pathname === '/api/projects/from-analise') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
+      return
+    }
+
     // GET|PUT /api/projects/:id/finance
     {
       const financeMatch = pathname.match(/^\/api\/projects\/([^/]+)\/finance$/)
