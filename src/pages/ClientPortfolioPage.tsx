@@ -36,6 +36,7 @@ import {
   exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
 import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract } from '../services/projectsApi'
+import { useProjectStore, selectAddProjeto } from '../features/projectHub/useProjectStore'
 import { upsertClientByDocument } from '../lib/api/clientsApi'
 import {
   isValidCpfOrCnpj,
@@ -71,6 +72,8 @@ interface Props {
   onClientRemovedFromPortfolio?: () => void
   /** Called when the user wants to navigate to a specific project in Gestão Financeira. */
   onOpenFinancialProject?: (projectId: string) => void
+  /** Called after a project is created from a contract so the caller can navigate to Project Hub. */
+  onOpenProjectHub?: (projectId: string) => void
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1387,10 +1390,12 @@ function ProjetoTab({
   client,
   onSaved,
   onOpenFinancialProject,
+  onOpenProjectHub,
 }: {
   client: PortfolioClientRow
   onSaved: (patch: Partial<PortfolioClientRow>) => void
   onOpenFinancialProject?: (projectId: string) => void
+  onOpenProjectHub?: (projectId: string) => void
 }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -1400,6 +1405,14 @@ function ProjetoTab({
 
   // Financial project linked to this client in Gestão Financeira
   const [financialProjectId, setFinancialProjectId] = useState<string | null>(null)
+  // True once the initial project lookup has settled (success or 404) so we
+  // don't show "Criar Projeto" before the fetch resolves.
+  const [projectFetchDone, setProjectFetchDone] = useState(false)
+
+  // "Criar Projeto" state
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [createProjectError, setCreateProjectError] = useState<string | null>(null)
+  const addProjetoToStore = useProjectStore(selectAddProjeto)
 
   // Personnel lists loaded from the API
   const [engineers, setEngineers] = useState<Engineer[]>([])
@@ -1410,7 +1423,9 @@ function ProjetoTab({
     void fetchInstallers(true).then(setInstallers).catch(() => { /* graceful */ })
     void fetchProjectByClientId(client.id).then((p) => {
       if (p) setFinancialProjectId(p.id)
-    }).catch(() => { /* graceful */ })
+    }).catch(() => { /* graceful */ }).finally(() => {
+      setProjectFetchDone(true)
+    })
   }, [client.id])
 
   const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
@@ -1449,6 +1464,32 @@ function ProjetoTab({
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleCreateProject() {
+    if (!client.contract_id || creatingProject || financialProjectId) return
+    setCreatingProject(true)
+    setCreateProjectError(null)
+    try {
+      const { project } = await createProjectFromContract(client.contract_id)
+      // Mirror the new project into the local hub store so it appears in Project Hub list
+      addProjetoToStore({
+        id: project.id,
+        tipo: project.project_type,
+        status: 'contrato_assinado',
+        persisted: true,
+        localOnly: false,
+        cliente: { nome: client.name ?? project.client_name_snapshot ?? '' },
+        financeiro: { valorContrato: 0, custoTotal: 0, margem: 0 },
+        createdAt: project.created_at,
+      })
+      setFinancialProjectId(project.id)
+      onOpenProjectHub?.(project.id)
+    } catch (err: unknown) {
+      setCreateProjectError(err instanceof Error ? err.message : 'Erro ao criar projeto.')
+    } finally {
+      setCreatingProject(false)
     }
   }
 
@@ -1611,6 +1652,22 @@ function ProjetoTab({
           >
             📂 Gerenciar projeto
           </button>
+        </div>
+      )}
+      {projectFetchDone && !financialProjectId && client.contract_id != null &&
+        (client.contract_status === 'active' || client.contract_status === 'signed') && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="pf-btn pf-btn-save"
+            onClick={() => void handleCreateProject()}
+            disabled={creatingProject}
+          >
+            {creatingProject ? '⏳ Criando projeto…' : '🚀 Criar Projeto'}
+          </button>
+          {createProjectError && (
+            <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginTop: 6 }}>{createProjectError}</p>
+          )}
         </div>
       )}
       <div className="pf-footer-actions">
@@ -2968,6 +3025,7 @@ function ClientDetailPanel({
   onDeleted,
   onToast,
   onOpenFinancialProject,
+  onOpenProjectHub,
 }: {
   clientId: number
   onClose: () => void
@@ -2976,6 +3034,7 @@ function ClientDetailPanel({
   onDeleted: (clientId: number) => void
   onToast: (msg: string, type: 'success' | 'error') => void
   onOpenFinancialProject?: (projectId: string) => void
+  onOpenProjectHub?: (projectId: string) => void
 }) {
   const { client, isLoading, error, reloadSilent, setClient: setHookClient } = usePortfolioClient(clientId)
   const [activeTab, setActiveTab] = useState<Tab>('editar')
@@ -3130,7 +3189,7 @@ function ClientDetailPanel({
         {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} onOpenProjectHub={onOpenProjectHub} />}
         {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
         {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
@@ -3191,7 +3250,7 @@ function ClientDetailPanel({
             {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} onOpenProjectHub={onOpenProjectHub} />}
             {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
@@ -3205,7 +3264,7 @@ function ClientDetailPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
-export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOpenFinancialProject }: Props) {
+export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOpenFinancialProject, onOpenProjectHub }: Props) {
   const { clients, isLoading, error, reload, setSearch, removeClient } = useClientPortfolio()
   const { deleting, deleteClient } = usePortfolioDelete()
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
@@ -3586,6 +3645,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               onDeleted={handleDeleted}
               onToast={showToast}
               onOpenFinancialProject={onOpenFinancialProject}
+              onOpenProjectHub={onOpenProjectHub}
             />
           </div>
         )}
