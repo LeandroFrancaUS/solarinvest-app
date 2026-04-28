@@ -67,6 +67,16 @@ export type Projeto = {
   id: string
   tipo: ProjetoTipo
   status: ProjetoStatus
+  /**
+   * True when this project has been successfully persisted in the backend.
+   * Absence or false means the project is local-only and cannot open ProjectDetailPage.
+   */
+  persisted?: boolean
+  /**
+   * True when this project was intentionally kept local (no backend client linked,
+   * or no serverClientId at conversion time). Complementary to persisted.
+   */
+  localOnly?: boolean
   cliente: {
     nome: string
   }

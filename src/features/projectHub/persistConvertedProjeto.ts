@@ -92,7 +92,7 @@ export async function persistConvertedProjeto(
   }
 
   if (serverClientId == null || !Number.isFinite(serverClientId) || serverClientId <= 0) {
-    return projetoLocal
+    return { ...projetoLocal, persisted: false, localOnly: true }
   }
 
   const { project } = await createProjectFromAnalise({
@@ -107,5 +107,7 @@ export async function persistConvertedProjeto(
     // Replace the locally-generated id with the real backend UUID so that
     // ProjectChargesTab and other backend-aware features work correctly.
     id: project.id,
+    persisted: true,
+    localOnly: false,
   }
 }

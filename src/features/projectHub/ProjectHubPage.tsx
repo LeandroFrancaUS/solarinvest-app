@@ -4,7 +4,6 @@
 
 import React, { useState } from 'react'
 import { useProjectStore, selectProjetos, selectAddProjeto, selectRemoveProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
-import { isBackendProjectId } from '../../utils/isBackendProjectId'
 
 function getTipoBadgeStyles(tipo: string): React.CSSProperties {
   if (tipo === 'leasing') {
@@ -54,7 +53,7 @@ const LOCAL_BADGE_STYLE: React.CSSProperties = {
 function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
   const { cliente, tipo, status, consultor } = projeto
   const [focused, setFocused] = useState(false)
-  const isBackend = isBackendProjectId(projeto.id)
+  const isBackend = projeto.persisted === true
 
   function handleActivate() {
     if (!isBackend) return
@@ -217,7 +216,7 @@ export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPagePr
   const [formTipo, setFormTipo] = useState<'venda' | 'leasing'>('venda')
   const [formPagamento, setFormPagamento] = useState<'avista' | 'parcelado'>('avista')
 
-  const localProjects = projetos.filter((p) => !isBackendProjectId(p.id))
+  const localProjects = projetos.filter((p) => p.persisted !== true)
 
   function handleSalvarProjeto() {
     if (!formNome.trim()) return
@@ -225,6 +224,8 @@ export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPagePr
       id: crypto.randomUUID(),
       tipo: formTipo,
       status: 'proposta_emitida',
+      persisted: false,
+      localOnly: true,
       cliente: { nome: formNome.trim() },
       financeiro: { valorContrato: 0, custoTotal: 0, margem: 0 },
       pagamento: { modalidade: formPagamento },

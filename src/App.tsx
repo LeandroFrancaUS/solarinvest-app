@@ -350,7 +350,7 @@ import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplay
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
-import { isBackendProjectId } from './utils/isBackendProjectId'
+import { useProjectStore } from './features/projectHub/useProjectStore'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
@@ -18851,8 +18851,9 @@ export default function App() {
             <ProjectHubPage
               onBack={() => setActivePage(lastPrimaryPageRef.current)}
               onOpenProjectDetail={(id) => {
-                if (!isBackendProjectId(id)) {
-                  console.warn('[ProjectHub] Ignored open: id is not a backend UUID', id)
+                const projeto = useProjectStore.getState().projetos.find((p) => p.id === id)
+                if (!projeto || projeto.persisted !== true) {
+                  console.warn('[ProjectHub] Ignored open: project is not persisted in backend', id)
                   return
                 }
                 setSelectedHubProjectId(id)
