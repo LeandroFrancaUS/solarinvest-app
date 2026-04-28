@@ -342,6 +342,7 @@ import { setFinancialManagementTokenProvider } from './services/financialManagem
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setProjectChargesTokenProvider } from './features/projectHub/projectChargesApi'
+import { setProjectHubTokenProvider } from './features/projectHub/projectsApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
@@ -4054,6 +4055,7 @@ export default function App() {
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
     setProjectChargesTokenProvider(getAccessToken)
+    setProjectHubTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
