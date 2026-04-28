@@ -114,6 +114,9 @@ export async function createClient(sql, data) {
     metadata = null,
     // Canonical consultant FK (BIGINT). Only use positive integers.
     consultant_id = null,
+    // Client status domain (migration 0061).
+    status_comercial = 'LEAD',
+    status_cliente = 'NAO_CLIENTE',
   } = data
 
   // Normalize consultant_id to a positive integer or null.
@@ -131,14 +134,14 @@ export async function createClient(sql, data) {
       client_phone, client_email, client_city, client_state, client_address, client_cep, uc_geradora, uc_beneficiaria, system_kwp, term_months, consumption_kwh_month, distribuidora,
       created_by_user_id, owner_user_id, user_id, owner_stack_user_id,
       identity_status, origin, offline_origin_id,
-      metadata, consultant_id, created_at, updated_at
+      metadata, consultant_id, status_comercial, status_cliente, created_at, updated_at
     ) VALUES (
       $1, $2, $3, $4,
       $5, $6, $7,
       $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
       $20, $21, $22, $23,
       $24, $25, $26,
-      $27::jsonb, $28, now(), now()
+      $27::jsonb, $28, $29, $30, now(), now()
     )
     RETURNING *
   `
@@ -171,6 +174,8 @@ export async function createClient(sql, data) {
     offline_origin_id,
     metadata ? JSON.stringify(metadata) : null,
     resolvedConsultantId,
+    status_comercial ?? 'LEAD',
+    status_cliente ?? 'NAO_CLIENTE',
   ]
   console.info('[clients][create] sql', { queryText, params })
   const rows = await sql(queryText, params)
@@ -220,6 +225,9 @@ export async function updateClient(sql, clientId, data, options = {}) {
     // Canonical consultant FK (BIGINT). Only update when an explicit positive integer is provided.
     // Passing null/undefined/0 is treated as "no change" to avoid accidentally clearing the column.
     consultant_id = undefined,
+    // Client status domain (migration 0061). Only update when explicitly provided.
+    status_comercial = undefined,
+    status_cliente = undefined,
   } = data
 
   // Defense-in-depth: scope UPDATE to owner for role_comercial callers.
@@ -234,7 +242,14 @@ export async function updateClient(sql, clientId, data, options = {}) {
     && parseInt(String(consultant_id), 10) > 0
   ) ? parseInt(String(consultant_id), 10) : null
 
-  const ownerClause = scopeByOwner ? 'AND owner_user_id = $24' : ''
+  // Validate status_comercial — only accept known values; treat anything else as "no change".
+  const VALID_STATUS_COMERCIAL = new Set(['LEAD', 'PROPOSTA_ENVIADA', 'NEGOCIANDO', 'CONTRATO_ENVIADO', 'GANHO', 'PERDIDO'])
+  const VALID_STATUS_CLIENTE = new Set(['NAO_CLIENTE', 'ATIVO', 'INATIVO', 'CANCELADO', 'FINALIZADO'])
+  const resolvedStatusComercial = (status_comercial !== undefined && VALID_STATUS_COMERCIAL.has(status_comercial)) ? status_comercial : null
+  const resolvedStatusCliente = (status_cliente !== undefined && VALID_STATUS_CLIENTE.has(status_cliente)) ? status_cliente : null
+
+  // $25 is the owner-scope param when scopeByOwner = true; shift by 2 for the two new status params.
+  const ownerClause = scopeByOwner ? 'AND owner_user_id = $26' : ''
   const params = [
     name ?? null,
     phone ?? null,
@@ -258,6 +273,8 @@ export async function updateClient(sql, clientId, data, options = {}) {
     identity_status ?? null,
     metadata ? JSON.stringify(metadata) : null,
     resolvedConsultantId,
+    resolvedStatusComercial,
+    resolvedStatusCliente,
     clientId,
     ...(scopeByOwner ? [actorUserId] : []),
   ]
@@ -289,6 +306,8 @@ export async function updateClient(sql, clientId, data, options = {}) {
                             ELSE metadata
                           END,
        consultant_id    = COALESCE($22, consultant_id),
+       status_comercial = COALESCE($23, status_comercial),
+       status_cliente   = COALESCE($24, status_cliente),
        deleted_at       = NULL,
        deleted_by_user_id = NULL,
        deletion_reason  = NULL,
@@ -296,7 +315,7 @@ export async function updateClient(sql, clientId, data, options = {}) {
        deletion_retention_days = NULL,
        purge_after      = NULL,
        updated_at       = now()
-     WHERE id = $23
+     WHERE id = $25
        ${ownerClause}
      RETURNING *`
   console.info('[clients][update] sql', { queryText, params })

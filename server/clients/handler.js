@@ -170,6 +170,17 @@ function toClientWritePayload(body) {
     accepted.consultant_id = rawConsultantId
   }
 
+  // Client status domain (migration 0061).
+  // Only accepted values are forwarded; repository.js validates and ignores unknown values.
+  const VALID_STATUS_COMERCIAL = new Set(['LEAD', 'PROPOSTA_ENVIADA', 'NEGOCIANDO', 'CONTRATO_ENVIADO', 'GANHO', 'PERDIDO'])
+  const VALID_STATUS_CLIENTE = new Set(['NAO_CLIENTE', 'ATIVO', 'INATIVO', 'CANCELADO', 'FINALIZADO'])
+  if (body.status_comercial !== undefined && VALID_STATUS_COMERCIAL.has(body.status_comercial)) {
+    accepted.status_comercial = body.status_comercial
+  }
+  if (body.status_cliente !== undefined && VALID_STATUS_CLIENTE.has(body.status_cliente)) {
+    accepted.status_cliente = body.status_cliente
+  }
+
   // Expose usina fields separately so the handler can persist them in client_usina_config
   accepted._usinaConfig = Object.keys(usinaFields).length > 0 ? usinaFields : null
 
