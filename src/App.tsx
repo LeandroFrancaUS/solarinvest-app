@@ -342,12 +342,15 @@ import { setFinancialManagementTokenProvider } from './services/financialManagem
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setProjectChargesTokenProvider } from './features/projectHub/projectChargesApi'
+import { setProjectHubTokenProvider } from './features/projectHub/projectsApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { useProjectStore } from './features/projectHub/useProjectStore'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
@@ -4054,6 +4057,7 @@ export default function App() {
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
     setProjectChargesTokenProvider(getAccessToken)
+    setProjectHubTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
@@ -4255,6 +4259,7 @@ export default function App() {
   }, [storeAfCidadeDestino])
 
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
+  const [selectedHubProjectId, setSelectedHubProjectId] = useState<string | null>(null)
   useEffect(() => {
     if (
       activePage === 'dashboard' ||
@@ -18829,7 +18834,24 @@ export default function App() {
             ? <OperationalDashboardPage />
             : null
         ) : activePage === 'project-hub' ? (
-          <ProjectHubPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+          selectedHubProjectId !== null ? (
+            <ProjectDetailPage
+              projectId={selectedHubProjectId}
+              onBack={() => setSelectedHubProjectId(null)}
+            />
+          ) : (
+            <ProjectHubPage
+              onBack={() => setActivePage(lastPrimaryPageRef.current)}
+              onOpenProjectDetail={(id) => {
+                const projeto = useProjectStore.getState().projetos.find((p) => p.id === id)
+                if (!projeto || projeto.persisted !== true) {
+                  console.warn('[ProjectHub] Ignored open: project is not persisted in backend', id)
+                  return
+                }
+                setSelectedHubProjectId(id)
+              }}
+            />
+          )
         ) : (
           <div className="page">
             <div className="app-main">
@@ -19897,7 +19919,7 @@ export default function App() {
         {activePage !== 'project-hub' && (
           <button
             type="button"
-            onClick={() => setActivePage('project-hub')}
+            onClick={() => { setSelectedHubProjectId(null); setActivePage('project-hub') }}
             title="Project Hub (acesso temporário)"
             style={{
               position: 'fixed',
