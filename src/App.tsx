@@ -340,6 +340,8 @@ import { CobrancasDashboardPage } from './features/cobrancas/CobrancasDashboardP
 import type { CobrancasTab } from './features/cobrancas/CobrancasDashboardPage'
 import { IndicadoresDashboardPage } from './features/indicadores/IndicadoresDashboardPage'
 import type { IndicadoresTab } from './features/indicadores/IndicadoresDashboardPage'
+import { RelatoriosPage } from './features/relatorios/RelatoriosPage'
+import type { RelatoriosTab } from './features/relatorios/reportTypes'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
@@ -4204,7 +4206,12 @@ export default function App() {
       storedPage === 'indicadores-visao-geral' ||
       storedPage === 'indicadores-leasing' ||
       storedPage === 'indicadores-vendas' ||
-      storedPage === 'indicadores-fluxo-caixa'
+      storedPage === 'indicadores-fluxo-caixa' ||
+      storedPage === 'relatorios-propostas' ||
+      storedPage === 'relatorios-contratos' ||
+      storedPage === 'relatorios-financeiro' ||
+      storedPage === 'relatorios-clientes' ||
+      storedPage === 'relatorios-operacao'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -16811,6 +16818,37 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
 
+  // ── Área Relatórios (Etapa 9) ───────────────────────────────────────────────
+  const abrirRelatoriosPropostas = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-propostas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosContratos = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-contratos')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosFinanceiro = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-financeiro')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosClientes = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-clientes')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const abrirRelatoriosOperacao = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('relatorios-operacao')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
   const abrirDashboardOperacional = useCallback(async () => {
     if (!canSeeDashboardEffective) return false
     return runWithUnsavedChangesGuard(() => {
@@ -18574,7 +18612,17 @@ export default function App() {
                                     ? 'Indicadores — Análise de Vendas'
                                     : activePage === 'indicadores-fluxo-caixa'
                                       ? 'Indicadores — Fluxo de Caixa'
-                                      : activePage === 'operational-dashboard'
+                                      : activePage === 'relatorios-propostas'
+                                        ? 'Relatórios — Propostas por período'
+                                        : activePage === 'relatorios-contratos'
+                                          ? 'Relatórios — Contratos assinados'
+                                          : activePage === 'relatorios-financeiro'
+                                            ? 'Relatórios — Mensalidades e cobranças'
+                                            : activePage === 'relatorios-clientes'
+                                              ? 'Relatórios — Clientes'
+                                              : activePage === 'relatorios-operacao'
+                                                ? 'Relatórios — Chamados e manutenções'
+                                                : activePage === 'operational-dashboard'
                           ? 'Painel operacional'
                           : (activePage === 'operacao-agenda' ||
                               activePage === 'operacao-chamados' ||
@@ -18618,7 +18666,13 @@ export default function App() {
                                     ? 'Indicadores'
                                     : activePage === 'indicadores-fluxo-caixa'
                                       ? 'Indicadores'
-                                      : activePage === 'operational-dashboard'
+                                      : (activePage === 'relatorios-propostas' ||
+                                         activePage === 'relatorios-contratos' ||
+                                         activePage === 'relatorios-financeiro' ||
+                                         activePage === 'relatorios-clientes' ||
+                                         activePage === 'relatorios-operacao')
+                                        ? 'Relatórios'
+                                        : activePage === 'operational-dashboard'
                           ? 'Operação'
                           : (activePage === 'operacao-agenda' ||
                           activePage === 'operacao-chamados' ||
@@ -18714,6 +18768,11 @@ export default function App() {
     abrirIndicadoresLeasing,
     abrirIndicadoresVendas,
     abrirIndicadoresFluxoCaixa,
+    abrirRelatoriosPropostas,
+    abrirRelatoriosContratos,
+    abrirRelatoriosFinanceiro,
+    abrirRelatoriosClientes,
+    abrirRelatoriosOperacao,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -19083,6 +19142,35 @@ export default function App() {
           canSeeDashboardEffective
             ? <OperationalDashboardPage />
             : null
+        ) : (activePage === 'relatorios-propostas' ||
+             activePage === 'relatorios-contratos' ||
+             activePage === 'relatorios-financeiro' ||
+             activePage === 'relatorios-clientes' ||
+             activePage === 'relatorios-operacao') ? (
+          <RelatoriosPage
+            tab={
+              activePage === 'relatorios-contratos'
+                ? 'contratos'
+                : activePage === 'relatorios-financeiro'
+                  ? 'financeiro'
+                  : activePage === 'relatorios-clientes'
+                    ? 'clientes'
+                    : activePage === 'relatorios-operacao'
+                      ? 'operacao'
+                      : 'propostas'
+            }
+            onTabChange={(t: RelatoriosTab) => {
+              const pageMap: Record<RelatoriosTab, ActivePage> = {
+                propostas: 'relatorios-propostas',
+                contratos: 'relatorios-contratos',
+                financeiro: 'relatorios-financeiro',
+                clientes: 'relatorios-clientes',
+                operacao: 'relatorios-operacao',
+              }
+              setActivePage(pageMap[t])
+            }}
+            userRole={userRoleFrontend}
+          />
         ) : activePage === 'project-hub' ? (
           selectedHubProjectId !== null ? (
             <ProjectDetailPage
