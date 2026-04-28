@@ -96,6 +96,7 @@ export interface ProjectState {
 export interface ProjectActions {
   addProjeto: (projeto: Projeto) => void
   updateProjeto: (id: string, patch: Partial<Projeto>) => void
+  removeProjeto: (id: string) => void
   setProjetos: (lista: Projeto[]) => void
   reset: () => void
 }
@@ -116,6 +117,8 @@ export const useProjectStore = createStore<ProjectStore>((set, get) => ({
         p.id === id ? { ...p, ...patch } : p,
       ),
     }),
+  removeProjeto: (id) =>
+    set({ projetos: get().projetos.filter((p) => p.id !== id) }),
   setProjetos: (lista) => set({ projetos: lista }),
   reset: () => set({ ...PROJECT_DEFAULTS }),
 }))
@@ -130,6 +133,7 @@ export const selectProjetoById =
 // Action selectors
 export const selectAddProjeto = (s: ProjectStore) => s.addProjeto
 export const selectUpdateProjeto = (s: ProjectStore) => s.updateProjeto
+export const selectRemoveProjeto = (s: ProjectStore) => s.removeProjeto
 
 // Automation helpers — prepared for future use, not yet used to block UI
 export function isDocumentacaoAprovada(projeto: Projeto): boolean {
