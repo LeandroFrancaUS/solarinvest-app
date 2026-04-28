@@ -122,6 +122,7 @@ import {
   handleProjectStatus,
   handleProjectPvData,
   handleProjectFromPlan,
+  handleProjectFromAnalise,
 } from './projects/handler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
 import {
@@ -1547,6 +1548,14 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleProjectsSummary(req, res, { method, sendJson: sj })
+      return
+    }
+
+    // POST /api/projects/from-analise
+    if (pathname === '/api/projects/from-analise') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
       return
     }
 
