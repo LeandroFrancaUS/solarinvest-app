@@ -399,12 +399,12 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
     if (body.installment_valor !== undefined) {
       const iv = body.installment_valor
       if (!iv || typeof iv.number !== 'number' || !Number.isFinite(iv.number) || iv.number <= 0) {
-        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Número da parcela inválido para edição de valor.' } })
+        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Número da parcela deve ser um valor inteiro positivo válido.' } })
         return
       }
       const valor = iv.valor_override
       if (valor !== null && valor !== undefined && (!Number.isFinite(valor) || valor < 0)) {
-        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Valor da parcela inválido.' } })
+        sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Valor da parcela deve ser um número não-negativo.' } })
         return
       }
     }

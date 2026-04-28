@@ -2111,7 +2111,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                                     setEditingValorInstallment(null)
                                     onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
                                   }).catch((err: unknown) => {
-                                    setSaveError(err instanceof Error ? err.message : 'Erro ao salvar valor da parcela.')
+                                    setSaveError(err instanceof Error ? err.message : `Falha ao atualizar o valor da parcela #${inst.numero}. Tente novamente.`)
                                   }).finally(() => setSavingValorInstallment(null))
                                 } else {
                                   setEditingValorInstallment(null)
@@ -2319,7 +2319,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                     setRemovePaymentModal(null)
                     onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
                   }).catch((err: unknown) => {
-                    setRemovePaymentError(err instanceof Error ? err.message : 'Erro ao remover pagamento.')
+                    setRemovePaymentError(err instanceof Error ? err.message : `Falha ao remover o pagamento da parcela #${removePaymentModal.installmentNumber}. Tente novamente.`)
                   }).finally(() => setRemovingPayment(false))
                 }}
                 style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'var(--ds-danger, #ef4444)', color: '#fff', fontWeight: 700, cursor: removingPayment ? 'not-allowed' : 'pointer', fontSize: 13, opacity: removingPayment ? 0.7 : 1 }}
