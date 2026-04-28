@@ -28,6 +28,11 @@ export type ActivePage =
   | 'operacao-manutencoes'
   | 'operacao-limpezas'
   | 'operacao-seguros'
+  // Área Indicadores (Etapa 6) — financial-management kept as alias → indicadores-visao-geral
+  | 'indicadores-visao-geral'
+  | 'indicadores-leasing'
+  | 'indicadores-vendas'
+  | 'indicadores-fluxo-caixa'
 
 export type SimulacoesSection =
   | 'nova'

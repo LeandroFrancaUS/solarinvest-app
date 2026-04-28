@@ -33,6 +33,8 @@ interface Props {
   onBack: () => void
   /** Called when the user wants to open a specific project from another page. */
   initialProjectId?: string | null
+  /** Deep-link to a specific tab when the page first mounts. */
+  initialTab?: Tab
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -837,8 +839,8 @@ function FaturasAPagarTab() {
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+export function FinancialManagementPage({ onBack, initialProjectId, initialTab }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
