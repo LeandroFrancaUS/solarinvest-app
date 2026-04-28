@@ -18694,7 +18694,11 @@ export default function App() {
             afMensalidadeBaseAuto={afMensalidadeBaseAuto}
             analiseFinanceiraResult={analiseFinanceiraResult}
             indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-            clientId={clienteEmEdicaoId}
+            serverClientId={
+              clienteEmEdicaoId
+                ? (Number(clientServerIdMapRef.current[clienteEmEdicaoId]) || null)
+                : null
+            }
             clienteNome={cliente.nome ?? undefined}
             consultorNome={cliente.consultorNome ?? undefined}
             consultorId={cliente.consultorId ?? undefined}

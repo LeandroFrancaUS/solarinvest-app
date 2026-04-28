@@ -77,9 +77,10 @@ export interface AnaliseFinanceiraSectionProps {
   analiseFinanceiraResult: AnaliseFinanceiraOutput | null
   indicadorEficienciaProjeto: { score: number; classificacao: string } | null
 
-  /** Local client record ID used to persist the converted project to the
-   *  backend. When absent the project is created locally only. */
-  clientId?: string | null
+  /** Numeric DB client_id (BIGINT) from the backend. When present, the project
+   *  is persisted via POST /api/projects/from-analise with a real UUID.
+   *  When absent the project is created in-memory only. */
+  serverClientId?: number | null
   clienteNome?: string
   consultorNome?: string
   consultorId?: string
@@ -91,7 +92,7 @@ export function AnaliseFinanceiraSection({
   afMensalidadeBaseAuto,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
-  clientId,
+  serverClientId,
   clienteNome,
   consultorNome,
   consultorId,
@@ -244,7 +245,7 @@ export function AnaliseFinanceiraSection({
         clienteNome,
         consultorNome,
         consultorId,
-        clientId,
+        serverClientId,
       })
       if (!projeto) {
         setConversionStatus('error')
@@ -258,7 +259,7 @@ export function AnaliseFinanceiraSection({
       setConversionStatus('error')
       setConversionError(msg)
     }
-  }, [analiseFinanceiraResult, afModo, clienteNome, consultorNome, consultorId, clientId, addProjeto])
+  }, [analiseFinanceiraResult, afModo, clienteNome, consultorNome, consultorId, serverClientId, addProjeto])
   return (
     <section className="simulacoes-module-card af-section">
       <header>
@@ -446,7 +447,7 @@ export function AnaliseFinanceiraSection({
                 </button>
                 {conversionStatus === 'success' && (
                   <span style={{ color: 'var(--color-success, #16a34a)', fontSize: '0.875rem', fontWeight: 500 }}>
-                    ✔ Projeto criado{!clientId ? ' (local — cliente não vinculado)' : ''}
+                    ✔ Projeto criado{!serverClientId ? ' (local — cliente não vinculado)' : ''}
                   </span>
                 )}
                 {conversionStatus === 'error' && conversionError && (
