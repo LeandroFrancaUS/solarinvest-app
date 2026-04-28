@@ -385,6 +385,9 @@ export async function handleProjectFromAnalise(req, res, { method, readJsonBody,
   }
 
   // Use a caller-supplied plan_id for idempotency, or generate one server-side.
+  // The frontend client always sends a plan_id (generated once per attempt).
+  // The server-side fallback handles direct API calls (e.g. tests, integrations)
+  // where the caller may not supply a plan_id.
   const planId =
     typeof body?.plan_id === 'string' && body.plan_id.trim()
       ? body.plan_id.trim()

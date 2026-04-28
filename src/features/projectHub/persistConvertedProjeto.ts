@@ -26,6 +26,13 @@ export interface PersistConvertedProjetoParams {
   /** Numeric DB client_id from the backend. When present, the project is
    *  persisted via POST /api/projects/from-analise with a real backend UUID. */
   serverClientId?: number | null
+  /**
+   * Stable plan_id for idempotency. Should be generated once per conversion
+   * attempt (not on every retry) so that clicking "Converter em Projeto" twice
+   * or retrying after a network error does NOT create duplicate projects.
+   * Format: "analise:<uuid>". If absent, a new UUID is generated (not idempotent).
+   */
+  planId?: string
 }
 
 /**
@@ -52,8 +59,9 @@ export async function persistConvertedProjeto(
     return baseProjeto
   }
 
-  // Generate a stable plan_id client-side so repeated clicks don't create duplicates.
-  const planId = `analise:${crypto.randomUUID()}`
+  // Use caller-supplied planId for idempotency (same plan_id on retry → returns
+  // existing project). Fall back to a fresh UUID only when caller didn't provide one.
+  const planId = params.planId ?? `analise:${crypto.randomUUID()}`
 
   try {
     const { project } = await createProjectFromAnalise({

@@ -102,6 +102,10 @@ export function AnaliseFinanceiraSection({
   const addProjeto = useProjectStore(selectAddProjeto)
   const [conversionStatus, setConversionStatus] = useState<ConversionStatus>('idle')
   const [conversionError, setConversionError] = useState<string | null>(null)
+  // Stable plan_id for the current conversion attempt. Generated once on first
+  // click and reused for retries so repeated clicks / network retries don't
+  // create duplicate projects. Reset to null after a successful conversion.
+  const conversionPlanIdRef = useRef<string | null>(null)
   // Store reads — replaces props previously passed down from App.tsx
   const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
@@ -236,6 +240,10 @@ export function AnaliseFinanceiraSection({
 
   const handleConverterEmProjeto = useCallback(async () => {
     if (!analiseFinanceiraResult) return
+    // Generate plan_id once for this attempt; reuse on retries for idempotency.
+    if (!conversionPlanIdRef.current) {
+      conversionPlanIdRef.current = `analise:${crypto.randomUUID()}`
+    }
     setConversionStatus('saving')
     setConversionError(null)
     try {
@@ -246,6 +254,7 @@ export function AnaliseFinanceiraSection({
         consultorNome,
         consultorId,
         serverClientId,
+        planId: conversionPlanIdRef.current,
       })
       if (!projeto) {
         setConversionStatus('error')
@@ -254,6 +263,8 @@ export function AnaliseFinanceiraSection({
       }
       addProjeto(projeto)
       setConversionStatus('success')
+      // Reset so a new conversion (different analysis) gets a fresh plan_id.
+      conversionPlanIdRef.current = null
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido ao criar projeto.'
       setConversionStatus('error')
