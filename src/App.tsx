@@ -27295,6 +27295,7 @@ export default function App() {
     canSeeFinancialAnalysisEffective,
     isAdmin,
     abrirDashboard,
+    abrirClientesPainel,
     abrirCarteira,
     abrirGestaoFinanceira,
     abrirDashboardOperacional,
