@@ -1,4 +1,11 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  type CrmIntegrationMode,
+  formatarDataCurta,
+  useCrm,
+  CrmPage,
+  CrmPageActions,
+} from './features/crm'
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
@@ -44,6 +51,7 @@ import {
 } from './utils/proposalPdf'
 import { shouldUseBentoGrid } from './utils/pdfVariant'
 import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
+import { renderPrintableProposalToHtml, renderPrintableBuyoutTableToHtml } from './utils/renderPdf'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -77,15 +85,8 @@ import {
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import {
-  calcularAnaliseFinanceira,
-  resolveCustoProjetoPorFaixa,
-  resolveCrea,
-  PRECO_PLACA_RS,
-} from './lib/finance/analiseFinanceiraSpreadsheet'
-import type { AnaliseFinanceiraInput } from './types/analiseFinanceira'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
@@ -104,11 +105,9 @@ import {
   type ParsedVendaPdfData,
 } from './lib/pdf/extractVendas'
 import {
-  fmt,
   formatMoneyBR,
   formatNumberBR,
   formatNumberBRWithOptions,
-  formatPercentBR,
   formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
@@ -125,11 +124,11 @@ import {
   formatTipoLigacaoLabel,
   normalizeTipoLigacaoNorma,
   type NormComplianceResult,
+  type PrecheckDecision,
+  type PrecheckDecisionAction,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
-import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
 import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
@@ -174,6 +173,7 @@ import {
   PAGAMENTO_CONDICAO_INFO,
   PAGAMENTO_MODO_INFO,
 } from './constants/pagamento'
+import { TIPOS_INSTALACAO, TIPOS_REDE } from './constants/instalacao'
 import './styles/config-page.css'
 import './styles/toast.css'
 import './styles/bulk-import.css'
@@ -185,6 +185,7 @@ import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { useTheme } from './hooks/useTheme'
+import { useShellLayout } from './hooks/useShellLayout'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
   ANALISE_ANOS_PADRAO,
@@ -216,7 +217,7 @@ import {
 } from './app/config'
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { MULTI_UC_CLASSES, type MultiUcClasse } from './types/multiUc'
+import { MULTI_UC_CLASSES, MULTI_UC_CLASS_LABELS, type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
@@ -253,6 +254,7 @@ import type {
 import {
   mapTipoBasicoToLabel,
   normalizeTipoBasico,
+  NOVOS_TIPOS_TUSD,
   TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
@@ -262,10 +264,22 @@ import {
   formatAxis,
   formatCep,
   formatCpfCnpj,
+  formatKwhWithUnit,
   formatTelefone,
+  formatUcGeradoraTitularEndereco,
   normalizeNumbers,
   tarifaCurrency,
 } from './utils/formatters'
+import { normalizeText } from './utils/textUtils'
+import {
+  createEmptyUcGeradoraTitularEndereco,
+  createEmptyUcGeradoraTitular,
+  cloneUcGeradoraTitular,
+} from './utils/ucGeradoraTitularFactory'
+import {
+  getDistribuidoraDefaultForUf,
+  resolveUfForDistribuidora,
+} from './utils/distribuidoraHelpers'
 import { Switch } from './components/ui/switch'
 import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
@@ -313,6 +327,7 @@ import {
   setMigrationTokenProvider,
 } from './lib/migrateLocalStorageToServer'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { setAdminUsersTokenProvider } from './services/auth/admin-users'
 import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
@@ -320,37 +335,95 @@ import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
+import { setProjectChargesTokenProvider } from './features/projectHub/projectChargesApi'
+import { setProjectHubTokenProvider } from './features/projectHub/projectsApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
+import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
+import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
+import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
+import {
+  selectAfCidadeDestino,
+} from './features/simulacoes/afDeslocamentoSelectors'
+import {
+  useAnaliseFinanceiraResult,
+  type TarifaContexto,
+} from './features/simulacoes/useAnaliseFinanceiraResult'
+import { useAfInputStore } from './features/simulacoes/useAfInputStore'
+import {
+  selectAfConsumoOverride,
+  selectAfCustoKitManual,
+  selectAfFreteManual,
+  selectAfMaterialCAOverride,
+  selectSetAfCustoKit,
+  selectSetAfFrete,
+  selectSetAfAutoMaterialCA,
+} from './features/simulacoes/afInputSelectors'
+import {
+  useSimulacaoBaseStore,
+  selectIrradiacao,
+  selectEficiencia,
+  selectDiasMes,
+  selectSetIrradiacao,
+  selectSetEficiencia,
+  selectSetDiasMes,
+  selectBaseIrradiacao,
+  selectEficienciaNormalizada,
+  selectDiasMesNormalizado,
+  selectPotenciaModulo,
+  selectPotenciaModuloDirty,
+  selectSetPotenciaModulo,
+  selectSetPotenciaModuloDirty,
+} from './features/simulacoes/useSimulacaoBaseStore'
+import {
+  useUfTarifaStore,
+  selectSetUfTarifa,
+  selectUfTarifa,
+} from './features/simulacoes/useUfTarifaStore'
+import {
+  useConsumoBaseStore,
+  selectKcKwhMes,
+  selectSetKcKwhMes,
+  selectSetConsumoManual,
+} from './features/simulacoes/useConsumoBaseStore'
+import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
+import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
+import { Field, FieldError } from './components/ui/Field'
+import { ClientesPage } from './pages/ClientesPage'
+import { BudgetSearchPage } from './pages/BudgetSearchPage'
+import { PrecheckModal } from './pages/PrecheckModal'
+import { PropostaImagensSection } from './components/PropostaImagensSection'
+import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
+import { VendaConfiguracaoSection } from './components/VendaConfiguracaoSection'
+import { VendaResumoPublicoSection } from './components/VendaResumoPublicoSection'
+import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
+import { ClienteDadosSection } from './components/ClienteDadosSection'
+import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
+import { LeasingContratoSection } from './components/LeasingContratoSection'
+import { LeasingConfiguracaoUsinaSection } from './components/LeasingConfiguracaoUsinaSection'
+import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
+import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
+import { TusdParametersSection } from './components/TusdParametersSection'
+import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
+import { VendaParametrosSection } from './components/VendaParametrosSection'
+import type { ClienteMensagens } from './types/cliente'
+import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
+import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
+import { isSegmentoCondominio } from './utils/segmento'
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
 const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
-const NOVOS_TIPOS_TUSD = NOVOS_TIPOS_CLIENTE
 
-const TIPOS_INSTALACAO = [
-  { value: 'fibrocimento', label: 'Telhado de fibrocimento' },
-  { value: 'metalico', label: 'Telhas metálicas' },
-  { value: 'ceramico', label: 'Telhas cerâmicas' },
-  { value: 'laje', label: 'Laje' },
-  { value: 'solo', label: 'Solo' },
-  { value: 'outros', label: 'Outros (texto)' },
-]
-
-const TIPOS_REDE: { value: TipoRede; label: string }[] = [
-  { value: 'nenhum', label: 'Não informado' },
-  { value: 'monofasico', label: 'Monofásico' },
-  { value: 'bifasico', label: 'Bifásico' },
-  { value: 'trifasico', label: 'Trifásico' },
-]
 
 const normalizeCidade = (value: string): string =>
   value
@@ -372,16 +445,8 @@ const PrintableProposal = React.lazy(() => import('./components/print/PrintableP
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
-const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
-
-const MULTI_UC_CLASS_LABELS: Record<MultiUcClasse, string> = {
-  B1_Residencial: 'B1 — Residencial',
-  B2_Rural: 'B2 — Rural',
-  B3_Comercial: 'B3 — Comercial',
-  B4_Iluminacao: 'B4 — Iluminação pública',
-}
 
 const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   simples: 'Simples Nacional',
@@ -389,77 +454,6 @@ const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
   lucro_real: 'Lucro Real',
 }
 
-type AprovacaoStatus = 'pendente' | 'aprovado' | 'reprovado'
-type AprovacaoChecklistKey = 'roi' | 'tir' | 'spread' | 'vpl' | 'payback' | 'eficiencia' | 'lucro'
-
-const SIMULACOES_MENU: { id: SimulacoesSection; label: string; description: string }[] = [
-  {
-    id: 'nova',
-    label: 'Nova Simulação',
-    description: 'Monte um cenário do zero com premissas de consumo, tarifas e capex.',
-  },
-  {
-    id: 'salvas',
-    label: 'Simulações Salvas',
-    description: 'Acesse e compare simulações gravadas sem voltar para Preferências.',
-  },
-  {
-    id: 'ia',
-    label: 'Análises IA (AI Analytics)',
-    description: 'Insights automáticos sobre KPIs, alavancagem e oportunidades.',
-  },
-  {
-    id: 'risco',
-    label: 'Risco & Monte Carlo',
-    description: 'Cenários de risco e volatilidade com distribuição full-width.',
-  },
-  {
-    id: 'packs',
-    label: 'Packs',
-    description: 'Agrupe propostas e combos comerciais para reutilizar.',
-  },
-  {
-    id: 'packs-inteligentes',
-    label: 'Packs Inteligentes',
-    description: 'Automatize packs com IA e premissas dinâmicas.',
-  },
-  {
-    id: 'analise',
-    label: 'Análise Financeira',
-    description: 'Checklist interno para aprovar, reprovar ou salvar decisões.',
-  },
-]
-
-const SIMULACOES_SECTION_COPY: Record<SimulacoesSection, string> = {
-  nova: 'Abra novas simulações em layout de tela cheia e compare resultados lado a lado.',
-  salvas: 'Revise simulações existentes sem sair do módulo dedicado.',
-  ia: 'Centralize análises assistidas por IA e recomendações automáticas.',
-  risco: 'Use Monte Carlo e cenários de risco com gráficos em largura total.',
-  packs: 'Organize pacotes comerciais para acelerar a operação.',
-  'packs-inteligentes': 'Combine inteligência artificial e packs dinâmicos.',
-  analise: 'Aplique regras SolarInvest, checklist interno e selo de aprovação.',
-}
-
-const APROVACAO_SELLOS: Record<AprovacaoStatus, string> = {
-  pendente: 'Decisão pendente',
-  aprovado: 'Aprovado SolarInvest',
-  reprovado: 'Reprovado SolarInvest',
-}
-
-const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return formatNumberBRWithOptions(value, {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    })
-  }
-  return null
-}
-
-const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
-  const formatted = formatKwhValue(value, digits)
-  return formatted ? `${formatted} kWh` : null
-}
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
   if (typeof value === 'string') {
@@ -543,10 +537,6 @@ const formatLeasingPrazoAnos = (valor: number) => {
 // --- FIM BLOCO DESATIVADO ---
 
 const _TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value)
-const TUSD_TIPO_LABELS = NOVOS_TIPOS_TUSD.reduce(
-  (acc, { value, label }) => ({ ...acc, [value]: label }),
-  {} as Record<TipoClienteTUSD, string>,
-)
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
   residencial: 'residencial' as SegmentoCliente,
@@ -592,8 +582,6 @@ const _SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
   (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
   { '': 'Selecione' } as Record<SegmentoCliente, string>,
 )
-const isSegmentoCondominio = (segmento: SegmentoCliente) =>
-  segmento === 'cond_vertical' || segmento === 'cond_horizontal'
 
 const emailValido = (valor: string) => {
   if (!valor) {
@@ -623,9 +611,6 @@ const numbersAreClose = (
 
   return Math.abs(a - b) <= tolerance
 }
-
-const toNumberSafe = (value: number | null | undefined): number =>
-  Number.isFinite(value) ? Number(value) : 0
 
 const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
   return (
@@ -720,11 +705,6 @@ type ClienteRegistro = {
 }
 
 
-type ClienteMensagens = {
-  email?: string | undefined
-  cidade?: string | undefined
-  cep?: string | undefined
-}
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
 
@@ -746,13 +726,6 @@ const formatCurrencyInputValue = (value: number | null) => {
     return ''
   }
   return formatMoneyBR(value)
-}
-
-const parseNumericInput = (value: string): number | null => {
-  if (!value) {
-    return null
-  }
-  return toNumberFlexible(value)
 }
 
 const toFiniteNonNegativeNumber = (value: unknown): number | null => {
@@ -808,21 +781,6 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
 
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
-
-const cloneImpostosOverrides = (
-  overrides?: Partial<ImpostosRegimeConfig> | null,
-): Partial<ImpostosRegimeConfig> => {
-  if (!overrides) {
-    return {}
-  }
-  const cloned: Partial<ImpostosRegimeConfig> = {}
-  for (const regime of ['simples', 'lucro_presumido', 'lucro_real'] as const) {
-    if (Array.isArray(overrides[regime])) {
-      cloned[regime] = overrides[regime].map((item) => ({ ...item }))
-    }
-  }
-  return cloned
-}
 
 const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   if (!progress) {
@@ -931,107 +889,6 @@ const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   info: 'ℹ',
   error: '⚠',
 }
-
-type CrmStageId =
-  | 'novo-lead'
-  | 'qualificacao'
-  | 'proposta-enviada'
-  | 'negociacao'
-  | 'aguardando-contrato'
-  | 'fechado'
-
-type CrmPipelineStage = {
-  id: CrmStageId
-  label: string
-}
-
-type CrmTimelineEntryType = 'status' | 'anotacao'
-
-type CrmTimelineEntry = {
-  id: string
-  leadId: string
-  mensagem: string
-  tipo: CrmTimelineEntryType
-  criadoEmIso: string
-}
-
-type CrmLeadRecord = {
-  id: string
-  nome: string
-  telefone: string
-  email?: string | undefined
-  cidade: string
-  tipoImovel: string
-  consumoKwhMes: number
-  origemLead: string
-  interesse: string
-  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
-  valorEstimado: number
-  etapa: CrmStageId
-  ultimoContatoIso: string
-  criadoEmIso: string
-  notas?: string | undefined
-  instalacaoStatus: 'planejamento' | 'em-andamento' | 'concluida' | 'aguardando-homologacao'
-}
-
-type CrmFinanceiroStatus = 'em-aberto' | 'ativo' | 'inadimplente' | 'quitado'
-
-type CrmContratoFinanceiro = {
-  id: string
-  leadId: string
-  modelo: 'LEASING' | 'VENDA_DIRETA'
-  valorTotal: number
-  entrada: number
-  parcelas: number
-  valorParcela: number
-  reajusteAnualPct: number
-  vencimentoInicialIso: string
-  status: CrmFinanceiroStatus
-}
-
-type CrmCustoProjeto = {
-  id: string
-  leadId: string
-  equipamentos: number
-  maoDeObra: number
-  deslocamento: number
-  taxasSeguros: number
-}
-
-type CrmManutencaoRegistro = {
-  id: string
-  leadId: string
-  dataIso: string
-  tipo: string
-  status: 'pendente' | 'concluida'
-  observacao?: string | undefined
-}
-
-type CrmDataset = {
-  leads: CrmLeadRecord[]
-  timeline: CrmTimelineEntry[]
-  contratos: CrmContratoFinanceiro[]
-  custos: CrmCustoProjeto[]
-  manutencoes: CrmManutencaoRegistro[]
-}
-
-type CrmLeadFormState = {
-  nome: string
-  telefone: string
-  email: string
-  cidade: string
-  tipoImovel: string
-  consumoKwhMes: string
-  origemLead: string
-  interesse: string
-  tipoOperacao: 'LEASING' | 'VENDA_DIRETA'
-  valorEstimado: string
-  notas: string
-}
-
-type CrmIntegrationMode = 'local' | 'remote'
-type CrmBackendStatus = 'idle' | 'success' | 'error'
-type CrmFiltroOperacao = 'all' | 'LEASING' | 'VENDA_DIRETA'
 
 type OrcamentoSnapshotBudgetState = {
   isProcessing: boolean
@@ -1176,23 +1033,6 @@ type OrcamentoSalvo = {
   ownerName?: string
   /** Stack user id of the owner (server-loaded, privileged views only) */
   ownerUserId?: string
-}
-
-type UcBeneficiariaFormState = {
-  id: string
-  numero: string
-  endereco: string
-  consumoKWh: string
-  rateioPercentual: string
-}
-
-type UcGeradoraTitularErrors = {
-  nomeCompleto?: string
-  cpf?: string
-  logradouro?: string
-  cidade?: string
-  uf?: string
-  cep?: string
 }
 
 type CorresponsavelErrors = {
@@ -1608,16 +1448,6 @@ const normalizeDistribuidoraName = (value?: string | null): string =>
     .trim()
     .toUpperCase() ?? ''
 
-const getDistribuidoraDefaultForUf = (uf?: string | null): string => {
-  const normalized = uf?.trim().toUpperCase() ?? ''
-  if (normalized === 'GO') {
-    return 'Equatorial Goiás'
-  }
-  if (normalized === 'DF') {
-    return 'Neoenergia Brasilia'
-  }
-  return ''
-}
 
 const getDistribuidoraValidationMessage = (
   ufRaw?: string | null,
@@ -1650,22 +1480,6 @@ const getDistribuidoraValidationMessage = (
   return null
 }
 
-const resolveUfForDistribuidora = (
-  distribuidorasPorUf: Record<string, string[]>,
-  distribuidora?: string | null,
-): string => {
-  const alvo = distribuidora?.trim()
-  if (!alvo) {
-    return ''
-  }
-  const alvoNormalizado = alvo.toLowerCase()
-  for (const [uf, distribuidoras] of Object.entries(distribuidorasPorUf)) {
-    if (distribuidoras.some((item) => item.toLowerCase() === alvoNormalizado)) {
-      return uf
-    }
-  }
-  return ''
-}
 
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
@@ -1700,22 +1514,6 @@ const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
   rateioPercentual: '',
 })
 
-const createEmptyUcGeradoraTitularEndereco = (): LeasingEndereco => ({
-  logradouro: '',
-  numero: '',
-  complemento: '',
-  bairro: '',
-  cidade: '',
-  uf: '',
-  cep: '',
-})
-
-const createEmptyUcGeradoraTitular = (): LeasingUcGeradoraTitular => ({
-  nomeCompleto: '',
-  cpf: '',
-  rg: '',
-  endereco: createEmptyUcGeradoraTitularEndereco(),
-})
 
 const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
   nome: '',
@@ -1727,37 +1525,6 @@ const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
   telefone: '',
 })
 
-const cloneUcGeradoraTitular = (
-  input: LeasingUcGeradoraTitular,
-): LeasingUcGeradoraTitular => ({
-  ...input,
-  endereco: { ...input.endereco },
-})
-
-const formatUcGeradoraTitularEndereco = (
-  endereco?: LeasingEndereco | null,
-): string => {
-  if (!endereco) {
-    return ''
-  }
-  const logradouro = endereco.logradouro?.trim() ?? ''
-  const numero = endereco.numero?.trim() ?? ''
-  const complemento = endereco.complemento?.trim() ?? ''
-  const bairro = endereco.bairro?.trim() ?? ''
-  const cidade = endereco.cidade?.trim() ?? ''
-  const uf = endereco.uf?.trim() ?? ''
-  const cep = endereco.cep?.trim() ?? ''
-  const primeiraLinha = [logradouro, numero].filter(Boolean).join(', ')
-  const primeiraLinhaCompleta =
-    complemento && primeiraLinha ? `${primeiraLinha}, ${complemento}` : primeiraLinha || complemento
-  const partes = [
-    primeiraLinhaCompleta,
-    bairro || '',
-    [cidade, uf].filter(Boolean).join('/'),
-    cep ? `CEP ${cep}` : '',
-  ].filter(Boolean)
-  return partes.join(' — ')
-}
 
 type DistribuidoraAneelState = {
   clienteDistribuidoraAneel?: string | null
@@ -3188,302 +2955,10 @@ const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>
   return generateClienteId(existingIds)
 }
 
-const CRM_LOCAL_STORAGE_KEY = 'solarinvest-crm-dataset'
-const CRM_BACKEND_BASE_URL = 'https://crm.solarinvest.app'
-
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
 const DEFAULT_PREVIEW_TOOLBAR_MESSAGE =
   'Revise o conteúdo e utilize as ações para imprimir ou salvar como PDF.'
-
-const CRM_PIPELINE_STAGES: CrmPipelineStage[] = [
-  { id: 'novo-lead', label: 'Novo lead' },
-  { id: 'qualificacao', label: 'Qualificação' },
-  { id: 'proposta-enviada', label: 'Proposta enviada' },
-  { id: 'negociacao', label: 'Negociação' },
-  { id: 'aguardando-contrato', label: 'Aguardando contrato' },
-  { id: 'fechado', label: 'Fechado' },
-]
-
-const CRM_INSTALACAO_STATUS: { id: CrmLeadRecord['instalacaoStatus']; label: string }[] = [
-  { id: 'planejamento', label: 'Planejamento' },
-  { id: 'em-andamento', label: 'Em andamento' },
-  { id: 'aguardando-homologacao', label: 'Aguardando homologação' },
-  { id: 'concluida', label: 'Concluída' },
-]
-
-const CRM_STAGE_INDEX: Record<CrmStageId, number> = CRM_PIPELINE_STAGES.reduce(
-  (acc, stage, index) => {
-    acc[stage.id] = index
-    return acc
-  },
-  {} as Record<CrmStageId, number>,
-)
-
-const CRM_EMPTY_LEAD_FORM: CrmLeadFormState = {
-  nome: '',
-  telefone: '',
-  email: '',
-  cidade: '',
-  tipoImovel: '',
-  consumoKwhMes: '',
-  origemLead: '',
-  interesse: 'Leasing',
-  tipoOperacao: 'LEASING',
-  valorEstimado: '',
-  notas: '',
-}
-
-const CRM_DATASET_VAZIO: CrmDataset = {
-  leads: [],
-  timeline: [],
-  contratos: [],
-  custos: [],
-  manutencoes: [],
-}
-
-const gerarIdCrm = (
-  prefixo: 'lead' | 'evento' | 'contrato' | 'custo' | 'manutencao',
-) => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `${prefixo}-${crypto.randomUUID()}`
-  }
-
-  const aleatorio = Math.floor(Math.random() * 1_000_000)
-  return `${prefixo}-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
-}
-
-const diasDesdeDataIso = (isoString: string) => {
-  const data = new Date(isoString)
-  if (Number.isNaN(data.getTime())) {
-    return 0
-  }
-  const diffMs = Date.now() - data.getTime()
-  return diffMs <= 0 ? 0 : Math.floor(diffMs / (1000 * 60 * 60 * 24))
-}
-
-const formatarDataCurta = (isoString: string) => {
-  const data = new Date(isoString)
-  if (Number.isNaN(data.getTime())) {
-    return ''
-  }
-  return data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-}
-
-const sanitizarLeadCrm = (valor: Partial<CrmLeadRecord>): CrmLeadRecord => {
-  const agoraIso = new Date().toISOString()
-  const etapaValida = CRM_PIPELINE_STAGES.some((stage) => stage.id === valor.etapa)
-    ? (valor.etapa as CrmStageId)
-    : 'novo-lead'
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('lead'),
-    nome: typeof valor.nome === 'string' ? valor.nome : '',
-    telefone: typeof valor.telefone === 'string' ? valor.telefone : '',
-    email: typeof valor.email === 'string' && valor.email ? valor.email : undefined,
-    cidade: typeof valor.cidade === 'string' ? valor.cidade : '',
-    tipoImovel: typeof valor.tipoImovel === 'string' ? valor.tipoImovel : 'Não informado',
-    consumoKwhMes: Number.isFinite(valor.consumoKwhMes)
-      ? Math.max(0, Math.round(valor.consumoKwhMes as number))
-      : 0,
-    origemLead: typeof valor.origemLead === 'string' && valor.origemLead
-      ? valor.origemLead
-      : 'Cadastro manual',
-    interesse: typeof valor.interesse === 'string' && valor.interesse ? valor.interesse : 'Leasing',
-    tipoOperacao: valor.tipoOperacao === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-    valorEstimado: Number.isFinite(valor.valorEstimado)
-      ? Math.max(0, Math.round(valor.valorEstimado as number))
-      : 0,
-    etapa: etapaValida,
-    ultimoContatoIso:
-      typeof valor.ultimoContatoIso === 'string' && valor.ultimoContatoIso
-        ? valor.ultimoContatoIso
-        : agoraIso,
-    criadoEmIso:
-      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso ? valor.criadoEmIso : agoraIso,
-    notas: typeof valor.notas === 'string' && valor.notas ? valor.notas : undefined,
-    instalacaoStatus:
-      valor.instalacaoStatus && CRM_INSTALACAO_STATUS.some((item) => item.id === valor.instalacaoStatus)
-        ? valor.instalacaoStatus
-        : 'planejamento',
-  }
-}
-
-const sanitizarContratoCrm = (
-  valor: Partial<CrmContratoFinanceiro>,
-  leadIds: Set<string>,
-): CrmContratoFinanceiro | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const parcelas = Number.isFinite(valor.parcelas) ? Math.max(0, Math.round(valor.parcelas as number)) : 0
-  const valorParcela = Number.isFinite(valor.valorParcela)
-    ? Math.max(0, Number(valor.valorParcela))
-    : 0
-  const valorTotal = Number.isFinite(valor.valorTotal) ? Math.max(0, Number(valor.valorTotal)) : 0
-  const entrada = Number.isFinite(valor.entrada) ? Math.max(0, Number(valor.entrada)) : 0
-  const reajuste = Number.isFinite(valor.reajusteAnualPct)
-    ? Math.max(0, Number(valor.reajusteAnualPct))
-    : 0
-
-  const modelo = valor.modelo === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING'
-  const status: CrmFinanceiroStatus =
-    valor.status === 'ativo' || valor.status === 'inadimplente' || valor.status === 'quitado'
-      ? valor.status
-      : 'em-aberto'
-
-  const vencimentoIso =
-    typeof valor.vencimentoInicialIso === 'string' && valor.vencimentoInicialIso
-      ? valor.vencimentoInicialIso
-      : new Date().toISOString()
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('contrato'),
-    leadId: valor.leadId,
-    modelo,
-    valorTotal,
-    entrada,
-    parcelas,
-    valorParcela,
-    reajusteAnualPct: reajuste,
-    vencimentoInicialIso: vencimentoIso,
-    status,
-  }
-}
-
-const sanitizarCustoCrm = (
-  valor: Partial<CrmCustoProjeto>,
-  leadIds: Set<string>,
-): CrmCustoProjeto | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const normalizar = (numero?: number) => (Number.isFinite(numero) ? Math.max(0, Number(numero)) : 0)
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('custo'),
-    leadId: valor.leadId,
-    equipamentos: normalizar(valor.equipamentos),
-    maoDeObra: normalizar(valor.maoDeObra),
-    deslocamento: normalizar(valor.deslocamento),
-    taxasSeguros: normalizar(valor.taxasSeguros),
-  }
-}
-
-const sanitizarManutencaoCrm = (
-  valor: Partial<CrmManutencaoRegistro>,
-  leadIds: Set<string>,
-): CrmManutencaoRegistro | null => {
-  if (!valor.leadId || !leadIds.has(valor.leadId)) {
-    return null
-  }
-
-  const status = valor.status === 'concluida' ? 'concluida' : 'pendente'
-  const dataIso = typeof valor.dataIso === 'string' && valor.dataIso ? valor.dataIso : new Date().toISOString()
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('manutencao'),
-    leadId: valor.leadId,
-    dataIso,
-    tipo: typeof valor.tipo === 'string' && valor.tipo ? valor.tipo : 'Revisão preventiva',
-    status,
-    observacao:
-      typeof valor.observacao === 'string' && valor.observacao ? valor.observacao.slice(0, 280) : undefined,
-  }
-}
-
-const sanitizarEventoCrm = (
-  valor: Partial<CrmTimelineEntry>,
-  leadIds: Set<string>,
-): CrmTimelineEntry | null => {
-  const leadId = typeof valor.leadId === 'string' ? valor.leadId : ''
-  const mensagem = typeof valor.mensagem === 'string' ? valor.mensagem : ''
-  if (!leadId || !mensagem || !leadIds.has(leadId)) {
-    return null
-  }
-
-  return {
-    id: typeof valor.id === 'string' && valor.id ? valor.id : gerarIdCrm('evento'),
-    leadId,
-    mensagem,
-    tipo: valor.tipo === 'anotacao' ? 'anotacao' : 'status',
-    criadoEmIso:
-      typeof valor.criadoEmIso === 'string' && valor.criadoEmIso
-        ? valor.criadoEmIso
-        : new Date().toISOString(),
-  }
-}
-
-const sanitizarDatasetCrm = (valor: unknown): CrmDataset => {
-  if (!valor || typeof valor !== 'object') {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  const bruto = valor as Partial<CrmDataset>
-  const leads = Array.isArray(bruto.leads)
-    ? bruto.leads.map((item) => sanitizarLeadCrm(item as Partial<CrmLeadRecord>))
-    : []
-  const leadIds = new Set(leads.map((lead) => lead.id))
-  const timeline = Array.isArray(bruto.timeline)
-    ? bruto.timeline
-        .map((item) => sanitizarEventoCrm(item as Partial<CrmTimelineEntry>, leadIds))
-        .filter((item): item is CrmTimelineEntry => Boolean(item))
-    : []
-
-  const contratos = Array.isArray(bruto.contratos)
-    ? bruto.contratos
-        .map((item) => sanitizarContratoCrm(item as Partial<CrmContratoFinanceiro>, leadIds))
-        .filter((item): item is CrmContratoFinanceiro => Boolean(item))
-    : []
-
-  const custos = Array.isArray(bruto.custos)
-    ? bruto.custos
-        .map((item) => sanitizarCustoCrm(item as Partial<CrmCustoProjeto>, leadIds))
-        .filter((item): item is CrmCustoProjeto => Boolean(item))
-    : []
-
-  const manutencoes = Array.isArray(bruto.manutencoes)
-    ? bruto.manutencoes
-        .map((item) => sanitizarManutencaoCrm(item as Partial<CrmManutencaoRegistro>, leadIds))
-        .filter((item): item is CrmManutencaoRegistro => Boolean(item))
-    : []
-
-  leads.sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
-  timeline.sort((a, b) => (a.criadoEmIso < b.criadoEmIso ? 1 : -1))
-
-  contratos.sort((a, b) => (a.vencimentoInicialIso < b.vencimentoInicialIso ? -1 : 1))
-  manutencoes.sort((a, b) => (a.dataIso > b.dataIso ? 1 : -1))
-
-  return { leads, timeline, contratos, custos, manutencoes }
-}
-
-const carregarDatasetCrm = (): CrmDataset => {
-  if (typeof window === 'undefined') {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  const existente = window.localStorage.getItem(CRM_LOCAL_STORAGE_KEY)
-  if (!existente) {
-    return { ...CRM_DATASET_VAZIO }
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(existente)
-    return sanitizarDatasetCrm(parsed)
-  } catch (error) {
-    console.warn('Não foi possível interpretar o dataset do CRM salvo localmente.', error)
-    return { ...CRM_DATASET_VAZIO }
-  }
-}
-
-const normalizeText = (value: string | null | undefined) =>
-  (value ?? '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
 
 const normalizeClienteString = (value: string) =>
   normalizeText(value)
@@ -3493,32 +2968,6 @@ const normalizeClienteString = (value: string) =>
 const normalizeClienteEmail = (value: string) => value.trim().toLowerCase()
 
 const normalizeClienteNumbers = (value: string) => normalizeNumbers(value)
-
-const formatWhatsappPhoneNumber = (value: string): string | null => {
-  let digits = normalizeNumbers(value)
-
-  if (!digits) {
-    return null
-  }
-
-  digits = digits.replace(/^0+/, '')
-
-  if (digits.startsWith('55')) {
-    while (digits.length > 2 && digits[2] === '0') {
-      digits = `55${digits.slice(3)}`
-    }
-  } else if (digits.length === 10 || digits.length === 11) {
-    digits = `55${digits}`
-  } else {
-    return null
-  }
-
-  if (digits.length < 12 || digits.length > 13) {
-    return null
-  }
-
-  return digits
-}
 
 const createClienteComparisonData = (dados: ClienteDados) => {
   const normalized = {
@@ -3561,67 +3010,6 @@ const formatBudgetDate = (isoString: string) => {
     return ''
   }
   return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-}
-
-const sanitizeClientShowcaseValue = (value: unknown): string => {
-  if (value == null) return '-'
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  const normalized = String(value).trim()
-  if (!normalized) return '-'
-
-  const lowered = normalized.toLowerCase()
-  const jsonLike =
-    (normalized.startsWith('{') && normalized.endsWith('}')) ||
-    (normalized.startsWith('[') && normalized.endsWith(']'))
-  const htmlLike = normalized.includes('<') || normalized.includes('>')
-  const objectLike = lowered.includes('[object')
-  const codeLike = lowered.includes('function(') || lowered.includes('=>')
-
-  if (jsonLike || htmlLike || objectLike || codeLike) {
-    return '-'
-  }
-
-  return normalized
-}
-
-const CLIENT_ROW_SUMMARY_FIELDS = new Set([
-  'client_name',
-  'client_document',
-  'client_city_state',
-  'consumption_kwh_month',
-  'client_phone',
-  'consultor',
-  'client_address',
-])
-
-type ClientesPanelProps = {
-  registros: ClienteRegistro[]
-  onClose: () => void
-  onEditar: (registro: ClienteRegistro) => void
-  onExcluir: (registro: ClienteRegistro) => void
-  onExportarCarteira?: (registro: ClienteRegistro) => void
-  onExportarCsv: () => void
-  onExportarJson: () => void
-  onImportar: () => void
-  onBackupCliente: () => void
-  isImportando: boolean
-  isGerandoBackupBanco?: boolean
-  canBackupBanco?: boolean
-  /** When true, shows the "Consultor" column and cross-user description */
-  isPrivilegedUser?: boolean
-  /** When true, shows the "Negócio fechado" portfolio export button */
-  canExportarCarteira?: boolean
-  /**
-   * All registered consultants from the API (privileged users only).
-   * Each entry has `id` (stack_user_id) for filtering and `name` for display.
-   */
-  allConsultores?: ConsultantEntry[]
-  /**
-   * Active consultants from the picker API (available to all authenticated users).
-   * Used as a fallback lookup source when allConsultores is not yet loaded or
-   * does not contain the consultant referenced in a client's metadata.
-   */
-  formConsultores?: ConsultantPickerEntry[]
 }
 
 type ClienteContratoPayload = {
@@ -3757,632 +3145,6 @@ const PROPOSTA_ENVIO_ORIGEM_LABEL: Record<PropostaEnvioContato['origem'], string
   'cliente-atual': 'Proposta em edição',
   'cliente-salvo': 'Clientes salvos',
   crm: 'CRM',
-}
-
-function ClientesPanel({
-  registros,
-  onClose,
-  onEditar,
-  onExcluir,
-  onExportarCarteira,
-  onExportarCsv,
-  onExportarJson,
-  onImportar,
-  onBackupCliente,
-  isImportando,
-  isGerandoBackupBanco = false,
-  canBackupBanco = false,
-  isPrivilegedUser = false,
-  canExportarCarteira = false,
-  allConsultores = [],
-  formConsultores = [],
-}: ClientesPanelProps) {
-  const panelTitleId = useId()
-  const [clienteSearchTerm, setClienteSearchTerm] = useState('')
-  // selectedOwner stores the registered consultant id (consultants.id) or 'all'.
-  // Using the ID (not the display name) ensures filter correctness even when
-  // two consultants share a name or when the name changes.
-  const [selectedOwner, setSelectedOwner] = useState('all')
-  const [infoClienteId, setInfoClienteId] = useState<string | null>(null)
-  const [sortColumn, setSortColumn] = useState<'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
-  const normalizedSearchTerm = clienteSearchTerm.trim().toLowerCase()
-  const consultorById = useMemo(() => {
-    const map = new Map<string, ConsultantEntry>()
-    // Seed with formConsultores first (lower priority — active consultants only,
-    // available to all authenticated users including those without privileged role).
-    // This ensures consultant names appear even before allConsultores loads from
-    // the API and when client metadata has a stale consultor_nome value.
-    formConsultores.forEach((entry) => {
-      if (!entry?.id) return
-      map.set(String(entry.id), {
-        id: String(entry.id),
-        name: consultorDisplayName(entry),
-        email: entry.email ?? null,
-        apelido: entry.apelido?.trim() ?? null,
-      })
-    })
-    // allConsultores (all consultants, privileged users only) overwrites — higher priority.
-    allConsultores.forEach((entry) => {
-      if (!entry?.id) return
-      map.set(String(entry.id), entry)
-    })
-    return map
-  }, [allConsultores, formConsultores])
-
-  // Build the dropdown options list using only registered consultants
-  // from Gestão de Usuários/Consultores.
-  const ownerOptions = useMemo(() => {
-    if (!isPrivilegedUser) return []
-    return [...allConsultores].sort((a, b) =>
-      (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
-    )
-  }, [isPrivilegedUser, allConsultores])
-
-  // Single source of truth for the visible client list:
-  //   1. Removes deleted records and applies the consultant filter.
-  //   2. Text search is applied on top of the already-filtered result.
-  const registrosFiltrados = useMemo(() => {
-    const activeClients = registros.filter((registro) => registro.deletedAt == null)
-    const byConsultor =
-      selectedOwner === 'all'
-        ? activeClients
-        : activeClients.filter((registro) => (registro.dados.consultorId ?? '') === selectedOwner)
-
-    if (!normalizedSearchTerm) return byConsultor
-
-    const digitsOnly = normalizedSearchTerm.replace(/\D/g, '')
-    return byConsultor.filter((registro) => {
-      const { dados } = registro
-      const matchNome = dados.nome?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchDocumento =
-        digitsOnly.length > 0
-          ? (dados.documento?.replace(/\D/g, '').includes(digitsOnly) ?? false)
-          : false
-      const matchEmail = dados.email?.toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchTelefone =
-        digitsOnly.length > 0
-          ? (dados.telefone?.replace(/\D/g, '').includes(digitsOnly) ?? false)
-          : (dados.telefone?.toLowerCase().includes(normalizedSearchTerm) ?? false)
-      const matchUc = dados.uc?.toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchCidade = dados.cidade?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchUf = dados.uf?.trim().toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchCep =
-        digitsOnly.length > 0
-          ? (dados.cep?.replace(/\D/g, '').includes(digitsOnly) ?? false)
-          : false
-      const matchEndereco = dados.endereco?.toLowerCase().includes(normalizedSearchTerm) ?? false
-      const matchDistribuidora = dados.distribuidora?.toLowerCase().includes(normalizedSearchTerm) ?? false
-      // Allow searching by consultant display name for privileged views
-      const consultorId = registro.dados.consultorId ?? ''
-      // Fall back to the consultant name stored on the client record itself (consultor_nome in metadata)
-      // so the correct name shows immediately while allConsultores is still loading from the API.
-      const consultorLabel = (consultorById.get(consultorId)?.name ?? registro.dados.consultorNome?.trim()) || 'Sem consultor'
-      const matchOwner = isPrivilegedUser
-        ? consultorLabel.toLowerCase().includes(normalizedSearchTerm)
-        : false
-      return (
-        matchNome ||
-        matchDocumento ||
-        matchEmail ||
-        matchTelefone ||
-        matchUc ||
-        matchCidade ||
-        matchUf ||
-        matchCep ||
-        matchEndereco ||
-        matchDistribuidora ||
-        matchOwner
-      )
-    })
-  }, [consultorById, isPrivilegedUser, normalizedSearchTerm, registros, selectedOwner])
-
-  // Sort registros filtrados based on selected column and direction
-  const registrosOrdenados = useMemo(() => {
-    if (!sortColumn) return registrosFiltrados
-
-    return [...registrosFiltrados].sort((a, b) => {
-      let compareResult = 0
-
-      if (sortColumn === 'nome') {
-        const nomeA = (a.dados.nome ?? '').toLowerCase()
-        const nomeB = (b.dados.nome ?? '').toLowerCase()
-        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
-      } else if (sortColumn === 'documento') {
-        const docA = (a.dados.documento ?? '').replace(/\D/g, '')
-        const docB = (b.dados.documento ?? '').replace(/\D/g, '')
-        compareResult = docA.localeCompare(docB, 'pt-BR')
-      } else if (sortColumn === 'cidade') {
-        const cidadeA = (a.dados.cidade ?? '').toLowerCase()
-        const cidadeB = (b.dados.cidade ?? '').toLowerCase()
-        compareResult = cidadeA.localeCompare(cidadeB, 'pt-BR')
-      } else if (sortColumn === 'consumo') {
-        const consumoA = a.consumption_kwh_month ?? 0
-        const consumoB = b.consumption_kwh_month ?? 0
-        compareResult = consumoA - consumoB
-      } else if (sortColumn === 'telefone') {
-        const telA = (a.dados.telefone ?? '').replace(/\D/g, '')
-        const telB = (b.dados.telefone ?? '').replace(/\D/g, '')
-        compareResult = telA.localeCompare(telB, 'pt-BR')
-      } else if (sortColumn === 'consultor') {
-        const consultorIdA = a.dados.consultorId ?? ''
-        const consultorIdB = b.dados.consultorId ?? ''
-        const nomeA = (consultorById.get(consultorIdA)?.name ?? a.dados.consultorNome ?? 'Sem consultor').toLowerCase()
-        const nomeB = (consultorById.get(consultorIdB)?.name ?? b.dados.consultorNome ?? 'Sem consultor').toLowerCase()
-        compareResult = nomeA.localeCompare(nomeB, 'pt-BR')
-      }
-
-      return sortDirection === 'asc' ? compareResult : -compareResult
-    })
-  }, [registrosFiltrados, sortColumn, sortDirection, consultorById])
-
-  const toggleSort = useCallback((column: 'nome' | 'documento' | 'cidade' | 'consumo' | 'telefone' | 'consultor') => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }, [sortColumn, sortDirection])
-
-  // Active records (non-deleted) — used for total count, independent of search/owner filter
-  const totalAtivos = useMemo(
-    () => registros.filter((r) => r.deletedAt == null).length,
-    [registros],
-  )
-  const totalResultados = registrosOrdenados.length
-  // Display name for the currently selected consultant filter (for empty-state messages)
-  const selectedOwnerName = useMemo(() => {
-    if (selectedOwner === 'all') return null
-    return ownerOptions.find((e) => e.id === selectedOwner)?.name ?? null
-  }, [selectedOwner, ownerOptions])
-  // For privileged views, how many distinct consultants are represented among active records
-  const totalConsultores = useMemo(() => {
-    if (!isPrivilegedUser) return 0
-    return new Set(
-      registros
-        .filter((r) => r.deletedAt == null)
-        // Count a client as having a consultant when either the ID is in the loaded map
-        // OR the stored consultorNome is non-empty (covers the "map loading" window).
-        .filter((r) =>
-          consultorById.has(r.dados.consultorId ?? '') ||
-          Boolean(r.dados.consultorNome?.trim()),
-        )
-        // Use ID when available for accurate deduplication; fall back to name for clients
-        // whose consultant hasn't loaded into the map yet.
-        .map((r) => r.dados.consultorId || r.dados.consultorNome || ''),
-    ).size
-  }, [consultorById, isPrivilegedUser, registros])
-
-  return (
-    <div className="budget-search-page clients-page" aria-labelledby={panelTitleId}>
-      <div className="budget-search-page-header">
-        <div>
-          <h2 id={panelTitleId}>Gestão de clientes</h2>
-          <p>
-            {isPrivilegedUser
-              ? `Todos os clientes cadastrados no sistema${totalConsultores > 0 ? ` — ${totalConsultores} consultor(es) representados` : ''}.`
-              : 'Clientes armazenados localmente neste dispositivo.'}
-          </p>
-        </div>
-        <button type="button" className="ghost" onClick={onClose}>
-          Voltar
-        </button>
-      </div>
-      <div className="budget-search-panels budget-search-panels--single">
-        <section className="budget-search-panel clients-panel" aria-label="Registros de clientes salvos">
-          <div className="budget-search-header">
-            <h4>Registros salvos</h4>
-            <div className="clients-panel-actions">
-              <button
-                type="button"
-                className="ghost with-icon"
-                onClick={onExportarJson}
-                disabled={registros.length === 0}
-                title="Exportar clientes salvos para um arquivo JSON"
-              >
-                <span aria-hidden="true">⬆️</span>
-                <span>Exportar JSON</span>
-              </button>
-              <button
-                type="button"
-                className="ghost with-icon"
-                onClick={onExportarCsv}
-                disabled={registros.length === 0}
-                title="Exportar clientes salvos para um arquivo CSV"
-              >
-                <span aria-hidden="true">📄</span>
-                <span>Exportar CSV</span>
-              </button>
-              {canBackupBanco ? (
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onBackupCliente}
-                  disabled={isGerandoBackupBanco}
-                  aria-busy={isGerandoBackupBanco}
-                  title="Backup completo de clientes e propostas (baixar ou carregar)"
-                >
-                  <span aria-hidden="true">🗄️</span>
-                  <span>{isGerandoBackupBanco ? 'Processando backup…' : 'Backup de cliente'}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="ghost with-icon"
-                  onClick={onImportar}
-                  disabled={isImportando}
-                  aria-busy={isImportando}
-                  title="Importar clientes a partir de um arquivo JSON ou CSV"
-                >
-                  <span aria-hidden="true">⬇️</span>
-                  <span>{isImportando ? 'Importando…' : 'Importar'}</span>
-                </button>
-              )}
-            </div>
-          </div>
-          <Field
-            label={labelWithTooltip(
-              'Pesquisar cliente',
-              isPrivilegedUser
-                ? 'Filtra os clientes pelo nome, CPF/CNPJ, e-mail, telefone, UC, cidade, UF, CEP, endereço, distribuidora ou nome do consultor responsável.'
-                : 'Filtra os clientes pelo nome, CPF/CNPJ, e-mail, telefone, UC, cidade, UF, CEP, endereço ou distribuidora.',
-            )}
-          >
-            <input
-              type="search"
-              value={clienteSearchTerm}
-              onChange={(event) => setClienteSearchTerm(event.target.value)}
-              placeholder={isPrivilegedUser ? 'Ex.: Maria Silva, 123.456.789-00, UC-0001 ou João Consultor' : 'Ex.: Maria Silva, 123.456.789-00 ou UC-0001'}
-            />
-          </Field>
-          {isPrivilegedUser ? (
-            <div className="owner-filter-row">
-              <label htmlFor="clientes-owner-filter">Criador/consultor</label>
-              <select
-                id="clientes-owner-filter"
-                value={selectedOwner}
-                onChange={(event) => setSelectedOwner(event.target.value)}
-              >
-                <option value="all">Todos os consultores</option>
-                {ownerOptions.map((entry) => (
-                  <option key={entry.id} value={entry.id}>
-                    {entry.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <div className="budget-search-summary">
-            <span>
-              {totalAtivos === 0
-                ? 'Nenhum cliente salvo até o momento.'
-                : `${totalResultados} de ${totalAtivos} cliente(s) exibidos.`}
-            </span>
-            {(clienteSearchTerm || selectedOwner !== 'all') ? (
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setClienteSearchTerm('')
-                  setSelectedOwner('all')
-                }}
-              >
-                Limpar filtros
-              </button>
-            ) : null}
-          </div>
-          {totalAtivos === 0 ? (
-            <p className="budget-search-empty">Nenhum cliente foi salvo até o momento.</p>
-          ) : registrosOrdenados.length === 0 ? (
-            <p className="budget-search-empty">
-              {clienteSearchTerm && selectedOwner !== 'all'
-                ? `Nenhum cliente encontrado para "${clienteSearchTerm}" no filtro de ${selectedOwnerName ?? 'consultor selecionado'}.`
-                : clienteSearchTerm
-                  ? `Nenhum cliente encontrado para "${clienteSearchTerm}".`
-                  : selectedOwnerName
-                    ? `Nenhum cliente encontrado para o consultor "${selectedOwnerName}".`
-                    : 'Nenhum cliente encontrado com o filtro selecionado.'}
-            </p>
-          ) : (
-            <div className="budget-search-table clients-table">
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('nome')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0, textAlign: 'left' }}
-                          title="Clique para ordenar por nome"
-                        >
-                          Cliente {sortColumn === 'nome' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      </th>
-                      <th className="col-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('documento')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                          title="Clique para ordenar por CPF/CNPJ"
-                        >
-                          CPF/CNPJ {sortColumn === 'documento' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      </th>
-                      <th className="col-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('cidade')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                          title="Clique para ordenar por cidade"
-                        >
-                          Cidade/UF {sortColumn === 'cidade' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      </th>
-                      <th className="col-nowrap clients-table-consumo-col">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('consumo')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                          title="Clique para ordenar por consumo"
-                        >
-                          Consumo (kWh/mês) {sortColumn === 'consumo' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      </th>
-                      <th className="col-md col-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort('telefone')}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                          title="Clique para ordenar por telefone"
-                        >
-                          Telefone {sortColumn === 'telefone' && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      </th>
-                      <th className="col-xl col-nowrap">Endereço</th>
-                      {isPrivilegedUser ? (
-                        <th className="col-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => toggleSort('consultor')}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, padding: 0 }}
-                            title="Clique para ordenar por consultor"
-                          >
-                            Consultor {sortColumn === 'consultor' && (sortDirection === 'asc' ? '↑' : '↓')}
-                          </button>
-                        </th>
-                      ) : null}
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {registrosOrdenados.map((registro) => {
-                      const { dados } = registro
-                      const nomeCliente = sanitizeClientShowcaseValue(dados.nome)
-                      const documentoCliente = sanitizeClientShowcaseValue(dados.documento)
-                      const cidade = sanitizeClientShowcaseValue(dados.cidade)
-                      const uf = sanitizeClientShowcaseValue(dados.uf)
-                      const cidadeUfRaw = [cidade, uf].filter((item) => item && item !== '-').join(' / ')
-                      const cidadeUf = sanitizeClientShowcaseValue(cidadeUfRaw)
-                      const primaryLine = sanitizeClientShowcaseValue(nomeCliente !== '-' ? nomeCliente : registro.id)
-                      const consumoRaw = registro.consumption_kwh_month ?? null
-                      const consumoKwh = typeof consumoRaw === 'number' ? consumoRaw : null
-                      const consumoLabel =
-                        typeof consumoKwh === 'number' && Number.isFinite(consumoKwh)
-                          ? formatNumberBR(consumoKwh)
-                          : '-'
-                      const renderSummaryValue = (value: string) =>
-                        value === '-' ? (
-                          <span className="clients-empty-value">-</span>
-                        ) : (
-                          <span>{value}</span>
-                        )
-                      const tarifaAtual = registro.propostaSnapshot?.tarifaCheia
-                      const tarifaLabel =
-                        typeof tarifaAtual === 'number' && Number.isFinite(tarifaAtual) && tarifaAtual > 0
-                          ? `${formatMoneyBR(tarifaAtual)}/kWh`
-                          : null
-                      const descontoAtual = registro.propostaSnapshot?.desconto
-                      const descontoLabel =
-                        typeof descontoAtual === 'number' && Number.isFinite(descontoAtual) && descontoAtual > 0
-                          ? `${formatNumberBRWithOptions(descontoAtual, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`
-                          : null
-                      const tipoRede = registro.propostaSnapshot?.tipoRede
-                      const tipoRedeLabel =
-                        tipoRede && tipoRede !== 'nenhum'
-                          ? (TIPOS_REDE.find((item) => item.value === tipoRede)?.label ?? tipoRede)
-                          : null
-                      const indicacaoLabel = registro.dados.temIndicacao
-                        ? (registro.dados.indicacaoNome?.trim() || 'Sim')
-                        : null
-                      const ucsBeneficiarias = (registro.propostaSnapshot?.ucBeneficiarias ?? [])
-                        .map((item) => item.numero?.trim())
-                        .filter((item): item is string => Boolean(item))
-                      const ucsBeneficiariasLabelRaw = ucsBeneficiarias.length > 0 ? ucsBeneficiarias.join(', ') : null
-                      const ucsBeneficiariasLabel =
-                        ucsBeneficiariasLabelRaw != null ? sanitizeClientShowcaseValue(ucsBeneficiariasLabelRaw) : null
-                      const safePhone = sanitizeClientShowcaseValue(dados.telefone)
-                      const safeAddress = sanitizeClientShowcaseValue(dados.endereco)
-                      const safeEmail = sanitizeClientShowcaseValue(dados.email)
-                      const safeUc = sanitizeClientShowcaseValue(dados.uc)
-                      const consultorCadastrado = consultorById.get(registro.dados.consultorId ?? '')
-                      // Fall back to the name stored in client metadata while the consultants list loads
-                      const storedNome = registro.dados.consultorNome?.trim() || ''
-                      const consultorResponsavel = (consultorCadastrado?.name ?? storedNome) || 'Sem consultor'
-                      // Short display: apelido when available, otherwise first word of full name (Issue 4).
-                      // For the fallback path (no registered consultant found), storedNome is already
-                      // the display name produced by consultorDisplayName() — do NOT split it, as splitting
-                      // "Sem consultor" would yield the misleading "Sem" label.
-                      const consultorApelido = consultorCadastrado
-                        ? (consultorCadastrado.apelido?.trim() || consultorCadastrado.name.split(' ')[0] || consultorCadastrado.name)
-                        : (storedNome || 'Sem consultor')
-                      const whatsappPhone = safePhone !== '-' ? formatWhatsappPhoneNumber(safePhone) : null
-                      const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
-                      const isInfoOpen = infoClienteId === registro.id
-                      const cepFormatado = sanitizeClientShowcaseValue(formatCep(dados.cep))
-                      const enderecoCompleto = [safeAddress, cidade, uf, cepFormatado]
-                        .filter((item) => item && item !== '-')
-                        .join(', ')
-                      const detailFields = [
-                        tarifaLabel ? { key: 'tarifa', label: 'Tarifa', value: tarifaLabel } : null,
-                        tipoRedeLabel ? { key: 'tipo_rede', label: 'Tipo de rede', value: tipoRedeLabel } : null,
-                        descontoLabel ? { key: 'desconto', label: 'Desconto', value: descontoLabel } : null,
-                        ucsBeneficiariasLabel && ucsBeneficiariasLabel !== '-'
-                          ? { key: 'ucs_beneficiarias', label: 'UCs beneficiárias', value: ucsBeneficiariasLabel }
-                          : null,
-                        indicacaoLabel ? { key: 'indicacao', label: 'Indicação', value: indicacaoLabel } : null,
-                        safeUc !== '-' ? { key: 'uc_geradora', label: 'UC', value: safeUc } : null,
-                        safeEmail !== '-' ? { key: 'client_email', label: 'E-mail', value: safeEmail } : null,
-                        registro.criadoEm ? { key: 'created_at', label: 'Criado em', value: formatBudgetDate(registro.criadoEm) } : null,
-                        registro.atualizadoEm
-                          ? { key: 'updated_at', label: 'Atualizado em', value: formatBudgetDate(registro.atualizadoEm) }
-                          : null,
-                        // These are intentionally listed here so future additions
-                        // can be centrally excluded when duplicated in summary row.
-                        cidadeUf ? { key: 'client_city_state', label: 'Cidade/UF', value: cidadeUf } : null,
-                        consumoLabel ? { key: 'consumption_kwh_month', label: 'Consumo', value: consumoLabel } : null,
-                        dados.telefone
-                          ? { key: 'client_phone', label: 'Telefone', value: dados.telefone, href: whatsappHref }
-                          : null,
-                        enderecoCompleto ? { key: 'client_address', label: 'Endereço', value: enderecoCompleto } : null,
-                        isPrivilegedUser
-                          ? { key: 'consultor', label: 'Consultor', value: consultorResponsavel }
-                          : null,
-                      ].filter(
-                        (
-                          item,
-                        ): item is { key: string; label: string; value: string; href?: string | null; title?: string } =>
-                          Boolean(item) && !CLIENT_ROW_SUMMARY_FIELDS.has(item.key),
-                      )
-                      // Total columns: 6 fixed + 1 if privileged (Consultor) + 1 Ações = 7 or 8
-                      const colSpanTotal = isPrivilegedUser ? 8 : 7
-                      return (
-                        <React.Fragment key={registro.id}>
-                          <tr className="clients-data-row">
-                            <td data-label="Cliente">
-                              <button type="button" className="clients-table-client clients-table-load" onClick={() => onEditar(registro)}>
-                                <strong>{primaryLine}</strong>
-                              </button>
-                            </td>
-                            <td data-label="CPF/CNPJ">{renderSummaryValue(documentoCliente)}</td>
-                            <td data-label="Cidade/UF">{renderSummaryValue(cidadeUf)}</td>
-                            <td className="clients-table-consumo-col" data-label="Consumo">{renderSummaryValue(consumoLabel)}</td>
-                            <td className="col-md" data-label="Telefone">
-                              {safePhone !== '-' ? (
-                                whatsappHref ? (
-                                  <a
-                                    className="clients-phone-link"
-                                    href={whatsappHref}
-                                    target="_blank"
-                                    rel="noreferrer noopener"
-                                    title="Abrir conversa no WhatsApp"
-                                  >
-                                    {safePhone}
-                                  </a>
-                                ) : (
-                                  <span>{safePhone}</span>
-                                )
-                              ) : (
-                                <span className="clients-empty-value">-</span>
-                              )}
-                            </td>
-                            <td className="col-xl" data-label="Endereço">{renderSummaryValue(safeAddress)}</td>
-                            {isPrivilegedUser ? (
-                              <td data-label="Consultor">
-                                <span className="clients-table-owner" title={consultorResponsavel} aria-label={consultorResponsavel}>
-                                  {consultorApelido}
-                                </span>
-                              </td>
-                            ) : null}
-                            <td data-label="Ações">
-                              <div className="clients-table-actions">
-                                <button
-                                  type="button"
-                                  className={`clients-table-action${isInfoOpen ? ' active' : ''}`}
-                                  onClick={() => setInfoClienteId(isInfoOpen ? null : registro.id)}
-                                  aria-label="Ver informações do cliente"
-                                  title="Ver informações do cliente"
-                                  aria-expanded={isInfoOpen}
-                                  aria-controls={`cliente-info-${registro.id}`}
-                                >
-                                  <span aria-hidden="true">ℹ️</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="clients-table-action"
-                                  onClick={() => onEditar(registro)}
-                                  aria-label="Carregar dados do cliente"
-                                  title="Carregar dados do cliente"
-                                >
-                                  <span aria-hidden="true">📁</span>
-                                </button>
-                                {canExportarCarteira && onExportarCarteira && (
-                                  <button
-                                    type="button"
-                                    className={`clients-table-action${registro.inPortfolio ? ' activated' : ''}`}
-                                    onClick={() => onExportarCarteira(registro)}
-                                    disabled={registro.inPortfolio}
-                                    aria-label={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar cliente na carteira'}
-                                    title={registro.inPortfolio ? 'Cliente já ativado na carteira' : 'Ativar Cliente'}
-                                    style={registro.inPortfolio ? { cursor: 'not-allowed', opacity: 0.45 } : undefined}
-                                  >
-                                    <span aria-hidden="true">{registro.inPortfolio ? '✅' : '🤝'}</span>
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  className="clients-table-action danger"
-                                  onClick={() => onExcluir(registro)}
-                                  aria-label="Excluir cliente salvo"
-                                  title="Excluir cliente salvo"
-                                >
-                                  <span aria-hidden="true">🗑</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {isInfoOpen && (
-                            <tr className="clients-info-row">
-                              <td
-                                className="clients-info-cell"
-                                colSpan={colSpanTotal}
-                                data-label=""
-                                id={`cliente-info-${registro.id}`}
-                              >
-                                <div className="clients-info-content">
-                                  <dl className="clients-info-grid">
-                                    {detailFields.map((field) => (
-                                      <div key={field.key} className="clients-info-field">
-                                        <dt>{field.label}</dt>
-                                        <dd title={field.title}>
-                                          {field.href ? (
-                                            <a className="clients-phone-link" href={field.href} target="_blank" rel="noreferrer noopener">
-                                              {field.value}
-                                            </a>
-                                          ) : (
-                                            field.value
-                                          )}
-                                        </dd>
-                                      </div>
-                                    ))}
-                                  </dl>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-    </div>
-  )
 }
 
 function ContractTemplatesModal({
@@ -5064,78 +3826,6 @@ function EnviarPropostaModal({
   )
 }
 
-function Field({
-  label,
-  children,
-  hint,
-  htmlFor,
-}: {
-  label: React.ReactNode
-  children: React.ReactNode
-  hint?: React.ReactNode
-  htmlFor?: string
-}) {
-  const generatedId = useId()
-  let firstControlId: string | undefined
-
-  const enhancedChildren = React.Children.map(children, (child, index) => {
-    if (!React.isValidElement(child)) {
-      return child
-    }
-
-    if (typeof child.type === 'string') {
-      if (child.type === 'input') {
-        const inputType = (child.props as { type?: string }).type
-        if (inputType === 'checkbox' || inputType === 'radio') {
-          return child
-        }
-      }
-
-      if (child.type === 'input' || child.type === 'select' || child.type === 'textarea') {
-        const existingProps = child.props as {
-          className?: string
-          id?: string
-          name?: string
-        }
-        const existingClassName = existingProps.className ?? ''
-        const classes = existingClassName.split(' ').filter(Boolean)
-        if (!classes.includes('cfg-input')) {
-          classes.push('cfg-input')
-        }
-        const resolvedId = existingProps.id ?? (index === 0 ? generatedId : `${generatedId}-${index}`)
-        if (!firstControlId) {
-          firstControlId = resolvedId
-        }
-        return React.cloneElement(child, {
-          className: classes.join(' '),
-          id: existingProps.id ?? resolvedId,
-          name: existingProps.name ?? resolvedId,
-        })
-      }
-    }
-
-    return child
-  })
-
-  const labelHtmlFor = htmlFor ?? firstControlId
-
-  return (
-    <div className="field cfg-field">
-      <label className="field-label cfg-label" {...(labelHtmlFor ? { htmlFor: labelHtmlFor } : undefined)}>
-        {label}
-      </label>
-      <div className="field-control cfg-control">
-        {enhancedChildren}
-        {hint ? <small className="cfg-help">{hint}</small> : null}
-      </div>
-    </div>
-  )
-}
-
-function FieldError({ message }: { message?: string }) {
-  return message ? <span className="field-error">{message}</span> : null
-}
-
 type PrintMode = 'preview' | 'print' | 'download'
 
 type PrintVariant = 'standard' | 'simple' | 'buyout'
@@ -5148,8 +3838,7 @@ type PreviewActionResponse = {
   updatedHtml?: string | undefined
 }
 
-type PrecheckDecisionAction = 'adjust_current' | 'adjust_upgrade' | 'proceed' | 'cancel'
-type PrecheckDecision = { action: PrecheckDecisionAction; clienteCiente: boolean }
+
 
 declare global {
   interface Window {
@@ -5171,121 +3860,6 @@ type BudgetPreviewOptions = {
   preOpenedWindow?: Window | null | undefined
 }
 
-function renderPrintableProposalToHtml(
-  dados: PrintableProposalProps,
-  userBentoPreference?: boolean
-): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  // Use Bento Grid for leasing proposals when user preference is enabled
-  if (shouldUseBentoGrid(dados, userBentoPreference)) {
-    return renderBentoLeasingToHtml(dados)
-  }
-
-  // Legacy rendering for other proposal types
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-
-    const cleanup = (root: ReturnType<typeof createRoot> | null) => {
-      if (root) {
-        root.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-      const localRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 8
-
-        const chartIsReady = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-          const chartWrapper = containerEl.querySelector('.recharts-wrapper')
-          if (!chartWrapper) {
-            return true
-          }
-          const chartSvg = chartWrapper.querySelector('svg')
-          if (!chartSvg) {
-            return false
-          }
-          return chartSvg.childNodes.length > 0
-        }
-
-        const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
-          if (resolved) {
-            return
-          }
-
-          const containerEl = wrapperRef.current
-
-          if (containerEl && chartIsReady(containerEl)) {
-            resolved = true
-            resolve(containerEl.outerHTML)
-            cleanup(root)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            resolved = true
-            resolve(containerEl ? containerEl.outerHTML : null)
-            cleanup(root)
-            return
-          }
-
-          const timeoutId = window.setTimeout(() => attemptCapture(root), 160)
-          timeouts.push(timeoutId)
-        }
-
-        const triggerResize = () => {
-          window.dispatchEvent(new Event('resize'))
-        }
-
-        const resizeTimeout = window.setTimeout(triggerResize, 120)
-        timeouts.push(resizeTimeout)
-
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 220)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="standard">
-          <React.Suspense fallback={null}>
-            <PrintableProposal ref={localRef} {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    const rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
-}
 
 function sanitizePrintableHtml(html: string | null): string | null {
   if (typeof html !== 'string') {
@@ -5324,99 +3898,6 @@ const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, varia
 </html>`
 }
 
-function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-    let rootInstance: ReturnType<typeof createRoot> | null = null
-
-    const cleanup = () => {
-      if (rootInstance) {
-        rootInstance.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const finalize = (html: string | null) => {
-      if (resolved) {
-        return
-      }
-      resolved = true
-      resolve(html)
-      cleanup()
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 12
-
-        const hasBuyoutContent = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-
-          return Boolean(containerEl.querySelector('[data-print-section="buyout"] .print-page'))
-        }
-
-        const attemptCapture = () => {
-          const containerEl = wrapperRef.current
-          if (hasBuyoutContent(containerEl)) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          const timeoutId = window.setTimeout(attemptCapture, 120)
-          timeouts.push(timeoutId)
-        }
-
-        const initialTimeout = window.setTimeout(attemptCapture, 200)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
-          finalize(html)
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="buyout">
-          <React.Suspense fallback={null}>
-            <PrintableBuyoutTable {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
-}
 
 export default function App() {
   const { appTheme, cycleAppTheme } = useTheme()
@@ -5573,6 +4054,8 @@ export default function App() {
     setFinancialManagementTokenProvider(getAccessToken)
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
+    setProjectChargesTokenProvider(getAccessToken)
+    setProjectHubTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
@@ -5714,111 +4197,29 @@ export default function App() {
       ? (stored as SimulacoesSection)
       : 'nova'
   })
-  const [aprovacaoStatus, setAprovacaoStatus] = useState<AprovacaoStatus>('pendente')
-  const [aprovacaoChecklist, setAprovacaoChecklist] = useState<
-    Record<AprovacaoChecklistKey, boolean>
-  >({
-    roi: true,
-    tir: true,
-    spread: false,
-    vpl: false,
-    payback: true,
-    eficiencia: true,
-    lucro: true,
-  })
-  const [ultimaDecisaoTimestamp, setUltimaDecisaoTimestamp] = useState<number | null>(null)
-
   // Financial Analysis (Spreadsheet v1) state
-  const [afModo, setAfModo] = useState<'venda' | 'leasing'>('venda')
-  const [afCustoKit, setAfCustoKit] = useState(0)
-  const [afCustoKitManual, setAfCustoKitManual] = useState(false)
-  const [afFrete, setAfFrete] = useState(0)
-  const [afFreteManual, setAfFreteManual] = useState(false)
-  const [afDescarregamento, setAfDescarregamento] = useState(0)
-  const [afHotelPousada, setAfHotelPousada] = useState(0)
-  const [afTransporteCombustivel, setAfTransporteCombustivel] = useState(0)
-  const [afOutros, setAfOutros] = useState(0)
-  // Travel cost auto-calculation state
-  const [afCidadeDestino, setAfCidadeDestino] = useState('')
-  const [afDeslocamentoKm, setAfDeslocamentoKm] = useState(0)
-  const [afDeslocamentoRs, setAfDeslocamentoRs] = useState(0)
-  const [afDeslocamentoStatus, setAfDeslocamentoStatus] = useState<'idle' | 'loading' | 'isenta' | 'ok' | 'error'>('idle')
-  const [afDeslocamentoCidadeLabel, setAfDeslocamentoCidadeLabel] = useState('')
-  const [afDeslocamentoErro, setAfDeslocamentoErro] = useState('')
-  const [afValorContrato, setAfValorContrato] = useState(0)
-  const [afImpostosVenda, setAfImpostosVenda] = useState(6)
-  const [afImpostosLeasing, setAfImpostosLeasing] = useState(4)
-  const [afInadimplencia, setAfInadimplencia] = useState(2)
-  const [afCustoOperacional, setAfCustoOperacional] = useState(3)
-  const [afMesesProjecao, setAfMesesProjecao] = useState(60)
-  const [afMensalidadeBase, setAfMensalidadeBase] = useState(0)
-  const [afMensalidadeBaseAuto, setAfMensalidadeBaseAuto] = useState(0)
-  const [afMargemLiquidaVenda, setAfMargemLiquidaVenda] = useState(25)
-  const [afMargemLiquidaMinima, setAfMargemLiquidaMinima] = useState(15)
-  const [afComissaoMinimaPercent, setAfComissaoMinimaPercent] = useState(5)
-  const [afTaxaDesconto, setAfTaxaDesconto] = useState(20)
-  // Editable base system overrides (0 / '' = unset → memo falls back to proposal value)
-  const [afConsumoOverride, setAfConsumoOverride] = useState(0)
-  const [afIrradiacaoOverride, setAfIrradiacaoOverride] = useState(0)
-  const [afPROverride, setAfPROverride] = useState(0)
-  const [afDiasOverride, setAfDiasOverride] = useState(0)
-  const [afModuloWpOverride, setAfModuloWpOverride] = useState(0)
-  const [afUfOverride, setAfUfOverride] = useState<'' | 'GO' | 'DF'>('')
-  // N modules / kWp mutual-calc (null = use engine value)
-  const [afNumModulosOverride, setAfNumModulosOverride] = useState<number | null>(null)
-  const [afPlaca, setAfPlaca] = useState(18)
+  const afCustoKitManual = useAfInputStore(selectAfCustoKitManual)
+  const afFreteManual = useAfInputStore(selectAfFreteManual)
+  const setAfCustoKit = useAfInputStore(selectSetAfCustoKit)
+  const setAfFrete = useAfInputStore(selectSetAfFrete)
+  const afConsumoOverride = useAfInputStore(selectAfConsumoOverride)
   // null = auto (12% of kit), user can override
   // Auto-computed Material CA: max(1000, round(850 + 0.40 × consumo)).
-  // Declared before afMaterialCAField (which reads it) to avoid TDZ in production builds.
-  const [afAutoMaterialCA, setAfAutoMaterialCA] = useState(0)
-  const [afMaterialCAOverride, setAfMaterialCAOverride] = useState<number | null>(null)
-  const [afProjetoOverride, setAfProjetoOverride] = useState<number | null>(null)
-  const [afCreaOverride, setAfCreaOverride] = useState<number | null>(null)
-  const [afCidadeSuggestions, setAfCidadeSuggestions] = useState<CidadeDB[]>([])
-  const [afCidadeShowSuggestions, setAfCidadeShowSuggestions] = useState(false)
-  const afBaseInitializedRef = useRef(false)
-  const afCidadeBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // BR money fields for financial analysis currency inputs (type="text", comma support, no spinners)
-  const afCustoKitField = useBRNumberField({ mode: 'money', value: afCustoKit, onChange: (v) => { setAfCustoKit(v ?? 0); setAfCustoKitManual(true) } })
-  const afValorContratoField = useBRNumberField({ mode: 'money', value: afValorContrato, onChange: (v) => setAfValorContrato(v ?? 0) })
-  const afFreteField = useBRNumberField({ mode: 'money', value: afFrete, onChange: (v) => { setAfFrete(v ?? 0); setAfFreteManual(true) } })
-  const afDescarregamentoField = useBRNumberField({ mode: 'money', value: afDescarregamento, onChange: (v) => setAfDescarregamento(v ?? 0) })
-  const afPlacaField = useBRNumberField({ mode: 'money', value: afPlaca, onChange: (v) => setAfPlaca(v ?? 18) })
-  const afHotelPousadaField = useBRNumberField({ mode: 'money', value: afHotelPousada, onChange: (v) => setAfHotelPousada(v ?? 0) })
-  const afTransporteCombustivelField = useBRNumberField({ mode: 'money', value: afTransporteCombustivel, onChange: (v) => setAfTransporteCombustivel(v ?? 0) })
-  const afOutrosField = useBRNumberField({ mode: 'money', value: afOutros, onChange: (v) => setAfOutros(v ?? 0) })
-  const afMensalidadeBaseField = useBRNumberField({ mode: 'money', value: afMensalidadeBase > 0 ? afMensalidadeBase : null, onChange: (v) => setAfMensalidadeBase(v ?? 0) })
-  const afMaterialCAField = useBRNumberField({ mode: 'money', value: afMaterialCAOverride ?? afAutoMaterialCA, onChange: (v) => setAfMaterialCAOverride(v != null && v >= 0 ? v : null) })
-  const afProjetoField = useBRNumberField({ mode: 'money', value: afProjetoOverride, onChange: (v) => setAfProjetoOverride(v != null && v >= 0 ? v : null) })
-  const afCreaField = useBRNumberField({ mode: 'money', value: afCreaOverride, onChange: (v) => setAfCreaOverride(v != null && v >= 0 ? v : null) })
+  const setAfAutoMaterialCA = useAfInputStore(selectSetAfAutoMaterialCA)
+  const afMaterialCAOverride = useAfInputStore(selectAfMaterialCAOverride)
+  const storeAfCidadeDestino = useAfDeslocamentoStore(selectAfCidadeDestino)
+  const setStoreAfCidadeSuggestions = useAfDeslocamentoStore((state) => state.setAfCidadeSuggestions)
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
     const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
     vendaActions.updateResumoProposta({ modo_venda: modo })
   }, [isVendaDiretaTab])
-  // Initialize AF base system overrides from proposal values on first visit to analise section
-  useEffect(() => {
-    if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
-      afBaseInitializedRef.current = true
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfIrradiacaoOverride(baseIrradiacao > 0 ? baseIrradiacao : 5.0)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfPROverride(eficienciaNormalizada > 0 ? eficienciaNormalizada : 0.8)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfDiasOverride(diasMesNormalizado > 0 ? diasMesNormalizado : 30)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfModuloWpOverride(potenciaModulo > 0 ? potenciaModulo : 550)
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
-    }
-   
-  }, [simulacoesSection])
   // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
   // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
   // places it after the useEffect call site, which causes a Temporal Dead Zone (TDZ)
   // crash in production builds: Terser evaluates the deps array before the `const`
   // initializer has run, producing "Cannot access '<minified>' before initialization".
-  const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
+  const kcKwhMes = useConsumoBaseStore(selectKcKwhMes)
   // Reactively auto-populate Kit, Frete and Material CA when consumo changes, unless manually edited.
   // Kit  : R$ = round(1500 + 9.5  × kWh/mês)  — fitted on real quotes, always positive margin
   // Frete: R$ = round(300  + 0.52 × kWh/mês)  — same approach; consumo-based (no module count needed)
@@ -5847,49 +4248,13 @@ export default function App() {
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
   // City autocomplete: update suggestions as user types
   useEffect(() => {
-    const trimmed = afCidadeDestino.trim()
+    const trimmed = storeAfCidadeDestino.trim()
     if (trimmed.length < MIN_CITY_SEARCH_LENGTH) {
-      setAfCidadeSuggestions([])
+      setStoreAfCidadeSuggestions([])
       return
     }
-    setAfCidadeSuggestions(searchCidades(trimmed))
-  }, [afCidadeDestino])
-
-  const handleSelectCidade = useCallback((city: CidadeDB) => {
-    setAfCidadeDestino(`${city.cidade} - ${city.uf}`)
-    setAfCidadeSuggestions([])
-    setAfCidadeShowSuggestions(false)
-    // Map to supported calculation UF: DF or GO (default for all other states)
-    setAfUfOverride(city.uf === 'DF' ? 'DF' : 'GO')
-    const travelConfig = {
-      exemptRegions: vendasConfig.af_deslocamento_regioes_isentas,
-      faixa1MaxKm: vendasConfig.af_deslocamento_faixa1_km,
-      faixa1Rs: vendasConfig.af_deslocamento_faixa1_rs,
-      faixa2MaxKm: vendasConfig.af_deslocamento_faixa2_km,
-      faixa2Rs: vendasConfig.af_deslocamento_faixa2_rs,
-      kmExcedenteRs: vendasConfig.af_deslocamento_km_excedente_rs,
-    }
-    const label = `${city.cidade}/${city.uf}`
-    if (isExemptRegion(city.cidade, city.uf, travelConfig.exemptRegions)) {
-      setAfDeslocamentoStatus('isenta')
-      setAfDeslocamentoKm(0)
-      setAfDeslocamentoRs(0)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    } else {
-      const km = calcRoundTripKm(city.lat, city.lng)
-      const custo = calculateInstallerTravelCost(km, travelConfig)
-      setAfDeslocamentoStatus('ok')
-      setAfDeslocamentoKm(km)
-      setAfDeslocamentoRs(custo)
-      setAfDeslocamentoCidadeLabel(label)
-      setAfDeslocamentoErro('')
-    }
-  }, [vendasConfig.af_deslocamento_regioes_isentas, vendasConfig.af_deslocamento_faixa1_km, vendasConfig.af_deslocamento_faixa1_rs, vendasConfig.af_deslocamento_faixa2_km, vendasConfig.af_deslocamento_faixa2_rs, vendasConfig.af_deslocamento_km_excedente_rs])
-
-  useEffect(() => {
-    setAfTransporteCombustivel(afDeslocamentoRs)
-  }, [afDeslocamentoRs])
+    setStoreAfCidadeSuggestions(searchCidades(trimmed))
+  }, [storeAfCidadeDestino])
 
   const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
   useEffect(() => {
@@ -5970,15 +4335,6 @@ export default function App() {
   type ClientsSource = 'api' | 'server-storage' | 'local-browser-storage' | 'memory'
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
-  const [orcamentoSearchTerm, setOrcamentoSearchTerm] = useState('')
-  const [orcamentoVisualizado, setOrcamentoVisualizado] = useState<PrintableProposalProps | null>(null)
-  const [orcamentoVisualizadoInfo, setOrcamentoVisualizadoInfo] = useState<
-    | {
-        id: string
-        cliente: string
-      }
-    | null
-  >(null)
   const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
     | {
         id: string
@@ -6128,6 +4484,8 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
+  const setStoreUfTarifa = useUfTarifaStore(selectSetUfTarifa)
+  const storeUfTarifa = useUfTarifaStore(selectUfTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
   const [distribuidorasPorUf, setDistribuidorasPorUf] = useState<Record<string, string[]>>(() =>
@@ -6140,10 +4498,9 @@ export default function App() {
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
 
-  // kcKwhMes is declared earlier (before the useEffect that uses it in its dep array)
-  // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
-  // above that declaration for the full explanation.
   const [consumoManual, setConsumoManualState] = useState(false)
+  const setStoreKcKwhMes = useConsumoBaseStore(selectSetKcKwhMes)
+  const setStoreConsumoManual = useConsumoBaseStore(selectSetConsumoManual)
   const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
@@ -6177,14 +4534,16 @@ export default function App() {
     string | undefined
   >(undefined)
   const [ucGeradoraTitularBuscandoCep, setUcGeradoraTitularBuscandoCep] = useState(false)
-  const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
+  const potenciaModulo = useSimulacaoBaseStore(selectPotenciaModulo)
+  const potenciaModuloDirty = useSimulacaoBaseStore(selectPotenciaModuloDirty)
+  const setPotenciaModuloState = useSimulacaoBaseStore(selectSetPotenciaModulo)
+  const setPotenciaModuloDirtyState = useSimulacaoBaseStore(selectSetPotenciaModuloDirty)
   const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'nenhum')
   const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
   const tipoRedeLabel = useMemo(
     () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
     [tipoRede],
   )
-  const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
   const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
   const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
     () => initialTipoInstalacao,
@@ -6470,7 +4829,6 @@ export default function App() {
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   type PageSharedSettings = {
-    kcKwhMes: number
     tarifaCheia: number
     taxaMinima: number
     ufTarifa: string
@@ -6488,7 +4846,6 @@ export default function App() {
 }
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
-    kcKwhMes: INITIAL_VALUES.kcKwhMes,
     tarifaCheia: INITIAL_VALUES.tarifaCheia,
     taxaMinima: INITIAL_VALUES.taxaMinima,
     ufTarifa: INITIAL_VALUES.ufTarifa,
@@ -6525,6 +4882,7 @@ export default function App() {
   const setConsumoManual = useCallback(
     (value: boolean) => {
       setConsumoManualState(value)
+      setStoreConsumoManual(value)
       updatePageSharedState((current) => {
         if (current.consumoManual === value) {
           return current
@@ -6532,23 +4890,17 @@ export default function App() {
         return { ...current, consumoManual: value }
       })
     },
-    [updatePageSharedState],
+    [setStoreConsumoManual, updatePageSharedState],
   )
 
   const setKcKwhMes = useCallback(
     (value: number, origin: 'auto' | 'user' = 'auto') => {
       const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
       setConsumoManual(origin === 'user')
-      setKcKwhMesState(normalized)
-      updatePageSharedState((current) => {
-        if (current.kcKwhMes === normalized) {
-          return current
-        }
-        return { ...current, kcKwhMes: normalized }
-      })
+      setStoreKcKwhMes(normalized, origin)
       return normalized
     },
-    [setConsumoManual, setKcKwhMesState, updatePageSharedState],
+    [setConsumoManual, setStoreKcKwhMes],
   )
 
   const setPotenciaFonteManual = useCallback(
@@ -6634,8 +4986,9 @@ export default function App() {
         }
         return { ...current, ufTarifa: nextValue }
       })
+      setStoreUfTarifa(nextValue)
     },
-    [ufTarifa, updatePageSharedState],
+    [ufTarifa, updatePageSharedState, setStoreUfTarifa],
   )
 
   const setDistribuidoraTarifa = useCallback(
@@ -6861,6 +5214,8 @@ export default function App() {
   const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
   const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
   const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
+  // Tracks UFs whose municipality fetch already failed — prevents repeated warnings on retries.
+  const ibgeMunicipiosFailedRef = useRef(new Set<string>())
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
@@ -6917,7 +5272,10 @@ export default function App() {
           return municipios
         } catch (error) {
           if (!(error instanceof DOMException) || error.name !== 'AbortError') {
-            console.warn('[IBGE] Não foi possível carregar municípios:', error)
+            if (!ibgeMunicipiosFailedRef.current.has(normalizedUf)) {
+              ibgeMunicipiosFailedRef.current.add(normalizedUf)
+              console.warn('[IBGE] Não foi possível carregar municípios para', normalizedUf, '— lista de cidades ficará vazia.')
+            }
           }
           setIbgeMunicipiosPorUf((prev) => ({
             ...prev,
@@ -6960,6 +5318,15 @@ export default function App() {
       } catch (error) {
         if (!(error instanceof DOMException) || error.name !== 'AbortError') {
           console.warn('[IBGE] Não foi possível carregar estados:', error)
+          // Ensure GO and DF are always available even without network access.
+          setUfsDisponiveis((prev) => {
+            const hasFallback = prev.includes('GO') && prev.includes('DF')
+            if (hasFallback) return prev
+            const merged = Array.from(new Set([...prev, 'GO', 'DF'])).sort((a, b) =>
+              a.localeCompare(b, 'pt-BR'),
+            )
+            return merged
+          })
         }
       }
     }
@@ -7384,7 +5751,6 @@ export default function App() {
   useEffect(() => {
     const snapshot = pageSharedState
 
-    setKcKwhMesState((prev) => (prev === snapshot.kcKwhMes ? prev : snapshot.kcKwhMes))
     setTarifaCheiaState((prev) => (prev === snapshot.tarifaCheia ? prev : snapshot.tarifaCheia))
     setTaxaMinimaState((prev) => (prev === snapshot.taxaMinima ? prev : snapshot.taxaMinima))
     setTaxaMinimaInputEmpty((prev) => (snapshot.taxaMinima > 0 ? false : prev))
@@ -7555,41 +5921,20 @@ export default function App() {
     [removerNotificacao],
   )
 
-  const [crmIntegrationMode, setCrmIntegrationMode] = useState<CrmIntegrationMode>('local')
-  const crmIntegrationModeRef = useRef<CrmIntegrationMode>(crmIntegrationMode)
-  const [crmIsSaving, setCrmIsSaving] = useState(false)
-  const [crmBackendStatus, setCrmBackendStatus] = useState<CrmBackendStatus>('idle')
-  const [crmBackendError, setCrmBackendError] = useState<string | null>(null)
-  const [crmLastSync, setCrmLastSync] = useState<Date | null>(null)
-  const [crmBusca, setCrmBusca] = useState('')
-  const [crmFiltroOperacao, setCrmFiltroOperacao] = useState<CrmFiltroOperacao>('all')
-  const [crmLeadSelecionadoId, setCrmLeadSelecionadoId] = useState<string | null>(null)
-  const [crmLeadForm, setCrmLeadForm] = useState<CrmLeadFormState>({ ...CRM_EMPTY_LEAD_FORM })
-  const [crmNotaTexto, setCrmNotaTexto] = useState('')
-  const [crmDataset, setCrmDataset] = useState<CrmDataset>(() => carregarDatasetCrm())
-  const [crmCustosForm, setCrmCustosForm] = useState({
-    equipamentos: '',
-    maoDeObra: '',
-    deslocamento: '',
-    taxasSeguros: '',
-  })
-  const [crmContratoForm, setCrmContratoForm] = useState({
-    leadId: '' as string,
-    modelo: 'LEASING' as 'LEASING' | 'VENDA_DIRETA',
-    valorTotal: '',
-    entrada: '',
-    parcelas: '36',
-    valorParcela: '',
-    reajusteAnualPct: '3',
-    vencimentoInicialIso: new Date().toISOString().slice(0, 10),
-    status: 'em-aberto' as CrmFinanceiroStatus,
-  })
-  const [crmManutencaoForm, setCrmManutencaoForm] = useState({
-    leadId: '' as string,
-    dataIso: new Date().toISOString().slice(0, 10),
-    tipo: 'Revisão preventiva',
-    observacao: '',
-  })
+  const crmState = useCrm({ adicionarNotificacao })
+  const {
+    crmIntegrationMode,
+    setCrmIntegrationMode,
+    crmIsSaving,
+    crmBackendStatus,
+    crmBackendError,
+    crmLastSync,
+    crmDataset,
+    crmKpis,
+    crmFinanceiroResumo,
+    crmPosVendaResumo,
+    handleSyncCrmManualmente,
+  } = crmState
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
   )
@@ -8017,9 +6362,12 @@ export default function App() {
   }, [])
 
   const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
-  const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
-  const [eficiencia, setEficiencia] = useState(INITIAL_VALUES.eficiencia)
-  const [diasMes, setDiasMes] = useState(INITIAL_VALUES.diasMes)
+  const irradiacao = useSimulacaoBaseStore(selectIrradiacao)
+  const setIrradiacao = useSimulacaoBaseStore(selectSetIrradiacao)
+  const eficiencia = useSimulacaoBaseStore(selectEficiencia)
+  const setEficiencia = useSimulacaoBaseStore(selectSetEficiencia)
+  const diasMes = useSimulacaoBaseStore(selectDiasMes)
+  const setDiasMes = useSimulacaoBaseStore(selectSetDiasMes)
   const [inflacaoAa, setInflacaoAa] = useState(INITIAL_VALUES.inflacaoAa)
 
   const [vendaForm, setVendaForm] = useState<VendaForm>(() => createInitialVendaForm())
@@ -9467,10 +7815,6 @@ export default function App() {
   const mesReferencia = mesReferenciaRef.current
 
   useEffect(() => {
-    crmIntegrationModeRef.current = crmIntegrationMode
-  }, [crmIntegrationMode])
-
-  useEffect(() => {
     if (!multiUcAtivo) {
       return
     }
@@ -9695,21 +8039,11 @@ export default function App() {
     }
   }, [clienteUf, ufTarifa])
 
-  const eficienciaNormalizada = useMemo(() => {
-    if (eficiencia <= 0) return 0
-    if (eficiencia >= 1.5) return eficiencia / 100
-    return eficiencia
-  }, [eficiencia])
+  const eficienciaNormalizada = useSimulacaoBaseStore(selectEficienciaNormalizada)
 
-  const baseIrradiacao = useMemo(
-    () => (irradiacao > 0 ? irradiacao : 0),
-    [irradiacao],
-  )
+  const baseIrradiacao = useSimulacaoBaseStore(selectBaseIrradiacao)
 
-  const diasMesNormalizado = useMemo(
-    () => (diasMes > 0 ? diasMes : 0),
-    [diasMes],
-  )
+  const diasMesNormalizado = useSimulacaoBaseStore(selectDiasMesNormalizado)
 
   const vendaPotenciaCalculada = useMemo(() => {
     const dias = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
@@ -11285,292 +9619,9 @@ export default function App() {
     comissaoPadraoFracao,
   ])
 
-  // AF-specific simulation state used ONLY to derive afMensalidadeBaseAuto.
-  // Built from AF's own raw inputs — never spread from simulationState (leasing proposal) —
-  // so that the auto mensalidade shown in Análise Financeira always reflects AF's local
-  // consumo and generation, not the Proposta de Leasing values ("local first" policy).
-  const afSimEstadoMensalidade = useMemo<SimulationState | null>(() => {
-    const resolveOverride = (override: number, fallback: number, def: number) => {
-      const v = override > 0 ? override : fallback
-      return v > 0 ? v : def
-    }
-    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
-    if (consumo <= 0) return null
-
-    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
-    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
-    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
-    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
-
-    let potenciaKwp = 0
-    if (afNumModulosOverride != null && afNumModulosOverride > 0) {
-      potenciaKwp = (afNumModulosOverride * modulo) / 1000
-    } else {
-      const computed = calcPotenciaSistemaKwp({
-        consumoKwhMes: consumo,
-        irradiacao: irr,
-        performanceRatio: pr,
-        diasMes: dias,
-        potenciaModuloWp: modulo,
-      })
-      potenciaKwp = computed?.potenciaKwp ?? 0
-    }
-    const afGeracaoKwh = potenciaKwp * irr * pr * dias
-
-    const tusdPercentual = Math.max(0, tusdPercent)
-    const tusdSubtipoNorm = tusdSubtipo.trim()
-    return {
-      kcKwhMes: consumo,
-      consumoMensalKwh: consumo,
-      geracaoMensalKwh: Math.max(0, afGeracaoKwh),
-      prazoMeses: afMesesProjecao,
-      entradaRs: 0,
-      modoEntrada: 'NONE',
-      // Tariff/TUSD fields — same normalization used in simulationState and afSimState
-      tarifaCheia: Math.max(0, tarifaCheia),
-      desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
-      inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
-      taxaMinima: taxaMinimaInputEmpty
-        ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-        : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
-      aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
-      tipoRede,
-      tusdPercent: tusdPercentual,
-      tusdPercentualFioB: tusdPercentual,
-      tusdTipoCliente,
-      tusdSubtipo: tusdSubtipoNorm.length > 0 ? tusdSubtipoNorm : null,
-      tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
-      tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
-      tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
-        ? Math.max(1, Math.trunc(tusdAnoReferencia))
-        : DEFAULT_TUSD_ANO_REFERENCIA,
-      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
-      encargosFixos,
-      cidKwhBase,
-      // Fields not consulted by selectMensalidades — safe zero defaults
-      vm0: 0,
-      depreciacaoAa: 0,
-      ipcaAa: 0,
-      inadimplenciaAa: 0,
-      tributosAa: 0,
-      custosFixosM: 0,
-      opexM: 0,
-      seguroM: 0,
-      cashbackPct: 0,
-      pagosAcumManual: 0,
-      duracaoMeses: 0,
-    }
-  }, [
-    afConsumoOverride, kcKwhMes,
-    afIrradiacaoOverride, baseIrradiacao,
-    afPROverride, eficienciaNormalizada,
-    afDiasOverride, diasMesNormalizado,
-    afModuloWpOverride, potenciaModulo,
-    afNumModulosOverride,
-    afMesesProjecao,
-    tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
-    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade,
-    tusdTarifaRkwh, tusdAnoReferencia, mesReajuste, mesReferencia,
-    vendaForm.aplica_taxa_minima, encargosFixos, cidKwhBase,
-  ])
-
-  const analiseFinanceiraResult = useMemo(() => {
-    const resolveOverride = (override: number, fallback: number, defaultVal: number) => {
-      const v = override > 0 ? override : fallback
-      return v > 0 ? v : defaultVal
-    }
-    const irr = resolveOverride(afIrradiacaoOverride, baseIrradiacao, 5.0)
-    const pr = resolveOverride(afPROverride, eficienciaNormalizada, 0.8)
-    const dias = resolveOverride(afDiasOverride, diasMesNormalizado, 30)
-    const consumo = resolveOverride(afConsumoOverride, kcKwhMes, 0)
-    const modulo = resolveOverride(afModuloWpOverride, potenciaModulo, 550)
-    const uf = (afUfOverride || ufTarifa) === 'DF' ? 'DF' as const : 'GO' as const
-
-    if (consumo <= 0 || afCustoKit <= 0) {
-      return null
-    }
-
-    // Pre-compute base system using the same engine as the leasing proposals page
-    const nModulosOverride = afNumModulosOverride != null && afNumModulosOverride > 0
-      ? afNumModulosOverride
-      : undefined
-    let baseSistema: { quantidade_modulos: number; potencia_sistema_kwp: number }
-    if (nModulosOverride != null) {
-      baseSistema = { quantidade_modulos: nModulosOverride, potencia_sistema_kwp: (nModulosOverride * modulo) / 1000 }
-    } else {
-      const computed = calcPotenciaSistemaKwp({
-        consumoKwhMes: consumo,
-        irradiacao: irr,
-        performanceRatio: pr,
-        diasMes: dias,
-        potenciaModuloWp: modulo,
-      })
-      if (!computed) return null
-      const qtd = computed.quantidadeModulos ?? Math.ceil((computed.potenciaKwp * 1000) / modulo)
-      baseSistema = { quantidade_modulos: qtd, potencia_sistema_kwp: computed.potenciaKwp }
-    }
-    const instalacaoCalculada = baseSistema.quantidade_modulos * 70
-
-    // Pre-compute variable cost for leasing (used as valor_contrato for insurance)
-    const preProjetoCusto = resolveCustoProjetoPorFaixa(baseSistema.potencia_sistema_kwp)
-    const preMaterialCA = afMaterialCAOverride != null ? afMaterialCAOverride : afAutoMaterialCA
-    const preCrea = resolveCrea(uf)
-    const prePlaca = afPlaca > 0 ? afPlaca : baseSistema.quantidade_modulos * PRECO_PLACA_RS
-    const preProjetoFinal = afProjetoOverride != null ? afProjetoOverride : preProjetoCusto
-    const preCreaFinal = afCreaOverride != null ? afCreaOverride : preCrea
-    const preCustoVariavel =
-      afCustoKit +
-      afFrete +
-      afDescarregamento +
-      preProjetoFinal +
-      instalacaoCalculada +
-      preMaterialCA +
-      preCreaFinal +
-      prePlaca +
-      afHotelPousada +
-      afTransporteCombustivel +
-      afOutros +
-      afDeslocamentoRs
-
-    const valorContrato = afModo === 'leasing' ? preCustoVariavel : afValorContrato
-    // Build the projected mensalidades series for leasing mode using an AF-isolated
-    // SimulationState. This prevents the Proposta de Leasing's simulationState (which
-    // uses the proposal's own consumo/geração/prazo) from contaminating the AF calculation.
-    // Each screen uses the same motor but with its own input context.
-    let mensalidadesFinal: number[]
-    if (afModo === 'leasing' && afMensalidadeBase <= 0) {
-      // Compute AF's monthly generation from its own irr/PR/dias/kWp inputs
-      const afGeracaoKwh = baseSistema.potencia_sistema_kwp * irr * pr * dias
-      // Build AF-specific SimulationState from raw component variables.
-      // IMPORTANT: do NOT spread `simulationState` here — it is declared later in this
-      // component and referencing it before its const-declaration would cause a
-      // Temporal Dead Zone (TDZ) crash ("Cannot access '...' before initialization").
-      // All fields are built from the same raw state/derived variables that
-      // `simulationState` uses, so the values are equivalent for the fields that
-      // selectMensalidades actually reads.
-      const afSimState: SimulationState = {
-        // AF-specific overrides
-        kcKwhMes: consumo,
-        consumoMensalKwh: consumo,
-        geracaoMensalKwh: afGeracaoKwh,
-        prazoMeses: afMesesProjecao,
-        entradaRs: 0,
-        modoEntrada: 'NONE',
-        // Shared tariff/TUSD fields — same normalization as simulationState
-        tarifaCheia: Math.max(0, tarifaCheia),
-        desconto: Math.max(0, Math.min(descontoConsiderado / 100, 1)),
-        inflacaoAa: Math.max(-0.99, inflacaoAa / 100),
-        taxaMinima: taxaMinimaInputEmpty
-          ? calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-          : Number.isFinite(taxaMinima) ? Math.max(0, taxaMinima) : 0,
-        aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
-        tipoRede,
-        tusdPercent: Math.max(0, tusdPercent),
-        tusdPercentualFioB: Math.max(0, tusdPercent),
-        tusdTipoCliente,
-        tusdSubtipo: tusdSubtipo.trim().length > 0 ? tusdSubtipo.trim() : null,
-        tusdSimultaneidade: tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null,
-        tusdTarifaRkwh: tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null,
-        tusdAnoReferencia: Number.isFinite(tusdAnoReferencia)
-          ? Math.max(1, Math.trunc(tusdAnoReferencia))
-          : DEFAULT_TUSD_ANO_REFERENCIA,
-        mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-        mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
-        encargosFixos,
-        cidKwhBase,
-        // Fields not consulted by selectMensalidades — safe zero defaults
-        vm0: 0,
-        depreciacaoAa: 0,
-        ipcaAa: 0,
-        inadimplenciaAa: 0,
-        tributosAa: 0,
-        custosFixosM: 0,
-        opexM: 0,
-        seguroM: 0,
-        cashbackPct: 0,
-        pagosAcumManual: 0,
-        duracaoMeses: 0,
-      }
-      const rawSeries = selectMensalidades(afSimState)
-      if (rawSeries.length >= afMesesProjecao) {
-        mensalidadesFinal = rawSeries.slice(0, afMesesProjecao)
-      } else if (rawSeries.length > 0) {
-        const last = rawSeries[rawSeries.length - 1]
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        mensalidadesFinal = [...rawSeries, ...Array(afMesesProjecao - rawSeries.length).fill(last)]
-      } else {
-        mensalidadesFinal = Array(afMesesProjecao).fill(afMensalidadeBaseAuto) as number[]
-      }
-    } else {
-      const base = afMensalidadeBase > 0 ? afMensalidadeBase : afMensalidadeBaseAuto
-      mensalidadesFinal = Array(afMesesProjecao).fill(base) as number[]
-    }
-    const margemAlvo = afMargemLiquidaVenda
-
-    try {
-      const input: AnaliseFinanceiraInput = {
-        modo: afModo,
-        uf,
-        consumo_kwh_mes: consumo,
-        irradiacao_kwh_m2_dia: irr,
-        performance_ratio: pr,
-        dias_mes: dias,
-        potencia_modulo_wp: modulo,
-        ...(nModulosOverride != null ? { quantidade_modulos_override: nModulosOverride } : {}),
-        custo_kit_rs: afCustoKit,
-        frete_rs: afFrete,
-        descarregamento_rs: afDescarregamento,
-        instalacao_rs: instalacaoCalculada,
-        hotel_pousada_rs: afHotelPousada,
-        transporte_combustivel_rs: afTransporteCombustivel,
-        outros_rs: afOutros,
-        deslocamento_instaladores_rs: afDeslocamentoRs,
-        placa_rs_override: prePlaca,
-        material_ca_rs_override: preMaterialCA,
-        projeto_rs_override: preProjetoFinal,
-        crea_rs_override: preCreaFinal,
-        valor_contrato_rs: valorContrato,
-        impostos_percent: afModo === 'venda' ? afImpostosVenda : afImpostosLeasing,
-        custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
-        lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
-        comissao_minima_percent: afComissaoMinimaPercent,
-        margem_liquida_alvo_percent: afModo === 'venda' ? margemAlvo : undefined,
-        margem_liquida_minima_percent: afModo === 'venda' ? afMargemLiquidaMinima : undefined,
-        inadimplencia_percent: afInadimplencia,
-        custo_operacional_percent: afCustoOperacional,
-        meses_projecao: mensalidadesFinal.length,
-        mensalidades_previstas_rs: mensalidadesFinal,
-        investimento_inicial_rs: preCustoVariavel,
-        taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
-      }
-      return calcularAnaliseFinanceira(input)
-    } catch {
-      return null
-    }
-  }, [
-    afConsumoOverride,
-    afIrradiacaoOverride,
-    afPROverride,
-    afDiasOverride,
-    afModuloWpOverride,
-    afUfOverride,
-    afNumModulosOverride,
-    afCustoKit,
-    afCustoOperacional,
-    afDescarregamento,
-    afFrete,
-    afHotelPousada,
-    afTransporteCombustivel,
-    afOutros,
-    afDeslocamentoRs,
-    afInadimplencia,
-    afMensalidadeBase,
-    afMesesProjecao,
-    // NOTE: the raw deps below replace the former `simulationState` entry.
-    // `simulationState` is declared AFTER this useMemo in the component body,
-    // so referencing it caused a TDZ crash.  Instead, list the raw variables
-    // that afSimState actually reads (same set simulationState is built from).
+  // Tariff/system context passed to the AF analysis hook.
+  const tarifaContexto = useMemo<TarifaContexto>(() => ({
+    kcKwhMes,
     tarifaCheia,
     descontoConsiderado,
     inflacaoAa,
@@ -11585,65 +9636,22 @@ export default function App() {
     tusdAnoReferencia,
     mesReajuste,
     mesReferencia,
-    vendaForm.aplica_taxa_minima,
     encargosFixos,
     cidKwhBase,
-    afModo,
-    afValorContrato,
-    afImpostosVenda,
-    afImpostosLeasing,
-    afMargemLiquidaVenda,
-    afMargemLiquidaMinima,
-    afPlaca,
-    afMaterialCAOverride,
-    afAutoMaterialCA,
-    afProjetoOverride,
-    afCreaOverride,
     baseIrradiacao,
-    diasMesNormalizado,
     eficienciaNormalizada,
-    kcKwhMes,
-    afMensalidadeBaseAuto,
+    diasMesNormalizado,
     potenciaModulo,
-    ufTarifa,
-    afComissaoMinimaPercent,
-    afTaxaDesconto,
-    vendasConfig.af_custo_fixo_rateado_percent,
-    vendasConfig.af_lucro_minimo_percent,
+    ufTarifa: storeUfTarifa,
+    aplicaTaxaMinima: vendaForm.aplica_taxa_minima ?? true,
+  }), [
+    kcKwhMes, tarifaCheia, descontoConsiderado, inflacaoAa, taxaMinima, taxaMinimaInputEmpty,
+    tipoRede, tusdPercent, tusdTipoCliente, tusdSubtipo, tusdSimultaneidade, tusdTarifaRkwh,
+    tusdAnoReferencia, mesReajuste, mesReferencia, encargosFixos, cidKwhBase,
+    baseIrradiacao, eficienciaNormalizada, diasMesNormalizado, potenciaModulo, storeUfTarifa,
+    vendaForm.aplica_taxa_minima,
   ])
-
-  const indicadorEficienciaProjeto = useMemo(() => {
-    if (!analiseFinanceiraResult || afModo !== 'leasing') return null
-
-    const payback = analiseFinanceiraResult.payback_total_meses ?? Number.POSITIVE_INFINITY
-    const roi = analiseFinanceiraResult.roi_percent ?? 0
-    const tir = analiseFinanceiraResult.tir_anual_percent ?? 0
-    const investimento = analiseFinanceiraResult.investimento_total_leasing_rs ?? 0
-    const lucroMensal = analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0
-    const lucroRelativo = investimento > 0 ? (lucroMensal / investimento) * 100 : 0
-
-    const paybackScore = Math.max(0, Math.min(100, (60 - payback) / 60 * 100))
-    const roiScore = Math.max(0, Math.min(100, roi))
-    const tirScore = Math.max(0, Math.min(100, tir / 2))
-    const lucroRelativoScore = Math.max(0, Math.min(100, lucroRelativo * 12))
-
-    const score = Math.round(
-      paybackScore * 0.35 +
-      roiScore * 0.25 +
-      tirScore * 0.2 +
-      lucroRelativoScore * 0.2,
-    )
-
-    const classificacao = score >= 85
-      ? 'Excelente'
-      : score >= 70
-        ? 'Bom'
-        : score >= 50
-          ? 'Atenção'
-          : 'Fraco'
-
-    return { score, classificacao }
-  }, [afModo, analiseFinanceiraResult])
+  const { analiseFinanceiraResult, afMensalidadeBaseAuto, indicadorEficienciaProjeto } = useAnaliseFinanceiraResult(tarifaContexto)
 
   const custoFinalProjetadoCanonico = useMemo(() => {
     // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
@@ -11853,15 +9861,6 @@ export default function App() {
   const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
   const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
   const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
-  // AF-specific mensalidades — derived from afSimEstadoMensalidade (AF's own inputs, not leasing's).
-  // This is what drives afMensalidadeBaseAuto so the AF section is isolated from the leasing proposal.
-  const mensalidadesAfPorAno = useMemo(
-    () => (afSimEstadoMensalidade != null ? selectMensalidadesPorAno(afSimEstadoMensalidade) : []),
-    [afSimEstadoMensalidade],
-  )
-  useEffect(() => {
-    setAfMensalidadeBaseAuto(mensalidadesAfPorAno[0] ?? 0)
-  }, [mensalidadesAfPorAno])
   const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
   const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
   const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
@@ -13649,1768 +11648,6 @@ export default function App() {
   // (see the `persistProposalPdf` call sites). The proactive effect has been
   // removed to avoid the misplaced notification.
 
-  /**
-   * Centralizamos a persistência do dataset do CRM. Sempre que algo mudar salvamos
-   * uma cópia no navegador e, se estivermos conectados ao backend oficial, enviamos
-   * o snapshot atualizado.
-   */
-  const persistCrmDataset = useCallback(
-    async (dataset: CrmDataset, origem: 'auto' | 'manual' = 'auto') => {
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(CRM_LOCAL_STORAGE_KEY, JSON.stringify(dataset))
-        } catch (error) {
-          console.warn('Não foi possível persistir o dataset do CRM no localStorage.', error)
-        }
-      }
-
-      if (crmIntegrationModeRef.current !== 'remote') {
-        return
-      }
-
-      try {
-        setCrmIsSaving(true)
-        const response = await fetch(`${CRM_BACKEND_BASE_URL}/sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ dataset, origem }),
-        })
-
-        if (!response.ok) {
-          throw new Error(`Falha ao sincronizar dataset do CRM (status ${response.status})`)
-        }
-
-        setCrmBackendStatus('success')
-        setCrmBackendError(null)
-        setCrmLastSync(new Date())
-      } catch (error) {
-        console.warn('Erro ao sincronizar CRM remoto, mantendo operação local.', error)
-        setCrmBackendStatus('error')
-        setCrmBackendError(error instanceof Error ? error.message : 'Erro inesperado ao sincronizar CRM')
-        setCrmIntegrationMode('local')
-        adicionarNotificacao('Backend do CRM indisponível, utilizando persistência local.', 'error')
-      } finally {
-        setCrmIsSaving(false)
-      }
-    },
-    [adicionarNotificacao],
-  )
-
-  useEffect(() => {
-    void persistCrmDataset(crmDataset)
-  }, [crmDataset, persistCrmDataset])
-
-  const crmLeadSelecionado = useMemo(
-    () => crmDataset.leads.find((lead) => lead.id === crmLeadSelecionadoId) ?? null,
-    [crmDataset.leads, crmLeadSelecionadoId],
-  )
-
-  useEffect(() => {
-    if (!crmLeadSelecionado) {
-      setCrmContratoForm((prev) => ({
-        ...prev,
-        leadId: '',
-        modelo: 'LEASING',
-        valorTotal: '',
-        entrada: '',
-        parcelas: '36',
-        valorParcela: '',
-        reajusteAnualPct: '3',
-      }))
-      setCrmCustosForm({ equipamentos: '', maoDeObra: '', deslocamento: '', taxasSeguros: '' })
-      setCrmManutencaoForm((prev) => ({ ...prev, leadId: '' }))
-      return
-    }
-
-    const contrato = crmDataset.contratos.find((item) => item.leadId === crmLeadSelecionado.id)
-    setCrmContratoForm({
-      leadId: crmLeadSelecionado.id,
-      modelo: contrato?.modelo ?? crmLeadSelecionado.tipoOperacao,
-      valorTotal: contrato ? String(contrato.valorTotal) : crmLeadSelecionado.valorEstimado.toString(),
-      entrada: contrato ? String(contrato.entrada) : '0',
-      parcelas: contrato ? String(contrato.parcelas) : crmLeadSelecionado.tipoOperacao === 'LEASING' ? '60' : '1',
-      valorParcela: contrato ? String(contrato.valorParcela) : '0',
-      reajusteAnualPct: contrato ? String(contrato.reajusteAnualPct) : '3',
-      vencimentoInicialIso: contrato
-        ? contrato.vencimentoInicialIso.slice(0, 10)
-        : new Date().toISOString().slice(0, 10),
-      status: contrato?.status ?? 'em-aberto',
-    })
-
-    const custos = crmDataset.custos.find((item) => item.leadId === crmLeadSelecionado.id)
-    setCrmCustosForm({
-      equipamentos: custos ? String(custos.equipamentos) : '',
-      maoDeObra: custos ? String(custos.maoDeObra) : '',
-      deslocamento: custos ? String(custos.deslocamento) : '',
-      taxasSeguros: custos ? String(custos.taxasSeguros) : '',
-    })
-
-    setCrmManutencaoForm((prev) => ({
-      ...prev,
-      leadId: crmLeadSelecionado.id,
-      dataIso: prev.dataIso || new Date().toISOString().slice(0, 10),
-    }))
-  }, [crmDataset.contratos, crmDataset.custos, crmLeadSelecionado])
-
-  const crmLeadsFiltrados = useMemo(() => {
-    const termoNormalizado = crmBusca ? normalizeText(crmBusca) : ''
-    const numerosBusca = crmBusca ? normalizeNumbers(crmBusca) : ''
-
-    return crmDataset.leads.filter((lead) => {
-      const correspondeOperacao = crmFiltroOperacao === 'all' || lead.tipoOperacao === crmFiltroOperacao
-
-      if (!correspondeOperacao) {
-        return false
-      }
-
-      if (!termoNormalizado && !numerosBusca) {
-        return true
-      }
-
-      const camposTexto = [lead.nome, lead.cidade, lead.tipoImovel, lead.origemLead]
-      const encontrouTexto = termoNormalizado
-        ? camposTexto.some((campo) => normalizeText(campo).includes(termoNormalizado))
-        : false
-
-      const encontrouTelefone = numerosBusca
-        ? normalizeNumbers(lead.telefone).includes(numerosBusca)
-        : false
-
-      return encontrouTexto || encontrouTelefone
-    })
-  }, [crmDataset.leads, crmBusca, crmFiltroOperacao])
-
-  const crmLeadsPorEtapa = useMemo(() => {
-    const agrupado: Record<CrmStageId, CrmLeadRecord[]> = CRM_PIPELINE_STAGES.reduce(
-      (acc, stage) => {
-        acc[stage.id] = []
-        return acc
-      },
-      {} as Record<CrmStageId, CrmLeadRecord[]>,
-    )
-
-    crmLeadsFiltrados.forEach((lead) => {
-      agrupado[lead.etapa]?.push(lead)
-    })
-
-    CRM_PIPELINE_STAGES.forEach((stage) => {
-      agrupado[stage.id].sort((a, b) => (a.ultimoContatoIso < b.ultimoContatoIso ? 1 : -1))
-    })
-
-    return agrupado
-  }, [crmLeadsFiltrados])
-
-  const crmKpis = useMemo(() => {
-    const totalLeads = crmDataset.leads.length
-    const leadsFechados = crmDataset.leads.filter((lead) => lead.etapa === 'fechado')
-    const stageAguardandoIndex = CRM_STAGE_INDEX['aguardando-contrato']
-    const leadsComContrato = crmDataset.leads.filter(
-      (lead) => CRM_STAGE_INDEX[lead.etapa] >= stageAguardandoIndex,
-    )
-
-    const receitaRecorrente = leadsComContrato
-      .filter((lead) => lead.tipoOperacao === 'LEASING')
-      .reduce((total, lead) => total + lead.valorEstimado, 0)
-
-    const receitaPontual = leadsFechados
-      .filter((lead) => lead.tipoOperacao === 'VENDA_DIRETA')
-      .reduce((total, lead) => total + lead.valorEstimado, 0)
-
-    const leadsEmRisco = crmDataset.leads.filter((lead) => {
-      const diasSemContato = diasDesdeDataIso(lead.ultimoContatoIso)
-      const indiceEtapa = CRM_STAGE_INDEX[lead.etapa]
-      return indiceEtapa >= CRM_STAGE_INDEX['proposta-enviada'] && indiceEtapa <= CRM_STAGE_INDEX['negociacao'] && diasSemContato >= 3
-    })
-
-    return {
-      totalLeads,
-      leadsFechados: leadsFechados.length,
-      receitaRecorrente,
-      receitaPontual,
-      leadsEmRisco: leadsEmRisco.length,
-    }
-  }, [crmDataset.leads])
-
-  const crmFinanceiroResumo = useMemo(() => {
-    const contratosLeasing = crmDataset.contratos.filter((contrato) => contrato.modelo === 'LEASING')
-    const contratosVenda = crmDataset.contratos.filter((contrato) => contrato.modelo === 'VENDA_DIRETA')
-
-    const previsaoLeasing = contratosLeasing.reduce(
-      (total, contrato) => total + contrato.valorParcela * Math.max(0, contrato.parcelas),
-      0,
-    )
-    const previsaoVendas = contratosVenda.reduce((total, contrato) => total + contrato.valorTotal, 0)
-    const inadimplentes = crmDataset.contratos.filter((contrato) => contrato.status === 'inadimplente').length
-    const contratosAtivos = crmDataset.contratos.filter((contrato) => contrato.status === 'ativo').length
-
-    const margens = crmDataset.leads.map((lead) => {
-      const custos = crmDataset.custos.find((item) => item.leadId === lead.id)
-      const custoTotal = custos
-        ? custos.equipamentos + custos.maoDeObra + custos.deslocamento + custos.taxasSeguros
-        : 0
-      const margemBruta = lead.valorEstimado - custoTotal
-      const margemPct = custoTotal > 0 ? (margemBruta / custoTotal) * 100 : null
-      const roi = custoTotal > 0 ? (lead.valorEstimado - custoTotal) / custoTotal : null
-      return {
-        leadId: lead.id,
-        leadNome: lead.nome,
-        margemBruta,
-        margemPct,
-        custoTotal,
-        receitaProjetada: lead.valorEstimado,
-        roi,
-        modelo: lead.tipoOperacao,
-      }
-    })
-
-    margens.sort((a, b) => b.margemBruta - a.margemBruta)
-
-    return {
-      previsaoLeasing,
-      previsaoVendas,
-      inadimplentes,
-      contratosAtivos,
-      margens: margens.slice(0, 8),
-    }
-  }, [crmDataset.contratos, crmDataset.custos, crmDataset.leads])
-
-  const crmPosVendaResumo = useMemo(() => {
-    // Quantifica todas as manutenções cadastradas para criar os alertas de pós-venda.
-    const totalManutencoes = crmDataset.manutencoes.length
-    const pendentes = crmDataset.manutencoes.filter((item) => item.status === 'pendente')
-    const concluidas = crmDataset.manutencoes.filter((item) => item.status === 'concluida')
-
-    // Ordenamos as próximas visitas técnicas para que o gestor visualize rapidamente o que está por vir.
-    const proximas = [...pendentes]
-      .sort((a, b) => (a.dataIso < b.dataIso ? -1 : 1))
-      .slice(0, 6)
-
-    // Simulamos os dados de geração utilizando o consumo informado pelo lead.
-    const geracao = crmDataset.leads
-      .filter((lead) => lead.etapa === 'fechado')
-      .slice(0, 8)
-      .map((lead) => {
-        const geracaoPrevista = Math.max(0, lead.consumoKwhMes)
-        const fatorStatus =
-          lead.instalacaoStatus === 'concluida' ? 1.05 : lead.instalacaoStatus === 'em-andamento' ? 0.65 : 0.4
-        const geracaoAtual = Math.round(geracaoPrevista * fatorStatus)
-        const alertaBaixa = geracaoPrevista > 0 && geracaoAtual < geracaoPrevista * 0.8
-        return {
-          id: lead.id,
-          nome: lead.nome,
-          geracaoPrevista,
-          geracaoAtual,
-          alertaBaixa,
-          cidade: lead.cidade,
-        }
-      })
-
-    const alertasCriticos = proximas
-      .filter((item) => diasDesdeDataIso(item.dataIso) <= 2)
-      .map((item) =>
-        `Manutenção ${item.tipo} para ${formatarDataCurta(item.dataIso)} está há poucos dias do vencimento.`,
-      )
-
-    const chamadosRecentes = crmDataset.timeline
-      .filter((item) => item.tipo === 'anotacao')
-      .slice(0, 8)
-      .map((item) => ({
-        ...item,
-        dataFormatada: formatarDataCurta(item.criadoEmIso),
-      }))
-
-    return {
-      totalManutencoes,
-      pendentes: pendentes.length,
-      concluidas: concluidas.length,
-      proximas,
-      geracao,
-      alertasCriticos,
-      chamadosRecentes,
-    }
-  }, [crmDataset.manutencoes, crmDataset.leads, crmDataset.timeline])
-
-  const crmIndicadoresGerenciais = useMemo(() => {
-    // Calculamos a taxa de conversão geral a partir dos leads existentes.
-    const totalLeads = crmDataset.leads.length
-    const leadsFechados = crmDataset.leads.filter((lead) => lead.etapa === 'fechado')
-    const taxaConversao = totalLeads > 0 ? Math.round((leadsFechados.length / totalLeads) * 100) : 0
-
-    // O tempo médio de fechamento considera o intervalo entre criação e último contato dos projetos fechados.
-    const tempoMedioFechamento = leadsFechados.length
-      ? Math.round(
-          leadsFechados.reduce((total, lead) => {
-            const criado = new Date(lead.criadoEmIso).getTime()
-            const atualizado = new Date(lead.ultimoContatoIso).getTime()
-            const diffDias = Math.max(0, Math.round((atualizado - criado) / (1000 * 60 * 60 * 24)))
-            return total + diffDias
-          }, 0) / leadsFechados.length,
-        )
-      : 0
-
-    // Agrupamos os leads por origem para alimentar o dashboard de marketing.
-    const leadsPorOrigem = crmDataset.leads.reduce<Record<string, number>>((acc, lead) => {
-      const origem = lead.origemLead || 'Indefinido'
-      acc[origem] = (acc[origem] ?? 0) + 1
-      return acc
-    }, {})
-
-    // Identificamos gargalos quando há acúmulo acima de 5 leads em uma etapa intermediária.
-    const gargalos = CRM_PIPELINE_STAGES.filter((stage) => stage.id !== 'fechado' && stage.id !== 'novo-lead')
-      .map((stage) => {
-        const quantidade = crmDataset.leads.filter((lead) => lead.etapa === stage.id).length
-        return quantidade >= 5 ? `${stage.label} possui ${quantidade} leads aguardando ação.` : null
-      })
-      .filter((item): item is string => Boolean(item))
-
-    // ROI médio utilizando os dados de margem calculados na etapa financeira.
-    const roiMedio = crmFinanceiroResumo.margens.length
-      ? Math.round(
-          (crmFinanceiroResumo.margens.reduce((total, item) => total + (item.roi ?? 0), 0) /
-            crmFinanceiroResumo.margens.length) *
-            100,
-        ) / 100
-      : 0
-
-    const mapaGeracao = crmDataset.leads.reduce<Record<string, number>>((acc, lead) => {
-      if (!lead.cidade) {
-        return acc
-      }
-      acc[lead.cidade] = (acc[lead.cidade] ?? 0) + lead.consumoKwhMes
-      return acc
-    }, {})
-
-    return {
-      taxaConversao,
-      tempoMedioFechamento,
-      leadsPorOrigem,
-      gargalos,
-      roiMedio,
-      receitaRecorrenteProjetada: crmFinanceiroResumo.previsaoLeasing,
-      receitaPontualProjetada: crmFinanceiroResumo.previsaoVendas,
-      mapaGeracao,
-    }
-  }, [crmDataset.leads, crmFinanceiroResumo])
-
-  const crmManutencoesPendentes = useMemo(
-    () =>
-      crmDataset.manutencoes
-        .filter((item) => item.status === 'pendente')
-        .sort((a, b) => (a.dataIso < b.dataIso ? -1 : 1))
-        .slice(0, 12),
-    [crmDataset.manutencoes],
-  )
-
-  const crmContratosPorLead = useMemo(() => {
-    const mapa = new Map<string, CrmContratoFinanceiro>()
-    crmDataset.contratos.forEach((contrato) => {
-      if (!mapa.has(contrato.leadId)) {
-        mapa.set(contrato.leadId, contrato)
-      }
-    })
-    return mapa
-  }, [crmDataset.contratos])
-
-  const crmTimelineFiltrada = useMemo(() => {
-    const base = crmLeadSelecionadoId
-      ? crmDataset.timeline.filter((item) => item.leadId === crmLeadSelecionadoId)
-      : crmDataset.timeline
-
-    return base.slice(0, 40)
-  }, [crmDataset.timeline, crmLeadSelecionadoId])
-
-  const handleCrmLeadFormChange = useCallback(<K extends keyof CrmLeadFormState>(campo: K, valor: CrmLeadFormState[K]) => {
-    setCrmLeadForm((prev) => ({ ...prev, [campo]: valor }))
-  }, [])
-
-  const handleCrmLeadFormSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
-      const consumoNumerico = Number(crmLeadForm.consumoKwhMes.replace(',', '.'))
-      const valorEstimadoNumerico = Number(crmLeadForm.valorEstimado.replace(',', '.'))
-
-      if (!crmLeadForm.nome.trim() || !crmLeadForm.telefone.trim() || !crmLeadForm.cidade.trim()) {
-        adicionarNotificacao('Informe nome, telefone e cidade para cadastrar o lead.', 'error')
-        return
-      }
-
-      if (!Number.isFinite(consumoNumerico) || consumoNumerico <= 0) {
-        adicionarNotificacao('Consumo mensal inválido. Utilize apenas números.', 'error')
-        return
-      }
-
-      if (!Number.isFinite(valorEstimadoNumerico) || valorEstimadoNumerico <= 0) {
-        adicionarNotificacao('Defina o valor estimado do projeto para projeções financeiras.', 'error')
-        return
-      }
-
-      const agoraIso = new Date().toISOString()
-      const novoLead: CrmLeadRecord = {
-        id: gerarIdCrm('lead'),
-        nome: crmLeadForm.nome.trim(),
-        telefone: crmLeadForm.telefone.trim(),
-        email: crmLeadForm.email.trim() || undefined,
-        cidade: crmLeadForm.cidade.trim(),
-        tipoImovel: crmLeadForm.tipoImovel.trim() || 'Não informado',
-        consumoKwhMes: Math.round(consumoNumerico),
-        origemLead: crmLeadForm.origemLead.trim() || 'Cadastro manual',
-        interesse: crmLeadForm.interesse,
-        tipoOperacao: crmLeadForm.tipoOperacao,
-        valorEstimado: Math.round(valorEstimadoNumerico),
-        etapa: 'novo-lead',
-        ultimoContatoIso: agoraIso,
-        criadoEmIso: agoraIso,
-        notas: crmLeadForm.notas.trim() || undefined,
-        instalacaoStatus: 'planejamento',
-      }
-
-      const evento: CrmTimelineEntry = {
-        id: gerarIdCrm('evento'),
-        leadId: novoLead.id,
-        mensagem: `Lead "${novoLead.nome}" cadastrado manualmente e posicionado em Novo lead.`,
-        tipo: 'status',
-        criadoEmIso: agoraIso,
-      }
-
-      setCrmDataset((prev) => {
-        const jaPossuiContrato = prev.contratos.some((item) => item.leadId === novoLead.id)
-        const parcelasPadrao = novoLead.tipoOperacao === 'LEASING' ? 60 : 1
-        const entradaPadrao = novoLead.tipoOperacao === 'VENDA_DIRETA' ? Math.round(novoLead.valorEstimado * 0.2) : 0
-        const valorParcelaPadrao = parcelasPadrao
-          ? Math.max(0, Math.round(((novoLead.valorEstimado - entradaPadrao) / parcelasPadrao) * 100) / 100)
-          : 0
-
-        const contratoDefault: CrmContratoFinanceiro = {
-          id: gerarIdCrm('contrato'),
-          leadId: novoLead.id,
-          modelo: novoLead.tipoOperacao,
-          valorTotal: novoLead.valorEstimado,
-          entrada: entradaPadrao,
-          parcelas: parcelasPadrao,
-          valorParcela: valorParcelaPadrao,
-          reajusteAnualPct: 3,
-          vencimentoInicialIso: agoraIso,
-          status: 'em-aberto',
-        }
-
-        const custosDefault: CrmCustoProjeto = {
-          id: gerarIdCrm('custo'),
-          leadId: novoLead.id,
-          equipamentos: 0,
-          maoDeObra: 0,
-          deslocamento: 0,
-          taxasSeguros: 0,
-        }
-
-        const manutencaoFutura = new Date()
-        manutencaoFutura.setMonth(manutencaoFutura.getMonth() + 6)
-        const manutencaoDefault: CrmManutencaoRegistro = {
-          id: gerarIdCrm('manutencao'),
-          leadId: novoLead.id,
-          dataIso: manutencaoFutura.toISOString(),
-          tipo: 'Manutenção preventiva programada',
-          status: 'pendente',
-          observacao: 'Agendamento automático ao captar o lead.',
-        }
-
-        return {
-          ...prev,
-          leads: [novoLead, ...prev.leads],
-          timeline: [evento, ...prev.timeline].slice(0, 120),
-          contratos: jaPossuiContrato ? prev.contratos : [contratoDefault, ...prev.contratos],
-          custos: prev.custos.some((item) => item.leadId === novoLead.id)
-            ? prev.custos
-            : [custosDefault, ...prev.custos],
-          manutencoes: prev.manutencoes.some((item) => item.leadId === novoLead.id)
-            ? prev.manutencoes
-            : [manutencaoDefault, ...prev.manutencoes],
-        }
-      })
-
-      setCrmLeadForm((prev) => ({
-        ...CRM_EMPTY_LEAD_FORM,
-        interesse: prev.interesse,
-        tipoOperacao: prev.tipoOperacao,
-      }))
-      setCrmLeadSelecionadoId(novoLead.id)
-      setCrmNotaTexto('')
-      adicionarNotificacao('Lead adicionado ao funil do CRM.', 'success')
-    },
-    [adicionarNotificacao, crmLeadForm],
-  )
-
-  const handleMoverLead = useCallback(
-    (leadId: string, direcao: 1 | -1) => {
-      let mensagemSucesso: string | null = null
-
-      setCrmDataset((prev) => {
-        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
-        if (!leadAtual) {
-          return prev
-        }
-
-        const indiceAtual = CRM_STAGE_INDEX[leadAtual.etapa]
-        const novoIndice = Math.min(
-          CRM_PIPELINE_STAGES.length - 1,
-          Math.max(0, indiceAtual + direcao),
-        )
-
-        if (novoIndice === indiceAtual) {
-          return prev
-        }
-
-        const novaEtapa = CRM_PIPELINE_STAGES[novoIndice].id
-        const agoraIso = new Date().toISOString()
-        mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice].label}.`
-
-        const leadsAtualizados = prev.leads.map((lead) => {
-          if (lead.id !== leadId) {
-            return lead
-          }
-
-          let novoStatusInstalacao = lead.instalacaoStatus
-          if (novaEtapa === 'aguardando-contrato' || novaEtapa === 'proposta-enviada') {
-            novoStatusInstalacao = 'planejamento'
-          } else if (novaEtapa === 'fechado') {
-            novoStatusInstalacao = lead.instalacaoStatus === 'concluida' ? 'concluida' : 'em-andamento'
-          } else if (novaEtapa === 'negociacao' && lead.instalacaoStatus === 'em-andamento') {
-            novoStatusInstalacao = 'aguardando-homologacao'
-          }
-
-          return {
-            ...lead,
-            etapa: novaEtapa,
-            ultimoContatoIso: agoraIso,
-            instalacaoStatus: novoStatusInstalacao,
-          }
-        })
-
-        const evento: CrmTimelineEntry = {
-          id: gerarIdCrm('evento'),
-          leadId,
-          mensagem: `Etapa atualizada de ${CRM_PIPELINE_STAGES[indiceAtual].label} para ${CRM_PIPELINE_STAGES[novoIndice].label}.`,
-          tipo: 'status',
-          criadoEmIso: agoraIso,
-        }
-
-        return {
-          ...prev,
-          leads: leadsAtualizados,
-          timeline: [evento, ...prev.timeline].slice(0, 120),
-        }
-      })
-
-      if (mensagemSucesso) {
-        adicionarNotificacao(mensagemSucesso, 'success')
-      }
-    },
-    [adicionarNotificacao],
-  )
-
-  const handleSelecionarLead = useCallback((leadId: string) => {
-    setCrmLeadSelecionadoId((prev) => (prev === leadId ? null : leadId))
-  }, [])
-
-  const handleAdicionarNotaCrm = useCallback(() => {
-    if (!crmLeadSelecionadoId) {
-      adicionarNotificacao('Selecione um lead para registrar uma nota.', 'info')
-      return
-    }
-
-    const notaLimpa = crmNotaTexto.trim()
-    if (!notaLimpa) {
-      adicionarNotificacao('Escreva uma nota antes de salvar.', 'error')
-      return
-    }
-
-    const agoraIso = new Date().toISOString()
-    const evento: CrmTimelineEntry = {
-      id: gerarIdCrm('evento'),
-      leadId: crmLeadSelecionadoId,
-      mensagem: notaLimpa,
-      tipo: 'anotacao',
-      criadoEmIso: agoraIso,
-    }
-
-    setCrmDataset((prev) => ({
-      ...prev,
-      leads: prev.leads.map((lead) =>
-        lead.id === crmLeadSelecionadoId
-          ? {
-              ...lead,
-              notas: notaLimpa,
-              ultimoContatoIso: agoraIso,
-            }
-          : lead,
-      ),
-      timeline: [evento, ...prev.timeline].slice(0, 120),
-    }))
-
-    setCrmNotaTexto('')
-    adicionarNotificacao('Nota registrada no histórico do lead.', 'success')
-  }, [adicionarNotificacao, crmLeadSelecionadoId, crmNotaTexto])
-
-  const handleAtualizarStatusInstalacao = useCallback(
-    (leadId: string, status: CrmLeadRecord['instalacaoStatus']) => {
-      setCrmDataset((prev) => ({
-        ...prev,
-        leads: prev.leads.map((lead) =>
-          lead.id === leadId
-            ? {
-                ...lead,
-                instalacaoStatus: status,
-                ultimoContatoIso: new Date().toISOString(),
-              }
-            : lead,
-        ),
-      }))
-      adicionarNotificacao('Status da instalação atualizado.', 'success')
-    },
-    [adicionarNotificacao],
-  )
-
-  const handleRemoverLead = useCallback(
-    (leadId: string) => {
-      let nomeLead: string | null = null
-
-      setCrmDataset((prev) => {
-        const leadAtual = prev.leads.find((lead) => lead.id === leadId)
-        if (!leadAtual) {
-          return prev
-        }
-        nomeLead = leadAtual.nome
-        const agoraIso = new Date().toISOString()
-
-        const leadsRestantes = prev.leads.filter((lead) => lead.id !== leadId)
-        const evento: CrmTimelineEntry = {
-          id: gerarIdCrm('evento'),
-          leadId,
-          mensagem: `Lead removido do funil pelo usuário em ${formatarDataCurta(agoraIso)}.`,
-          tipo: 'status',
-          criadoEmIso: agoraIso,
-        }
-
-        return {
-          ...prev,
-          leads: leadsRestantes,
-          timeline: [evento, ...prev.timeline].slice(0, 120),
-          contratos: prev.contratos.filter((contrato) => contrato.leadId !== leadId),
-          custos: prev.custos.filter((custo) => custo.leadId !== leadId),
-          manutencoes: prev.manutencoes.filter((manutencao) => manutencao.leadId !== leadId),
-        }
-      })
-
-      if (nomeLead && crmLeadSelecionadoId === leadId) {
-        setCrmLeadSelecionadoId(null)
-      }
-
-      if (nomeLead) {
-        adicionarNotificacao(`Lead "${String(nomeLead)}" removido do CRM.`, 'info')
-      }
-    },
-    [adicionarNotificacao, crmLeadSelecionadoId],
-  )
-
-  const handleSalvarCustosCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
-      if (!crmLeadSelecionado) {
-        adicionarNotificacao('Selecione um lead para detalhar os custos do projeto.', 'error')
-        return
-      }
-
-      const parse = (valor: string) => {
-        const numero = Number(valor.replace(',', '.'))
-        return Number.isFinite(numero) && numero >= 0 ? Math.round(numero * 100) / 100 : 0
-      }
-
-      const custosAtualizados: CrmCustoProjeto = {
-        id: gerarIdCrm('custo'),
-        leadId: crmLeadSelecionado.id,
-        equipamentos: parse(crmCustosForm.equipamentos),
-        maoDeObra: parse(crmCustosForm.maoDeObra),
-        deslocamento: parse(crmCustosForm.deslocamento),
-        taxasSeguros: parse(crmCustosForm.taxasSeguros),
-      }
-
-      setCrmDataset((prev) => {
-        const jaExistente = prev.custos.some((item) => item.leadId === crmLeadSelecionado.id)
-        const listaAtualizada = jaExistente
-          ? prev.custos.map((item) => (item.leadId === crmLeadSelecionado.id ? { ...custosAtualizados, id: item.id } : item))
-          : [custosAtualizados, ...prev.custos]
-
-        const evento: CrmTimelineEntry = {
-          id: gerarIdCrm('evento'),
-          leadId: crmLeadSelecionado.id,
-          mensagem: 'Custos do projeto atualizados para cálculo de margem e ROI.',
-          tipo: 'status',
-          criadoEmIso: new Date().toISOString(),
-        }
-
-        return {
-          ...prev,
-          custos: listaAtualizada,
-          timeline: [evento, ...prev.timeline].slice(0, 120),
-        }
-      })
-
-      adicionarNotificacao('Custos do projeto registrados.', 'success')
-    },
-    [adicionarNotificacao, crmCustosForm, crmLeadSelecionado],
-  )
-
-  const handleSalvarContratoCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
-      const leadAlvoId = crmContratoForm.leadId || crmLeadSelecionado?.id
-      if (!leadAlvoId) {
-        adicionarNotificacao('Associe o contrato a um lead para controle financeiro.', 'error')
-        return
-      }
-
-      const leadExiste = crmDataset.leads.some((lead) => lead.id === leadAlvoId)
-      if (!leadExiste) {
-        adicionarNotificacao('Lead selecionado não encontrado. Recarregue a página ou selecione outro registro.', 'error')
-        return
-      }
-
-      const parse = (valor: string, fallback = 0) => {
-        const numero = Number(valor.replace(',', '.'))
-        if (!Number.isFinite(numero) || numero < 0) {
-          return fallback
-        }
-        return Math.round(numero * 100) / 100
-      }
-
-      const contratoNormalizado: CrmContratoFinanceiro = {
-        id: gerarIdCrm('contrato'),
-        leadId: leadAlvoId,
-        modelo: crmContratoForm.modelo,
-        valorTotal: parse(crmContratoForm.valorTotal, 0),
-        entrada: parse(crmContratoForm.entrada, 0),
-        parcelas: Math.max(0, Math.round(parse(crmContratoForm.parcelas, 0))),
-        valorParcela: parse(crmContratoForm.valorParcela, 0),
-        reajusteAnualPct: parse(crmContratoForm.reajusteAnualPct, 0),
-        vencimentoInicialIso: crmContratoForm.vencimentoInicialIso
-          ? new Date(`${crmContratoForm.vencimentoInicialIso}T00:00:00`).toISOString()
-          : new Date().toISOString(),
-        status: crmContratoForm.status,
-      }
-
-      setCrmDataset((prev) => {
-        const contratosAtualizados = prev.contratos.some((item) => item.leadId === leadAlvoId)
-          ? prev.contratos.map((item) => (item.leadId === leadAlvoId ? { ...contratoNormalizado, id: item.id } : item))
-          : [contratoNormalizado, ...prev.contratos]
-
-        const evento: CrmTimelineEntry = {
-          id: gerarIdCrm('evento'),
-          leadId: leadAlvoId,
-          mensagem: `Contrato ${
-            contratoNormalizado.modelo === 'LEASING' ? 'de leasing' : 'de venda direta'
-          } atualizado (${contratoNormalizado.parcelas} parcelas).`,
-          tipo: 'status',
-          criadoEmIso: new Date().toISOString(),
-        }
-
-        return {
-          ...prev,
-          contratos: contratosAtualizados,
-          timeline: [evento, ...prev.timeline].slice(0, 120),
-        }
-      })
-
-      adicionarNotificacao('Contrato financeiro sincronizado com o CRM.', 'success')
-    },
-    [adicionarNotificacao, crmContratoForm, crmDataset.leads, crmLeadSelecionado],
-  )
-
-  const handleAdicionarManutencaoCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-
-      const leadAlvoId = crmManutencaoForm.leadId || crmLeadSelecionado?.id
-      if (!leadAlvoId) {
-        adicionarNotificacao('Selecione um lead para agendar a manutenção.', 'error')
-        return
-      }
-
-      const leadExiste = crmDataset.leads.some((lead) => lead.id === leadAlvoId)
-      if (!leadExiste) {
-        adicionarNotificacao('Não foi possível localizar o lead selecionado.', 'error')
-        return
-      }
-
-      const dataIso = crmManutencaoForm.dataIso
-        ? new Date(`${crmManutencaoForm.dataIso}T00:00:00`).toISOString()
-        : new Date().toISOString()
-
-      const manutencao: CrmManutencaoRegistro = {
-        id: gerarIdCrm('manutencao'),
-        leadId: leadAlvoId,
-        dataIso,
-        tipo: crmManutencaoForm.tipo.trim() || 'Revisão preventiva',
-        status: 'pendente',
-        observacao: crmManutencaoForm.observacao.trim() || undefined,
-      }
-
-      const timelineEvento: CrmTimelineEntry = {
-        id: gerarIdCrm('evento'),
-        leadId: leadAlvoId,
-        mensagem: `Manutenção agendada para ${formatarDataCurta(dataIso)} (${manutencao.tipo}).`,
-        tipo: 'status',
-        criadoEmIso: new Date().toISOString(),
-      }
-
-      setCrmDataset((prev) => ({
-        ...prev,
-        manutencoes: [manutencao, ...prev.manutencoes].slice(0, 200),
-        timeline: [timelineEvento, ...prev.timeline].slice(0, 120),
-      }))
-
-      setCrmManutencaoForm((prev) => ({
-        ...prev,
-        observacao: '',
-      }))
-
-      adicionarNotificacao('Manutenção registrada e vinculada ao cliente.', 'success')
-    },
-    [adicionarNotificacao, crmDataset.leads, crmLeadSelecionado, crmManutencaoForm],
-  )
-
-  const handleConcluirManutencaoCrm = useCallback(
-    (manutencaoId: string) => {
-      setCrmDataset((prev) => ({
-        ...prev,
-        manutencoes: prev.manutencoes.map((item) =>
-          item.id === manutencaoId
-            ? {
-                ...item,
-                status: 'concluida',
-              }
-            : item,
-        ),
-      }))
-      adicionarNotificacao('Manutenção marcada como concluída.', 'success')
-    },
-    [adicionarNotificacao],
-  )
-
-  const handleSyncCrmManualmente = useCallback(() => {
-    void persistCrmDataset(crmDataset, 'manual')
-    adicionarNotificacao('Sincronização manual solicitada.', 'info')
-  }, [adicionarNotificacao, crmDataset, persistCrmDataset])
-
-  const renderCrmPage = () => (
-    <div className="crm-page">
-      <div className="crm-main">
-        {/* Seção 1 - Captação e qualificação */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>1. Captação e qualificação</h2>
-              <p>
-                Cadastre leads vindos do site, redes sociais e indicações. Os dados coletados alimentam automaticamente
-                os cálculos financeiros da proposta.
-              </p>
-            </div>
-            <div className="crm-metrics">
-              <div>
-                <span>Total de leads</span>
-                <strong>{crmKpis.totalLeads}</strong>
-              </div>
-              <div>
-                <span>Fechados</span>
-                <strong>{crmKpis.leadsFechados}</strong>
-              </div>
-              <div>
-                <span>Receita recorrente</span>
-                <strong>{currency(crmKpis.receitaRecorrente)}</strong>
-              </div>
-              <div>
-                <span>Receita pontual</span>
-                <strong>{currency(crmKpis.receitaPontual)}</strong>
-              </div>
-              <div className="warning">
-                <span>Leads em risco</span>
-                <strong>{crmKpis.leadsEmRisco}</strong>
-              </div>
-            </div>
-          </div>
-          <div className="crm-capture-grid">
-            <div className="crm-capture-filters">
-              <label htmlFor="crm-busca">Buscar lead</label>
-              <input
-                id="crm-busca"
-                type="search"
-                value={crmBusca}
-                onChange={(event) => setCrmBusca(event.target.value)}
-                placeholder="Pesquisar por nome, telefone, origem ou cidade"
-              />
-              <label htmlFor="crm-operacao-filter">Tipo de operação</label>
-              <select
-                id="crm-operacao-filter"
-                value={crmFiltroOperacao}
-                onChange={(event) => setCrmFiltroOperacao(event.target.value as CrmFiltroOperacao)}
-              >
-                <option value="all">Todos</option>
-                <option value="LEASING">Leasing</option>
-                <option value="VENDA_DIRETA">Venda</option>
-              </select>
-              <p className="crm-hint">
-                Leads que abrem uma proposta ou respondem mensagem mudam automaticamente de status. O filtro acima ajuda
-                a focar nos modelos de operação desejados.
-              </p>
-            </div>
-            <form className="crm-capture-form" onSubmit={handleCrmLeadFormSubmit}>
-              <fieldset>
-                <legend>Novo lead</legend>
-                <div className="crm-form-row">
-                  <label>
-                    Nome
-                    <input
-                      name="crm-nome"
-                      id="crm-nome"
-                      value={crmLeadForm.nome}
-                      onChange={(event) => handleCrmLeadFormChange('nome', event.target.value)}
-                      placeholder="Nome do contato"
-                      required
-                    />
-                  </label>
-                  <label>
-                    Telefone / WhatsApp
-                    <input
-                      name="crm-telefone"
-                      id="crm-telefone"
-                      value={crmLeadForm.telefone}
-                      onChange={(event) => handleCrmLeadFormChange('telefone', event.target.value)}
-                      placeholder="(62) 99999-0000"
-                      required
-                    />
-                  </label>
-                </div>
-                <div className="crm-form-row">
-                  <label>
-                    Cidade
-                    <input
-                      name="crm-cidade"
-                      id="crm-cidade"
-                      value={crmLeadForm.cidade}
-                      onChange={(event) => handleCrmLeadFormChange('cidade', event.target.value)}
-                      placeholder="Cidade do projeto"
-                      required
-                    />
-                  </label>
-                  <label>
-                    Origem do lead
-                    <input
-                      name="crm-origem"
-                      id="crm-origem"
-                      value={crmLeadForm.origemLead}
-                      onChange={(event) => handleCrmLeadFormChange('origemLead', event.target.value)}
-                      placeholder="Instagram, WhatsApp, Feira..."
-                    />
-                  </label>
-                </div>
-                <div className="crm-form-row">
-                  <label>
-                    Consumo mensal (kWh)
-                    <input
-                      name="crm-consumo-kwh"
-                      id="crm-consumo-kwh"
-                      value={crmLeadForm.consumoKwhMes}
-                      onChange={(event) => handleCrmLeadFormChange('consumoKwhMes', event.target.value)}
-                      placeholder="Ex: 1200"
-                      required
-                    />
-                  </label>
-                  <label>
-                    Valor estimado (R$)
-                    <input
-                      name="crm-valor-estimado"
-                      id="crm-valor-estimado"
-                      value={crmLeadForm.valorEstimado}
-                      onChange={(event) => handleCrmLeadFormChange('valorEstimado', event.target.value)}
-                      placeholder="Ex: 250000"
-                      required
-                    />
-                  </label>
-                </div>
-                <div className="crm-form-row">
-                  <label>
-                    Tipo de imóvel
-                    <input
-                      name="crm-tipo-imovel"
-                      id="crm-tipo-imovel"
-                      value={crmLeadForm.tipoImovel}
-                      onChange={(event) => handleCrmLeadFormChange('tipoImovel', event.target.value)}
-                      placeholder="Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)..."
-                    />
-                  </label>
-                  <label>
-                    Modelo de operação
-                    <select
-                      name="crm-tipo-operacao"
-                      id="crm-tipo-operacao"
-                      value={crmLeadForm.tipoOperacao}
-                      onChange={(event) =>
-                        handleCrmLeadFormChange('tipoOperacao', event.target.value as CrmLeadFormState['tipoOperacao'])
-                      }
-                    >
-                      <option value="LEASING">Leasing (receita recorrente)</option>
-                      <option value="VENDA_DIRETA">Venda (receita pontual)</option>
-                    </select>
-                  </label>
-                </div>
-                <label className="crm-form-notes">
-                  Observações
-                  <textarea
-                    name="crm-notas"
-                    id="crm-notas"
-                    rows={2}
-                    value={crmLeadForm.notas}
-                    onChange={(event) => handleCrmLeadFormChange('notas', event.target.value)}
-                    placeholder="Preferências do cliente, dores principais ou combinações iniciais"
-                  />
-                </label>
-              </fieldset>
-              <div className="crm-form-actions">
-                <button type="submit" className="primary">
-                  Adicionar lead ao funil
-                </button>
-                <p>
-                  Ao salvar, o lead recebe uma tag com o tipo de sistema (on-grid, off-grid, condomínio) e gera um
-                  registro de projeto vinculado automaticamente.
-                </p>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        {/* Seção 2 - Prospecção e proposta */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>2. Prospecção e proposta</h2>
-              <p>
-                Acompanhe o funil visual de vendas com etapas automáticas. Movimentações geram registros na linha do
-                tempo do lead e notificações internas de follow-up.
-              </p>
-            </div>
-          </div>
-          <div className="crm-kanban">
-            {CRM_PIPELINE_STAGES.map((stage) => {
-              const leadsDaEtapa = crmLeadsPorEtapa[stage.id] ?? []
-              return (
-                <div key={stage.id} className="crm-kanban-column">
-                  <header>
-                    <h3>{stage.label}</h3>
-                    <span>{leadsDaEtapa.length} lead(s)</span>
-                  </header>
-                  <ul>
-                    {leadsDaEtapa.length === 0 ? (
-                      <li className="crm-empty">Sem leads aqui no momento</li>
-                    ) : (
-                      leadsDaEtapa.map((lead) => (
-                        <li
-                          key={lead.id}
-                          className={`crm-lead-chip${crmLeadSelecionadoId === lead.id ? ' selected' : ''}`}
-                        >
-                          <button type="button" onClick={() => handleSelecionarLead(lead.id)}>
-                            <strong>{lead.nome}</strong>
-                            <small>{lead.cidade}</small>
-                            <small>{currency(lead.valorEstimado)}</small>
-                          </button>
-                          <div className="crm-lead-actions">
-                            <button
-                              type="button"
-                              aria-label="Mover para etapa anterior"
-                              onClick={() => handleMoverLead(lead.id, -1)}
-                              disabled={stage.id === CRM_PIPELINE_STAGES[0].id}
-                            >
-                              ◀
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Mover para próxima etapa"
-                              onClick={() => handleMoverLead(lead.id, 1)}
-                              disabled={stage.id === CRM_PIPELINE_STAGES[CRM_PIPELINE_STAGES.length - 1].id}
-                            >
-                              ▶
-                            </button>
-                            <button type="button" className="danger" onClick={() => handleRemoverLead(lead.id)}>
-                              Remover
-                            </button>
-                          </div>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* Seção 3 - Contrato e implantação */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>3. Contrato e implantação</h2>
-              <p>
-                Integração com assinatura digital, checklist técnico e histórico completo de interações e anexos do
-                cliente.
-              </p>
-            </div>
-          </div>
-          {crmLeadSelecionado ? (
-            <div className="crm-selected">
-              <div className="crm-selected-summary">
-                <h3>{crmLeadSelecionado.nome}</h3>
-                <p>
-                  {crmLeadSelecionado.telefone} • {crmLeadSelecionado.email || 'E-mail não informado'}
-                </p>
-                <p>
-                  {crmLeadSelecionado.cidade} • Consumo {fmt.kwhMes(crmLeadSelecionado.consumoKwhMes)}
-                </p>
-                <label>
-                  Status da instalação
-                  <select
-                    value={crmLeadSelecionado.instalacaoStatus}
-                    onChange={(event) =>
-                      handleAtualizarStatusInstalacao(
-                        crmLeadSelecionado.id,
-                        event.target.value as CrmLeadRecord['instalacaoStatus'],
-                      )
-                    }
-                  >
-                    {CRM_INSTALACAO_STATUS.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Registrar nota
-                  <textarea
-                    rows={2}
-                    value={crmNotaTexto}
-                    onChange={(event) => setCrmNotaTexto(event.target.value)}
-                    placeholder="Ex: Visita técnica agendada, cliente solicitou revisão de valores"
-                  />
-                </label>
-                <button type="button" className="ghost" onClick={handleAdicionarNotaCrm}>
-                  Salvar no histórico
-                </button>
-              </div>
-              <div className="crm-selected-details">
-                <div>
-                  <h4>Contrato financeiro</h4>
-                  {(() => {
-                    const contrato = crmContratosPorLead.get(crmLeadSelecionado.id)
-                    if (!contrato) {
-                      return <p className="crm-empty">Preencha os dados financeiros na seção 6.</p>
-                    }
-                    return (
-                      <ul className="crm-data-list">
-                        <li>
-                          <span>Modelo</span>
-                          <strong>{contrato.modelo === 'LEASING' ? 'Leasing' : 'Venda'}</strong>
-                        </li>
-                        <li>
-                          <span>Parcelas</span>
-                          <strong>{contrato.parcelas}x de {currency(contrato.valorParcela)}</strong>
-                        </li>
-                        <li>
-                          <span>Status</span>
-                          <strong>{contrato.status.replace('-', ' ')}</strong>
-                        </li>
-                        <li>
-                          <span>Vencimento inicial</span>
-                          <strong>{formatarDataCurta(contrato.vencimentoInicialIso)}</strong>
-                        </li>
-                      </ul>
-                    )
-                  })()}
-                </div>
-                <div>
-                  <h4>Checklist técnico</h4>
-                  <ul className="crm-checklist">
-                    <li className={crmLeadSelecionado.etapa !== 'novo-lead' ? 'done' : ''}>Captação concluída</li>
-                    <li className={crmLeadSelecionado.etapa !== 'novo-lead' && crmLeadSelecionado.etapa !== 'qualificacao' ? 'done' : ''}>
-                      Proposta enviada
-                    </li>
-                    <li className={crmLeadSelecionado.etapa === 'negociacao' || crmLeadSelecionado.etapa === 'aguardando-contrato' || crmLeadSelecionado.etapa === 'fechado' ? 'done' : ''}>
-                      Negociação em andamento
-                    </li>
-                    <li className={crmLeadSelecionado.etapa === 'aguardando-contrato' || crmLeadSelecionado.etapa === 'fechado' ? 'done' : ''}>
-                      Contrato preparado para assinatura
-                    </li>
-                    <li className={crmLeadSelecionado.instalacaoStatus === 'concluida' ? 'done' : ''}>Usina instalada</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4>Histórico recente</h4>
-                  <ul className="crm-timeline">
-                    {crmTimelineFiltrada.slice(0, 6).map((item) => (
-                      <li key={item.id}>
-                        <span>{formatarDataCurta(item.criadoEmIso)}</span>
-                        <p>{item.mensagem}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="crm-empty">Selecione um lead no funil acima para visualizar detalhes de contrato e implantação.</p>
-          )}
-        </section>
-
-        {/* Seção 4 - Instalação */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>4. Instalação</h2>
-              <p>
-                O módulo técnico assume tarefas, materiais e cronogramas vinculados ao mesmo registro do cliente.
-                Atualize a agenda de manutenção preventiva e acompanhe o status de execução em tempo real.
-              </p>
-            </div>
-          </div>
-          <div className="crm-install-grid">
-            <div>
-              <h4>Manutenções pendentes</h4>
-              {crmManutencoesPendentes.length === 0 ? (
-                <p className="crm-empty">Nenhuma manutenção pendente. Cadastre uma nova abaixo.</p>
-              ) : (
-                <ul className="crm-maintenance-list">
-                  {crmManutencoesPendentes.map((item) => (
-                    <li key={item.id}>
-                      <div>
-                        <strong>{formatarDataCurta(item.dataIso)}</strong>
-                        <span>{item.tipo}</span>
-                        {item.observacao ? <small>{item.observacao}</small> : null}
-                      </div>
-                      <button type="button" onClick={() => handleConcluirManutencaoCrm(item.id)}>
-                        Concluir
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <form className="crm-maintenance-form" onSubmit={handleAdicionarManutencaoCrm}>
-              <fieldset>
-                <legend>Agendar manutenção</legend>
-                <label>
-                  Cliente (opcional)
-                  <select
-                    value={crmManutencaoForm.leadId}
-                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, leadId: event.target.value }))}
-                  >
-                    <option value="">Usar lead selecionado</option>
-                    {crmDataset.leads.map((lead) => (
-                      <option key={lead.id} value={lead.id}>
-                        {lead.nome}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Data prevista
-                  <input
-                    type="date"
-                    value={crmManutencaoForm.dataIso}
-                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, dataIso: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Tipo de serviço
-                  <input
-                    value={crmManutencaoForm.tipo}
-                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, tipo: event.target.value }))}
-                    placeholder="Vistoria, limpeza, troca de inversor..."
-                  />
-                </label>
-                <label>
-                  Observações
-                  <textarea
-                    rows={2}
-                    value={crmManutencaoForm.observacao}
-                    onChange={(event) => setCrmManutencaoForm((prev) => ({ ...prev, observacao: event.target.value }))}
-                  />
-                </label>
-              </fieldset>
-              <button type="submit" className="ghost">
-                Agendar manutenção
-              </button>
-            </form>
-            {crmLeadSelecionado ? (
-              <div>
-                <h4>Histórico do cliente selecionado</h4>
-                <ul className="crm-maintenance-list">
-                  {crmDataset.manutencoes
-                    .filter((item) => item.leadId === crmLeadSelecionado.id)
-                    .slice(0, 5)
-                    .map((item) => (
-                      <li key={item.id}>
-                        <div>
-                          <strong>{formatarDataCurta(item.dataIso)}</strong>
-                          <span>{item.tipo}</span>
-                          <small>Status: {item.status}</small>
-                        </div>
-                      </li>
-                    ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {/* Seção 5 - Pós-venda e manutenção */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>5. Pós-venda e manutenção</h2>
-              <p>
-                Monitoramento contínuo da usina, integrações com o inversor e registro de chamados técnicos para manter o
-                cliente engajado.
-              </p>
-            </div>
-            <div className="crm-metrics">
-              <div>
-                <span>Manutenções totais</span>
-                <strong>{crmPosVendaResumo.totalManutencoes}</strong>
-              </div>
-              <div>
-                <span>Pendentes</span>
-                <strong>{crmPosVendaResumo.pendentes}</strong>
-              </div>
-              <div>
-                <span>Concluídas</span>
-                <strong>{crmPosVendaResumo.concluidas}</strong>
-              </div>
-              <div>
-                <span>Alertas críticos</span>
-                <strong>{crmPosVendaResumo.alertasCriticos.length}</strong>
-              </div>
-            </div>
-          </div>
-          <div className="crm-post-grid">
-            <div className="crm-post-column">
-              <h3>Próximas visitas preventivas</h3>
-              <ul className="crm-alert-list">
-                {crmPosVendaResumo.proximas.length === 0 ? (
-                  <li className="crm-empty">Nenhuma visita agendada para os próximos dias.</li>
-                ) : (
-                  crmPosVendaResumo.proximas.map((item) => {
-                    const lead = crmDataset.leads.find((leadItem) => leadItem.id === item.leadId)
-                    return (
-                      <li key={item.id}>
-                        <div>
-                          <strong>{formatarDataCurta(item.dataIso)}</strong>
-                          <span>{item.tipo}</span>
-                          {lead ? <small>{lead.nome}</small> : null}
-                        </div>
-                        <button type="button" className="link" onClick={() => setCrmLeadSelecionadoId(item.leadId)}>
-                          Ver lead
-                        </button>
-                      </li>
-                    )
-                  })
-                )}
-              </ul>
-              {crmPosVendaResumo.alertasCriticos.length > 0 ? (
-                <div className="crm-alert-banner">
-                  <h4>Alertas automáticos</h4>
-                  <ul>
-                    {crmPosVendaResumo.alertasCriticos.map((texto, index) => (
-                      <li key={texto + index}>{texto}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-            <div className="crm-post-column">
-              <h3>Relatório de geração (via API do inversor)</h3>
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th>Cliente</th>
-                    <th>Cidade</th>
-                    <th>Previsto (kWh)</th>
-                    <th>Gerado (kWh)</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {crmPosVendaResumo.geracao.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="crm-empty">
-                        Aguarde a integração com o inversor para sincronizar dados de geração.
-                      </td>
-                    </tr>
-                  ) : (
-                    crmPosVendaResumo.geracao.map((registro) => (
-                      <tr key={registro.id} className={registro.alertaBaixa ? 'alert' : ''}>
-                        <td>{registro.nome}</td>
-                        <td>{registro.cidade}</td>
-                        <td>{registro.geracaoPrevista}</td>
-                        <td>{registro.geracaoAtual}</td>
-                        <td>{registro.alertaBaixa ? 'Baixa geração' : 'Normal'}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="crm-post-column">
-              <h3>Chamados recentes</h3>
-              <ul className="crm-alert-list">
-                {crmPosVendaResumo.chamadosRecentes.length === 0 ? (
-                  <li className="crm-empty">Nenhum chamado registrado. Use as notas do lead para registrar atendimentos.</li>
-                ) : (
-                  crmPosVendaResumo.chamadosRecentes.map((registro) => (
-                    <li key={registro.id}>
-                      <div>
-                        <strong>{registro.dataFormatada}</strong>
-                        <span>{registro.mensagem}</span>
-                      </div>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        {/* Seção 6 - Financeiro integrado */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>6. Financeiro integrado</h2>
-              <p>
-                Controle de contratos de leasing e vendas diretas e análise de margens para cada
-                usina.
-              </p>
-            </div>
-            <div className="crm-metrics">
-              <div>
-                <span>Contratos ativos</span>
-                <strong>{crmFinanceiroResumo.contratosAtivos}</strong>
-              </div>
-              <div className="warning">
-                <span>Inadimplentes</span>
-                <strong>{crmFinanceiroResumo.inadimplentes}</strong>
-              </div>
-            </div>
-          </div>
-          <div className="crm-finance-grid">
-            {/* Coluna 1: formulários de contratos e custos para alimentar o financeiro do CRM. */}
-            <div className="crm-finance-forms">
-              <form onSubmit={handleSalvarContratoCrm} className="crm-form">
-                <fieldset>
-                  <legend>Contrato financeiro</legend>
-                  <label>
-                    Lead
-                    <select
-                      value={crmContratoForm.leadId}
-                      onChange={(event) => setCrmContratoForm((prev) => ({ ...prev, leadId: event.target.value }))}
-                    >
-                      <option value="">{crmLeadSelecionado ? 'Usar lead selecionado' : 'Selecione um lead'}</option>
-                      {crmDataset.leads.map((lead) => (
-                        <option key={lead.id} value={lead.id}>
-                          {lead.nome}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Modelo
-                    <select
-                      value={crmContratoForm.modelo}
-                      onChange={(event) =>
-                        setCrmContratoForm((prev) => ({
-                          ...prev,
-                          modelo: event.target.value as 'LEASING' | 'VENDA_DIRETA',
-                        }))
-                      }
-                    >
-                      <option value="LEASING">Leasing</option>
-                      <option value="VENDA_DIRETA">Venda</option>
-                    </select>
-                  </label>
-                  <div className="crm-form-row">
-                    <label>
-                      Valor total (R$)
-                      <input
-                        value={crmContratoForm.valorTotal}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, valorTotal: event.target.value }))
-                        }
-                        placeholder="Ex: 250000"
-                      />
-                    </label>
-                    <label>
-                      Entrada (R$)
-                      <input
-                        value={crmContratoForm.entrada}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, entrada: event.target.value }))
-                        }
-                        placeholder="Ex: 50000"
-                      />
-                    </label>
-                  </div>
-                  <div className="crm-form-row">
-                    <label>
-                      Parcelas
-                      <input
-                        value={crmContratoForm.parcelas}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, parcelas: event.target.value }))
-                        }
-                        placeholder="Ex: 36"
-                      />
-                    </label>
-                    <label>
-                      Valor parcela (R$)
-                      <input
-                        value={crmContratoForm.valorParcela}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, valorParcela: event.target.value }))
-                        }
-                        placeholder="Ex: 4200"
-                      />
-                    </label>
-                  </div>
-                  <div className="crm-form-row">
-                    <label>
-                      Reajuste anual (%)
-                      <input
-                        value={crmContratoForm.reajusteAnualPct}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, reajusteAnualPct: event.target.value }))
-                        }
-                        placeholder="Ex: 3"
-                      />
-                    </label>
-                    <label>
-                      Primeiro vencimento
-                      <input
-                        type="date"
-                        value={crmContratoForm.vencimentoInicialIso}
-                        onChange={(event) =>
-                          setCrmContratoForm((prev) => ({ ...prev, vencimentoInicialIso: event.target.value }))
-                        }
-                      />
-                    </label>
-                  </div>
-                  <label>
-                    Status
-                    <select
-                      value={crmContratoForm.status}
-                      onChange={(event) =>
-                        setCrmContratoForm((prev) => ({
-                          ...prev,
-                          status: event.target.value as CrmFinanceiroStatus,
-                        }))
-                      }
-                    >
-                      <option value="em-aberto">Em aberto</option>
-                      <option value="ativo">Ativo</option>
-                      <option value="inadimplente">Inadimplente</option>
-                      <option value="quitado">Quitado</option>
-                    </select>
-                  </label>
-                </fieldset>
-                <button type="submit" className="primary">
-                  Salvar contrato
-                </button>
-              </form>
-
-              <form onSubmit={handleSalvarCustosCrm} className="crm-form">
-                <fieldset>
-                  <legend>Custos do projeto selecionado</legend>
-                  <div className="crm-form-row">
-                    <label>
-                      Equipamentos (R$)
-                      <input
-                        value={crmCustosForm.equipamentos}
-                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, equipamentos: event.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Mão de obra (R$)
-                      <input
-                        value={crmCustosForm.maoDeObra}
-                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, maoDeObra: event.target.value }))}
-                      />
-                    </label>
-                  </div>
-                  <div className="crm-form-row">
-                    <label>
-                      Deslocamento (R$)
-                      <input
-                        value={crmCustosForm.deslocamento}
-                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, deslocamento: event.target.value }))}
-                      />
-                    </label>
-                    <label>
-                      Taxas e seguros (R$)
-                      <input
-                        value={crmCustosForm.taxasSeguros}
-                        onChange={(event) => setCrmCustosForm((prev) => ({ ...prev, taxasSeguros: event.target.value }))}
-                      />
-                    </label>
-                  </div>
-                </fieldset>
-                <button type="submit" className="ghost">
-                  Salvar custos
-                </button>
-              </form>
-            </div>
-            {/* Coluna 2: painel analítico de margens e ROI. */}
-            <div className="crm-finance-analytics">
-              <div className="crm-margins">
-                <h3>ROI e margens por lead</h3>
-                <table className="crm-table">
-                  <thead>
-                    <tr>
-                      <th>Lead</th>
-                      <th>Modelo</th>
-                      <th>Receita (R$)</th>
-                      <th>Custos (R$)</th>
-                      <th>Margem bruta (R$)</th>
-                      <th>Margem (%)</th>
-                      <th>ROI</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {crmFinanceiroResumo.margens.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="crm-empty">
-                          Informe contratos e custos para acompanhar margens e ROI de cada projeto.
-                        </td>
-                      </tr>
-                    ) : (
-                      crmFinanceiroResumo.margens.map((item) => (
-                        <tr key={item.leadId}>
-                          <td>{item.leadNome}</td>
-                          <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda'}</td>
-                          <td>{currency(item.receitaProjetada)}</td>
-                          <td>{currency(item.custoTotal)}</td>
-                          <td>{currency(item.margemBruta)}</td>
-                          <td>
-                            {item.margemPct === null
-                              ? null
-                              : formatPercentBR((item.margemPct ?? 0) / 100)}
-                          </td>
-                          <td>{item.roi === null ? null : formatPercentBR(item.roi)}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Seção 7 - Inteligência e relatórios */}
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <div>
-              <h2>7. Inteligência e relatórios</h2>
-              <p>
-                Indicadores consolidados da operação comercial, técnica e financeira da SolarInvest, com alertas de
-                gargalos.
-              </p>
-            </div>
-          </div>
-          <div className="crm-insights-grid">
-            {/* Painéis estratégicos conectando marketing, operação técnica e finanças. */}
-            <div className="crm-insight-panel">
-              <h3>Métricas principais</h3>
-              <ul className="crm-kpi-list">
-                <li>
-                  <span>Taxa de conversão</span>
-                  <strong>{crmIndicadoresGerenciais.taxaConversao}%</strong>
-                </li>
-                <li>
-                  <span>Tempo médio de fechamento</span>
-                  <strong>{crmIndicadoresGerenciais.tempoMedioFechamento} dias</strong>
-                </li>
-                <li>
-                  <span>ROI médio</span>
-                  <strong>
-                    {Number.isFinite(crmIndicadoresGerenciais.roiMedio)
-                      ? formatPercentBR(crmIndicadoresGerenciais.roiMedio)
-                      : null}
-                  </strong>
-                </li>
-                <li>
-                  <span>Receita recorrente projetada</span>
-                  <strong>{currency(crmIndicadoresGerenciais.receitaRecorrenteProjetada)}</strong>
-                </li>
-                <li>
-                  <span>Receita pontual projetada</span>
-                  <strong>{currency(crmIndicadoresGerenciais.receitaPontualProjetada)}</strong>
-                </li>
-              </ul>
-            </div>
-            <div className="crm-insight-panel">
-              <h3>Origem dos leads</h3>
-              <ul className="crm-kpi-list">
-                {Object.entries(crmIndicadoresGerenciais.leadsPorOrigem).map(([origem, quantidade]) => (
-                  <li key={origem}>
-                    <span>{origem}</span>
-                    <strong>{quantidade}</strong>
-                  </li>
-                ))}
-                {Object.keys(crmIndicadoresGerenciais.leadsPorOrigem).length === 0 ? (
-                  <li className="crm-empty">Cadastre leads para visualizar a distribuição de origens.</li>
-                ) : null}
-              </ul>
-            </div>
-            <div className="crm-insight-panel">
-              <h3>Mapa de geração por cidade</h3>
-              <ul className="crm-kpi-list">
-                {Object.entries(crmIndicadoresGerenciais.mapaGeracao).map(([cidade, consumo]) => (
-                  <li key={cidade}>
-                    <span>{cidade}</span>
-                    <strong>{consumo} kWh</strong>
-                  </li>
-                ))}
-                {Object.keys(crmIndicadoresGerenciais.mapaGeracao).length === 0 ? (
-                  <li className="crm-empty">Nenhum dado de geração disponível. Feche contratos para popular o mapa.</li>
-                ) : null}
-              </ul>
-            </div>
-            <div className="crm-insight-panel">
-              <h3>Alertas de gargalos</h3>
-              {crmIndicadoresGerenciais.gargalos.length === 0 ? (
-                <p className="crm-empty">O funil está saudável, sem gargalos detectados.</p>
-              ) : (
-                <ul className="crm-alert-list">
-                  {crmIndicadoresGerenciais.gargalos.map((texto, index) => (
-                    <li key={texto + index}>{texto}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-
   const downloadClientesArquivo = useCallback((blob: Blob, fileName: string) => {
     if (typeof window === 'undefined') {
       return
@@ -16176,9 +12413,7 @@ export default function App() {
     }
 
     // 🔒 CRITICAL: Use refs to get current state, not closure variables
-    const kcAtual = Number(kcKwhMesRef.current ?? 0)
-    const kcFallback = Number(pageSharedStateRef.current?.kcKwhMes ?? 0)
-    const kcKwhMesFinal = kcAtual || kcFallback
+    const kcKwhMesFinal = Number(kcKwhMesRef.current ?? 0)
 
     if (isHydratingRef.current) {
       if (import.meta.env.DEV) console.debug('[getCurrentSnapshot] skipped during hydration', { budgetId })
@@ -21908,64 +18143,6 @@ export default function App() {
     [removerOrcamentoSalvo, requestConfirmDialog],
   )
 
-  const [selectedProposalOwner, setSelectedProposalOwner] = useState('all')
-  const proposalOwnerOptions = useMemo(() => {
-    if (!(isAdmin || isOffice || isFinanceiro)) return []
-    return Array.from(new Set(orcamentosSalvos.map((r) => r.ownerName ?? 'Desconhecido')))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [isAdmin, isFinanceiro, isOffice, orcamentosSalvos])
-
-  const orcamentosFiltrados = useMemo(() => {
-    if (!orcamentoSearchTerm.trim() && selectedProposalOwner === 'all') {
-      return orcamentosSalvos
-    }
-
-    const queryText = normalizeText(orcamentoSearchTerm.trim())
-    const queryDigits = normalizeNumbers(orcamentoSearchTerm)
-
-    return orcamentosSalvos.filter((registro) => {
-      const codigo = normalizeText(registro.id)
-      const codigoDigits = normalizeNumbers(registro.id)
-      const nome = normalizeText(registro.clienteNome || registro.dados.cliente.nome || '')
-      const clienteIdTexto = normalizeText(registro.clienteId ?? '')
-      const clienteIdDigits = normalizeNumbers(registro.clienteId ?? '')
-      const documentoRaw = registro.clienteDocumento || registro.dados.cliente.documento || ''
-      const documentoTexto = normalizeText(documentoRaw)
-      const documentoDigits = normalizeNumbers(documentoRaw)
-      const ucRaw = registro.clienteUc || registro.dados.cliente.uc || ''
-      const ucTexto = normalizeText(ucRaw)
-      const ucDigits = normalizeNumbers(ucRaw)
-      const ownerTexto = normalizeText(registro.ownerName ?? '')
-      const ownerLabel = registro.ownerName ?? 'Desconhecido'
-      const matchSelectedOwner = selectedProposalOwner === 'all' || ownerLabel === selectedProposalOwner
-
-      if (
-        codigo.includes(queryText) ||
-        nome.includes(queryText) ||
-        clienteIdTexto.includes(queryText) ||
-        documentoTexto.includes(queryText) ||
-        ucTexto.includes(queryText) ||
-        (ownerTexto && ownerTexto.includes(queryText))
-      ) {
-        return matchSelectedOwner
-      }
-
-      if (!queryDigits) {
-        return false
-      }
-
-      return matchSelectedOwner && (
-        codigoDigits.includes(queryDigits) ||
-        clienteIdDigits.includes(queryDigits) ||
-        documentoDigits.includes(queryDigits) ||
-        ucDigits.includes(queryDigits)
-      )
-    })
-  }, [orcamentoSearchTerm, orcamentosSalvos, selectedProposalOwner])
-
-  const totalOrcamentos = orcamentosSalvos.length
-  const totalResultados = orcamentosFiltrados.length
-
   const carregarOrcamentoSalvo = useCallback(
     async (registroInicial: OrcamentoSalvo) => {
       let registro = registroInicial
@@ -22037,22 +18214,8 @@ export default function App() {
   }, [setActivePage])
 
   const fecharPesquisaOrcamentos = () => {
-    setOrcamentoVisualizado(null)
-    setOrcamentoVisualizadoInfo(null)
     voltarParaPaginaPrincipal()
   }
-
-  const toggleAprovacaoChecklist = useCallback((key: AprovacaoChecklistKey) => {
-    setAprovacaoChecklist((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }))
-  }, [])
-
-  const registrarDecisaoInterna = useCallback((status: AprovacaoStatus) => {
-    setAprovacaoStatus(status)
-    setUltimaDecisaoTimestamp(Date.now())
-  }, [])
 
   const isSimulacoesWorkspaceActive = simulacoesSection === 'nova' || simulacoesSection === 'salvas'
 
@@ -22169,2006 +18332,6 @@ export default function App() {
     ],
   )
 
-  const renderClienteDadosSection = () => {
-    const herdeirosPreenchidos = cliente.herdeiros.filter((nome) => nome.trim().length > 0)
-    const herdeirosResumo =
-      herdeirosPreenchidos.length === 0
-        ? 'Nenhum herdeiro cadastrado'
-        : `${herdeirosPreenchidos.length} ${
-            herdeirosPreenchidos.length === 1
-              ? 'herdeiro cadastrado'
-              : 'herdeiros cadastrados'
-          }`
-    const isCondominio = isSegmentoCondominio(segmentoCliente)
-
-    return (
-      <section className="card">
-        <div className="card-header">
-          <h2>Dados do cliente</h2>
-          {budgetCodeDisplay ? (
-            <div
-              className="budget-code-badge"
-            role="status"
-            aria-live="polite"
-            aria-label="Código do orçamento salvo"
-          >
-            <span className="budget-code-badge__label">Orçamento</span>
-            <span className="budget-code-badge__value">{budgetCodeDisplay}</span>
-          </div>
-        ) : null}
-      </div>
-      <div className="grid g2">
-        <Field
-          label={labelWithTooltip(
-            'Nome ou Razão social',
-            'Identificação oficial do cliente utilizada em contratos, relatórios e integração com o CRM. Para empresas, informar a Razão Social.',
-          )}
-        >
-          <input
-            data-field="cliente-nomeRazao"
-            value={cliente.nome}
-            onChange={(e) => {
-              handleClienteChange('nome', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'CPF/CNPJ',
-            'Documento fiscal do titular da unidade consumidora. Para pessoa física: CPF. Para pessoa jurídica: CNPJ.',
-          )}
-        >
-          <input
-            data-field="cliente-cpfCnpj"
-            value={cliente.documento}
-            onChange={(e) => {
-              handleClienteChange('documento', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            inputMode="numeric"
-            placeholder="000.000.000-00 ou 00.000.000/0000-00"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Representante Legal',
-            'Nome do representante legal (para pessoa jurídica/CNPJ). Deixar em branco para pessoa física.',
-          )}
-        >
-          <input
-            value={cliente.representanteLegal || ''}
-            onChange={(e) => handleClienteChange('representanteLegal', e.target.value)}
-            placeholder="Nome do diretor ou sócio"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Estado Civil',
-            'Estado civil do contratante pessoa física (solteiro, casado, divorciado, viúvo, etc.).',
-          )}
-        >
-          <select
-            data-field="cliente-estadoCivil"
-            value={cliente.estadoCivil || ''}
-            onChange={(e) => {
-              handleClienteChange('estadoCivil', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-          >
-            <option value="">Selecione</option>
-            <option value="Solteiro(a)">Solteiro(a)</option>
-            <option value="Casado(a)">Casado(a)</option>
-            <option value="Divorciado(a)">Divorciado(a)</option>
-            <option value="Viúvo(a)">Viúvo(a)</option>
-            <option value="União Estável">União Estável</option>
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Nacionalidade',
-            'Nacionalidade do contratante pessoa física.',
-          )}
-        >
-          <input
-            value={cliente.nacionalidade || ''}
-            onChange={(e) => handleClienteChange('nacionalidade', e.target.value)}
-            placeholder="Brasileira"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'E-mail',
-            'Endereço eletrônico usado para envio da proposta, acompanhamento e notificações automáticas.',
-          )}
-          hint={clienteMensagens.email}
-        >
-          <input
-            data-field="cliente-email"
-            value={cliente.email}
-            onChange={(e) => {
-              handleClienteChange('email', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            type="email"
-            placeholder="nome@empresa.com"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Telefone',
-            'Contato telefônico principal do cliente para follow-up comercial e registros no CRM.',
-          )}
-        >
-          <input
-            data-field="cliente-telefone"
-            value={cliente.telefone}
-            onChange={(e) => {
-              handleClienteChange('telefone', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="(00) 00000-0000"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'CEP',
-            'Código postal da instalação; utilizado para preencher endereço automaticamente e consultar tarifas locais.',
-          )}
-          hint={buscandoCep ? 'Buscando CEP...' : clienteMensagens.cep}
-        >
-          <input
-            data-field="cliente-cep"
-            value={cliente.cep}
-            onChange={(e) => {
-              handleClienteChange('cep', e.target.value)
-              setCidadeBloqueadaPorCep(false)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            inputMode="numeric"
-            autoComplete="postal-code"
-            placeholder="00000-000"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Cidade',
-            'Município da instalação utilizado em relatórios, cálculo de impostos locais e validação de CEP.',
-          )}
-          hint={
-            !cliente.uf.trim()
-              ? 'Selecione a UF para escolher a cidade.'
-              : cidadeBloqueadaPorCep
-                ? 'Cidade definida pelo CEP. Altere o CEP para modificar.'
-                : verificandoCidade
-                  ? 'Verificando cidade...'
-                  : clienteMensagens.cidade
-          }
-        >
-          <div
-            className={`city-select${!cliente.uf.trim() || cidadeBloqueadaPorCep ? ' is-disabled' : ''}`}
-          >
-            <details
-              open={cidadeSelectOpen}
-              onToggle={(event) => {
-                if (!cliente.uf.trim() || cidadeBloqueadaPorCep) {
-                  event.preventDefault()
-                  event.currentTarget.open = false
-                  setCidadeSelectOpen(false)
-                  return
-                }
-                setCidadeSelectOpen(event.currentTarget.open)
-              }}
-            >
-              <summary
-                data-field="cliente-cidade"
-                role="button"
-                aria-disabled={!cliente.uf.trim() || cidadeBloqueadaPorCep}
-                onClick={(event) => {
-                  if (!cliente.uf.trim() || cidadeBloqueadaPorCep) {
-                    event.preventDefault()
-                  }
-                }}
-              >
-                {cliente.cidade.trim()
-                  ? cliente.cidade
-                  : cliente.uf.trim()
-                    ? 'Selecione a cidade'
-                    : 'Selecione a UF para escolher a cidade'}
-              </summary>
-              <div className="city-select-panel">
-                <input
-                  type="text"
-                  placeholder="Buscar cidade…"
-                  value={cidadeSearchTerm}
-                  onChange={(event) => setCidadeSearchTerm(event.target.value)}
-                  disabled={!cliente.uf.trim() || cidadeBloqueadaPorCep}
-                />
-                <div className="city-select-list" role="listbox">
-                  {!cidadeBloqueadaPorCep && cliente.cidade.trim() ? (
-                    <button
-                      type="button"
-                      className="city-select-option is-manual"
-                      role="option"
-                      aria-selected={false}
-                      onClick={() => {
-                        handleClienteChange('cidade', '')
-                        setCidadeSearchTerm('')
-                        setCidadeSelectOpen(false)
-                        cepCidadeAvisoRef.current = null
-                        setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
-                        clearFieldHighlight(
-                          document.querySelector('[data-field="cliente-cidade"]'),
-                        )
-                      }}
-                    >
-                      Limpar cidade
-                    </button>
-                  ) : null}
-                  {cidadesCarregando ? (
-                    <div className="city-select-empty">Carregando cidades...</div>
-                  ) : cidadesFiltradas.length > 0 ? (
-                    cidadesFiltradas.map((cidade) => {
-                      const selecionada = cidade === cliente.cidade
-                      return (
-                        <button
-                          key={cidade}
-                          type="button"
-                          className={`city-select-option${selecionada ? ' is-selected' : ''}`}
-                          role="option"
-                          aria-selected={selecionada}
-                          disabled={cidadeBloqueadaPorCep}
-                          onClick={() => {
-                            handleClienteChange('cidade', cidade)
-                            setCidadeSearchTerm('')
-                            setCidadeSelectOpen(false)
-                            cepCidadeAvisoRef.current = null
-                            setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
-                            clearFieldHighlight(
-                              document.querySelector('[data-field="cliente-cidade"]'),
-                            )
-                            if (cliente.uf.trim()) {
-                              clearFieldHighlight(
-                                document.querySelector('[data-field="cliente-uf"]'),
-                              )
-                            }
-                          }}
-                        >
-                          {cidade}
-                        </button>
-                      )
-                    })
-                  ) : (
-                    <div className="city-select-empty">
-                      Nenhuma cidade encontrada para esta UF.
-                    </div>
-                  )}
-                  {!cidadeBloqueadaPorCep && !cidadesCarregando && cidadeManualDisponivel ? (
-                    <button
-                      type="button"
-                      className="city-select-option is-manual"
-                      role="option"
-                      aria-selected={false}
-                      onClick={() => {
-                        handleClienteChange('cidade', cidadeManualDigitada)
-                        setCidadeSearchTerm('')
-                        setCidadeSelectOpen(false)
-                        cepCidadeAvisoRef.current = null
-                        setClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
-                        clearFieldHighlight(
-                          document.querySelector('[data-field="cliente-cidade"]'),
-                        )
-                        if (cliente.uf.trim()) {
-                          clearFieldHighlight(
-                            document.querySelector('[data-field="cliente-uf"]'),
-                          )
-                        }
-                      }}
-                    >
-                      Usar “{cidadeManualDigitada}”
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </details>
-          </div>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'UF ou Estado',
-            'Estado da instalação; utilizado para listar distribuidoras disponíveis, definir tarifas e parâmetros regionais.',
-          )}
-        >
-          <select
-            data-field="cliente-uf"
-            value={cliente.uf}
-            onChange={(e) => {
-              const nextUf = e.target.value
-              if (nextUf !== cliente.uf) {
-                handleClienteChange('uf', nextUf)
-                if (cliente.cidade.trim() && !cidadeBloqueadaPorCep) {
-                  handleClienteChange('cidade', '')
-                }
-                setCidadeSearchTerm('')
-                setCidadeSelectOpen(false)
-                cepCidadeAvisoRef.current = null
-              }
-              clearFieldHighlight(e.currentTarget)
-            }}
-          >
-            <option value="">Selecione um estado</option>
-            {ufsDisponiveis.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf} — {UF_LABELS[uf] ?? uf}
-              </option>
-            ))}
-            {cliente.uf && !ufsDisponiveis.includes(cliente.uf) ? (
-              <option value={cliente.uf}>
-                {cliente.uf} — {UF_LABELS[cliente.uf] ?? cliente.uf}
-              </option>
-            ) : null}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Distribuidora (ANEEL)',
-            'Concessionária responsável pela unidade consumidora; define tarifas homologadas e regras de compensação.',
-          )}
-        >
-          <select
-            data-field="cliente-distribuidoraAneel"
-            value={cliente.distribuidora}
-            onChange={(e) => {
-              handleClienteChange('distribuidora', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            disabled={clienteDistribuidoraDisabled}
-            aria-disabled={clienteDistribuidoraDisabled}
-            style={
-              clienteDistribuidoraDisabled
-                ? { opacity: 0.6, cursor: 'not-allowed' }
-                : undefined
-            }
-          >
-            <option value="">
-              {cliente.uf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-            </option>
-            {clienteDistribuidorasDisponiveis.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-            {cliente.distribuidora && !clienteDistribuidorasDisponiveis.includes(cliente.distribuidora) ? (
-              <option value={cliente.distribuidora}>{cliente.distribuidora}</option>
-            ) : null}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de Edificação',
-            'Classificação da edificação (Residencial, Comercial, Cond. Vertical, Cond. Horizontal, Industrial ou Outros (texto)), utilizada para relatórios e cálculos de tarifas.',
-          )}
-        >
-          <select
-            data-field="cliente-tipoEdificacao"
-            value={segmentoCliente}
-            onChange={(event) => {
-              handleSegmentoClienteChange(event.target.value as SegmentoCliente)
-              clearFieldHighlight(event.currentTarget)
-            }}
-          >
-            <option value="">Selecione</option>
-            {NOVOS_TIPOS_EDIFICACAO.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-            <input
-              type="text"
-              placeholder="Descreva..."
-              style={{ marginTop: '6px' }}
-              value={tipoEdificacaoOutro}
-              onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
-            />
-          )}
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'UC Geradora (número)',
-            'Código numérico da unidade consumidora geradora junto à distribuidora, usado para vincular contratos e projeções de consumo.',
-          )}
-        >
-          <input
-            data-field="cliente-ucGeradoraNumero"
-            value={cliente.uc}
-            onChange={(e) => {
-              handleClienteChange('uc', e.target.value)
-              clearFieldHighlight(e.currentTarget)
-            }}
-            placeholder="Número da UC geradora (15 dígitos)"
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Endereço do Contratante',
-            'Endereço do contratante; será usado nos contratos. Pode ser diferente do endereço de instalação.',
-          )}
-        >
-          <input
-            data-field="cliente-enderecoContratante"
-            value={cliente.endereco ?? ''}
-            onChange={(e) => {
-              updateClienteSync({ endereco: e.target.value })
-              clearFieldHighlight(e.currentTarget)
-            }}
-            onFocus={() => {
-              isEditingEnderecoRef.current = true
-            }}
-            onBlur={() => {
-              isEditingEnderecoRef.current = false
-            }}
-            autoComplete="street-address"
-            placeholder="Rua, número, complemento"
-          />
-        </Field>
-        <Field
-          label={
-            <div className="leasing-location-label">
-              <div className="leasing-location-title">
-                <span className="leasing-field-label-text">
-                  Informações da UC geradora
-                </span>
-                <div className="leasing-location-checkboxes">
-                  <label className="leasing-location-checkbox flex items-center gap-2">
-                    <CheckboxSmall
-                      checked={leasingContrato.ucGeradoraTitularDiferente}
-                      onChange={(event) =>
-                        handleToggleUcGeradoraTitularDiferente(event.target.checked)
-                      }
-                    />
-                    <span>Diferente titular da UC geradora</span>
-                  </label>
-                  <label className="leasing-location-checkbox flex items-center gap-2">
-                    <CheckboxSmall
-                      checked={leasingContrato.ucGeradora_importarEnderecoCliente}
-                      disabled={!leasingContrato.ucGeradoraTitularDiferente}
-                      onChange={(event) =>
-                        handleImportEnderecoClienteParaUcGeradora(event.target.checked)
-                      }
-                    />
-                    <span>Importar endereço do cliente</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          }
-          hint="O endereço da UC geradora seguirá o endereço do contratante, exceto quando houver titular diferente."
-        >
-          <div aria-hidden="true" />
-        </Field>
-        {leasingContrato.ucGeradoraTitularDiferente ? (
-          <div className="uc-geradora-titular-panel-row">
-            <div className="uc-geradora-titular-panel">
-              {ucGeradoraTitularPanelOpen ? (
-                <>
-                  <div className="uc-geradora-titular-grid">
-                    <Field
-                      label="Nome completo"
-                      hint={<FieldError message={ucGeradoraTitularErrors.nomeCompleto} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-nomeCompleto"
-                        value={leasingContrato.ucGeradoraTitularDraft?.nomeCompleto ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({ nomeCompleto: event.target.value })
-                          clearUcGeradoraTitularError('nomeCompleto')
-                        }}
-                        placeholder="Nome completo"
-                      />
-                    </Field>
-                    <Field
-                      label="CPF"
-                      hint={<FieldError message={ucGeradoraTitularErrors.cpf} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cpf"
-                        value={leasingContrato.ucGeradoraTitularDraft?.cpf ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            cpf: formatCpfCnpj(event.target.value),
-                          })
-                          clearUcGeradoraTitularError('cpf')
-                        }}
-                        placeholder="000.000.000-00"
-                        inputMode="numeric"
-                      />
-                    </Field>
-                    <Field
-                      label="CEP"
-                      hint={
-                        ucGeradoraTitularErrors.cep ||
-                        ucGeradoraTitularBuscandoCep ||
-                        ucGeradoraTitularCepMessage ? (
-                          <>
-                            <FieldError message={ucGeradoraTitularErrors.cep} />
-                            {ucGeradoraTitularBuscandoCep ? (
-                              <span>Buscando CEP...</span>
-                            ) : ucGeradoraTitularCepMessage ? (
-                              <span>{ucGeradoraTitularCepMessage}</span>
-                            ) : null}
-                          </>
-                        ) : undefined
-                      }
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cep"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cep ?? ''}
-                        onChange={(event) => {
-                          setUcGeradoraTitularCepMessage(undefined)
-                          setUcGeradoraTitularBuscandoCep(false)
-                          setUcGeradoraCidadeBloqueadaPorCep(false)
-                          updateUcGeradoraTitularDraft({
-                            endereco: { cep: formatCep(event.target.value) },
-                          })
-                          clearUcGeradoraTitularError('cep')
-                        }}
-                        placeholder="00000-000"
-                        inputMode="numeric"
-                      />
-                    </Field>
-                    <Field
-                      label="Logradouro"
-                      hint={<FieldError message={ucGeradoraTitularErrors.logradouro} />}
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-logradouro"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.logradouro ?? ''}
-                        onChange={(event) => {
-                          updateUcGeradoraTitularDraft({
-                            endereco: { logradouro: event.target.value },
-                          })
-                          clearUcGeradoraTitularError('logradouro')
-                        }}
-                        placeholder="Rua, avenida, etc."
-                      />
-                    </Field>
-                    <Field
-                      label="Cidade"
-                      hint={
-                        ucGeradoraCidadeBloqueadaPorCep ? (
-                          <span>Cidade definida pelo CEP. Altere o CEP para modificar.</span>
-                        ) : (
-                          <FieldError message={ucGeradoraTitularErrors.cidade} />
-                        )
-                      }
-                    >
-                      <input
-                        data-field="ucGeradoraTitular-cidade"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.cidade ?? ''}
-                        readOnly={ucGeradoraCidadeBloqueadaPorCep}
-                        aria-readonly={ucGeradoraCidadeBloqueadaPorCep}
-                        onChange={(event) => {
-                          if (ucGeradoraCidadeBloqueadaPorCep) {
-                            return
-                          }
-                          updateUcGeradoraTitularDraft({
-                            endereco: { cidade: event.target.value },
-                          })
-                          clearUcGeradoraTitularError('cidade')
-                        }}
-                        placeholder="Cidade"
-                      />
-                    </Field>
-                    <Field
-                      label="UF"
-                      hint={<FieldError message={ucGeradoraTitularErrors.uf} />}
-                    >
-                      <select
-                        data-field="ucGeradoraTitular-uf"
-                        value={leasingContrato.ucGeradoraTitularDraft?.endereco.uf ?? ''}
-                        onChange={(event) => {
-                          handleUcGeradoraTitularUfChange(event.target.value)
-                          clearUcGeradoraTitularError('uf')
-                        }}
-                      >
-                        <option value="">UF</option>
-                        {ufsDisponiveis.map((uf) => (
-                          <option key={uf} value={uf}>
-                            {uf}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <Field
-                        label={labelWithTooltip(
-                          'Distribuidora (ANEEL)',
-                          'Concessionária responsável pela UC geradora; define tarifas homologadas e regras de compensação.',
-                        )}
-                      >
-                        <select
-                          data-field="ucGeradoraTitular-distribuidoraAneel"
-                          value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                          onChange={(event) =>
-                            handleUcGeradoraTitularDistribuidoraChange(event.target.value)
-                          }
-                          disabled={titularDistribuidoraDisabled}
-                          aria-disabled={titularDistribuidoraDisabled}
-                          style={
-                            titularDistribuidoraDisabled
-                              ? { opacity: 0.6, cursor: 'not-allowed' }
-                              : undefined
-                          }
-                        >
-                          <option value="">
-                            {ucGeradoraTitularUf ? 'Selecione a distribuidora' : 'Selecione a UF'}
-                          </option>
-                          {ucGeradoraTitularDistribuidorasDisponiveis.map((nome) => (
-                            <option key={nome} value={nome}>
-                              {nome}
-                            </option>
-                          ))}
-                          {leasingContrato.ucGeradoraTitularDistribuidoraAneel &&
-                          !ucGeradoraTitularDistribuidorasDisponiveis.includes(
-                            leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-                          ) ? (
-                            <option value={leasingContrato.ucGeradoraTitularDistribuidoraAneel}>
-                              {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                            </option>
-                          ) : null}
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-                  <div className="uc-geradora-titular-actions">
-                    <button
-                      type="button"
-                      className="primary uc-geradora-titular-button"
-                      onClick={() => { void handleSalvarUcGeradoraTitular() }}
-                    >
-                      Salvar
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost uc-geradora-titular-button"
-                      onClick={handleCancelarUcGeradoraTitular}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              ) : leasingContrato.ucGeradoraTitular ? (
-                <div className="uc-geradora-titular-summary">
-                  <div className="uc-geradora-titular-summary-info">
-                    <strong>{leasingContrato.ucGeradoraTitular.nomeCompleto}</strong>
-                    <span>CPF: {leasingContrato.ucGeradoraTitular.cpf}</span>
-                    <span>
-                      {formatUcGeradoraTitularEndereco(
-                        leasingContrato.ucGeradoraTitular.endereco,
-                      )}
-                    </span>
-                    {leasingContrato.ucGeradoraTitularDistribuidoraAneel ? (
-                      <span>
-                        Distribuidora (ANEEL): {leasingContrato.ucGeradoraTitularDistribuidoraAneel}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="uc-geradora-titular-summary-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={handleEditarUcGeradoraTitular}
-                    >
-                      Editar
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-        {isCondominio ? (
-          <div className="grid g3">
-            <Field label="Nome do síndico">
-              <input
-                value={cliente.nomeSindico}
-                onChange={(event) => handleClienteChange('nomeSindico', event.target.value)}
-                placeholder="Nome completo"
-              />
-            </Field>
-            <Field label="CPF do síndico">
-              <input
-                value={cliente.cpfSindico}
-                onChange={(event) => handleClienteChange('cpfSindico', event.target.value)}
-                placeholder="000.000.000-00"
-                inputMode="numeric"
-              />
-            </Field>
-            <Field label="Contato do síndico">
-              <input
-                value={cliente.contatoSindico}
-                onChange={(event) => handleClienteChange('contatoSindico', event.target.value)}
-                placeholder="(00) 00000-0000"
-                inputMode="tel"
-                autoComplete="tel"
-              />
-            </Field>
-          </div>
-        ) : null}
-        <Field
-          label={labelWithTooltip(
-            'UCs Beneficiárias',
-            'Cadastre as unidades consumidoras que receberão rateio automático dos créditos de energia gerados.',
-          )}
-        >
-          <div className="cliente-ucs-beneficiarias-group">
-            {ucsBeneficiarias.length === 0 ? (
-              <p className="cliente-ucs-beneficiarias-empty">
-                Nenhuma UC beneficiária cadastrada. Utilize o botão abaixo para adicionar.
-              </p>
-            ) : null}
-            {ucsBeneficiarias.map((uc, index) => (
-              <div className="cliente-ucs-beneficiaria-row" key={uc.id}>
-                <span className="cliente-ucs-beneficiaria-index" aria-hidden="true">
-                  UC {index + 1}
-                </span>
-                <input
-                  className="cliente-ucs-beneficiaria-numero"
-                  value={uc.numero}
-                  onChange={(event) =>
-                    handleAtualizarUcBeneficiaria(uc.id, 'numero', event.target.value)
-                  }
-                  placeholder="Número da UC (15 dígitos)"
-                  aria-label={`Número da UC beneficiária ${index + 1}`}
-                />
-                <input
-                  className="cliente-ucs-beneficiaria-endereco"
-                  value={uc.endereco}
-                  onChange={(event) =>
-                    handleAtualizarUcBeneficiaria(uc.id, 'endereco', event.target.value)
-                  }
-                  placeholder="Endereço completo"
-                  aria-label={`Endereço completo da UC beneficiária ${index + 1}`}
-                />
-                <input
-                  className="cliente-ucs-beneficiaria-consumo"
-                  value={uc.consumoKWh}
-                  onChange={(event) =>
-                    handleAtualizarUcBeneficiaria(uc.id, 'consumoKWh', event.target.value)
-                  }
-                  placeholder="Consumo (kWh/mês)"
-                  inputMode="decimal"
-                  aria-label={`Consumo mensal da UC beneficiária ${index + 1}`}
-                />
-                <input
-                  className="cliente-ucs-beneficiaria-rateio"
-                  value={uc.rateioPercentual}
-                  onChange={(event) =>
-                    handleAtualizarUcBeneficiaria(
-                      uc.id,
-                      'rateioPercentual',
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Rateio (%)"
-                  inputMode="decimal"
-                  aria-label={`Rateio percentual da UC beneficiária ${index + 1}`}
-                />
-                <button
-                  type="button"
-                  className="ghost cliente-ucs-beneficiaria-remove"
-                  onClick={() => handleRemoverUcBeneficiaria(uc.id)}
-                  aria-label={`Remover UC beneficiária ${index + 1}`}
-                >
-                  Remover
-                </button>
-              </div>
-            ))}
-            <div className="cliente-ucs-beneficiarias-actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={handleAdicionarUcBeneficiaria}
-              >
-                Adicionar UC beneficiária
-              </button>
-            </div>
-          </div>
-        </Field>
-        {consumoUcsExcedeInformado ? (
-          <div className="warning ucs-consumo-warning" role="alert">
-            <strong>Consumo das UCs acima do total informado.</strong>{' '}
-            A soma dos consumos das UCs beneficiárias (
-            {formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}{' '}
-            kWh/mês) ultrapassa o consumo mensal informado (
-            {formatNumberBRWithOptions(kcKwhMes, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}{' '}
-            kWh/mês). Ajuste os valores para manter o rateio consistente.
-          </div>
-        ) : null}
-        <Field
-          label={labelWithTooltip(
-            'Indicação',
-            'Marque quando o cliente tiver sido indicado e registre quem realizou a indicação para controle comercial.',
-          )}
-          hint={cliente.temIndicacao ? 'Informe o nome do responsável pela indicação.' : undefined}
-        >
-          <div className="cliente-indicacao-group">
-            <label
-              className="cliente-indicacao-toggle flex items-center gap-2"
-              htmlFor={clienteIndicacaoCheckboxId}
-            >
-              <CheckboxSmall
-                id={clienteIndicacaoCheckboxId}
-                checked={cliente.temIndicacao}
-                onChange={(event) => handleClienteChange('temIndicacao', event.target.checked)}
-              />
-              <span>Indicação</span>
-            </label>
-            {cliente.temIndicacao ? (
-              <input
-                id={clienteIndicacaoNomeId}
-                className="cfg-input"
-                value={cliente.indicacaoNome}
-                onChange={(event) => handleClienteChange('indicacaoNome', event.target.value)}
-                placeholder="Nome de quem indicou"
-                aria-label="Nome de quem indicou"
-              />
-            ) : null}
-          </div>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Consultor',
-            'Consultor responsável por este cliente. O campo é preenchido automaticamente com o consultor vinculado ao usuário logado.',
-          )}
-        >
-          <select
-            id={clienteConsultorSelectId}
-            className="cfg-input"
-            value={cliente.consultorId}
-            onChange={(event) => {
-              const selectedId = event.target.value
-              const consultor = formConsultores.find((c) => String(c.id) === selectedId)
-              handleClienteChange('consultorId', selectedId)
-              handleClienteChange('consultorNome', consultor ? consultorDisplayName(consultor) : '')
-            }}
-            aria-label="Consultor responsável"
-            style={{ color: 'var(--input-text, #0f172a)', backgroundColor: 'var(--input-bg, #fff)' }}
-          >
-            <option value="">— Selecione um consultor —</option>
-            {formConsultores.map((c) => (
-              <option key={c.id} value={String(c.id)} style={{ color: '#0f172a', backgroundColor: '#fff' }}>
-                {formatConsultantOptionLabel(c)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Herdeiros (opcional)',
-            'Registre os herdeiros do cliente e utilize as tags {{herdeiro#1}}, {{herdeiro#2}} e assim por diante em modelos e textos.',
-          )}
-          hint="As tags seguem o formato {{herdeiro#n}} conforme a ordem dos campos."
-        >
-          <div className="cliente-herdeiros-group">
-            <div className="cliente-herdeiros-toolbar">
-              <button
-                type="button"
-                className="cliente-herdeiros-toggle"
-                onClick={() => setClienteHerdeirosExpandidos((prev) => !prev)}
-                aria-expanded={clienteHerdeirosExpandidos}
-                aria-controls={clienteHerdeirosContentId}
-              >
-                {clienteHerdeirosExpandidos ? 'Ocultar herdeiros' : 'Gerenciar herdeiros'}
-              </button>
-              <button
-                type="button"
-                className="cliente-herdeiros-toggle"
-                onClick={handleAbrirCorresponsavelModal}
-                aria-haspopup="dialog"
-              >
-                Corresponsável financeiro
-              </button>
-              {leasingContrato.temCorresponsavelFinanceiro ? (
-                <span className="cliente-corresponsavel-status">Corresponsável cadastrado</span>
-              ) : null}
-            </div>
-            <small className="cliente-herdeiros-summary">{herdeirosResumo}</small>
-            {clienteHerdeirosExpandidos ? (
-              <div
-                className="cliente-herdeiros-content"
-                id={clienteHerdeirosContentId}
-                aria-hidden={false}
-              >
-                {cliente.herdeiros.map((herdeiro, index) => (
-                  <div className="cliente-herdeiro-row" key={`cliente-herdeiro-${index}`}>
-                    <input
-                      value={herdeiro}
-                      onChange={(event) => handleHerdeiroChange(index, event.target.value)}
-                      placeholder={`Nome do herdeiro ${index + 1}`}
-                      aria-label={`Nome do herdeiro ${index + 1}`}
-                    />
-                    <span className="cliente-herdeiro-tag" aria-hidden="true">
-                      {`{{herdeiro#${index + 1}}}`}
-                    </span>
-                    {cliente.herdeiros.length > 1 ? (
-                      <button
-                        type="button"
-                        className="ghost cliente-herdeiro-remove"
-                        onClick={() => handleRemoverHerdeiro(index)}
-                        aria-label={`Remover herdeiro ${index + 1}`}
-                      >
-                        Remover
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-                <div className="cliente-herdeiros-actions">
-                  <button
-                    type="button"
-                    className="ghost cliente-herdeiro-add"
-                    onClick={handleAdicionarHerdeiro}
-                  >
-                    Adicionar herdeiro
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </Field>
-      </div>
-      <div className="card-actions">
-        <button
-          type="button"
-          className="primary"
-          onClick={() => void handleSalvarCliente()}
-          disabled={!clienteTemDadosNaoSalvos}
-          aria-disabled={!clienteTemDadosNaoSalvos}
-          title={clienteTemDadosNaoSalvos ? clienteSaveLabel : 'Nenhuma alteração pendente para salvar'}
-        >
-          {clienteSaveLabel}
-        </button>
-        <button type="button" className="ghost" onClick={() => void abrirClientesPainel()}>
-          Ver clientes
-        </button>
-      </div>
-      {!oneDriveIntegrationAvailable ? (
-        <p className="muted integration-hint" role="status">
-          Sincronização automática com o OneDrive indisponível. Configure a integração para habilitar o envio.
-        </p>
-      ) : null}
-      </section>
-    )
-  }
-
-  const renderLeasingContratoSection = () => {
-    const isCondominioContrato = leasingContrato.tipoContrato === 'condominio'
-    const renderLeasingLabel = (text: string) => (
-      <span className="leasing-field-label-text">{text}</span>
-    )
-    const tipoContratoSelecionado = leasingContrato.tipoContrato
-    return (
-      <section className="card leasing-contract-card">
-        <div className="card-header">
-          <h2>Dados contratuais do leasing</h2>
-        </div>
-        <div className="leasing-form-grid">
-          <div className="leasing-contract-dates-grid">
-            <Field label="Tipo de contrato">
-              <div
-                className="flex flex-row gap-3 items-center leasing-contract-toggle-group"
-                role="radiogroup"
-                aria-label="Tipo de contrato"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={tipoContratoSelecionado === 'residencial'}
-                  className={`leasing-contract-toggle${
-                    tipoContratoSelecionado === 'residencial' ? ' is-active' : ''
-                  }`}
-                  onClick={() => handleLeasingContratoCampoChange('tipoContrato', 'residencial')}
-                >
-                  Residencial
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={tipoContratoSelecionado === 'condominio'}
-                  className={`leasing-contract-toggle${
-                    tipoContratoSelecionado === 'condominio' ? ' is-active' : ''
-                  }`}
-                  onClick={() => handleLeasingContratoCampoChange('tipoContrato', 'condominio')}
-                >
-                  Condomínio
-                </button>
-              </div>
-            </Field>
-            <Field label={renderLeasingLabel('Data de início do contrato')}>
-              <input
-                className="leasing-compact-input"
-                type="date"
-                value={leasingContrato.dataInicio}
-                onChange={(event) => handleLeasingContratoCampoChange('dataInicio', event.target.value)}
-              />
-            </Field>
-            <Field label={renderLeasingLabel('Data de término do contrato')}>
-              <input
-                className="leasing-compact-input"
-                type="date"
-                value={leasingContrato.dataFim}
-                onChange={(event) => handleLeasingContratoCampoChange('dataFim', event.target.value)}
-              />
-            </Field>
-            <Field label={renderLeasingLabel('Dia de vencimento da mensalidade')}>
-              <select
-                className="leasing-compact-input"
-                value={cliente.diaVencimento || '10'}
-                onChange={(event) => handleClienteChange('diaVencimento', event.target.value)}
-              >
-                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                  <option key={day} value={String(day)}>
-                    Dia {day}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={renderLeasingLabel('Data da homologação (opcional)')}>
-              <input
-                id={leasingHomologacaoInputId}
-                className="leasing-compact-input"
-                type="date"
-                value={leasingContrato.dataHomologacao}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('dataHomologacao', event.target.value)
-                }
-              />
-            </Field>
-          </div>
-          <div className="leasing-equipments-grid">
-            <Field label="Módulos fotovoltaicos instalados">
-              <textarea
-                value={leasingContrato.modulosFV}
-                onChange={(event) => handleLeasingContratoCampoChange('modulosFV', event.target.value)}
-                rows={2}
-              />
-            </Field>
-            <Field label="Inversores instalados">
-              <textarea
-                value={leasingContrato.inversoresFV}
-                onChange={(event) =>
-                  handleLeasingContratoCampoChange('inversoresFV', event.target.value)
-                }
-                rows={2}
-              />
-            </Field>
-          </div>
-          {isCondominioContrato ? (
-            <div className="leasing-condominio-grid">
-              <Field label="Nome do condomínio">
-                <input
-                  value={leasingContrato.nomeCondominio}
-                  onChange={(event) =>
-                    handleLeasingContratoCampoChange('nomeCondominio', event.target.value)
-                  }
-                />
-              </Field>
-              <Field label="CNPJ do condomínio">
-                <input
-                  value={leasingContrato.cnpjCondominio}
-                  onChange={(event) =>
-                    handleLeasingContratoCampoChange('cnpjCondominio', event.target.value)
-                  }
-                />
-              </Field>
-              <Field label="Nome do síndico">
-                <input
-                  value={leasingContrato.nomeSindico}
-                  onChange={(event) =>
-                    handleLeasingContratoCampoChange('nomeSindico', event.target.value)
-                  }
-                />
-              </Field>
-              <Field label="CPF do síndico">
-                <input
-                  value={leasingContrato.cpfSindico}
-                  onChange={(event) =>
-                    handleLeasingContratoCampoChange('cpfSindico', event.target.value)
-                  }
-                />
-              </Field>
-              <Field
-                label="Proprietários / representantes legais (autorização do proprietário)"
-                hint="Inclua o nome e o CPF/CNPJ que devem constar no termo de autorização."
-              >
-                <div className="cliente-herdeiros-group">
-                  {leasingContrato.proprietarios.map((proprietario, index) => (
-                    <div className="cliente-herdeiro-row" key={`leasing-proprietario-${index}`}>
-                      <input
-                        value={proprietario.nome}
-                        onChange={(event) =>
-                          handleLeasingContratoProprietarioChange(index, 'nome', event.target.value)
-                        }
-                        placeholder={`Nome do proprietário ${index + 1}`}
-                      />
-                      <input
-                        value={proprietario.cpfCnpj}
-                        onChange={(event) =>
-                          handleLeasingContratoProprietarioChange(
-                            index,
-                            'cpfCnpj',
-                            event.target.value,
-                          )
-                        }
-                        placeholder="CPF ou CNPJ"
-                      />
-                      <button
-                        type="button"
-                        className="ghost cliente-herdeiro-remove"
-                        onClick={() => handleRemoverContratoProprietario(index)}
-                        aria-label={`Remover proprietário ${index + 1}`}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ))}
-                  <div className="cliente-herdeiros-actions">
-                    <button
-                      type="button"
-                      className="ghost cliente-herdeiro-add"
-                      onClick={handleAdicionarContratoProprietario}
-                    >
-                      Adicionar proprietário
-                    </button>
-                  </div>
-                </div>
-              </Field>
-            </div>
-          ) : null}
-        </div>
-      </section>
-    )
-  }
-
-  const renderPropostaImagensSection = () => {
-    if (propostaImagens.length === 0) {
-      return null
-    }
-
-    const descricao =
-      activeTab === 'leasing'
-        ? 'Estas imagens serão exibidas na proposta de leasing. Remova as que não devem aparecer.'
-        : 'Estas imagens serão exibidas na proposta de vendas. Remova as que não devem aparecer.'
-
-    return (
-      <section className="card proposal-images-card">
-        <div className="card-header">
-          <h2>Imagens anexadas à proposta</h2>
-          <button type="button" className="ghost" onClick={handleAbrirUploadImagens}>
-            Adicionar imagens
-          </button>
-        </div>
-        <p className="muted proposal-images-description">{descricao}</p>
-        <div className="proposal-images-grid">
-          {propostaImagens.map((imagem, index) => {
-            const trimmedName = imagem.fileName?.trim()
-            const label = trimmedName && trimmedName.length > 0 ? trimmedName : `Imagem ${index + 1}`
-            return (
-              <figure
-                key={imagem.id ?? `imagem-${index}`}
-                className="proposal-images-item"
-                aria-label={`Pré-visualização da imagem ${index + 1}`}
-              >
-                <div className="proposal-images-thumb">
-                  <img src={imagem.url} alt={`Imagem anexada: ${label}`} />
-                </div>
-                <figcaption>
-                  <span title={label}>{label}</span>
-                  <button
-                    type="button"
-                    className="link danger"
-                    onClick={() => handleRemoverPropostaImagem(imagem.id, index)}
-                  >
-                    Remover
-                  </button>
-                </figcaption>
-              </figure>
-            )
-          })}
-        </div>
-      </section>
-    )
-  }
-
-  function renderTusdParametersSection() {
-    const tusdPercentLabel = formatNumberBRWithOptions(tusdPercent, {
-      maximumFractionDigits: 2,
-      minimumFractionDigits: Number.isInteger(tusdPercent) ? 0 : 2,
-    })
-    const resumoPartes: string[] = [
-      `${tusdPercentLabel}% • ${TUSD_TIPO_LABELS[tusdTipoCliente]}`,
-    ]
-    const subtipoAtual = tusdSubtipo.trim()
-    if (subtipoAtual !== '') {
-      resumoPartes.push(subtipoAtual)
-    }
-    if (tusdSimultaneidade != null) {
-      const simultaneidadeLabel = formatNumberBRWithOptions(tusdSimultaneidade, {
-        maximumFractionDigits: 2,
-        minimumFractionDigits: Number.isInteger(tusdSimultaneidade) ? 0 : 2,
-      })
-      resumoPartes.push(`Simultaneidade ${simultaneidadeLabel}`)
-    }
-    if (tusdTarifaRkwh != null) {
-      resumoPartes.push(`Tarifa ${currency(tusdTarifaRkwh)}/kWh`)
-    }
-    if (tusdAnoReferencia !== DEFAULT_TUSD_ANO_REFERENCIA) {
-      resumoPartes.push(`Ano ${tusdAnoReferencia}`)
-    }
-
-    return (
-      <section className="tusd-options" aria-labelledby={tusdOptionsTitleId}>
-        <div className="tusd-options-header">
-          <div className="tusd-options-title-row">
-            <h3 id={tusdOptionsTitleId}>Opções de TUSD</h3>
-            <label
-              className="tusd-options-toggle flex items-center gap-2"
-              htmlFor={tusdOptionsToggleId}
-            >
-              <CheckboxSmall
-                id={tusdOptionsToggleId}
-                checked={tusdOpcoesExpandidas}
-                onChange={(event) => setTusdOpcoesExpandidas(event.target.checked)}
-                aria-expanded={tusdOpcoesExpandidas}
-                aria-controls={tusdOpcoesExpandidas ? tusdOptionsContentId : undefined}
-              />
-              <span className="tusd-options-toggle-indicator" aria-hidden="true" />
-              <span className="tusd-options-toggle-text">
-                {tusdOpcoesExpandidas ? 'Ocultar opções' : 'Exibir opções'}
-              </span>
-            </label>
-          </div>
-          <p className="tusd-options-description">
-            Configuração atual: {resumoPartes.join(' • ')}
-          </p>
-        </div>
-        {tusdOpcoesExpandidas ? (
-          <div className="grid g3 tusd-options-grid" id={tusdOptionsContentId} aria-hidden={false}>
-            <Field
-              label={labelWithTooltip(
-                'TUSD (%)',
-                'Percentual do fio B aplicado sobre a energia compensada. Valores superiores a 1 são interpretados como percentuais (ex.: 27 = 27%).',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={tusdPercent}
-                onChange={(event) => {
-                  const parsed = Number(event.target.value)
-                  const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-                  setTusdPercent(normalized)
-                  applyVendaUpdates({ tusd_percentual: normalized })
-                  resetRetorno()
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Tipo de cliente TUSD',
-                'Categoria utilizada para determinar simultaneidade padrão e fator ano da TUSD.',
-              )}
-            >
-              <select
-                value={tusdTipoCliente}
-                onChange={(event) =>
-                  handleTusdTipoClienteChange(event.target.value as TipoClienteTUSD)
-                }
-              >
-                {NOVOS_TIPOS_TUSD.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              {(segmentoCliente === 'outros' || tusdTipoCliente === 'outros') && (
-                <input
-                  type="text"
-                  placeholder="Descreva..."
-                  style={{ marginTop: '6px' }}
-                  value={tipoEdificacaoOutro}
-                  onChange={(event) => setTipoEdificacaoOutro(event.target.value)}
-                />
-              )}
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Subtipo TUSD (opcional)',
-                'Permite refinar a simultaneidade padrão conforme o perfil da unidade consumidora.',
-              )}
-            >
-              <input
-                type="text"
-                value={tusdSubtipo}
-                onChange={(event) => {
-                  const value = event.target.value
-                  setTusdSubtipo(value)
-                  applyVendaUpdates({ tusd_subtipo: value || undefined })
-                  resetRetorno()
-                }}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Simultaneidade (%)',
-                'Percentual de consumo instantâneo considerado na TUSD. Informe em fração (0-1) ou percentual (0-100).',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                step="0.1"
-                value={tusdSimultaneidade ?? ''}
-                onChange={(event) => {
-                  const { value } = event.target
-                  if (value === '') {
-                    setTusdSimultaneidadeFromSource(null, 'manual')
-                  } else {
-                    const parsed = Number(value)
-                    const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-                    setTusdSimultaneidadeFromSource(normalized, 'manual')
-                  }
-                  resetRetorno()
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'TUSD informado (R$/kWh)',
-                'Informe o valor em R$/kWh quando desejar substituir o percentual por uma tarifa fixa de TUSD.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                step="0.001"
-                value={tusdTarifaRkwh ?? ''}
-                onChange={(event) => {
-                  const { value } = event.target
-                  if (value === '') {
-                    setTusdTarifaRkwh(null)
-                    applyVendaUpdates({ tusd_tarifa_r_kwh: undefined })
-                  } else {
-                    const parsed = Number(value)
-                    const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-                    setTusdTarifaRkwh(normalized)
-                    applyVendaUpdates({ tusd_tarifa_r_kwh: normalized })
-                  }
-                  resetRetorno()
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Ano de referência TUSD',
-                'Define o ano-base para aplicar o fator de escalonamento da TUSD conforme a Lei 14.300.',
-              )}
-            >
-              <input
-                type="number"
-                min={2000}
-                step="1"
-                value={tusdAnoReferencia}
-                onChange={(event) => {
-                  const parsed = Number(event.target.value)
-                  const normalized = Number.isFinite(parsed)
-                    ? Math.max(1, Math.trunc(parsed))
-                    : DEFAULT_TUSD_ANO_REFERENCIA
-                  setTusdAnoReferencia(normalized)
-                  applyVendaUpdates({ tusd_ano_referencia: normalized })
-                  resetRetorno()
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-            </Field>
-          </div>
-        ) : null}
-      </section>
-    )
-  }
-
-  const renderParametrosPrincipaisSection = () => {
-    const rateioPercentualDiff = Math.abs(multiUcRateioPercentualTotal - 100)
-    const rateioPercentualValido =
-      !multiUcAtivo || multiUcRateioModo !== 'percentual' || multiUcEnergiaGeradaKWh <= 0
-        ? true
-        : rateioPercentualDiff <= 0.001
-    const rateioManualDiff = Math.abs(multiUcRateioManualTotal - multiUcEnergiaGeradaKWh)
-    const rateioManualValido =
-      !multiUcAtivo || multiUcRateioModo !== 'manual' || multiUcEnergiaGeradaKWh <= 0
-        ? true
-        : rateioManualDiff <= 0.001
-    const escalonamentoAplicadoTexto = formatPercentBRWithDigits(
-      multiUcResultado?.escalonamentoPercentual ?? multiUcEscalonamentoPercentual,
-      0,
-    )
-    const rateioHeader = multiUcRateioModo === 'percentual' ? 'Rateio (%)' : 'Rateio (kWh)'
-    const rateioPercentualResumoTexto =
-      multiUcRateioModo === 'percentual'
-        ? formatPercentBRWithDigits(multiUcRateioPercentualTotal / 100, 2)
-        : null
-    const rateioManualResumoTexto =
-      multiUcRateioModo === 'manual' ? formatKwhWithUnit(multiUcRateioManualTotal) : null
-    const energiaGeradaTexto = formatKwhWithUnit(multiUcEnergiaGeradaKWh)
-    const energiaCompensadaTexto = formatKwhWithUnit(
-      multiUcResultado?.energiaGeradaUtilizadaKWh ?? null,
-    )
-    const sobraCreditosTexto = formatKwhWithUnit(multiUcResultado?.sobraCreditosKWh ?? null)
-    const totalTusdTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalTusd)
-        ? currency(multiUcResultado.totalTusd)
-        : null
-    const totalTeTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalTe)
-        ? currency(multiUcResultado.totalTe)
-        : null
-    const totalContratoTexto =
-      multiUcResultado && Number.isFinite(multiUcResultado.totalContrato)
-        ? currency(multiUcResultado.totalContrato)
-        : null
-
-    return (
-      <section className="card">
-        <h2>Parâmetros principais</h2>
-        <div className="grid g3">
-          <Field
-            label={labelWithTooltip(
-              'Consumo (kWh/mês)',
-              'Consumo médio mensal histórico da UC principal; serve como base para dimensionar geração e economia.',
-            )}
-          >
-            <input
-              data-field="cliente-consumo"
-              type="number"
-              value={kcKwhMes}
-              onChange={(e) => setKcKwhMes(Number(e.target.value) || 0, 'user')}
-              onFocus={selectNumberInputOnFocus}
-            />
-            <div className="mt-2 flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Taxa mínima ({tipoRedeLabel})
-              </label>
-              <Switch
-                checked={vendaForm.aplica_taxa_minima ?? true}
-                onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
-              />
-              <span className="text-xs text-gray-500">
-                {vendaForm.aplica_taxa_minima ?? true
-                  ? 'Cliente paga taxa mínima (padrão)'
-                  : 'Cliente isento de taxa mínima'}
-              </span>
-            </div>
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Tarifa cheia (R$/kWh)',
-              'Valor cobrado por kWh sem descontos; multiplicado pelo consumo projetado para estimar a conta cheia.',
-            )}
-          >
-            <input
-              data-field="cliente-tarifaCheia"
-              type="text"
-              inputMode="decimal"
-              value={tarifaCheiaField.value}
-              onChange={tarifaCheiaField.onChange}
-              onFocus={tarifaCheiaField.onFocus}
-              onBlur={tarifaCheiaField.onBlur}
-              onKeyDown={tarifaCheiaField.onKeyDown}
-            />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Custos Fixos da Conta de Energia (R$/MÊS)',
-              'Total de custos fixos cobrados pela distribuidora independentemente da compensação de créditos.',
-            )}
-          >
-            <input
-              type="number"
-              min={0}
-              value={taxaMinimaInputEmpty ? '' : taxaMinima}
-              onChange={(event) => {
-                normalizeTaxaMinimaInputValue(event.target.value)
-              }}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Encargos adicionais (R$/mês)',
-              'Outras cobranças fixas recorrentes (CIP, iluminação, taxas municipais) adicionadas à conta mensal.',
-            )}
-          >
-            <input
-              type="number"
-              value={encargosFixosExtras}
-              onChange={(e) => setEncargosFixosExtras(Number(e.target.value) || 0)}
-              onFocus={selectNumberInputOnFocus}
-            />
-          </Field>
-          <Field
-            label={
-              <>
-                Irradiação média (kWh/m²/dia)
-                <InfoTooltip text="Irradiação média é preenchida automaticamente a partir da UF/distribuidora ou do valor configurado manualmente." />
-              </>
-            }
-            hint="Atualizado automaticamente conforme a UF ou distribuidora selecionada."
-          >
-            <input
-              readOnly
-              value={
-                baseIrradiacao > 0
-                  ? formatNumberBRWithOptions(baseIrradiacao, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })
-                  : ''
-              }
-            />
-          </Field>
-        </div>
-        {shouldHideSimpleViewItems ? null : renderTusdParametersSection()}
-        {!shouldHideSimpleViewItems ? (
-        <div className="multi-uc-section" id="multi-uc">
-          <div className="multi-uc-header">
-            <div className="multi-uc-title-row">
-              <h3>Cenário de múltiplas unidades consumidoras (Multi-UC)</h3>
-              <label className="multi-uc-toggle flex items-center gap-2">
-                <CheckboxSmall
-                  checked={multiUcAtivo}
-                  onChange={(event) => handleMultiUcToggle(event.target.checked)}
-                />
-                <span className="multi-uc-toggle-indicator" aria-hidden="true" />
-                <span className="multi-uc-toggle-text">Ativar modo multi-UC</span>
-              </label>
-            </div>
-            <p>
-              Cadastre várias UCs de classes distintas, defina o rateio dos créditos de energia e acompanhe a TUSD não
-              compensável escalonada pela Lei 14.300.
-            </p>
-          </div>
-          {multiUcAtivo ? (
-            <div className="multi-uc-body">
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Número de UCs',
-                    'Quantidade de unidades consumidoras consideradas no rateio de créditos deste cenário.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    min={1}
-                    value={multiUcRows.length}
-                    onChange={(event) => handleMultiUcQuantidadeChange(Number(event.target.value))}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Energia gerada total (kWh/mês)
-                      <InfoTooltip text="Valor utilizado para distribuir os créditos entre as UCs." />
-                    </>
-                  }
-                  hint={
-                    multiUcEnergiaGeradaTouched
-                      ? undefined
-                      : 'Sugestão automática com base na geração estimada.'
-                  }
-                >
-                  <input
-                    type="number"
-                    min={0}
-                    value={multiUcEnergiaGeradaKWh}
-                    onChange={(event) =>
-                      setMultiUcEnergiaGeradaKWh(Number(event.target.value) || 0, 'user')
-                    }
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Modo de rateio dos créditos
-                      <InfoTooltip text="Escolha entre ratear por percentuais ou informar valores manuais em kWh por unidade consumidora." />
-                    </>
-                  }
-                  hint={
-                    multiUcRateioModo === 'percentual'
-                      ? 'Percentuais devem totalizar 100%.'
-                      : 'O somatório em kWh deve ser igual à geração disponível.'
-                  }
-                >
-                  <div className="toggle-group multi-uc-rateio-toggle">
-                    <button
-                      type="button"
-                      className={`toggle-option${multiUcRateioModo === 'percentual' ? ' active' : ''}`}
-                      onClick={() => handleMultiUcRateioModoChange('percentual')}
-                    >
-                      Percentual (%)
-                    </button>
-                    <button
-                      type="button"
-                      className={`toggle-option${multiUcRateioModo === 'manual' ? ' active' : ''}`}
-                      onClick={() => handleMultiUcRateioModoChange('manual')}
-                    >
-                      Manual (kWh)
-                    </button>
-                  </div>
-                </Field>
-              </div>
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Ano de vigência',
-                    'Ano-base do contrato utilizado para determinar o percentual de TUSD Fio B escalonado.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    min={2023}
-                    value={multiUcAnoVigencia}
-                    onChange={(event) => {
-                      const { value } = event.target
-                      if (value === '') {
-                        setMultiUcAnoVigencia(INITIAL_VALUES.multiUcAnoVigencia)
-                        return
-                      }
-                      const parsed = Number(value)
-                      setMultiUcAnoVigencia(
-                        Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : INITIAL_VALUES.multiUcAnoVigencia,
-                      )
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={
-                    <>
-                      Escalonamento aplicado
-                      <InfoTooltip text="Percentual do Fio B aplicado sobre a energia compensada, conforme Lei 14.300." />
-                    </>
-                  }
-                >
-                  <input readOnly value={escalonamentoAplicadoTexto} />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Personalizar escalonamento',
-                    'Habilite para informar manualmente o percentual de TUSD Fio B aplicado no ano selecionado.',
-                  )}
-                >
-                  <div className="multi-uc-override-control">
-                    <label className="multi-uc-checkbox flex items-center gap-2">
-                      <CheckboxSmall
-                        checked={multiUcOverrideEscalonamento}
-                        onChange={(event) => setMultiUcOverrideEscalonamento(event.target.checked)}
-                      />
-                      <span>Habilitar edição manual</span>
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.1"
-                      placeholder={`${multiUcEscalonamentoPadrao[multiUcAnoVigencia] ?? 0}`}
-                      value={multiUcEscalonamentoCustomPercent ?? ''}
-                      onChange={(event) => {
-                        const next = event.target.value === '' ? null : Number(event.target.value)
-                        if (next === null) {
-                          setMultiUcEscalonamentoCustomPercent(null)
-                          return
-                        }
-                        if (Number.isFinite(next)) {
-                          setMultiUcEscalonamentoCustomPercent(Math.max(0, next))
-                          return
-                        }
-                        setMultiUcEscalonamentoCustomPercent(null)
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                      disabled={!multiUcOverrideEscalonamento}
-                    />
-                  </div>
-                </Field>
-              </div>
-              <div className="multi-uc-summary-grid">
-                {rateioPercentualResumoTexto ? (
-                  <div
-                    className={`multi-uc-summary-item${multiUcRateioModo === 'percentual' && !rateioPercentualValido ? ' multi-uc-summary-item--error' : ''}`}
-                  >
-                    <span>Soma do rateio (%)</span>
-                    <strong>{rateioPercentualResumoTexto}</strong>
-                  </div>
-                ) : null}
-                {rateioManualResumoTexto ? (
-                  <div
-                    className={`multi-uc-summary-item${multiUcRateioModo === 'manual' && !rateioManualValido ? ' multi-uc-summary-item--error' : ''}`}
-                  >
-                    <span>Rateio manual (kWh)</span>
-                    <strong>{rateioManualResumoTexto}</strong>
-                  </div>
-                ) : null}
-                {energiaGeradaTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Energia gerada</span>
-                    <strong>{energiaGeradaTexto}</strong>
-                  </div>
-                ) : null}
-                {energiaCompensadaTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Energia compensada</span>
-                    <strong>{energiaCompensadaTexto}</strong>
-                  </div>
-                ) : null}
-                {sobraCreditosTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Sobra de créditos</span>
-                    <strong>{sobraCreditosTexto}</strong>
-                  </div>
-                ) : null}
-                {totalTusdTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>TUSD mensal total</span>
-                    <strong>{totalTusdTexto}</strong>
-                  </div>
-                ) : null}
-                {totalTeTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>TE mensal total</span>
-                    <strong>{totalTeTexto}</strong>
-                  </div>
-                ) : null}
-                {totalContratoTexto ? (
-                  <div className="multi-uc-summary-item">
-                    <span>Total contrato</span>
-                    <strong>{totalContratoTexto}</strong>
-                  </div>
-                ) : null}
-              </div>
-              <div className="multi-uc-escalonamento">
-                <h4>Tabela de escalonamento Fio B (padrão)</h4>
-                <ul className="multi-uc-escalonamento-list">
-                  {multiUcEscalonamentoTabela.map((item) => (
-                    <li key={item.ano}>
-                      <span>{item.ano}</span>
-                      <span>{formatPercentBRWithDigits((item.valor ?? 0) / 100, 0)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {multiUcErrors.length > 0 || multiUcWarnings.length > 0 ? (
-                <div className="multi-uc-alerts">
-                  {multiUcErrors.map((mensagem, index) => (
-                    <div key={`multi-uc-error-${index}`} className="multi-uc-alert error" role="alert">
-                      <strong>Erro</strong>
-                      <span>{mensagem}</span>
-                    </div>
-                  ))}
-                  {multiUcWarnings.map((mensagem, index) => (
-                    <div key={`multi-uc-warning-${index}`} className="multi-uc-alert warning">
-                      <strong>Aviso</strong>
-                      <span>{mensagem}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="multi-uc-table-actions">
-                <div className="action-group">
-                  <button type="button" className="ghost with-icon" onClick={handleMultiUcAdicionar}>
-                    <span aria-hidden="true">＋</span>
-                    Adicionar UC
-                  </button>
-                  <button type="button" className="ghost with-icon" onClick={handleMultiUcRecarregarTarifas}>
-                    <span aria-hidden="true">↻</span>
-                    Reaplicar tarifas automáticas
-                  </button>
-                </div>
-                <span className="muted">
-                  Distribuidora de referência: {distribuidoraAneelEfetiva ?? ''}
-                </span>
-              </div>
-              <div className="table-wrapper multi-uc-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>UC</th>
-                      <th>Classe tarifária</th>
-                      <th>Consumo (kWh/mês)</th>
-                      <th>{rateioHeader}</th>
-                      <th>Créditos (kWh)</th>
-                      <th>kWh faturados</th>
-                      <th>kWh compensados</th>
-                      <th>TE (R$/kWh)</th>
-                      <th>TUSD total (R$/kWh)</th>
-                      <th>TUSD Fio B (R$/kWh)</th>
-                      <th>TUSD outros (R$/kWh)</th>
-                      <th>TUSD mensal (R$)</th>
-                      <th>TE mensal (R$)</th>
-                      <th>Total mensal (R$)</th>
-                      <th>Observações</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {multiUcRows.map((row, index) => {
-                      const calculado = multiUcResultadoPorId.get(row.id)
-                      const rateioManualKWh = row.manualRateioKWh ?? 0
-                      const creditosDistribuidos = calculado?.creditosKWh ??
-                        (multiUcRateioModo === 'percentual'
-                          ? multiUcEnergiaGeradaKWh * (Math.max(0, row.rateioPercentual) / 100)
-                          : Math.max(0, rateioManualKWh))
-                      const consumoNormalizado = Math.max(0, row.consumoKWh)
-                      const kWhCompensados = calculado?.kWhCompensados ?? Math.min(consumoNormalizado, creditosDistribuidos)
-                      const kWhFaturados = calculado?.kWhFaturados ?? Math.max(consumoNormalizado - creditosDistribuidos, 0)
-                      const tusdOutros = calculado?.tusdOutros ?? Math.max(0, row.tusdTotal - row.tusdFioB)
-                      const escalonamentoBase = multiUcResultado?.escalonamentoPercentual ?? multiUcEscalonamentoPercentual
-                      const tusdNaoCompensavel = calculado?.tusdNaoCompensavel ??
-                        kWhCompensados * row.tusdFioB * escalonamentoBase
-                      const tusdNaoCompensada = calculado?.tusdNaoCompensada ?? kWhFaturados * row.tusdTotal
-                      const tusdMensal = calculado?.tusdMensal ?? tusdNaoCompensavel + tusdNaoCompensada
-                      const teMensal = calculado?.teMensal ?? kWhFaturados * row.te
-                      const totalMensal = calculado?.totalMensal ?? tusdMensal + teMensal
-                      const creditosDistribuidosTexto = formatKwhWithUnit(creditosDistribuidos)
-                      const kWhFaturadosTexto = formatKwhWithUnit(kWhFaturados)
-                      const kWhCompensadosTexto = formatKwhWithUnit(kWhCompensados)
-
-                      return (
-                        <tr key={row.id}>
-                          <td>
-                            <div className="multi-uc-id">
-                              <strong>{row.id}</strong>
-                              <span className="muted">UC {index + 1}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <select
-                              value={row.classe}
-                              onChange={(event) =>
-                                handleMultiUcClasseChange(row.id, event.target.value as MultiUcClasse)
-                              }
-                            >
-                              {MULTI_UC_CLASSES.map((classe) => (
-                                <option key={classe} value={classe}>
-                                  {MULTI_UC_CLASS_LABELS[classe]}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              value={row.consumoKWh}
-                              onChange={(event) =>
-                                handleMultiUcConsumoChange(row.id, Number(event.target.value) || 0)
-                              }
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            {multiUcRateioModo === 'percentual' ? (
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                step="0.01"
-                                value={row.rateioPercentual}
-                                onChange={(event) =>
-                                  handleMultiUcRateioPercentualChange(row.id, Number(event.target.value) || 0)
-                                }
-                                onFocus={selectNumberInputOnFocus}
-                              />
-                            ) : (
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={row.manualRateioKWh ?? 0}
-                                onChange={(event) =>
-                                  handleMultiUcManualRateioChange(row.id, Number(event.target.value) || 0)
-                                }
-                                onFocus={selectNumberInputOnFocus}
-                              />
-                            )}
-                          </td>
-                          <td>{creditosDistribuidosTexto}</td>
-                          <td>{kWhFaturadosTexto}</td>
-                          <td>{kWhCompensadosTexto}</td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.te}
-                              onChange={(event) => handleMultiUcTeChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.tusdTotal}
-                              onChange={(event) => handleMultiUcTusdTotalChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.001"
-                              value={row.tusdFioB}
-                              onChange={(event) => handleMultiUcTusdFioBChange(row.id, Number(event.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </td>
-                          <td>{tarifaCurrency(tusdOutros)}</td>
-                          <td>{currency(tusdMensal)}</td>
-                          <td>{currency(teMensal)}</td>
-                          <td>{currency(totalMensal)}</td>
-                          <td>
-                            <input
-                              type="text"
-                              value={row.observacoes}
-                              onChange={(event) => handleMultiUcObservacoesChange(row.id, event.target.value)}
-                              placeholder="Anotações"
-                            />
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="multi-uc-remove"
-                              onClick={() => handleMultiUcRemover(row.id)}
-                              disabled={multiUcRows.length <= 1}
-                            >
-                              Remover
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <p className="multi-uc-disabled-hint">
-              Ative o modo multi-UC para cadastrar unidades consumidoras adicionais, tarifários por classe e aplicar
-              o escalonamento da TUSD não compensável.
-            </p>
-          )}
-        </div>
-        ) : null}
-      </section>
-    )
-  }
-
   const handleTipoInstalacaoChange = (value: TipoInstalacao) => {
     setTipoInstalacaoDirty(true)
     setTipoInstalacao(value)
@@ -24177,2695 +18340,26 @@ export default function App() {
     }
   }
 
-  const renderConfiguracaoUsinaSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da UF</h2>
-        <button
-          type="button"
-          className="configuracao-usina-card__toggle"
-          aria-expanded={configuracaoUsinaObservacoesExpanded}
-          aria-controls={configuracaoUsinaObservacoesLeasingContainerId}
-          onClick={() =>
-            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
-        >
-          {configuracaoUsinaObservacoesExpanded
-            ? 'Ocultar observações'
-            : configuracaoUsinaObservacoes.trim()
-            ? 'Editar observações'
-            : 'Adicionar observações'}
-        </button>
-      </div>
-      <div className={`norm-precheck-banner norm-precheck-banner--${normComplianceBanner.tone}`}>
-        <div className="norm-precheck-banner__header">
-          <strong>{normComplianceBanner.title}</strong>
-          <span className="norm-precheck-banner__status">{normComplianceBanner.statusLabel}</span>
-        </div>
-        <p>{normComplianceBanner.message}</p>
-        {normComplianceBanner.details.length > 0 ? (
-          <ul>
-            {normComplianceBanner.details.map((detail) => (
-              <li key={detail}>{detail}</li>
-            ))}
-          </ul>
-        ) : null}
-        {normCompliance?.status === 'FORA_DA_NORMA' ? (
-          <label className="norm-precheck-banner__ack flex items-center gap-3">
-            <CheckboxSmall
-              checked={precheckClienteCiente}
-              onChange={(event) => setPrecheckClienteCiente(event.target.checked)}
-            />
-            <span>Cliente ciente e fará adequação do padrão.</span>
-          </label>
-        ) : null}
-      </div>
-      <div
-        id={configuracaoUsinaObservacoesLeasingContainerId}
-        className="configuracao-usina-card__observacoes"
-        hidden={!configuracaoUsinaObservacoesExpanded}
-      >
-        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesLeasingId}>
-          Observações
-        </label>
-        <textarea
-          id={configuracaoUsinaObservacoesLeasingId}
-          value={configuracaoUsinaObservacoes}
-          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
-          placeholder="Inclua observações relevantes sobre a configuração da usina"
-          rows={3}
-        />
-      </div>
-      <div className="grid g4">
-        <Field
-          label={labelWithTooltip(
-            'Potência do módulo (Wp)',
-            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
-          )}
-        >
-          <select
-            value={potenciaModulo}
-            onChange={(event) => {
-              setPotenciaModuloDirty(true)
-              const parsed = Number(event.target.value)
-              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setPotenciaModulo(potenciaSelecionada)
-            }}
-          >
-            {PAINEL_OPCOES.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Nº de módulos (estimado)',
-            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            step={1}
-            ref={moduleQuantityInputRef}
-            value={
-              numeroModulosManual === ''
-                ? numeroModulosEstimado > 0
-                  ? numeroModulosEstimado
-                  : 0
-                : numeroModulosManual
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                return
-              }
-              const parsed = Number(value)
-              if (!Number.isFinite(parsed) || parsed <= 0) {
-                setNumeroModulosManual('')
-                return
-              }
-              const inteiro = Math.max(1, Math.round(parsed))
-              setNumeroModulosManual(inteiro)
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de rede',
-            'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-          )}
-        >
-          <select
-            data-field="cliente-tipoRede"
-            value={tipoRede}
-            onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
-          >
-            {TIPOS_REDE.map((rede) => (
-              <option key={rede.value} value={rede.value}>
-                {rede.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Potência do sistema (kWp)
-              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={
-              potenciaFonteManual
-                ? vendaForm.potencia_instalada_kwp ?? ''
-                : potenciaInstaladaKwp || ''
-            }
-            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={
-            <>
-              Geração estimada (kWh/mês)
-              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
-            </>
-          }
-        >
-          <input
-            readOnly
-            value={formatNumberBRWithOptions(geracaoMensalKwh, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Área utilizada (m²)',
-            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
-          )}
-        >
-          <input
-            readOnly
-            value={
-              areaInstalacao > 0
-                ? formatNumberBRWithOptions(areaInstalacao, {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-      {tipoRedeCompatMessage ? (
-        <div className="warning rede-compat-warning" role="alert">
-          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
-        </div>
-      ) : null}
-      {estruturaTipoWarning ? (
-        <div className="estrutura-warning-alert" role="alert">
-          <div>
-            <h3>Estrutura utilizada não identificada</h3>
-            <p>
-              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
-            </p>
-          </div>
-          <div className="estrutura-warning-alert-actions">
-            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro arquivo
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'Modelo do módulo',
-            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
-          )}
-        >
-          <input
-            type="text"
-            value={vendaForm.modelo_modulo ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Modelo do inversor',
-            'Modelo comercial do inversor responsável pela conversão CC/CA.',
-          )}
-        >
-          <input
-            type="text"
-            ref={inverterModelInputRef}
-            value={vendaForm.modelo_inversor ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-      </div>
-      <div className="info-inline">
-        <span className="pill">
-          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
-          Consumo diário
-          <strong>
-            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })} kWh`}
-          </strong>
-        </span>
-      </div>
-    </section>
+  // renderConfiguracaoUsinaSection extracted to LeasingConfiguracaoUsinaSection component
+
+  // renderVendaParametrosSection extracted to VendaParametrosSection component
+
+
+  // renderVendaResumoPublicoSection extracted to VendaResumoPublicoSection component
+
+
+  const condicoesPagamentoSection = (
+    <CondicoesPagamentoSection
+      vendaForm={vendaForm}
+      vendaFormErrors={vendaFormErrors}
+      capexMoneyField={capexMoneyField}
+      isVendaDiretaTab={isVendaDiretaTab}
+      valorTotalPropostaNormalizado={valorTotalPropostaNormalizado}
+      onCondicaoPagamentoChange={handleCondicaoPagamentoChange}
+      onVendaUpdate={applyVendaUpdates}
+    />
   )
 
-  const renderPrecheckModal = () => {
-    if (!precheckModalData) {
-      return null
-    }
-
-    const isFora = precheckModalData.status === 'FORA_DA_NORMA'
-    const isLimitado = precheckModalData.status === 'LIMITADO'
-    const isWarning = precheckModalData.status === 'WARNING'
-    const tipoLabel = formatTipoLigacaoLabel(precheckModalData.tipoLigacao)
-    const limiteAtual = precheckModalData.kwMaxPermitido
-    const upgradeLabel = precheckModalData.upgradeTo
-      ? formatTipoLigacaoLabel(precheckModalData.upgradeTo)
-      : null
-    const limiteUpgrade = precheckModalData.kwMaxUpgrade
-
-    const formatKw = (value?: number | null) =>
-      value != null
-        ? formatNumberBRWithOptions(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-        : null
-
-    const potenciaLabel = formatKw(precheckModalData.potenciaInversorKw) ?? '—'
-    const limiteAtualLabel = formatKw(limiteAtual)
-    const limiteUpgradeLabel = formatKw(limiteUpgrade)
-
-    const canAdjustCurrent = Boolean(limiteAtual)
-    const isAboveLimit = precheckModalData.status === 'FORA_DA_NORMA' || precheckModalData.status === 'LIMITADO'
-    const canAdjustUpgrade = Boolean(upgradeLabel && limiteUpgrade)
-
-    const statusMessageMap: Record<NormComplianceStatus, string> = {
-      OK: 'Dentro do limite do padrão informado.',
-      WARNING: 'Regra provisória: valide com a distribuidora antes do envio. Você pode continuar, mas recomendamos confirmar o padrão.',
-      FORA_DA_NORMA:
-        'A potência informada está acima do limite do padrão atual. Você pode ajustar para o limite atual ou simular o upgrade do padrão.',
-      LIMITADO:
-        'A potência informada excede o limite do padrão atual e também o limite do próximo upgrade. É necessário adequar a potência/projeto.',
-    }
-
-    return (
-      <div className="modal precheck-modal" role="dialog" aria-modal="true">
-        <div
-          className="modal-backdrop precheck-modal__backdrop"
-          onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-          aria-hidden="true"
-        />
-        <div className="modal-content precheck-modal__content">
-          <div className="modal-header">
-            <div>
-              <h3>Pré-check normativo (padrão de entrada)</h3>
-              <p className="muted">
-                UF: {precheckModalData.uf} • Padrão atual: {tipoLabel} • Potência informada: {potenciaLabel} kW
-              </p>
-            </div>
-            <button
-              type="button"
-              className="icon"
-              onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-              aria-label="Fechar pré-check normativo"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="modal-body">
-            <p>{statusMessageMap[precheckModalData.status]}</p>
-            <div className="precheck-modal__limits">
-              <ul>
-                <li>Limite do padrão atual: {limiteAtualLabel ? `${limiteAtualLabel} kW` : '—'}</li>
-                {isAboveLimit && upgradeLabel && limiteUpgradeLabel ? (
-                  <li>
-                    Upgrade sugerido: {upgradeLabel} (até {limiteUpgradeLabel} kW)
-                  </li>
-                ) : (
-                  <li>Sem upgrade sugerido para este caso.</li>
-                )}
-              </ul>
-            </div>
-            {isFora ? (
-              <label className="precheck-modal__ack">
-                <CheckboxSmall
-                  checked={precheckModalClienteCiente}
-                  onChange={(event) => setPrecheckModalClienteCiente(event.target.checked)}
-                />
-                <span>
-                  Cliente ciente. A SolarInvest seguirá com a proposta, e o cliente se compromete a adequar o
-                  padrão junto à distribuidora.
-                </span>
-              </label>
-            ) : null}
-            {isLimitado ? (
-              <p className="muted">Este cenário exige ajuste antes de gerar a proposta.</p>
-            ) : null}
-            {isWarning ? (
-              <p className="muted">Você pode continuar, mas recomendamos confirmar a regra com a distribuidora.</p>
-            ) : null}
-          </div>
-          <div className="modal-actions precheck-modal__actions">
-            {canAdjustCurrent ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'adjust_current', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Ajustar para {limiteAtualLabel} kW
-              </button>
-            ) : null}
-            {canAdjustUpgrade ? (
-              <button
-                type="button"
-                className="primary"
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'adjust_upgrade', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Upgrade para {upgradeLabel} ({limiteUpgradeLabel} kW)
-              </button>
-            ) : null}
-            {isFora ? (
-              <button
-                type="button"
-                className="ghost"
-                disabled={!precheckModalClienteCiente}
-                title={
-                  precheckModalClienteCiente
-                    ? undefined
-                    : 'Marque cliente ciente para continuar sem ajuste'
-                }
-                onClick={() =>
-                  resolvePrecheckDecision({ action: 'proceed', clienteCiente: precheckModalClienteCiente })
-                }
-              >
-                Gerar sem ajuste
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => resolvePrecheckDecision({ action: 'cancel', clienteCiente: false })}
-            >
-              Voltar
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const renderVendaParametrosSection = () => (
-    <section className="card">
-      <h2>Parâmetros principais</h2>
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Consumo (kWh/mês)
-              <InfoTooltip text="Consumo médio mensal utilizado para projetar a geração e a economia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.consumo_kwh_mes) ? vendaForm.consumo_kwh_mes : ''
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                setKcKwhMes(0, 'auto')
-                applyVendaUpdates({
-                  consumo_kwh_mes: undefined,
-                  geracao_estimada_kwh_mes: undefined,
-                  potencia_instalada_kwp: undefined,
-                  quantidade_modulos: undefined,
-                })
-                return
-              }
-
-              const parsed = Number(value)
-              const consumoDesejado = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              const modulosCalculados = calcularModulosPorGeracao(consumoDesejado)
-
-              let potenciaCalculada = 0
-              let geracaoCalculada = consumoDesejado
-
-              if (modulosCalculados != null) {
-                potenciaCalculada = calcularPotenciaSistemaKwp(modulosCalculados)
-                if (potenciaCalculada > 0) {
-                  const estimada = estimarGeracaoPorPotencia(potenciaCalculada)
-                  if (estimada > 0) {
-                    geracaoCalculada = normalizarGeracaoMensal(estimada)
-                  }
-                }
-              }
-
-              if (geracaoCalculada <= 0 && consumoDesejado > 0) {
-                geracaoCalculada = consumoDesejado
-              }
-
-              const consumoFinal = consumoDesejado
-              setKcKwhMes(consumoFinal, 'user')
-
-              applyVendaUpdates({
-                consumo_kwh_mes: consumoFinal,
-                geracao_estimada_kwh_mes:
-                  geracaoCalculada > 0
-                    ? geracaoCalculada
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                potencia_instalada_kwp:
-                  potenciaCalculada > 0
-                    ? normalizarPotenciaKwp(potenciaCalculada)
-                    : consumoFinal === 0
-                    ? 0
-                    : undefined,
-                quantidade_modulos: modulosCalculados ?? undefined,
-              })
-
-              if (modulosCalculados != null) {
-                setNumeroModulosManual('')
-              }
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.consumo_kwh_mes} />
-          <div className="mt-2 flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">
-              Taxa mínima ({tipoRedeLabel})
-            </label>
-            <Switch
-              checked={vendaForm.aplica_taxa_minima ?? true}
-              onCheckedChange={(value) => applyVendaUpdates({ aplica_taxa_minima: value })}
-            />
-            <span className="text-xs text-gray-500">
-              {vendaForm.aplica_taxa_minima ?? true
-                ? 'Cliente paga taxa mínima (padrão)'
-                : 'Cliente isento de taxa mínima'}
-            </span>
-          </div>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tarifa cheia (R$/kWh)',
-            'Valor cobrado por kWh sem descontos contratuais; base para calcular a conta de energia projetada.',
-          )}
-        >
-          <input
-            type="text"
-            inputMode="decimal"
-            value={tarifaCheiaVendaField.value}
-            onChange={tarifaCheiaVendaField.onChange}
-            onFocus={tarifaCheiaVendaField.onFocus}
-            onBlur={tarifaCheiaVendaField.onBlur}
-            onKeyDown={tarifaCheiaVendaField.onKeyDown}
-          />
-          <FieldError message={vendaFormErrors.tarifa_cheia_r_kwh} />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Custos Fixos da Conta de Energia (R$/MÊS)',
-            'Total de custos fixos mensais cobrados pela distribuidora, mesmo com créditos suficientes para zerar o consumo.',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            value={
-              taxaMinimaInputEmpty
-                ? ''
-                : Number.isFinite(vendaForm.taxa_minima_mensal)
-                ? vendaForm.taxa_minima_mensal
-                : taxaMinima
-            }
-            onChange={(event) => {
-              const normalized = normalizeTaxaMinimaInputValue(event.target.value)
-              applyVendaUpdates({ taxa_minima_mensal: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.taxa_minima_mensal} />
-        </Field>
-      </div>
-      {renderTusdParametersSection()}
-      <div className="grid g3">
-        <Field
-          label={
-            <>
-              Inflação de energia (% a.a.)
-              <InfoTooltip text="Reajuste anual estimado para a tarifa de energia." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            value={
-              Number.isFinite(vendaForm.inflacao_energia_aa_pct)
-                ? vendaForm.inflacao_energia_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setInflacaoAa(normalized)
-              applyVendaUpdates({ inflacao_energia_aa_pct: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Horizonte de análise (meses)',
-            'Quantidade de meses simulados para payback, ROI e fluxo de caixa projetado.',
-          )}
-        >
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={
-              Number.isFinite(vendaForm.horizonte_meses) ? vendaForm.horizonte_meses : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              const normalized = Number.isFinite(parsed)
-                ? Math.max(1, Math.round(parsed))
-                : 1
-              applyVendaUpdates({ horizonte_meses: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.horizonte_meses} />
-        </Field>
-        <Field
-          label={
-            <>
-              Taxa de desconto (% a.a.)
-              <InfoTooltip text="Opcional: utilizada para calcular o Valor Presente Líquido (VPL)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            step="0.1"
-            min={0}
-            value={
-              Number.isFinite(vendaForm.taxa_desconto_aa_pct)
-                ? vendaForm.taxa_desconto_aa_pct
-                : ''
-            }
-            onChange={(event) => {
-              const parsed = Number(event.target.value)
-              if (event.target.value === '') {
-                applyVendaUpdates({ taxa_desconto_aa_pct: undefined })
-                return
-              }
-              const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              applyVendaUpdates({ taxa_desconto_aa_pct: normalized })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-          <FieldError message={vendaFormErrors.taxa_desconto_aa_pct} />
-        </Field>
-      </div>
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'UF (ANEEL)',
-            'Estado utilizado para consultar automaticamente tarifas homologadas e irradiação base.',
-          )}
-        >
-          <select value={ufTarifa} onChange={(event) => handleParametrosUfChange(event.target.value)}>
-            <option value="">Selecione a UF</option>
-            {ufsDisponiveis.map((uf) => (
-              <option key={uf} value={uf}>
-                {uf} — {UF_LABELS[uf] ?? uf}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Distribuidora (ANEEL)',
-            'Concessionária da UC; determina TE, TUSD e reajustes aplicados nas simulações.',
-          )}
-        >
-          <select
-            value={distribuidoraTarifa}
-            onChange={(event) => handleParametrosDistribuidoraChange(event.target.value)}
-            disabled={!ufTarifa || distribuidorasDisponiveis.length === 0}
-          >
-            <option value="">
-              {ufTarifa ? 'Selecione a distribuidora' : 'Selecione a UF'}
-            </option>
-            {distribuidorasDisponiveis.map((nome) => (
-              <option key={nome} value={nome}>
-                {nome}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Irradiação média (kWh/m²/dia)
-              <InfoTooltip text="Valor sugerido automaticamente conforme a UF ou distribuidora." />
-            </>
-          }
-          hint="Atualizado automaticamente conforme a região selecionada."
-        >
-          <input
-            readOnly
-            value={
-              baseIrradiacao > 0
-                ? formatNumberBRWithOptions(baseIrradiacao, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-    </section>
-  )
-
-  const renderVendaConfiguracaoSection = () => (
-    <section className="card configuracao-usina-card">
-      <div className="configuracao-usina-card__header">
-        <h2>Configuração da UF</h2>
-        <button
-          type="button"
-          className="configuracao-usina-card__toggle"
-          aria-expanded={configuracaoUsinaObservacoesExpanded}
-          aria-controls={configuracaoUsinaObservacoesVendaContainerId}
-          onClick={() =>
-            setConfiguracaoUsinaObservacoesExpanded((previous) => !previous)
-          }
-        >
-          {configuracaoUsinaObservacoesExpanded
-            ? 'Ocultar observações'
-            : configuracaoUsinaObservacoes.trim()
-            ? 'Editar observações'
-            : 'Adicionar observações'}
-        </button>
-      </div>
-      <div
-        id={configuracaoUsinaObservacoesVendaContainerId}
-        className="configuracao-usina-card__observacoes"
-        hidden={!configuracaoUsinaObservacoesExpanded}
-      >
-        <label className="configuracao-usina-card__observacoes-label" htmlFor={configuracaoUsinaObservacoesVendaId}>
-          Observações
-        </label>
-        <textarea
-          id={configuracaoUsinaObservacoesVendaId}
-          value={configuracaoUsinaObservacoes}
-          onChange={(event) => setConfiguracaoUsinaObservacoes(event.target.value)}
-          placeholder="Inclua observações relevantes sobre a configuração da usina"
-          rows={3}
-        />
-      </div>
-      <div className="grid g4">
-        <Field
-          label={labelWithTooltip(
-            'Potência do módulo (Wp)',
-            'Potência nominal de cada módulo fotovoltaico; usada na conversão kWp = (módulos × Wp) ÷ 1000.',
-          )}
-        >
-          <select
-            value={potenciaModulo}
-            onChange={(event) => {
-              setPotenciaModuloDirty(true)
-              const parsed = Number(event.target.value)
-              const potenciaSelecionada = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-              setPotenciaModulo(potenciaSelecionada)
-            }}
-          >
-            {PAINEL_OPCOES.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Nº de módulos (estimado)',
-            'Quantidade de módulos utilizada no dimensionamento. Estimativa = ceil(Consumo alvo ÷ (Irradiação × Eficiência × dias) × 1000 ÷ Potência do módulo).',
-          )}
-        >
-          <input
-            type="number"
-            min={0}
-            step={1}
-            ref={moduleQuantityInputRef}
-            value={
-              numeroModulosManual === ''
-                ? numeroModulosEstimado > 0
-                  ? numeroModulosEstimado
-                  : 0
-                : numeroModulosManual
-            }
-            onChange={(event) => {
-              const { value } = event.target
-              if (value === '') {
-                setNumeroModulosManual('')
-                applyVendaUpdates({ quantidade_modulos: undefined })
-                return
-              }
-              const parsed = Number(value)
-              if (!Number.isFinite(parsed) || parsed <= 0) {
-                setNumeroModulosManual('')
-                applyVendaUpdates({ quantidade_modulos: undefined })
-                return
-              }
-              const inteiro = Math.max(1, Math.round(parsed))
-              setNumeroModulosManual(inteiro)
-              applyVendaUpdates({ quantidade_modulos: inteiro })
-            }}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de instalação',
-            'Selecione entre Telhado de fibrocimento, Telhas metálicas, Telhas cerâmicas, Laje, Solo ou Outros (texto); a escolha impacta área estimada e custos de estrutura.',
-          )}
-        >
-          <select
-            value={tipoInstalacao}
-            onChange={(event) =>
-              handleTipoInstalacaoChange(event.target.value as TipoInstalacao)
-            }
-          >
-            {TIPOS_INSTALACAO.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Tipo de sistema',
-            'Escolha entre on-grid, híbrido ou off-grid para registrar a topologia elétrica da proposta.',
-          )}
-        >
-          <select
-            value={tipoSistema}
-            onChange={(event) => handleTipoSistemaChange(event.target.value as TipoSistema)}
-          >
-            <option value="ON_GRID">On-grid</option>
-            <option value="HIBRIDO">Híbrido</option>
-            <option value="OFF_GRID">Off-grid</option>
-          </select>
-        </Field>
-          <Field
-            label={labelWithTooltip(
-              'Tipo de rede',
-              'Seleciona a rede do cliente para calcular o custo de disponibilidade (CID) padrão de 30/50/100 kWh e somá-lo às tarifas quando a taxa mínima estiver ativa.',
-            )}
-          >
-            <select
-              value={tipoRede}
-              onChange={(event) => handleTipoRedeSelection(event.target.value as TipoRede)}
-            >
-              {TIPOS_REDE.map((rede) => (
-                <option key={rede.value} value={rede.value}>
-                  {rede.label}
-                </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={
-            <>
-              Potência do sistema (kWp)
-              <InfoTooltip text="Potência do sistema = (Nº de módulos × Potência do módulo) ÷ 1000. Sem entrada manual de módulos, estimamos por Consumo ÷ (Irradiação × Eficiência × 30 dias)." />
-            </>
-          }
-        >
-          <input
-            type="number"
-            min={0}
-            step="0.01"
-            value={
-              potenciaFonteManual
-                ? vendaForm.potencia_instalada_kwp ?? ''
-                : potenciaInstaladaKwp || ''
-            }
-            onChange={(event) => handlePotenciaInstaladaChange(event.target.value)}
-            onFocus={selectNumberInputOnFocus}
-          />
-        </Field>
-        <Field
-          label={
-            <>
-              Geração estimada (kWh/mês)
-              <InfoTooltip text="Geração estimada = Potência do sistema × Irradiação média × Eficiência × 30 dias." />
-            </>
-          }
-        >
-          <input
-            readOnly
-            value={formatNumberBRWithOptions(geracaoMensalKwh, {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Área utilizada (m²)',
-            'Estimativa de área ocupada: Nº de módulos × fator (3,3 m² para telhado ou 7 m² para solo).',
-          )}
-        >
-          <input
-            readOnly
-            value={
-              areaInstalacao > 0
-                ? formatNumberBRWithOptions(areaInstalacao, {
-                    minimumFractionDigits: 1,
-                    maximumFractionDigits: 1,
-                  })
-                : ''
-            }
-          />
-        </Field>
-      </div>
-      {tipoRedeCompatMessage ? (
-        <div className="warning rede-compat-warning" role="alert">
-          <strong>Incompatibilidade entre potência e rede.</strong> {tipoRedeCompatMessage}
-        </div>
-      ) : null}
-      {estruturaTipoWarning ? (
-        <div className="estrutura-warning-alert" role="alert">
-          <div>
-            <h3>Estrutura utilizada não identificada</h3>
-            <p>
-              Não foi possível extrair o campo <strong>Tipo</strong> da tabela{' '}
-              <strong>Estrutura utilizada</strong> no documento enviado. Tente enviar um arquivo em outro formato.
-            </p>
-          </div>
-          <div className="estrutura-warning-alert-actions">
-            <button type="button" className="ghost" onClick={handleMissingInfoUploadClick}>
-              Enviar outro arquivo
-            </button>
-          </div>
-        </div>
-      ) : null}
-      <div className="grid g3">
-        <Field
-          label={labelWithTooltip(
-            'Modelo do módulo',
-            'Descrição comercial do módulo fotovoltaico utilizado na proposta.',
-          )}
-        >
-          <input
-            type="text"
-            value={vendaForm.modelo_modulo ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_modulo: event.target.value || undefined })}
-          />
-        </Field>
-        <Field
-          label={labelWithTooltip(
-            'Modelo do inversor',
-            'Modelo comercial do inversor responsável pela conversão CC/CA.',
-          )}
-        >
-          <input
-            type="text"
-            ref={inverterModelInputRef}
-            value={vendaForm.modelo_inversor ?? ''}
-            onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
-          />
-        </Field>
-      </div>
-      <div className="info-inline">
-        <span className="pill">
-          <InfoTooltip text="Consumo diário estimado = Geração mensal ÷ 30 dias." />
-          Consumo diário
-          <strong>
-            {`${formatNumberBRWithOptions(geracaoDiariaKwh, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })} kWh`}
-          </strong>
-        </span>
-      </div>
-    </section>
-  )
-
-  const renderVendaResumoPublicoSection = () => (
-    <section className="card">
-      <div className="card-header">
-        <h2>Resumo de valores (Página pública)</h2>
-      </div>
-      <div className="kpi-grid">
-        <div className="kpi kpi-highlight">
-          <span>Valor total da proposta</span>
-          <strong>{currency(valorTotalPropostaNormalizado)}</strong>
-        </div>
-        {economiaEstimativaValorCalculado != null ? (
-          <div className="kpi">
-            <span>{`Economia estimada (${ECONOMIA_ESTIMATIVA_PADRAO_ANOS} anos)`}</span>
-            <strong>{currency(economiaEstimativaValorCalculado)}</strong>
-          </div>
-        ) : null}
-      </div>
-      <p className="muted">
-        Preço final para aquisição da usina completa. Valores técnicos internos não são cobrados do cliente.
-      </p>
-    </section>
-  )
-
-  const renderComposicaoUfvSection = () => {
-    const abrirParametrosVendas = () => {
-      void abrirConfiguracoes('vendas')
-    }
-    return (
-      <section className="card">
-        <div className="card-header">
-          <h2>Composição da UFV</h2>
-          <button type="button" className="ghost with-icon" onClick={abrirParametrosVendas}>
-            <span aria-hidden="true">⚙︎</span>
-            Ajustar parâmetros internos
-          </button>
-        </div>
-        <p className="muted">
-          Consulte abaixo os valores consolidados da proposta. Custos e ajustes comerciais podem ser
-          atualizados em Configurações → Parâmetros de Vendas.
-        </p>
-        <div className="composicao-ufv-controls">
-          <h3>Ajustes desta proposta</h3>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Descontos comerciais (R$)',
-                'Valor de descontos concedidos ao cliente. Utilizado para calcular a venda líquida.',
-              )}
-            >
-              <input
-                ref={descontosMoneyField.ref}
-                type="text"
-                inputMode="decimal"
-                value={descontosMoneyField.text}
-                onChange={descontosMoneyField.handleChange}
-                onBlur={descontosMoneyField.handleBlur}
-                onFocus={(event) => {
-                  descontosMoneyField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={MONEY_INPUT_PLACEHOLDER}
-              />
-            </Field>
-          </div>
-        </div>
-        <div className="composicao-ufv-summary">
-          <h3>Referências internas</h3>
-          <p className="muted">Valores herdados de Configurações → Parâmetros de Vendas.</p>
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'CAPEX base (R$)',
-                'CAPEX base considerado após os custos internos e impostos configurados.',
-              )}
-            >
-              <input
-                ref={capexBaseResumoField.ref}
-                type="text"
-                inputMode="decimal"
-                value={capexBaseResumoField.text}
-                onChange={capexBaseResumoField.handleChange}
-                onBlur={() => {
-                  capexBaseResumoField.handleBlur()
-                  capexBaseResumoField.setText(formatMoneyBR(capexBaseResumoValor))
-                }}
-                onFocus={(event) => {
-                  capexBaseResumoField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={
-                  typeof capexBaseManualValor === 'number'
-                    ? MONEY_INPUT_PLACEHOLDER
-                    : 'Automático (calculado)'
-                }
-              />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Margem operacional (R$)',
-                'Margem operacional calculada a partir do CAPEX base e dos ajustes comerciais desta proposta.',
-              )}
-            >
-              <input
-                ref={margemOperacionalResumoField.ref}
-                type="text"
-                inputMode="decimal"
-                value={margemOperacionalResumoField.text}
-                onChange={margemOperacionalResumoField.handleChange}
-                onBlur={() => margemOperacionalResumoField.handleBlur()}
-                onFocus={(event) => {
-                  margemOperacionalResumoField.handleFocus(event)
-                  selectNumberInputOnFocus(event)
-                }}
-                placeholder={
-                  margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
-                }
-              />
-            </Field>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  const renderVendasParametrosInternosSettings = () => {
-    const comissaoLabel =
-      vendasConfig.comissao_default_tipo === 'percentual'
-        ? 'Comissão líquida (%)'
-        : 'Comissão líquida (R$)'
-    const telhadoCampos: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
-      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
-      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
-      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
-      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
-      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
-      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
-    ]
-    const resumoCamposTelhado: { key: keyof UfvComposicaoTelhadoValores; label: string; tooltip: string }[] = [
-      {
-        key: 'comissaoLiquida',
-        label: comissaoLabel,
-        tooltip:
-          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
-      },
-    ]
-    const soloCamposPrincipais: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
-      { key: 'projeto', label: 'Projeto', tooltip: 'Custos de elaboração do projeto elétrico e estrutural da usina.' },
-      { key: 'instalacao', label: 'Instalação', tooltip: 'Mão de obra, deslocamento e insumos da equipe de instalação.' },
-      { key: 'materialCa', label: 'Material CA', tooltip: 'Materiais elétricos do lado CA (cabos, disjuntores, quadros).' },
-      { key: 'crea', label: 'CREA', tooltip: 'Taxas do conselho de engenharia necessárias para o projeto.' },
-      { key: 'art', label: 'ART', tooltip: 'Valor da Anotação de Responsabilidade Técnica do responsável.' },
-      { key: 'placa', label: 'Placa', tooltip: 'Investimento nos módulos fotovoltaicos utilizados no sistema.' },
-      { key: 'estruturaSolo', label: 'Estrutura solo', tooltip: 'Estruturas e fundações específicas para montagem em solo.' },
-      { key: 'tela', label: 'Tela', tooltip: 'Material de cercamento (telas de proteção) para o parque solar.' },
-      { key: 'portaoTela', label: 'Portão tela', tooltip: 'Portões e acessos associados ao cercamento em tela.' },
-      { key: 'maoObraTela', label: 'Mão de obra tela', tooltip: 'Equipe dedicada à instalação da tela e portões.' },
-      { key: 'casaInversor', label: 'Casa inversor', tooltip: 'Construção ou abrigo para inversores e painéis elétricos.' },
-      { key: 'brita', label: 'Brita', tooltip: 'Lastro de brita utilizado para nivelamento e drenagem do solo.' },
-      { key: 'terraplanagem', label: 'Terraplanagem', tooltip: 'Serviços de preparo e nivelamento do terreno.' },
-      { key: 'trafo', label: 'Trafo', tooltip: 'Custo de transformadores ou adequações de tensão.' },
-      { key: 'rede', label: 'Rede', tooltip: 'Adequações de rede, cabeamento e conexões externas.' },
-    ]
-    const resumoCamposSolo: { key: keyof UfvComposicaoSoloValores; label: string; tooltip: string }[] = [
-      {
-        key: 'comissaoLiquida',
-        label: comissaoLabel,
-        tooltip:
-          'Comissão líquida destinada ao time comercial. Ajuste o formato (valor ou percentual) nos parâmetros abaixo.',
-      },
-    ]
-
-    const isTelhado = tipoInstalacao !== 'solo'
-    const regimes: RegimeTributario[] = ['simples', 'lucro_presumido', 'lucro_real']
-    const comissaoDefaultLabel =
-      vendasConfig.comissao_default_tipo === 'percentual'
-        ? 'Comissão padrão (%)'
-        : 'Comissão padrão (R$)'
-    const aprovadoresHint = 'Separe múltiplos e-mails por linha ou vírgula.'
-    const calculoAtual = isTelhado ? composicaoTelhadoCalculo : composicaoSoloCalculo
-    const regimeBreakdown = calculoAtual?.regime_breakdown ?? []
-    const currencyValue = (valor?: number) => (Number.isFinite(valor) ? currency(Number(valor)) : '')
-    const percentValue = (valor?: number) =>
-      Number.isFinite(valor) ? formatPercentBRWithDigits(Number(valor) / 100, 2) : ''
-    const precoMinimoAplicadoLabel = calculoAtual
-      ? calculoAtual.preco_minimo_aplicado
-        ? 'Sim'
-        : 'Não'
-      : ''
-    const workflowAtivo = Boolean(vendasConfig.workflow_aprovacao_ativo)
-    const aprovacaoLabel = (() => {
-      if (!workflowAtivo) {
-        return 'Workflow desativado'
-      }
-      if (!calculoAtual) {
-        return ''
-      }
-      if (!calculoAtual.desconto_requer_aprovacao) {
-        return 'Não'
-      }
-      return aprovadoresResumo ? `Sim — ${aprovadoresResumo}` : 'Sim'
-    })()
-    const workflowStatusLabel = workflowAtivo ? 'Ativo' : 'Desativado'
-    const descontoValor = toNumberSafe(descontosValor)
-
-    const sanitizeOverridesDraft = (
-      draft: Partial<ImpostosRegimeConfig>,
-    ): Partial<ImpostosRegimeConfig> | undefined => {
-      const sanitized: Partial<ImpostosRegimeConfig> = {}
-      for (const regime of regimes) {
-        const lista = draft[regime]
-        if (!lista || lista.length === 0) {
-          continue
-        }
-        const cleaned = lista
-          .map((item) => ({
-            nome: (item.nome ?? '').trim(),
-            aliquota_percent: Number.isFinite(item.aliquota_percent)
-              ? Number(item.aliquota_percent)
-              : 0,
-          }))
-          .filter((item) => item.nome.length > 0)
-        if (cleaned.length > 0) {
-          sanitized[regime] = cleaned
-        }
-      }
-      return Object.keys(sanitized).length > 0 ? sanitized : undefined
-    }
-
-    const handleCustoImplantacaoReferenciaInput = (value: string) => {
-      if (value === '') {
-        vendaActions.updateResumoProposta({ custo_implantacao_referencia: null })
-        return
-      }
-      const parsed = parseNumericInput(value)
-      const normalizado = Number.isFinite(parsed ?? NaN) ? Math.max(0, Number(parsed)) : 0
-      vendaActions.updateResumoProposta({
-        custo_implantacao_referencia: normalizado > 0 ? normalizado : null,
-      })
-    }
-
-    const handleOverrideFieldChange = (
-      regime: RegimeTributario,
-      index: number,
-      field: 'nome' | 'aliquota_percent',
-      value: string,
-    ) => {
-      setImpostosOverridesDraft((prev) => {
-        const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]] : []
-        const atual = lista[index] ?? { nome: '', aliquota_percent: 0 }
-        if (field === 'nome') {
-          lista[index] = { ...atual, nome: value }
-        } else {
-          const parsed = parseNumericInput(value)
-          const aliquota = parsed == null ? 0 : Number(parsed)
-          lista[index] = {
-            ...atual,
-            aliquota_percent: Number.isFinite(aliquota) ? aliquota : 0,
-          }
-        }
-        next[regime] = lista
-        return next
-      })
-    }
-
-    const handleOverrideAdd = (regime: RegimeTributario) => {
-      setImpostosOverridesDraft((prev) => {
-        const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]] : []
-        lista.push({ nome: '', aliquota_percent: 0 })
-        next[regime] = lista
-        return next
-      })
-    }
-
-    const handleOverrideRemove = (regime: RegimeTributario, index: number) => {
-      setImpostosOverridesDraft((prev) => {
-        const next = cloneImpostosOverrides(prev)
-        const lista = next[regime] ? [...next[regime]] : []
-        lista.splice(index, 1)
-        if (lista.length > 0) {
-          next[regime] = lista
-        } else {
-          delete next[regime]
-        }
-        return next
-      })
-    }
-
-    const handleApplyOverrides = () => {
-      const sanitized = sanitizeOverridesDraft(impostosOverridesDraft)
-      updateVendasConfig({ impostosRegime_overrides: sanitized ?? null })
-    }
-
-    const handleResetOverrides = (regime: RegimeTributario) => {
-      setImpostosOverridesDraft((prev) => {
-        const next = cloneImpostosOverrides(prev)
-        delete next[regime]
-        const sanitized = sanitizeOverridesDraft(next)
-        updateVendasConfig({ impostosRegime_overrides: sanitized ?? null })
-        return next
-      })
-    }
-
-    const handleAprovadoresBlur = () => {
-      const emails = aprovadoresText
-        .split(/[\n,;]+/)
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0)
-      updateVendasConfig({ aprovadores: emails })
-    }
-
-    return (
-      <div className="settings-vendas-parametros">
-        <p className="muted">
-          Ajuste os custos internos da usina e os parâmetros comerciais utilizados no cálculo da proposta.
-        </p>
-
-        <section className="settings-vendas-card config-card settings-vendas-card--full">
-          <div className="settings-vendas-card-header">
-            <div>
-              <h3>Composição da UFV</h3>
-              <p className="settings-vendas-card-description">
-                Distribua os custos internos conforme o tipo de implantação padrão ({isTelhado ? 'telhado' : 'solo'}).
-              </p>
-            </div>
-          </div>
-          <div className="settings-vendas-card-body">
-            <div className="composicao-ufv-groups">
-              {isTelhado ? (
-                <div className="composicao-ufv-group">
-                  <h3>Projeto em Telhado</h3>
-                  <div className="grid g3">
-                    {telhadoCampos.map(({ key, label, tooltip }) => (
-                      <Field key={`settings-telhado-${key}`} label={labelWithTooltip(label, tooltip)}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={formatCurrencyInputValue(
-                            Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0,
-                          )}
-                          onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                  <div className="grid g3">
-                    {resumoCamposTelhado.map(({ key, label, tooltip }) => (
-                      <Field key={`settings-telhado-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={formatCurrencyInputValue(
-                            Number.isFinite(composicaoTelhado[key]) ? composicaoTelhado[key] : 0,
-                          )}
-                          onChange={(event) => handleComposicaoTelhadoChange(key, event.target.value)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="composicao-ufv-group">
-                  <h3>Projeto em Solo</h3>
-                  <div className="grid g3">
-                    {soloCamposPrincipais.map(({ key, label, tooltip }) => (
-                      <Field key={`settings-solo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={formatCurrencyInputValue(
-                            Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0,
-                          )}
-                          onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                  <div className="grid g3">
-                    {resumoCamposSolo.map(({ key, label, tooltip }) => (
-                      <Field key={`settings-solo-resumo-${key}`} label={labelWithTooltip(label, tooltip)}>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={formatCurrencyInputValue(
-                            Number.isFinite(composicaoSolo[key]) ? composicaoSolo[key] : 0,
-                          )}
-                          onChange={(event) => handleComposicaoSoloChange(key, event.target.value)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <div className="settings-vendas-columns">
-          <section className="settings-vendas-card config-card">
-            <div className="settings-vendas-card-header">
-              <div>
-                <h3>Custos &amp; precificação</h3>
-                <p className="settings-vendas-card-description">
-                  Configure valores de referência e guardrails automáticos aplicados nas propostas.
-                </p>
-              </div>
-            </div>
-            <div className="settings-vendas-card-body">
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">Custos de referência</h4>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Custo técnico de implantação (R$)',
-                      'Valor interno estimado da implantação da usina (ex-CAPEX). Utilizado apenas para controle de margem.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={custoImplantacaoReferencia ?? ''}
-                      onChange={(event) => handleCustoImplantacaoReferenciaInput(event.target.value)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">Parâmetros padrão de preço e margem</h4>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Margem operacional padrão (%)',
-                      'Percentual aplicado sobre o CAPEX base somado ao valor do orçamento quando a margem está automática.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={80}
-                      step="0.1"
-                      value={vendasConfig.margem_operacional_padrao_percent}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          margem_operacional_padrao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  <Field
-                    label={labelWithTooltip(
-                      'Preço mínimo (% sobre CAPEX)',
-                      'Percentual mínimo aplicado ao CAPEX base para validar a proposta.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.1"
-                      value={vendasConfig.preco_minimo_percent_sobre_capex}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          preco_minimo_percent_sobre_capex: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Arredondamento da venda',
-                      'Passo utilizado para arredondar o valor final da proposta.',
-                    )}
-                  >
-                    <select
-                      value={vendasConfig.arredondar_venda_para}
-                      onChange={(event) =>
-                        updateVendasConfig({
-                          arredondar_venda_para: event.target.value as '1' | '10' | '50' | '100',
-                        })
-                      }
-                    >
-                      <option value="1">R$ 1</option>
-                      <option value="10">R$ 10</option>
-                      <option value="50">R$ 50</option>
-                      <option value="100">R$ 100</option>
-                    </select>
-                  </Field>
-                  <Field
-                    label={labelWithTooltip(
-                      'Incluir impostos no CAPEX',
-                      'Quando ativo, soma impostos retidos e do regime ao CAPEX considerado nas análises.',
-                    )}
-                  >
-                    <label className="inline-checkbox flex items-center gap-2">
-                      <CheckboxSmall
-                        checked={vendasConfig.incluirImpostosNoCAPEX_default}
-                        onChange={(event) =>
-                          updateVendasConfig({ incluirImpostosNoCAPEX_default: event.target.checked })
-                        }
-                      />
-                      <span>Somar impostos ao CAPEX base.</span>
-                    </label>
-                  </Field>
-                </div>
-              </div>
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">Resumo do cálculo</h4>
-                <p className="muted">
-                  Valores consolidados da proposta atual. Ajuste o CAPEX base ou a margem manual para recalcular
-                  automaticamente as demais métricas.
-                </p>
-                <div className="grid g3">
-                  <Field label="CAPEX base">
-                    <input
-                      ref={capexBaseResumoSettingsField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={capexBaseResumoSettingsField.text}
-                      onChange={capexBaseResumoSettingsField.handleChange}
-                      onBlur={() => {
-                        capexBaseResumoSettingsField.handleBlur()
-                        capexBaseResumoSettingsField.setText(formatMoneyBR(capexBaseResumoValor))
-                      }}
-                      onFocus={(event) => {
-                        capexBaseResumoSettingsField.handleFocus(event)
-                        selectNumberInputOnFocus(event)
-                      }}
-                      placeholder={
-                        typeof capexBaseManualValor === 'number'
-                          ? MONEY_INPUT_PLACEHOLDER
-                          : 'Automático (calculado)'
-                      }
-                    />
-                  </Field>
-                  <Field label="Margem operacional (R$)">
-                    <input
-                      ref={margemOperacionalResumoSettingsField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={margemOperacionalResumoSettingsField.text}
-                      onChange={margemOperacionalResumoSettingsField.handleChange}
-                      onBlur={() => margemOperacionalResumoSettingsField.handleBlur()}
-                      onFocus={(event) => {
-                        margemOperacionalResumoSettingsField.handleFocus(event)
-                        selectNumberInputOnFocus(event)
-                      }}
-                      placeholder={
-                        margemManualAtiva ? MONEY_INPUT_PLACEHOLDER : 'Automático (padrão)'
-                      }
-                    />
-                  </Field>
-                  <Field label="Comissão líquida (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.comissao_liquida_valor)} />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field label="Imposto retido (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.imposto_retido_valor)} />
-                  </Field>
-                  <Field label="Impostos do regime (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_regime_valor)} />
-                  </Field>
-                  <Field label="Impostos totais (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.impostos_totais_valor)} />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field label="CAPEX considerado">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.capex_total)} />
-                  </Field>
-                  <Field label="Venda total (bruta)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.venda_total)} />
-                  </Field>
-                  <Field label="Venda líquida">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.venda_liquida)} />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field label="Descontos comerciais (R$)">
-                    <input type="text" readOnly value={currencyValue(descontoValor)} />
-                  </Field>
-                  <Field label="Preço mínimo (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.preco_minimo)} />
-                  </Field>
-                  <Field label="Venda sem guardrails (R$)">
-                    <input
-                      type="text"
-                      readOnly
-                      value={currencyValue(calculoAtual?.venda_total_sem_guardrails)}
-                    />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field label="Ajuste por arredondamento (R$)">
-                    <input type="text" readOnly value={currencyValue(calculoAtual?.arredondamento_aplicado)} />
-                  </Field>
-                  <Field label="Desconto aplicado (%)">
-                    <input type="text" readOnly value={percentValue(calculoAtual?.desconto_percentual)} />
-                  </Field>
-                  <Field label="Aprovação necessária?">
-                    <input type="text" readOnly value={aprovacaoLabel} />
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field label="Preço mínimo aplicado?">
-                    <input type="text" readOnly value={precoMinimoAplicadoLabel} />
-                  </Field>
-                  <Field label="Workflow de aprovação">
-                    <input type="text" readOnly value={workflowStatusLabel} />
-                  </Field>
-                </div>
-              </div>
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">
-                  Detalhamento do regime tributário (
-                  {REGIME_TRIBUTARIO_LABELS[vendasConfig.regime_tributario_default] ?? ''}
-                  )
-                </h4>
-                {regimeBreakdown.length ? (
-                  <div className="grid g3">
-                    {regimeBreakdown.map((item) => (
-                      <Field
-                        key={item.nome}
-                        label={`${item.nome} (${formatNumberBRWithOptions(item.aliquota, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}%)`}
-                      >
-                        <input type="text" readOnly value={currencyValue(item.valor)} />
-                      </Field>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">Sem impostos adicionais para o regime selecionado.</p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-vendas-card config-card">
-            <div className="settings-vendas-card-header">
-              <div>
-                <h3>Comercial &amp; aprovação</h3>
-                <p className="settings-vendas-card-description">
-                  Defina incentivos do time comercial e limites para o fluxo de aprovação.
-                </p>
-              </div>
-            </div>
-            <div className="settings-vendas-card-body">
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">Comissão &amp; incentivos</h4>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Tipo de comissão padrão',
-                      'Defina se a comissão é aplicada como valor em reais ou percentual sobre a base selecionada.',
-                    )}
-                  >
-                    <select
-                      value={vendasConfig.comissao_default_tipo}
-                      onChange={(event) =>
-                        updateVendasConfig({
-                          comissao_default_tipo: event.target.value as 'valor' | 'percentual',
-                        })
-                      }
-                    >
-                      <option value="percentual">Percentual</option>
-                      <option value="valor">Valor absoluto</option>
-                    </select>
-                  </Field>
-                  <Field label={comissaoDefaultLabel}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={vendasConfig.comissao_default_percent}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          comissao_default_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  <Field
-                    label={labelWithTooltip(
-                      'Base do percentual de comissão',
-                      'Escolha se a comissão percentual incide sobre a venda total ou sobre a venda líquida.',
-                    )}
-                  >
-                    <select
-                      value={vendasConfig.comissao_percent_base}
-                      onChange={(event) =>
-                        updateVendasConfig({
-                          comissao_percent_base: event.target.value as 'venda_total' | 'venda_liquida',
-                        })
-                      }
-                    >
-                      <option value="venda_total">Venda total</option>
-                      <option value="venda_liquida">Venda líquida</option>
-                    </select>
-                  </Field>
-                </div>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Bônus de indicação (%)',
-                      'Percentual adicional reservado para indicações comerciais.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.1"
-                      value={vendasConfig.bonus_indicacao_percent}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          bonus_indicacao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  <Field
-                    label={labelWithTooltip(
-                      'Teto de comissão (%)',
-                      'Limite máximo aplicado quando a comissão for percentual.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.1"
-                      value={vendasConfig.teto_comissao_percent}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          teto_comissao_percent: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              <div className="settings-subsection">
-                <h4 className="settings-subheading">Descontos &amp; aprovação</h4>
-                <div className="grid g3">
-                  <Field
-                    label={labelWithTooltip(
-                      'Desconto máximo sem aprovação (%)',
-                      'Percentual de desconto permitido antes de acionar o workflow de aprovação.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.1"
-                      value={vendasConfig.desconto_max_percent_sem_aprovacao}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        updateVendasConfig({
-                          desconto_max_percent_sem_aprovacao: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                        })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  <Field label="Workflow de aprovação ativo">
-                    <label className="inline-checkbox flex items-center gap-2">
-                      <CheckboxSmall
-                        checked={vendasConfig.workflow_aprovacao_ativo}
-                        onChange={(event) =>
-                          updateVendasConfig({ workflow_aprovacao_ativo: event.target.checked })
-                        }
-                      />
-                      <span>Exigir aprovação para descontos acima do limite.</span>
-                    </label>
-                  </Field>
-                  <Field
-                    label={labelWithTooltip(
-                      'Validade padrão da proposta (dias)',
-                      'Quantidade de dias utilizada como validade padrão nas propostas geradas.',
-                    )}
-                  >
-                    <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={vendasConfig.validade_proposta_dias}
-                      onChange={(event) => {
-                        const parsed = parseNumericInput(event.target.value)
-                        const normalizado = Number.isFinite(parsed ?? NaN)
-                          ? Math.max(0, Math.floor(Number(parsed)))
-                          : 0
-                        updateVendasConfig({ validade_proposta_dias: normalizado })
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                </div>
-                <Field label="Aprovadores" hint={aprovadoresHint}>
-                  <textarea
-                    rows={3}
-                    value={aprovadoresText}
-                    onChange={(event) => setAprovadoresText(event.target.value)}
-                    onBlur={handleAprovadoresBlur}
-                  />
-                </Field>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <section className="settings-vendas-card config-card settings-vendas-card--full">
-          <div className="settings-vendas-card-header">
-            <div>
-              <h3>Tributação</h3>
-              <p className="settings-vendas-card-description">
-                Ajuste presets fiscais e personalize alíquotas conforme o regime tributário utilizado nas propostas.
-              </p>
-            </div>
-          </div>
-          <div className="settings-vendas-card-body">
-            <div className="settings-subsection">
-              <h4 className="settings-subheading">Configurações padrão</h4>
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Regime tributário padrão',
-                    'Preset fiscal aplicado por padrão nos cálculos comerciais.',
-                  )}
-                >
-                  <select
-                    value={vendasConfig.regime_tributario_default}
-                    onChange={(event) =>
-                      updateVendasConfig({
-                        regime_tributario_default: event.target.value as RegimeTributario,
-                      })
-                    }
-                  >
-                    <option value="simples">Simples nacional</option>
-                    <option value="lucro_presumido">Lucro presumido</option>
-                    <option value="lucro_real">Lucro real</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Imposto retido padrão (%)',
-                    'Percentual de impostos retidos na fonte aplicado sobre a venda total.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="0.1"
-                    value={vendasConfig.imposto_retido_aliquota_default}
-                    onChange={(event) => {
-                      const parsed = parseNumericInput(event.target.value)
-                      updateVendasConfig({
-                        imposto_retido_aliquota_default: Number.isFinite(parsed ?? NaN) ? Number(parsed) : 0,
-                      })
-                    }}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field label="Mostrar quebra de impostos no PDF">
-                  <label className="inline-checkbox flex items-center gap-2">
-                    <CheckboxSmall
-                      checked={vendasConfig.mostrar_quebra_impostos_no_pdf_cliente}
-                      onChange={(event) =>
-                        updateVendasConfig({
-                          mostrar_quebra_impostos_no_pdf_cliente: event.target.checked,
-                        })
-                      }
-                    />
-                    <span>Exibir detalhamento dos impostos para o cliente.</span>
-                  </label>
-                </Field>
-              </div>
-            </div>
-
-            {regimes.map((regime) => {
-              const lista = impostosOverridesDraft[regime] ?? []
-              const label = REGIME_TRIBUTARIO_LABELS[regime] ?? regime
-              return (
-                <div key={regime} className="settings-subsection settings-vendas-overrides">
-                  <div className="table-controls settings-vendas-overrides-header">
-                    <span className="muted">Overrides — {label}</span>
-                    <div>
-                      <button type="button" className="ghost" onClick={() => handleOverrideAdd(regime)}>
-                        Adicionar imposto
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => handleResetOverrides(regime)}
-                        disabled={lista.length === 0}
-                      >
-                        Restaurar preset
-                      </button>
-                    </div>
-                  </div>
-                  {lista.length ? (
-                    lista.map((item, index) => (
-                      <div key={`${regime}-${index}`} className="grid g3">
-                        <Field label="Nome do imposto">
-                          <input
-                            type="text"
-                            value={item.nome ?? ''}
-                            onChange={(event) =>
-                              handleOverrideFieldChange(regime, index, 'nome', event.target.value)
-                            }
-                          />
-                        </Field>
-                        <Field label="Alíquota (%)">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={Number.isFinite(item.aliquota_percent) ? Number(item.aliquota_percent) : 0}
-                            onChange={(event) =>
-                              handleOverrideFieldChange(regime, index, 'aliquota_percent', event.target.value)
-                            }
-                            onFocus={selectNumberInputOnFocus}
-                          />
-                        </Field>
-                        <div className="field">
-                          <label>&nbsp;</label>
-                          <button
-                            type="button"
-                            className="ghost danger"
-                            onClick={() => handleOverrideRemove(regime, index)}
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="muted">Sem overrides — usando preset padrão.</p>
-                  )}
-                </div>
-              )
-            })}
-            <div className="table-controls settings-vendas-overrides-actions">
-              <button type="button" className="primary" onClick={handleApplyOverrides}>
-                Aplicar overrides
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="settings-vendas-card config-card settings-vendas-card--full">
-          <div className="settings-vendas-card-header">
-            <div>
-              <h3>Exibição no PDF (cliente)</h3>
-              <p className="settings-vendas-card-description">
-                Personalize as informações exibidas para o cliente nas propostas geradas.
-              </p>
-            </div>
-          </div>
-          <div className="settings-vendas-card-body">
-            <div className="grid g3">
-              <Field label="Exibir preços unitários">
-                <label className="inline-checkbox flex items-center gap-2">
-                  <CheckboxSmall
-                    checked={vendasConfig.exibir_precos_unitarios}
-                    onChange={(event) =>
-                      updateVendasConfig({ exibir_precos_unitarios: event.target.checked })
-                    }
-                  />
-                  <span>Mostrar valores unitários dos itens na proposta.</span>
-                </label>
-              </Field>
-              <Field label="Exibir margem">
-                <label className="inline-checkbox flex items-center gap-2">
-                  <CheckboxSmall
-                    checked={vendasConfig.exibir_margem}
-                    onChange={(event) => updateVendasConfig({ exibir_margem: event.target.checked })}
-                  />
-                  <span>Mostrar margem operacional no PDF.</span>
-                </label>
-              </Field>
-              <Field label="Exibir comissão">
-                <label className="inline-checkbox flex items-center gap-2">
-                  <CheckboxSmall
-                    checked={vendasConfig.exibir_comissao}
-                    onChange={(event) => updateVendasConfig({ exibir_comissao: event.target.checked })}
-                  />
-                  <span>Exibir comissão líquida para o cliente.</span>
-                </label>
-              </Field>
-              <Field label="Exibir impostos">
-                <label className="inline-checkbox flex items-center gap-2">
-                  <CheckboxSmall
-                    checked={vendasConfig.exibir_impostos}
-                    onChange={(event) => updateVendasConfig({ exibir_impostos: event.target.checked })}
-                  />
-                  <span>Mostrar valores de impostos no PDF.</span>
-                </label>
-              </Field>
-            </div>
-            <Field label="Observação padrão da proposta">
-              <textarea
-                rows={4}
-                value={vendasConfig.observacao_padrao_proposta}
-                onChange={(event) =>
-                  updateVendasConfig({ observacao_padrao_proposta: event.target.value })
-                }
-              />
-            </Field>
-          </div>
-        </section>
-      </div>
-    )
-  }
-
-  const renderCondicoesPagamentoSection = () => {
-    const condicao = vendaForm.condicao
-    const condicaoInfo = getPagamentoCondicaoInfo(condicao)
-    const modoInfo =
-      condicao === 'AVISTA'
-        ? getPagamentoModoInfo(vendaForm.modo_pagamento ?? 'PIX')
-        : null
-    const pagamentoCardTitle =
-      condicao === 'AVISTA' && modoInfo
-        ? modoInfo.label
-        : condicaoInfo?.label ?? 'Modalidade de pagamento'
-    const pagamentoCardSummary =
-      condicao === 'AVISTA' && modoInfo ? modoInfo.summary : condicaoInfo?.summary ?? ''
-    const pagamentoCardHighlights =
-      condicao === 'AVISTA' && modoInfo
-        ? modoInfo.highlights
-        : condicaoInfo?.highlights ?? []
-    return (
-      <section className="card">
-        <h2>Condições de Pagamento</h2>
-        <div className="grid g3">
-          <Field
-            label={labelWithTooltip(
-              'Condição',
-              'Seleciona o formato de pagamento (à vista, parcelado ou financiamento), alterando os campos exibidos.',
-            )}
-          >
-            <select
-              value={condicao}
-              onChange={(event) => handleCondicaoPagamentoChange(event.target.value as PagamentoCondicao)}
-            >
-              <option value="AVISTA">{PAGAMENTO_CONDICAO_INFO.AVISTA.label}</option>
-              <option value="PARCELADO">{PAGAMENTO_CONDICAO_INFO.PARCELADO.label}</option>
-              <option value="BOLETO">{PAGAMENTO_CONDICAO_INFO.BOLETO.label}</option>
-              <option value="DEBITO_AUTOMATICO">{PAGAMENTO_CONDICAO_INFO.DEBITO_AUTOMATICO.label}</option>
-              <option value="FINANCIAMENTO">{PAGAMENTO_CONDICAO_INFO.FINANCIAMENTO.label}</option>
-            </select>
-            <FieldError message={vendaFormErrors.condicao} />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              isVendaDiretaTab ? 'VALOR TOTAL DA PROPOSTA (R$)' : 'Investimento (CAPEX total)',
-              isVendaDiretaTab
-                ? 'Preço final para aquisição da usina completa (equipamentos, instalação, homologação e suporte).'
-                : 'Valor total do projeto fotovoltaico. Serve de base para entradas, parcelas e margens.',
-            )}
-          >
-            <input
-              ref={capexMoneyField.ref}
-              type="text"
-              inputMode="decimal"
-              value={capexMoneyField.text}
-              onChange={capexMoneyField.handleChange}
-              onBlur={() => {
-                capexMoneyField.handleBlur()
-                capexMoneyField.setText(formatMoneyBR(valorTotalPropostaNormalizado))
-              }}
-              onFocus={(event) => {
-                capexMoneyField.handleFocus(event)
-                selectNumberInputOnFocus(event)
-              }}
-              placeholder={MONEY_INPUT_PLACEHOLDER}
-            />
-            <FieldError message={vendaFormErrors.capex_total} />
-          </Field>
-          <Field
-            label={labelWithTooltip(
-              'Moeda',
-              'Moeda utilizada na proposta. Atualmente fixa em reais (BRL).',
-            )}
-          >
-            <input readOnly value="BRL" />
-          </Field>
-        </div>
-        {pagamentoCardSummary || pagamentoCardHighlights.length > 0 ? (
-          <div className="payment-highlight-card">
-            {condicaoInfo ? (
-              <span className="payment-highlight-card__badge">{condicaoInfo.label}</span>
-            ) : null}
-            <strong className="payment-highlight-card__title">{pagamentoCardTitle}</strong>
-            {pagamentoCardSummary ? (
-              <p className="payment-highlight-card__summary">{pagamentoCardSummary}</p>
-            ) : null}
-            {pagamentoCardHighlights.length > 0 ? (
-              <ul className="payment-highlight-card__list">
-                {pagamentoCardHighlights.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-        {condicao === 'AVISTA' ? (
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Modo de pagamento',
-                'Define o meio de pagamento à vista e ajusta as taxas de MDR quando aplicável.',
-              )}
-            >
-              <select
-                value={vendaForm.modo_pagamento ?? 'PIX'}
-                onChange={(event) => applyVendaUpdates({ modo_pagamento: event.target.value as ModoPagamento })}
-              >
-                <option value="PIX">{PAGAMENTO_MODO_INFO.PIX.label}</option>
-                <option value="DEBITO">{PAGAMENTO_MODO_INFO.DEBITO.label}</option>
-                <option value="CREDITO">{PAGAMENTO_MODO_INFO.CREDITO.label}</option>
-              </select>
-              <FieldError message={vendaFormErrors.modo_pagamento} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'MDR Pix',
-                'Taxa de desconto do adquirente para Pix. Custo MDR = Valor transacionado × MDR.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step="0.001"
-                value={
-                  Number.isFinite(vendaForm.taxa_mdr_pix_pct)
-                    ? vendaForm.taxa_mdr_pix_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (value === '') {
-                    applyVendaUpdates({ taxa_mdr_pix_pct: 0 })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ taxa_mdr_pix_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.taxa_mdr_pix_pct} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'MDR Débito',
-                'Percentual retido pela adquirente em pagamentos no débito. Custo = Valor × MDR.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step="0.001"
-                value={
-                  Number.isFinite(vendaForm.taxa_mdr_debito_pct)
-                    ? vendaForm.taxa_mdr_debito_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (value === '') {
-                    applyVendaUpdates({ taxa_mdr_debito_pct: 0 })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ taxa_mdr_debito_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.taxa_mdr_debito_pct} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'MDR Crédito à vista',
-                'Taxa aplicada sobre vendas no crédito em parcela única. Custo = Valor × MDR.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step="0.001"
-                value={
-                  Number.isFinite(vendaForm.taxa_mdr_credito_vista_pct)
-                    ? vendaForm.taxa_mdr_credito_vista_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (value === '') {
-                    applyVendaUpdates({ taxa_mdr_credito_vista_pct: 0 })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({
-                    taxa_mdr_credito_vista_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
-                  })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.taxa_mdr_credito_vista_pct} />
-            </Field>
-          </div>
-        ) : null}
-        {condicao === 'PARCELADO' ? (
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Nº de parcelas',
-                'Quantidade de parcelas do cartão. Parcela estimada via fórmula PMT = Valor × [i × (1 + i)^n] / [(1 + i)^n - 1].',
-              )}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={Number.isFinite(vendaForm.n_parcelas) ? vendaForm.n_parcelas : ''}
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ n_parcelas: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
-                  applyVendaUpdates({ n_parcelas: normalized })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.n_parcelas} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Juros cartão (% a.m.)',
-                'Taxa de juros mensal aplicada pela operadora. Equivalência anual: (1 + i)^12 - 1.',
-              )}
-            >
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  Number.isFinite(vendaForm.juros_cartao_am_pct)
-                    ? vendaForm.juros_cartao_am_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ juros_cartao_am_pct: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ juros_cartao_am_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.juros_cartao_am_pct} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Juros cartão (% a.a.)',
-                'Taxa de juros anual utilizada para relatórios. Pode ser derivada de i_mensal: (1 + i_mensal)^12 - 1.',
-              )}
-            >
-              <input
-                type="number"
-                step="0.1"
-                value={
-                  Number.isFinite(vendaForm.juros_cartao_aa_pct)
-                    ? vendaForm.juros_cartao_aa_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ juros_cartao_aa_pct: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ juros_cartao_aa_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.juros_cartao_aa_pct} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'MDR crédito parcelado',
-                'Taxa retida pela adquirente em vendas parceladas no cartão. Custo = Valor × MDR.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                max={1}
-                step="0.001"
-                value={
-                  Number.isFinite(vendaForm.taxa_mdr_credito_parcelado_pct)
-                    ? vendaForm.taxa_mdr_credito_parcelado_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ taxa_mdr_credito_parcelado_pct: 0 })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({
-                    taxa_mdr_credito_parcelado_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
-                  })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.taxa_mdr_credito_parcelado_pct} />
-            </Field>
-          </div>
-        ) : null}
-        {condicao === 'BOLETO' ? (
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Nº de boletos',
-                'Quantidade de boletos emitidos. O valor total da proposta é dividido igualmente entre eles.',
-              )}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={Number.isFinite(vendaForm.n_boletos) ? vendaForm.n_boletos : ''}
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ n_boletos: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
-                  applyVendaUpdates({ n_boletos: normalized })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.n_boletos} />
-            </Field>
-          </div>
-        ) : null}
-        {condicao === 'DEBITO_AUTOMATICO' ? (
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Duração do débito automático (meses)',
-                'Quantidade de meses com débito recorrente em conta. O valor total é dividido igualmente entre os débitos.',
-              )}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={Number.isFinite(vendaForm.n_debitos) ? vendaForm.n_debitos : ''}
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ n_debitos: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
-                  applyVendaUpdates({ n_debitos: normalized })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.n_debitos} />
-            </Field>
-          </div>
-        ) : null}
-        {condicao === 'FINANCIAMENTO' ? (
-          <div className="grid g3">
-            <Field
-              label={labelWithTooltip(
-                'Entrada (R$)',
-                'Valor de entrada pago pelo cliente. Saldo financiado = CAPEX - Entrada.',
-              )}
-            >
-              <input
-                type="number"
-                min={0}
-                value={
-                  Number.isFinite(vendaForm.entrada_financiamento)
-                    ? vendaForm.entrada_financiamento
-                    : ''
-                }
-                onChange={(event) => {
-                  const parsed = parseNumericInput(event.target.value)
-                  const normalized = parsed && parsed > 0 ? parsed : 0
-                  applyVendaUpdates({ entrada_financiamento: normalized })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.entrada_financiamento} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Nº de parcelas',
-                'Quantidade de parcelas do financiamento. Parcela calculada pela fórmula PMT com i_mensal e n.',
-              )}
-            >
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={
-                  Number.isFinite(vendaForm.n_parcelas_fin)
-                    ? vendaForm.n_parcelas_fin
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ n_parcelas_fin: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  const normalized = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1
-                  applyVendaUpdates({ n_parcelas_fin: normalized })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.n_parcelas_fin} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Juros financiamento (% a.m.)',
-                'Taxa de juros mensal contratada com a instituição financeira.',
-              )}
-            >
-              <input
-                type="number"
-                step="0.01"
-                value={
-                  Number.isFinite(vendaForm.juros_fin_am_pct)
-                    ? vendaForm.juros_fin_am_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ juros_fin_am_pct: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ juros_fin_am_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.juros_fin_am_pct} />
-            </Field>
-            <Field
-              label={labelWithTooltip(
-                'Juros financiamento (% a.a.)',
-                'Taxa de juros anual equivalente. Pode ser obtida por (1 + i_mensal)^12 - 1.',
-              )}
-            >
-              <input
-                type="number"
-                step="0.1"
-                value={
-                  Number.isFinite(vendaForm.juros_fin_aa_pct)
-                    ? vendaForm.juros_fin_aa_pct
-                    : ''
-                }
-                onChange={(event) => {
-                  const value = event.target.value
-                  if (!value) {
-                    applyVendaUpdates({ juros_fin_aa_pct: undefined })
-                    return
-                  }
-                  const parsed = Number(value)
-                  applyVendaUpdates({ juros_fin_aa_pct: Number.isFinite(parsed) ? Math.max(0, parsed) : 0 })
-                }}
-                onFocus={selectNumberInputOnFocus}
-              />
-              <FieldError message={vendaFormErrors.juros_fin_aa_pct} />
-            </Field>
-          </div>
-        ) : null}
-      </section>
-    )
-  }
-
-  const renderRetornoProjetadoSection = () => {
-    const resultado = retornoProjetado
-    const paybackLabel = resultado?.payback
-      ? `${resultado.payback} meses`
-      : 'Não atingido em 30 anos'
-    const roiLabel = resultado
-      ? new Intl.NumberFormat('pt-BR', {
-          style: 'percent',
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1,
-        }).format(resultado.roi)
-      : ''
-    const showVpl = Boolean(resultado && typeof resultado.vpl === 'number')
-    const vplLabel = showVpl && resultado ? currency(resultado.vpl as number) : ''
-
-    const kpis: { label: string; value: string }[] = [
-      { label: 'Payback (meses)', value: paybackLabel },
-      { label: 'ROI acumulado (30 anos): ', value: roiLabel },
-    ]
-
-    if (showVpl) {
-      kpis.push({ label: 'VPL', value: vplLabel })
-    }
-
-    let financialReturnChart: React.ReactNode = null
-
-    if (resultado) {
-      const formatPaybackDuration = (meses: number): string => {
-        if (!Number.isFinite(meses) || meses <= 0) {
-          return '0 meses'
-        }
-        const anosInteiros = Math.floor(meses / 12)
-        const mesesRestantes = meses % 12
-        const partes: string[] = []
-        if (anosInteiros > 0) {
-          partes.push(`${anosInteiros} ${anosInteiros === 1 ? 'ano' : 'anos'}`)
-        }
-        if (mesesRestantes > 0 || partes.length === 0) {
-          partes.push(`${mesesRestantes} ${mesesRestantes === 1 ? 'mês' : 'meses'}`)
-        }
-        return partes.join(' e ')
-      }
-
-      const years = [5, 10, 15, 20, 30] as const
-      const capexTotal = Number.isFinite(vendaForm.capex_total)
-        ? Math.max(0, Number(vendaForm.capex_total))
-        : 0
-      const investimentoInicialResultado = Number.isFinite(resultado.investimentoInicial)
-        ? Math.max(0, Number(resultado.investimentoInicial))
-        : 0
-      const investimentoConsiderado = Math.max(capexTotal, investimentoInicialResultado)
-      const cumulativeSavings: number[] = []
-      let saldoAcumuladoVista = investimentoConsiderado > 0 ? -investimentoConsiderado : 0
-
-      for (let mes = 0; mes < resultado.economia.length; mes += 1) {
-        saldoAcumuladoVista += resultado.economia[mes] ?? 0
-        cumulativeSavings.push(saldoAcumuladoVista)
-      }
-
-      const paybackIndexVista = cumulativeSavings.findIndex((value) => value >= 0)
-      const paybackMesesVista = paybackIndexVista >= 0 ? paybackIndexVista + 1 : null
-      const paybackLabelVista =
-        paybackMesesVista != null ? formatPaybackDuration(paybackMesesVista) : 'Não alcançado em 30 anos'
-
-      const yearsData = years.map((year) => {
-        const monthIndex = Math.min(year * 12 - 1, cumulativeSavings.length - 1)
-        const value =
-          monthIndex >= 0
-            ? cumulativeSavings[monthIndex]
-            : cumulativeSavings.length > 0
-            ? cumulativeSavings[cumulativeSavings.length - 1]
-            : saldoAcumuladoVista
-        return { year, value }
-      })
-
-      const paybackYearIndex =
-        paybackMesesVista != null ? years.findIndex((year) => paybackMesesVista <= year * 12) : -1
-
-      const chartValues = yearsData.map((item) => item.value)
-      const maxPositive = Math.max(0, ...chartValues)
-      const minNegative = Math.min(0, ...chartValues)
-      const hasPositive = maxPositive > 0
-      const hasNegative = minNegative < 0
-      let zeroPositionPercent = 0
-      if (hasPositive && hasNegative) {
-        const totalSpan = maxPositive + Math.abs(minNegative)
-        zeroPositionPercent = totalSpan > 0 ? (Math.abs(minNegative) / totalSpan) * 100 : 0
-      } else if (!hasPositive && hasNegative) {
-        zeroPositionPercent = 100
-      } else {
-        zeroPositionPercent = 0
-      }
-      const positiveSpan = 100 - zeroPositionPercent
-      const negativeSpan = zeroPositionPercent
-      const zeroPositionStyle = {
-        '--zero-position': `${zeroPositionPercent}%`,
-      } as React.CSSProperties
-
-      financialReturnChart = (
-        <div className="financial-return-chart">
-          <div className="financial-return-chart-header">
-            <div>
-              <h3>Benefício acumulado em 30 anos</h3>
-              <p>
-                Evolução das economias projetadas frente ao investimento à vista
-                {investimentoConsiderado > 0 ? (
-                  <>
-                    {' '}
-                    de <strong>{currency(investimentoConsiderado)}</strong>
-                  </>
-                ) : null}
-                .
-              </p>
-            </div>
-            <div className="financial-return-chart-payback-summary">
-              <span>Payback estimado: </span>
-              <strong>{paybackMesesVista != null ? paybackLabelVista : 'Não alcançado em 30 anos'}</strong>
-            </div>
-          </div>
-          <ul className="financial-return-chart-list">
-            {yearsData.map((item, index) => {
-              const value = item.value
-              const valueLabel = currency(value)
-              const isPositive = value >= 0
-              const spanLimit = isPositive ? positiveSpan : negativeSpan
-              let proportionalWidth = 0
-              if (isPositive) {
-                proportionalWidth = hasPositive && spanLimit > 0 ? (value / maxPositive) * spanLimit : 0
-              } else {
-                proportionalWidth = hasNegative && spanLimit > 0 ? (Math.abs(value) / Math.abs(minNegative)) * spanLimit : 0
-              }
-              const width = Number.isFinite(proportionalWidth)
-                ? Math.min(spanLimit, Math.max(0, proportionalWidth))
-                : 0
-              const left = isPositive ? zeroPositionPercent : zeroPositionPercent - width
-              const barStyle = {
-                width: `${width.toFixed(2)}%`,
-                left: `${left.toFixed(2)}%`,
-              } as React.CSSProperties
-              const valueClassName = [
-                'financial-return-chart-value',
-                isPositive ? 'positive' : 'negative',
-              ].join(' ')
-              const barClassName = [
-                'financial-return-chart-bar',
-                isPositive ? 'positive' : 'negative',
-                paybackYearIndex === index && paybackMesesVista != null ? 'is-payback' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')
-              return (
-                <li key={item.year} className="financial-return-chart-row">
-                  <div className="financial-return-chart-year">{item.year} anos</div>
-                  <div className="financial-return-chart-bar-area" style={zeroPositionStyle}>
-                    <div className="financial-return-chart-bar-track" aria-hidden="true" />
-                    <div className="financial-return-chart-axis" aria-hidden="true" />
-                    <div
-                      className={barClassName}
-                      style={barStyle}
-                      aria-hidden="true"
-                      title={`${valueLabel} em ${item.year} anos`}
-                    />
-                  </div>
-                  <div className={valueClassName}>
-                    <span>{valueLabel}</span>
-                    {paybackYearIndex === index && paybackMesesVista != null ? (
-                      <span className="financial-return-chart-chip">Payback em {paybackLabelVista}</span>
-                    ) : null}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )
-    }
-
-    return (
-      <section className="card">
-        <div className="card-header">
-          <h2>Retorno Financeiro</h2>
-          <button
-            type="button"
-            className="primary"
-            onClick={handleCalcularRetorno}
-            disabled={retornoStatus === 'calculating'}
-          >
-            {retornoStatus === 'calculating'
-              ? 'Calculando…'
-              : resultado
-              ? 'Recalcular retorno'
-              : 'Calcular retorno'}
-          </button>
-        </div>
-        {retornoError ? <p className="field-error">{retornoError}</p> : null}
-        {resultado ? (
-          <>
-            <div className="kpi-grid">
-              {kpis.map((item) => (
-                <div key={item.label} className="kpi">
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </div>
-              ))}
-            </div>
-            {financialReturnChart}
-          </>
-        ) : retornoStatus === 'calculating' ? (
-          <p className="muted">Calculando projeções…</p>
-        ) : (
-          <p className="muted">Preencha os dados e clique em “Calcular retorno”.</p>
-        )}
-      </section>
-    )
-  }
 
   const leasingBuyoutSection = (
     <section className="card">
@@ -26939,239 +18433,9 @@ export default function App() {
     </React.Suspense>
   ) : null
 
-  const handleSidebarMenuToggle = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen((previous) => {
-        const next = !previous
-        if (next) {
-          setIsSidebarCollapsed(false)
-        }
-        return next
-      })
-      return
-    }
-
-    setIsSidebarCollapsed((previous) => !previous)
-  }, [isMobileViewport])
-
-  const handleSidebarNavigate = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen(false)
-    }
-  }, [isMobileViewport])
-
-  const handleSidebarClose = useCallback(() => {
-    setIsSidebarMobileOpen(false)
-  }, [])
-
-  const crmPageActions = (
-    <div className="crm-header-actions">
-      <div className="crm-sync-controls">
-        <label htmlFor="crm-sync-mode">Modo de sincronização</label>
-        <select
-          id="crm-sync-mode"
-          value={crmIntegrationMode}
-          onChange={(event) => setCrmIntegrationMode(event.target.value as CrmIntegrationMode)}
-        >
-          <option value="local">Somente local</option>
-          <option value="remote">Sincronizar com backend</option>
-        </select>
-        <button type="button" className="ghost" onClick={handleSyncCrmManualmente}>
-          Sincronizar agora
-        </button>
-        <small className={`crm-sync-status ${crmBackendStatus}`}>
-          {crmIntegrationMode === 'remote'
-            ? crmBackendStatus === 'success'
-              ? `Sincronizado${crmLastSync ? ` em ${crmLastSync.toLocaleString('pt-BR')}` : ''}`
-              : crmBackendStatus === 'error'
-                ? crmBackendError ?? 'Erro de sincronização'
-                : crmIsSaving
-                  ? 'Enviando dados para o backend...'
-                  : 'Aguardando alterações para sincronizar'
-            : 'Operando somente com dados locais'}
-        </small>
-      </div>
-      <button className="ghost" onClick={() => setActivePage('app')}>
-        Voltar para proposta financeira
-      </button>
-    </div>
-  )
-
-  const renderDashboardPage = () => {
-    const leadsAtivos = Math.max(0, crmKpis.totalLeads - crmKpis.leadsFechados)
-    const receitaProjetadaLeasing = crmFinanceiroResumo.previsaoLeasing
-    const receitaProjetadaVendas = crmFinanceiroResumo.previsaoVendas
-    const proximasVisitas = crmPosVendaResumo.proximas.slice(0, 3)
-    const alertasCriticos = crmPosVendaResumo.alertasCriticos.slice(0, 2)
-    const chamadosRecentes = crmPosVendaResumo.chamadosRecentes.slice(0, 4)
-    const margensDestaque = crmFinanceiroResumo.margens.slice(0, 4)
-
-    const formatLeadNome = (leadId: string) => {
-      const lead = crmDataset.leads.find((item) => item.id === leadId)
-      return lead?.nome ?? 'Lead não identificado'
-    }
-
-    return (
-      <div className="dashboard-page">
-        <section className="card dashboard-panel dashboard-kpi-card">
-          <div className="card-header">
-            <h2>Resumo geral</h2>
-            <p>Indicadores consolidados de propostas, CRM e finanças da SolarInvest.</p>
-          </div>
-          <div className="kpi-grid dashboard-kpis">
-            <div className="kpi">
-              <span>Leads ativos</span>
-              <strong>{formatNumberBRWithOptions(leadsAtivos, { maximumFractionDigits: 0 })}</strong>
-            </div>
-            <div className="kpi">
-              <span>Leads fechados</span>
-              <strong>{formatNumberBRWithOptions(crmKpis.leadsFechados, { maximumFractionDigits: 0 })}</strong>
-            </div>
-            <div className="kpi">
-              <span>Orçamentos salvos</span>
-              <strong>{formatNumberBRWithOptions(totalOrcamentos, { maximumFractionDigits: 0 })}</strong>
-            </div>
-            <div className="kpi kpi-highlight">
-              <span>Previsão leasing</span>
-              <strong>{currency(crmFinanceiroResumo.previsaoLeasing)}</strong>
-            </div>
-            <div className="kpi">
-              <span>Receita recorrente (leasing)</span>
-              <strong>{currency(receitaProjetadaLeasing)}</strong>
-            </div>
-            <div className="kpi">
-              <span>Receita pontual (vendas)</span>
-              <strong>{currency(receitaProjetadaVendas)}</strong>
-            </div>
-          </div>
-        </section>
-
-        <div className="dashboard-panels">
-          <section className="card dashboard-panel">
-            <div className="card-header">
-              <h3>Próximas manutenções</h3>
-              <p>Visitas técnicas e acompanhamentos previstos para os próximos dias.</p>
-            </div>
-            <ul className="dashboard-list">
-              {proximasVisitas.length > 0 ? (
-                proximasVisitas.map((item) => (
-                  <li key={item.id}>
-                    <div>
-                      <strong>{formatarDataCurta(item.dataIso)}</strong>
-                      <span>{item.tipo}</span>
-                    </div>
-                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
-                  </li>
-                ))
-              ) : (
-                <li className="dashboard-empty">Nenhuma manutenção pendente.</li>
-              )}
-            </ul>
-            {alertasCriticos.length > 0 ? (
-              <div className="dashboard-alerts" role="status">
-                {alertasCriticos.map((alerta, index) => (
-                  <span key={index}>{alerta}</span>
-                ))}
-              </div>
-            ) : null}
-          </section>
-
-          <section className="card dashboard-panel">
-            <div className="card-header">
-              <h3>Atividades recentes</h3>
-              <p>Últimas anotações registradas pela equipe comercial.</p>
-            </div>
-            <ul className="dashboard-list">
-              {chamadosRecentes.length > 0 ? (
-                chamadosRecentes.map((item) => (
-                  <li key={item.id}>
-                    <div>
-                      <strong>{item.dataFormatada}</strong>
-                      <span>{item.mensagem}</span>
-                    </div>
-                    <span className="dashboard-list-subtitle">{formatLeadNome(item.leadId)}</span>
-                  </li>
-                ))
-              ) : (
-                <li className="dashboard-empty">Nenhuma atividade registrada nesta semana.</li>
-              )}
-            </ul>
-          </section>
-        </div>
-
-        <section className="card dashboard-panel">
-          <div className="card-header">
-            <h3>Indicadores financeiros</h3>
-            <p>Visão rápida de contratos e previsão de receita.</p>
-          </div>
-          <dl className="dashboard-metrics">
-            <div>
-              <dt>Previsão leasing</dt>
-              <dd>{currency(crmFinanceiroResumo.previsaoLeasing)}</dd>
-            </div>
-            <div>
-              <dt>Previsão vendas</dt>
-              <dd>{currency(crmFinanceiroResumo.previsaoVendas)}</dd>
-            </div>
-            <div>
-              <dt>Contratos ativos</dt>
-              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.contratosAtivos, { maximumFractionDigits: 0 })}</dd>
-            </div>
-            <div>
-              <dt>Contratos inadimplentes</dt>
-              <dd>{formatNumberBRWithOptions(crmFinanceiroResumo.inadimplentes, { maximumFractionDigits: 0 })}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section className="card dashboard-panel">
-          <div className="card-header">
-            <h3>Margens por cliente</h3>
-            <p>Projetos com maior potencial de retorno financeiro.</p>
-          </div>
-          <div className="dashboard-table-wrapper">
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">Cliente</th>
-                  <th scope="col">Modelo</th>
-                  <th scope="col">Margem</th>
-                  <th scope="col">ROI</th>
-                </tr>
-              </thead>
-              <tbody>
-                {margensDestaque.length > 0 ? (
-                  margensDestaque.map((item) => (
-                    <tr key={item.leadId}>
-                      <td>{formatLeadNome(item.leadId)}</td>
-                      <td>{item.modelo === 'LEASING' ? 'Leasing' : 'Venda direta'}</td>
-                      <td>{currency(item.margemBruta)}</td>
-                      <td>
-                        {typeof item.roi === 'number'
-                          ? `${formatNumberBRWithOptions(item.roi * 100, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 1,
-                            })}%`
-                          : '—'}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="dashboard-empty" colSpan={4}>
-                      Nenhuma margem calculada até o momento.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    )
-  }
-
-  const contentActions = activePage === 'crm' ? crmPageActions : null
+  const contentActions = activePage === 'crm'
+    ? <CrmPageActions {...crmState} onVoltar={() => setActivePage('app')} />
+    : null
   const contentSubtitle =
     activePage === 'dashboard'
       ? undefined
@@ -27202,12 +18466,6 @@ export default function App() {
                 : activeTab === 'vendas'
                   ? 'Vendas'
                   : 'Leasing'
-  const topbarSubtitle = contentSubtitle
-  const isSimulacoesMobile = isMobileViewport && activePage === 'simulacoes'
-  const mobileTopbarSubtitle = isSimulacoesMobile ? undefined : currentPageIndicator
-  const shellTopbarSubtitle = isSimulacoesMobile ? undefined : topbarSubtitle
-  const shellContentSubtitle = isSimulacoesMobile ? undefined : contentSubtitle
-  const shellPageIndicator = isSimulacoesMobile ? undefined : currentPageIndicator
 
   const crmItems = [
     ...(canSeeProposalsEffective
@@ -27283,2038 +18541,44 @@ export default function App() {
     contatosEnvio,
   })
 
-  const mobileAllowedIds = [
-    ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
-    ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
-    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
-    ...(canSeeClientsEffective ? ['crm-clientes'] : []),
-    ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
-    ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
-    ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
-  ]
-  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  const {
+    shellTopbarSubtitle,
+    mobileTopbarSubtitle,
+    shellContentSubtitle,
+    shellPageIndicator,
+    mobileAllowedIds,
+    allSidebarItems,
+    mobileSidebarGroups,
+    desktopSimpleSidebarGroups,
+    activeSidebarItem,
+    menuButtonLabel,
+    menuButtonExpanded,
+    handleSidebarMenuToggle,
+    handleSidebarNavigate,
+    handleSidebarClose,
+  } = useShellLayout({
+    activePage,
+    activeTab,
+    simulacoesSection,
+    isMobileViewport,
+    isSidebarMobileOpen,
+    isSidebarCollapsed,
+    isDesktopSimpleEnabled,
+    contentSubtitle,
+    currentPageIndicator,
+    sidebarGroups,
+    canSeeProposalsEffective,
+    canSeeContractsEffective,
+    canSeeClientsEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialAnalysisEffective,
+    canSeeFinancialManagementEffective,
+    setIsSidebarCollapsed,
+    setIsSidebarMobileOpen,
+  })
 
-  const desktopSimpleSidebarGroups: SidebarGroup[] = sidebarGroups.filter(
-    (group) => group.id !== 'simulacoes' && group.id !== 'crm',
-  )
 
-  const mobileSidebarGroups: SidebarGroup[] = isMobileViewport
-    ? [
-        {
-          id: 'mobile',
-          label: '',
-          items: mobileAllowedIds.flatMap((id) => {
-            const item = allSidebarItems.get(id)
-            return item ? [item] : []
-          }),
-        },
-      ]
-    : isDesktopSimpleEnabled
-    ? desktopSimpleSidebarGroups
-    : sidebarGroups
-
-  const renderBudgetSearchPage = () => (
-    <div className="budget-search-page">
-      <div className="budget-search-page-header">
-        <div>
-          <h2>Consultar orçamentos</h2>
-          <p>
-            Localize propostas salvas pelo cliente, documento, unidade consumidora ou código do orçamento e carregue-as
-            novamente na proposta.
-          </p>
-        </div>
-        <button type="button" className="ghost" onClick={fecharPesquisaOrcamentos}>
-          Voltar
-        </button>
-      </div>
-      <div className="budget-search-panels budget-search-panels--single budget-search-panels--budget">
-        <section className="budget-search-panel budget-search-panel--records">
-          <div className="budget-search-quick">
-            <div className="budget-search-header">
-              <h4>Consulta rápida</h4>
-              <p>Busque pelo cliente, código interno, CPF/CNPJ ou unidade consumidora.</p>
-            </div>
-            <Field
-              label={labelWithTooltip(
-                'Buscar orçamentos',
-                'Filtra propostas salvas por nome do cliente, documento, UC ou código interno.',
-              )}
-              hint="Procure pelo cliente, ID do cliente, CPF, unidade consumidora ou código do orçamento."
-            >
-              <input
-                id="budget-search-input"
-                type="search"
-                value={orcamentoSearchTerm}
-                onChange={(e) => setOrcamentoSearchTerm(e.target.value)}
-                placeholder="Ex.: ABC12, 123.456.789-00 ou SLRINVST-00001234"
-                autoFocus
-              />
-            </Field>
-            {(isAdmin || isOffice || isFinanceiro) ? (
-              <div className="owner-filter-row">
-                <label htmlFor="propostas-owner-filter">Criador/consultor</label>
-                <select
-                  id="propostas-owner-filter"
-                  value={selectedProposalOwner}
-                  onChange={(event) => setSelectedProposalOwner(event.target.value)}
-                >
-                  <option value="all">Todos os consultores</option>
-                  {proposalOwnerOptions.map((owner) => (
-                    <option key={owner} value={owner}>
-                      {owner}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            <div className="budget-search-summary">
-              <span>
-                {totalOrcamentos === 0
-                  ? 'Nenhum orçamento salvo até o momento.'
-                  : `${totalResultados} de ${totalOrcamentos} orçamento(s) exibidos.`}
-              </span>
-              {(orcamentoSearchTerm || selectedProposalOwner !== 'all') ? (
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => {
-                    setOrcamentoSearchTerm('')
-                    setSelectedProposalOwner('all')
-                  }}
-                >
-                  Limpar filtros
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <div className="budget-search-header">
-            <h4>Registros salvos</h4>
-          </div>
-          {totalOrcamentos === 0 ? (
-            <p className="budget-search-empty">Nenhum orçamento foi salvo ainda. Gere uma proposta para começar.</p>
-          ) : totalResultados === 0 ? (
-            <p className="budget-search-empty">
-              Nenhum orçamento encontrado para "<strong>{orcamentoSearchTerm}</strong>".
-            </p>
-          ) : (
-            <div className="budget-search-table">
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Cliente</th>
-                      <th>Documento</th>
-                      <th>Unidade consumidora</th>
-                      <th>Criado em</th>
-                      {(isAdmin || isOffice || isFinanceiro) ? <th className="col-nowrap">Consultor</th> : null}
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orcamentosFiltrados.map((registro) => {
-                      const documento =
-                        registro.clienteDocumento?.trim() ||
-                        registro.dados.cliente.documento?.trim() ||
-                        ''
-                      const unidadeConsumidora =
-                        registro.clienteUc?.trim() || registro.dados.cliente.uc?.trim() || ''
-                      const cidade =
-                        registro.clienteCidade?.trim() || registro.dados.cliente.cidade?.trim() || ''
-                      const uf = registro.clienteUf?.trim() || registro.dados.cliente.uf?.trim() || ''
-                      const nomeCliente =
-                        registro.clienteNome?.trim() ||
-                        registro.dados.cliente.nome?.trim() ||
-                        registro.id
-                      const registroIdPadronizado = normalizeProposalId(registro.id) || registro.id
-                      const cidadeUf = [cidade, uf].filter(Boolean).join(' / ')
-                      return (
-                        <tr
-                          key={registro.id}
-                          className={
-                            orcamentoVisualizadoInfo?.id === registroIdPadronizado ? 'is-selected' : undefined
-                          }
-                        >
-                          <td>
-                            <button
-                              type="button"
-                              className="budget-search-code"
-                              onClick={() => { void carregarOrcamentoSalvo(registro) }}
-                              title="Visualizar orçamento salvo"
-                            >
-                              {registro.id}
-                            </button>
-                          </td>
-                          <td>
-                            <div className="budget-search-client">
-                              <strong>{nomeCliente}</strong>
-                              {cidadeUf ? <span>{cidadeUf}</span> : null}
-                            </div>
-                          </td>
-                          <td>{documento || null}</td>
-                          <td>{unidadeConsumidora || null}</td>
-                          <td>{formatBudgetDate(registro.criadoEm)}</td>
-                          {(isAdmin || isOffice || isFinanceiro) ? (
-                            <td data-label="Consultor">
-                              {registro.ownerName ? (
-                                <span className="budget-search-owner">{registro.ownerName}</span>
-                              ) : null}
-                            </td>
-                          ) : null}
-                          <td>
-                            <div className="budget-search-actions">
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void carregarOrcamentoSalvo(registro) }}
-                                aria-label="Carregar orçamento salvo"
-                                title="Carregar orçamento"
-                              >
-                                📂
-                              </button>
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void abrirOrcamentoSalvo(registro, 'preview') }}
-                                aria-label="Visualizar orçamento salvo"
-                                title="Visualizar orçamento"
-                              >
-                                👁
-                              </button>
-                              <button
-                                type="button"
-                                className="budget-search-action"
-                                onClick={() => { void abrirOrcamentoSalvo(registro, 'download') }}
-                                aria-label="Baixar orçamento em PDF"
-                                title="Baixar PDF"
-                              >
-                                ⤓
-                              </button>
-                              {!isProposalReadOnly && (
-                              <button
-                                type="button"
-                                className="budget-search-action danger"
-                                onClick={() => void confirmarRemocaoOrcamento(registro)}
-                                aria-label="Excluir orçamento salvo"
-                                title="Excluir orçamento salvo"
-                              >
-                                🗑
-                              </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      </div>
-      {orcamentoVisualizado ? (
-        <section className="budget-search-panel budget-search-viewer">
-          <div className="budget-search-header">
-            <h4>
-              Visualizando orçamento <strong>{orcamentoVisualizadoInfo?.id ?? '—'}</strong>
-            </h4>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                setOrcamentoVisualizado(null)
-                setOrcamentoVisualizadoInfo(null)
-              }}
-            >
-              Fechar visualização
-            </button>
-          </div>
-          <p className="budget-viewer-subtitle">
-            Dados somente leitura para {orcamentoVisualizadoInfo?.cliente ?? 'o cliente selecionado'}.
-          </p>
-          <div className="budget-viewer-body">
-            <React.Suspense fallback={<p className="budget-search-empty">Carregando orçamento selecionado…</p>}>
-              <div className="budget-viewer-content">
-                <PrintableProposal {...orcamentoVisualizado} />
-              </div>
-            </React.Suspense>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  )
-
-  const renderSimulacoesPage = () => {
-    const formatAprovacaoData = (timestamp: number | null) => {
-      if (!timestamp) {
-        return '—'
-      }
-      try {
-        return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
-          new Date(timestamp),
-        )
-      } catch (_error) {
-        return '—'
-      }
-    }
-
-    const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
-    const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
-    const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
-      'nova',
-      'salvas',
-      'ia',
-      'risco',
-      'packs',
-      'packs-inteligentes',
-    ])
-
-    return (
-      <div
-        className={`simulacoes-page${
-          isMobileViewport && simulacoesSection === 'analise'
-            ? ' simulacoes-page--analise-mobile'
-            : ''
-        }`}
-      >
-        {isAnaliseMobileSimpleView ? null : (
-          <div className="simulacoes-hero-card">
-            <div>
-              <p className="simulacoes-tag">Módulo dedicado</p>
-              <h2>Simulações &amp; análise financeira</h2>
-              <p>{sectionCopy}</p>
-            </div>
-            <div className="simulacoes-hero-actions">
-              <span className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</span>
-              <small>Última decisão: {formatAprovacaoData(ultimaDecisaoTimestamp)}</small>
-              <div className="simulacoes-hero-buttons">
-                <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                  Aprovar
-                </button>
-                <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                  Reprovar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <nav className="simulacoes-nav" aria-label="Navegação do módulo de simulações">
-          {SIMULACOES_MENU.filter((item) => !(isAnaliseMobileSimpleView && hiddenAnaliseMobileMenuIds.has(item.id))).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`simulacoes-nav-btn${simulacoesSection === item.id ? ' is-active' : ''}`}
-              onClick={() => void abrirSimulacoes(item.id)}
-              aria-current={simulacoesSection === item.id ? 'page' : undefined}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.description}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="simulacoes-panels">
-          <section
-            className="simulacoes-main-card"
-            hidden={!isSimulacoesWorkspaceActive}
-            aria-hidden={!isSimulacoesWorkspaceActive}
-            style={{ display: isSimulacoesWorkspaceActive ? 'flex' : 'none' }}
-          >
-            <header>
-              <div>
-                <p className="simulacoes-tag ghost">Workspace</p>
-                <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
-                <p className="simulacoes-description">
-                  Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
-                  área.
-                </p>
-              </div>
-            </header>
-            <React.Suspense fallback={null}>
-              <SimulacoesTab
-                consumoKwhMes={kcKwhMes}
-                valorInvestimento={capexSolarInvest}
-                tipoSistema={tipoSistema}
-                prazoLeasingAnos={leasingPrazo}
-              />
-            </React.Suspense>
-          </section>
-
-          {simulacoesSection === 'ia' ? (
-            <section className="simulacoes-module-card">
-              <header>
-                <h3>Análises IA</h3>
-                <p>Insights automáticos, recomendações de desconto e priorização de cenários sensíveis.</p>
-              </header>
-              <div className="simulacoes-module-grid">
-                <div className="simulacoes-module-tile">
-                  <h4>KPIs monitorados</h4>
-                  <ul>
-                    <li>ROI, TIR e payback revisados continuamente.</li>
-                    <li>Alertas de margem mínima e spread solar.</li>
-                    <li>Clustering de consumo por perfil residencial ou empresarial.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Recomendações</h4>
-                  <ul>
-                    <li>Descontos ótimos por distribuidora e bandeira.</li>
-                    <li>Revisão automática de TUSD e capex.</li>
-                    <li>Geração de sugestões para Packs Inteligentes.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Exportação</h4>
-                  <ul>
-                    <li>Resumo IA preparado para PDF interno e externo.</li>
-                    <li>Trilha de recomendações com timestamp.</li>
-                    <li>Integração com painel de aprovação.</li>
-                  </ul>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {simulacoesSection === 'risco' ? (
-            <section className="simulacoes-module-card">
-              <header>
-                <h3>Risco &amp; Monte Carlo</h3>
-                <p>Simulações de risco em tela cheia, cobrindo volatilidade tarifária e performance energética.</p>
-              </header>
-              <div className="simulacoes-module-grid">
-                <div className="simulacoes-module-tile">
-                  <h4>Entradas</h4>
-                  <ul>
-                    <li>Inflação energética, TUSD e consumo ajustável.</li>
-                    <li>Distribuições customizadas para cenários pessimista e otimista.</li>
-                    <li>Capex SolarInvest com seguro e encargo embutidos.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Saídas</h4>
-                  <ul>
-                    <li>Faixas de VPL e ROI com IC 95%.</li>
-                    <li>Mapa de sensibilidade full-width.</li>
-                    <li>Exportação rápida para análise interna.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Operação</h4>
-                  <ul>
-                    <li>Rodadas paralelas para cada cenário salvo.</li>
-                    <li>Integração com IA para detectar outliers.</li>
-                    <li>Pronto para aprovação interna no próximo passo.</li>
-                  </ul>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {simulacoesSection === 'packs' ? (
-            <section className="simulacoes-module-card">
-              <header>
-                <h3>Packs</h3>
-                <p>Biblioteca de pacotes comerciais agrupando kits, composições e propostas aprovadas.</p>
-              </header>
-              <div className="simulacoes-module-grid">
-                <div className="simulacoes-module-tile">
-                  <h4>Organização</h4>
-                  <ul>
-                    <li>Separação por segmento (residencial, comercial, rural).</li>
-                    <li>Padrões de desconto e prazo salvos.</li>
-                    <li>Tags rápidas para buscas no CRM.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>Aplicação</h4>
-                  <ul>
-                    <li>Aplicar pack diretamente no workspace.</li>
-                    <li>Duplicar e adaptar valores de mercado.</li>
-                    <li>Conectar com proposta PDF em um clique.</li>
-                  </ul>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {simulacoesSection === 'packs-inteligentes' ? (
-            <section className="simulacoes-module-card">
-              <header>
-                <h3>Packs Inteligentes</h3>
-                <p>Fluxos automatizados com IA, definindo upgrades de forma preditiva.</p>
-              </header>
-              <div className="simulacoes-module-grid">
-                <div className="simulacoes-module-tile">
-                  <h4>Automação</h4>
-                  <ul>
-                    <li>Regras por ROI mínimo e VPL alvo.</li>
-                    <li>Ajuste automático de potência e seguros.</li>
-                    <li>Alertas quando o pack sai da faixa aprovada.</li>
-                  </ul>
-                </div>
-                <div className="simulacoes-module-tile">
-                  <h4>IA Assistida</h4>
-                  <ul>
-                    <li>Sugere combinações de módulos e inversores.</li>
-                    <li>Reaproveita simulações vencedoras.</li>
-                    <li>Cria versões para teste A/B com clientes.</li>
-                  </ul>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {simulacoesSection === 'analise' ? (
-            <section className="simulacoes-module-card af-section">
-              <header>
-                <h3>Análise Financeira</h3>
-                <p>Motor Spreadsheet v1 — cálculo completo de Venda e Leasing com preço mínimo saudável.</p>
-              </header>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => {
-                    setAfConsumoOverride(0)
-                    setAfNumModulosOverride(null)
-                    // Clear manual-edit flags so future consumo changes auto-update Kit, Frete and Material CA
-                    setAfCustoKitManual(false)
-                    setAfFreteManual(false)
-                    // Directly apply the updated formulas using current proposal consumo
-                    setAfCustoKit(kcKwhMes > 0 ? Math.round(1500 + 9.5 * kcKwhMes) : 0)
-                    setAfFrete(kcKwhMes > 0 ? Math.round(300 + 0.52 * kcKwhMes) : 0)
-                    setAfAutoMaterialCA(kcKwhMes > 0 ? Math.max(1000, Math.round(850 + 0.4 * kcKwhMes)) : 0)
-                    setAfValorContrato(0)
-                    setAfDescarregamento(0)
-                    setAfHotelPousada(0)
-                    setAfTransporteCombustivel(0)
-                    setAfOutros(0)
-                    setAfCidadeDestino('')
-                    setAfDeslocamentoKm(0)
-                    setAfDeslocamentoRs(0)
-                    setAfDeslocamentoStatus('idle')
-                    setAfDeslocamentoCidadeLabel('')
-                    setAfDeslocamentoErro('')
-                    setAfMaterialCAOverride(null)
-                    setAfProjetoOverride(null)
-                    setAfCreaOverride(null)
-                    setAfCidadeSuggestions([])
-                    setAfCidadeShowSuggestions(false)
-                    setAfMensalidadeBase(0)
-                    afBaseInitializedRef.current = false
-                  }}
-                >
-                  Nova Análise
-                </button>
-              </div>
-
-              {/* Mode tabs */}
-              <div
-                className="cfg-tabs af-mode-tabs"
-                role="tablist"
-                aria-label="Modo de análise"
-                style={{ marginBottom: '1rem' }}
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={afModo === 'venda'}
-                  className={`cfg-tab af-mode-tab${afModo === 'venda' ? ' is-active' : ''}`}
-                  onClick={() => setAfModo('venda')}
-                >
-                  Venda
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={afModo === 'leasing'}
-                  className={`cfg-tab af-mode-tab${afModo === 'leasing' ? ' is-active' : ''}`}
-                  onClick={() => setAfModo('leasing')}
-                >
-                  Leasing
-                </button>
-              </div>
-
-              {/* System base info (editable overrides) */}
-              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                <h4>Base do sistema</h4>
-                <div className="grid g3">
-                  <Field label="Consumo (kWh/mês)">
-                    <input
-                      type="number"
-                      value={afConsumoOverride}
-                      min={0}
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => {
-                        const consumo = Number(e.target.value) || 0
-                        setAfConsumoOverride(consumo)
-                        if (consumo > 0) {
-                          const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
-                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
-                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
-                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
-                          const fator = irr * pr * dias
-                          if (fator > 0 && modWp > 0) {
-                            const n = Math.max(1, Math.ceil((consumo / fator * 1000) / modWp))
-                            setAfNumModulosOverride(n)
-                          } else {
-                            setAfNumModulosOverride(null)
-                          }
-                        } else {
-                          setAfNumModulosOverride(null)
-                        }
-                      }}
-                    />
-                  </Field>
-                  <Field label="Nº de módulos (estimado)">
-                    <input
-                      type="number"
-                      min={0}
-                      value={afNumModulosOverride ?? 0}
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => {
-                        const n = Math.round(Number(e.target.value) || 0)
-                        if (n > 0) {
-                          setAfNumModulosOverride(n)
-                          const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
-                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
-                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
-                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
-                          const fator = irr * pr * dias
-                          if (fator > 0 && modWp > 0) {
-                            const kwp = (n * modWp) / 1000
-                            setAfConsumoOverride(Math.round(kwp * fator * 100) / 100)
-                          }
-                        } else {
-                          setAfNumModulosOverride(null)
-                          setAfConsumoOverride(0)
-                        }
-                      }}
-                    />
-                  </Field>
-                  <Field label="Potência do sistema (kWp)">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={
-                        afNumModulosOverride != null && afNumModulosOverride > 0
-                          ? ((afNumModulosOverride * (afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo)) / 1000).toFixed(2)
-                          : '0'
-                      }
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => {
-                        const kwp = Number(e.target.value) || 0
-                        const modWp = afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo
-                        if (kwp > 0 && modWp > 0) {
-                          const n = Math.max(1, Math.ceil((kwp * 1000) / modWp))
-                          setAfNumModulosOverride(n)
-                          const irr = afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao
-                          const pr = afPROverride > 0 ? afPROverride : eficienciaNormalizada
-                          const dias = afDiasOverride > 0 ? afDiasOverride : diasMesNormalizado
-                          const fator = irr * pr * dias
-                          if (fator > 0) {
-                            setAfConsumoOverride(Math.round(kwp * fator * 100) / 100)
-                          }
-                        } else {
-                          setAfNumModulosOverride(null)
-                          setAfConsumoOverride(0)
-                        }
-                      }}
-                    />
-                  </Field>
-                  <Field label="Irradiação (kWh/m²/dia)">
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={afIrradiacaoOverride > 0 ? afIrradiacaoOverride : baseIrradiacao}
-                      min={0}
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => setAfIrradiacaoOverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Performance ratio">
-                    <input
-                      type="number"
-                      step="0.001"
-                      value={afPROverride > 0 ? afPROverride : eficienciaNormalizada}
-                      min={0}
-                      max={1}
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => setAfPROverride(Number(e.target.value) || 0)}
-                    />
-                  </Field>
-                  <Field label="Módulo (Wp)">
-                    <input
-                      type="number"
-                      value={afModuloWpOverride > 0 ? afModuloWpOverride : potenciaModulo}
-                      min={1}
-                      onFocus={selectNumberInputOnFocus}
-                      onChange={(e) => {
-                        const wp = Number(e.target.value) || 0
-                        setAfModuloWpOverride(wp)
-                    }}
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              {/* Editable inputs */}
-              <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                <h4>Custos diretos</h4>
-                <div className="grid g3">
-                  <Field label="Custo do Kit (R$)">
-                    <input
-                      ref={afCustoKitField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afCustoKitField.text}
-                      style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                      onChange={afCustoKitField.handleChange}
-                      onBlur={afCustoKitField.handleBlur}
-                      onFocus={afCustoKitField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Frete (R$)">
-                    <input
-                      ref={afFreteField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afFreteField.text}
-                      onChange={afFreteField.handleChange}
-                      onBlur={afFreteField.handleBlur}
-                      onFocus={afFreteField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Descarregamento (R$)">
-                    <input
-                      ref={afDescarregamentoField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afDescarregamentoField.text}
-                      onChange={afDescarregamentoField.handleChange}
-                      onBlur={afDescarregamentoField.handleBlur}
-                      onFocus={afDescarregamentoField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Material CA (R$)">
-                    <input
-                      ref={afMaterialCAField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afMaterialCAField.text}
-                      onChange={afMaterialCAField.handleChange}
-                      onBlur={afMaterialCAField.handleBlur}
-                      onFocus={afMaterialCAField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Placa (R$)">
-                    <input
-                      ref={afPlacaField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afPlacaField.text}
-                      onChange={afPlacaField.handleChange}
-                      onBlur={afPlacaField.handleBlur}
-                      onFocus={afPlacaField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label={labelWithTooltip('Projeto (R$)', 'Custo do projeto elétrico. Calculado automaticamente pela potência do sistema, mas pode ser editado manualmente.')}>
-                    <input
-                      ref={afProjetoField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afProjetoField.text}
-                      onChange={afProjetoField.handleChange}
-                      onBlur={afProjetoField.handleBlur}
-                      onFocus={afProjetoField.handleFocus}
-                      placeholder={analiseFinanceiraResult ? formatMoneyBR(analiseFinanceiraResult.custo_projeto_rs) : MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label={labelWithTooltip('CREA (R$)', 'Taxa do Conselho Regional de Engenharia. Calculada automaticamente pela UF, mas pode ser editada manualmente.')}>
-                    <input
-                      ref={afCreaField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afCreaField.text}
-                      onChange={afCreaField.handleChange}
-                      onBlur={afCreaField.handleBlur}
-                      onFocus={afCreaField.handleFocus}
-                      placeholder={analiseFinanceiraResult ? formatMoneyBR(analiseFinanceiraResult.crea_rs) : MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Instalação (R$)">
-                    <input
-                      type="number"
-                      value={
-                        analiseFinanceiraResult
-                          ? analiseFinanceiraResult.quantidade_modulos * 70
-                          : 0
-                      }
-                      readOnly
-                      disabled
-                    />
-                  </Field>
-                  <Field label="Hotel/Pousada (R$)">
-                    <input
-                      ref={afHotelPousadaField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afHotelPousadaField.text}
-                      onChange={afHotelPousadaField.handleChange}
-                      onBlur={afHotelPousadaField.handleBlur}
-                      onFocus={afHotelPousadaField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label="Transporte/Combustível (R$)">
-                    <input
-                      ref={afTransporteCombustivelField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afTransporteCombustivelField.text}
-                      readOnly
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                    {afDeslocamentoStatus === 'isenta' && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-success-fg, green)' }}>
-                        ✓ {afDeslocamentoCidadeLabel} — Região isenta (R$0)
-                      </span>
-                    )}
-                    {afDeslocamentoStatus === 'ok' && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-info-fg, #2563eb)' }}>
-                        ✓ {afDeslocamentoCidadeLabel} — {afDeslocamentoKm} km ida+volta → {formatMoneyBR(afDeslocamentoRs)}
-                      </span>
-                    )}
-                    {afDeslocamentoStatus === 'error' && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-error-fg, red)' }}>
-                        ⚠ {afDeslocamentoErro}
-                      </span>
-                    )}
-                  </Field>
-                  <Field label="Outros (R$)">
-                    <input
-                      ref={afOutrosField.ref}
-                      type="text"
-                      inputMode="decimal"
-                      value={afOutrosField.text}
-                      onChange={afOutrosField.handleChange}
-                      onBlur={afOutrosField.handleBlur}
-                      onFocus={afOutrosField.handleFocus}
-                      placeholder={MONEY_INPUT_PLACEHOLDER}
-                    />
-                  </Field>
-                  <Field label={`Impostos (%) — ${afModo === 'venda' ? 'Venda' : 'Leasing'}`}>
-                    <input
-                      type="number"
-                      value={afModo === 'venda' ? afImpostosVenda : afImpostosLeasing}
-                      min={0}
-                      max={100}
-                      onChange={(e) => {
-                        const val = Number(e.target.value) || 0
-                        if (afModo === 'venda') setAfImpostosVenda(val)
-                        else setAfImpostosLeasing(val)
-                      }}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  {afModo === 'venda' ? (
-                    <>
-                      <Field label="Margem líquida alvo (%)">
-                        <input
-                          type="number"
-                          value={afMargemLiquidaVenda}
-                          min={0}
-                          max={99}
-                          onChange={(e) => setAfMargemLiquidaVenda(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field label="Margem líquida mínima (%)">
-                        <input
-                          type="number"
-                          value={afMargemLiquidaMinima}
-                          min={0}
-                          max={99}
-                          onChange={(e) => setAfMargemLiquidaMinima(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                    </>
-                  ) : null}
-                  <Field label={labelWithTooltip('Taxa de desconto VPL (% a.a.)', 'Taxa anual usada para calcular o VPL (Valor Presente Líquido). Deixe em 0 para não calcular o VPL.')}>
-                    <input
-                      type="number"
-                      value={afTaxaDesconto}
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      onChange={(e) => setAfTaxaDesconto(Number(e.target.value) || 0)}
-                      onFocus={selectNumberInputOnFocus}
-                    />
-                  </Field>
-                  {afModo === 'leasing' ? (
-                    <>
-                      <Field label="Inadimplência (%)">
-                        <input
-                          type="number"
-                          value={afInadimplencia}
-                          min={0}
-                          max={100}
-                          onChange={(e) => setAfInadimplencia(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field label="Custo operacional (%)">
-                        <input
-                          type="number"
-                          value={afCustoOperacional}
-                          min={0}
-                          max={100}
-                          onChange={(e) => setAfCustoOperacional(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field label="Horizonte de análise (meses)">
-                        <input
-                          type="number"
-                          value={afMesesProjecao}
-                          min={1}
-                          onChange={(e) => setAfMesesProjecao(Math.max(1, Number(e.target.value) || 1))}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field label="Mensalidade base (R$)">
-                        <input
-                          ref={afMensalidadeBaseField.ref}
-                          type="text"
-                          inputMode="decimal"
-                          value={afMensalidadeBaseField.text}
-                          onChange={afMensalidadeBaseField.handleChange}
-                          onBlur={afMensalidadeBaseField.handleBlur}
-                          onFocus={afMensalidadeBaseField.handleFocus}
-                          placeholder={afMensalidadeBaseAuto > 0 ? formatMoneyBR(afMensalidadeBaseAuto) : '—'}
-                        />
-                      </Field>
-                    </>
-                  ) : null}
-                </div>
-                <div style={{ marginTop: '0.75rem' }}>
-                  <Field label={labelWithTooltip('UF / Cidade', `Digite a cidade para definir a UF e calcular automaticamente o custo de deslocamento da equipe a partir de ${BASE_CITY_NAME}.`)}>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        type="text"
-                        value={afCidadeDestino}
-                        onChange={(e) => {
-                          setAfCidadeDestino(e.target.value)
-                          setAfCidadeShowSuggestions(true)
-                          if (!e.target.value.trim()) {
-                            setAfDeslocamentoStatus('idle')
-                            setAfDeslocamentoKm(0)
-                            setAfDeslocamentoRs(0)
-                            setAfDeslocamentoCidadeLabel('')
-                            setAfDeslocamentoErro('')
-                            setAfTransporteCombustivel(0)
-                          }
-                        }}
-                        onFocus={() => {
-                          if (afCidadeBlurTimerRef.current) clearTimeout(afCidadeBlurTimerRef.current)
-                          setAfCidadeShowSuggestions(true)
-                        }}
-                        onBlur={() => {
-                          afCidadeBlurTimerRef.current = setTimeout(() => setAfCidadeShowSuggestions(false), 150)
-                        }}
-                        placeholder="Ex: Goiânia ou goiania ou Brasilia"
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      {afCidadeShowSuggestions && afCidadeSuggestions.length > 0 && (
-                        <ul style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 50,
-                          background: 'var(--color-surface, #fff)',
-                          border: '1px solid var(--color-border, #e2e8f0)',
-                          borderRadius: '4px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                          listStyle: 'none',
-                          margin: 0,
-                          padding: '0.25rem 0',
-                          maxHeight: '220px',
-                          overflowY: 'auto',
-                        }}>
-                          {afCidadeSuggestions.map((city) => (
-                            <li
-                              key={`${city.cidade}-${city.uf}`}
-                              onMouseDown={() => handleSelectCidade(city)}
-                              style={{
-                                padding: '0.4rem 0.75rem',
-                                cursor: 'pointer',
-                                fontSize: '0.875rem',
-                              }}
-                            >
-                              {city.cidade} — {city.uf}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </Field>
-                </div>
-                <p className="simulacoes-description" style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>
-                  Parâmetros fixos (custo fixo rateado {vendasConfig.af_custo_fixo_rateado_percent}%, lucro mínimo {vendasConfig.af_lucro_minimo_percent}%) configurados em Preferências → Parâmetros de Vendas.
-                </p>
-              </div>
-
-              {/* Results */}
-              {analiseFinanceiraResult ? (
-                <>
-                  {/* Venda results — hidden for leasing */}
-                  {afModo === 'venda' && analiseFinanceiraResult.custo_variavel_total_rs != null ? (
-                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                      <h4>Resultados</h4>
-                      {afModo === 'venda' ? (
-                        <div style={{ marginBottom: '0.75rem' }}>
-                          <Field label="Valor do Contrato (R$)">
-                            <input
-                              ref={afValorContratoField.ref}
-                              type="text"
-                              inputMode="decimal"
-                              value={afValorContratoField.text}
-                              style={{ outline: '2px solid var(--color-accent, #2563eb)', borderRadius: '4px' }}
-                              onChange={afValorContratoField.handleChange}
-                              onBlur={afValorContratoField.handleBlur}
-                              onFocus={afValorContratoField.handleFocus}
-                              placeholder={MONEY_INPUT_PLACEHOLDER}
-                            />
-                          </Field>
-                          <Field label="Comissão mínima (%)">
-                            <input
-                              type="number"
-                              value={afComissaoMinimaPercent}
-                              min={0}
-                              max={100}
-                              onChange={(e) => setAfComissaoMinimaPercent(Number(e.target.value) || 0)}
-                              onFocus={selectNumberInputOnFocus}
-                            />
-                          </Field>
-                        </div>
-                      ) : null}
-                      <div className="info-inline">
-                        <span className="pill">Custo variável total <InfoTooltip text="Soma de todos os custos diretos do projeto: kit, frete, descarregamento, hospedagem, material CA e mão de obra estimada." /> <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs)}</strong></span>
-                        {afValorContrato > 0 ? (
-                          <>
-                            <span className="pill">Margem bruta <InfoTooltip text="Diferença entre o valor do contrato e o custo variável total. Representa o valor disponível para cobrir impostos, custos fixos e gerar lucro." /> <strong>{currency(analiseFinanceiraResult.margem_rs ?? 0)}</strong></span>
-                            <span className="pill">Impostos <InfoTooltip text="Valor estimado de impostos sobre o faturamento, calculado com base na alíquota configurada." /> <strong>{currency(analiseFinanceiraResult.impostos_rs ?? 0)}</strong></span>
-                            <span className="pill">Lucro s/ comissão <InfoTooltip text="Lucro líquido antes de descontar a comissão do vendedor. Resultado da margem bruta menos impostos e custos fixos." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_sem_comissao_rs ?? 0)}</strong></span>
-                            <span className="pill">Margem s/ comissão <InfoTooltip text="Percentual de margem líquida sobre o valor do contrato, antes de considerar a comissão do vendedor." /> <strong>{(analiseFinanceiraResult.margem_liquida_sem_comissao_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Comissão <InfoTooltip text="Comissão mínima aplicada sobre o valor do contrato somente quando a margem líquida sem comissão já atinge a margem mínima." /> <strong>{(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(2)}% = {currency(analiseFinanceiraResult.comissao_rs ?? 0)}</strong></span>
-                            <span className="pill">Custo total real <InfoTooltip text="Custo total efetivo do projeto incluindo custos variáveis, impostos, custos fixos rateados e comissão do vendedor." /> <strong>{currency(analiseFinanceiraResult.custo_total_real_rs ?? 0)}</strong></span>
-                            <span className="pill">Lucro líquido final <InfoTooltip text="Lucro efetivo após deduzir todos os custos (variáveis, impostos, fixos e comissão) do valor do contrato." /> <strong>{currency(analiseFinanceiraResult.lucro_liquido_final_rs ?? 0)}</strong></span>
-                            <span className="pill">Margem líquida final <InfoTooltip text="Percentual de lucro líquido sobre o valor do contrato, após todos os custos incluindo comissão. Indica a rentabilidade real do projeto." /> <strong>{(analiseFinanceiraResult.margem_liquida_final_percent ?? 0).toFixed(2)}%</strong></span>
-                            <span className="pill">Desconto máximo <InfoTooltip text="Percentual máximo de desconto sobre o valor do contrato para manter a margem líquida mínima já considerando a comissão mínima." /> <strong>{(analiseFinanceiraResult.desconto_maximo_percent ?? 0).toFixed(2)}%</strong></span>
-                          </>
-                        ) : null}
-                      </div>
-                      {(analiseFinanceiraResult.preco_minimo_aceitavel_rs != null || analiseFinanceiraResult.preco_minimo_saudavel_rs != null) ? (
-                        <div className="price-band">
-                          <p className="price-band-title">Recomendações de Preço</p>
-                          <div className="price-band-row">
-                            {analiseFinanceiraResult.preco_minimo_aceitavel_rs != null ? (
-                              <span className="pill pill--warning pill--price">
-                                Preço Mín. Aceitável <InfoTooltip text={`Menor preço de venda que garante a margem líquida mínima de ${afMargemLiquidaMinima}%, sem incluir comissão do vendedor. Abaixo deste valor a venda é bloqueada.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_aceitavel_rs)}</strong>
-                              </span>
-                            ) : null}
-                            {analiseFinanceiraResult.preco_minimo_saudavel_rs != null ? (
-                              <span className="pill pill--success pill--price">
-                                Preço Mín. Saudável <InfoTooltip text={`Preço mínimo que garante a margem líquida mínima de ${afMargemLiquidaMinima}% e ainda cobre a comissão mínima do vendedor (${afComissaoMinimaPercent}%). Abaixo deste valor não há comissão.`} /> <strong>{currency(analiseFinanceiraResult.preco_minimo_saudavel_rs)}</strong>
-                              </span>
-                            ) : null}
-                            {analiseFinanceiraResult.preco_ideal_rs != null ? (
-                              <span className="pill pill--info pill--price">
-                                Preço Ideal <InfoTooltip text={`Preço calculado para atingir a margem líquida alvo de ${afMargemLiquidaVenda}% após a comissão mínima do vendedor.`} /> <strong>{currency(analiseFinanceiraResult.preco_ideal_rs)}</strong>
-                              </span>
-                            ) : null}
-                          </div>
-                          {afValorContrato > 0 ? (
-                            <div className="price-band-row">
-                              {analiseFinanceiraResult.status_venda === 'BLOQUEAR_VENDA' ? (
-                                <span className="pill pill--error">
-                                  🚫 VENDA NÃO APROVADA
-                                </span>
-                              ) : analiseFinanceiraResult.status_venda === 'SEM_COMISSAO' ? (
-                                <span className="pill pill--warning">
-                                  ⚠️ SEM COMISSÃO
-                                </span>
-                              ) : analiseFinanceiraResult.status_venda === 'COMISSAO_MINIMA' ? (
-                                <span className="pill pill--info">
-                                  💼 COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
-                                </span>
-                              ) : (
-                                <span className="pill pill--success">
-                                  ✅ VENDA SAUDÁVEL — COMISSÃO {(analiseFinanceiraResult.comissao_percent ?? 0).toFixed(1)}%
-                                </span>
-                              )}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {/* Leasing results */}
-                  {afModo === 'leasing' && analiseFinanceiraResult.custo_total_rs != null ? (
-                    <>
-                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                        <h4>Composição Mensal — Leasing</h4>
-                        <div className="info-inline">
-                          <span className="pill">Mensalidade bruta <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
-                          <span className="pill">Impostos ({afImpostosLeasing}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afImpostosLeasing / 100)}/mês</strong></span>
-                          <span className="pill">Inadimplência esperada ({afInadimplencia}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}/mês</strong></span>
-                          <span className="pill">Custo operacional ({afCustoOperacional}%) <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afCustoOperacional / 100)}/mês</strong></span>
-                          <span className="pill pill--info">Receita líquida mensal <strong>{currency(analiseFinanceiraResult.receita_liquida_mensal_rs ?? analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0)}</strong></span>
-                          <span className="pill pill--success">Lucro mensal médio <strong>{currency(analiseFinanceiraResult.lucro_mensal_medio_rs ?? 0)}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                        <h4>Investimento — Leasing</h4>
-                        <div className="info-inline">
-                          <span className="pill">CAPEX <strong>{currency(analiseFinanceiraResult.custo_variavel_total_rs ?? 0)}</strong></span>
-                          <span className="pill">Comissão / CAC <strong>{currency(analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
-                          <span className="pill">Seguro obrigatório <strong>{currency(analiseFinanceiraResult.seguro_rs ?? 0)}</strong></span>
-                          <span className="pill pill--info">Investimento total <InfoTooltip text="Investimento total = CAPEX + CAC + Seguro. Esta é a base de retorno do projeto no leasing." /> <strong>{currency(analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                        <h4>Retorno e Rentabilidade — Leasing</h4>
-                        <div className="info-inline">
-                          <span className="pill pill--success">Payback total <strong>{analiseFinanceiraResult.payback_total_meses != null ? `${analiseFinanceiraResult.payback_total_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} meses` : '—'}</strong></span>
-                          <span className="pill">Break-even (mês) <strong>{analiseFinanceiraResult.break_even_meses != null ? `${analiseFinanceiraResult.break_even_meses.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}` : '—'}</strong></span>
-                          <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
-                          <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
-                          <span className="pill">VPL <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
-                          <span className="pill">Payback descontado <strong>{analiseFinanceiraResult.payback_descontado_meses != null ? `${analiseFinanceiraResult.payback_descontado_meses} meses` : '—'}</strong></span>
-                          <span className="pill">Receita total do contrato <strong>{currency(analiseFinanceiraResult.receita_total_contrato_rs ?? analiseFinanceiraResult.comissao_leasing_rs ?? 0)}</strong></span>
-                          <span className="pill">Lucro total do contrato <strong>{currency(analiseFinanceiraResult.lucro_total_contrato_rs ?? analiseFinanceiraResult.lucro_rs ?? 0)}</strong></span>
-                          <span className="pill">Múltiplo do capital <strong>{analiseFinanceiraResult.multiplo_capital_investido != null ? `${analiseFinanceiraResult.multiplo_capital_investido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x` : '—'}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                        <h4>Indicador de eficiência do projeto</h4>
-                        <div className="info-inline">
-                          <span className={`pill ${indicadorEficienciaProjeto != null && indicadorEficienciaProjeto.score >= 85 ? 'pill--success' : indicadorEficienciaProjeto != null && indicadorEficienciaProjeto.score >= 70 ? 'pill--info' : indicadorEficienciaProjeto != null && indicadorEficienciaProjeto.score >= 50 ? 'pill--warning' : 'pill--error'}`}>
-                            Indicador de eficiência do projeto <strong>{indicadorEficienciaProjeto != null ? `${indicadorEficienciaProjeto.score}/100 — ${indicadorEficienciaProjeto.classificacao}` : '—'}</strong>
-                          </span>
-                          <span className="pill">Resumo composto da eficiência financeira do leasing com base em retorno, prazo e capital investido.</span>
-                        </div>
-                      </div>
-
-                      <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                        <h4>Risco e Sensibilidade — Leasing</h4>
-                        <div className="info-inline">
-                          <span className="pill">Impacto da inadimplência no lucro mensal <strong>{currency((analiseFinanceiraResult.comissao_leasing_rs ?? 0) * afInadimplencia / 100)}</strong></span>
-                          {[afInadimplencia, afInadimplencia + 3, afInadimplencia + 6].map((scenarioPct, index) => {
-                            const pct = Math.max(0, scenarioPct)
-                            const fator = 1 - (afImpostosLeasing + afCustoOperacional + pct) / 100
-                            const receitaMensal = (analiseFinanceiraResult.comissao_leasing_rs ?? 0) * fator
-                            const payback = receitaMensal > 0
-                              ? (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0) / receitaMensal
-                              : null
-                            const meses = Math.max(1, afMesesProjecao)
-                            const lucroTotal = receitaMensal * meses - (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)
-                            const roi = (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0) > 0
-                              ? (lucroTotal / (analiseFinanceiraResult.investimento_total_leasing_rs ?? 0)) * 100
-                              : 0
-                            const label = index === 0 ? 'Base' : index === 1 ? 'Moderado' : 'Estressado'
-                            return (
-                              <span key={label} className="pill">
-                                Inadimplência {label} ({pct.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%):
-                                {' '}Lucro/mês <strong>{currency(receitaMensal)}</strong> · Payback <strong>{payback != null ? `${payback.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}m` : '—'}</strong> · ROI <strong>{roi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong>
-                              </span>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
-
-                  {/* KPIs */}
-                  {afModo === 'venda' ? (
-                    <div className="simulacoes-module-tile" style={{ marginBottom: '1rem' }}>
-                      <h4>Indicadores Financeiros — Venda</h4>
-                      <div className="info-inline">
-                        <span className="pill">ROI <strong>{analiseFinanceiraResult.roi_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></span>
-                        <span className="pill">Payback <strong>{analiseFinanceiraResult.payback_meses != null ? `${analiseFinanceiraResult.payback_meses} meses` : '—'}</strong></span>
-                        <span className="pill">TIR mensal <InfoTooltip text="Taxa Interna de Retorno por período (mês). Não disponível quando o fluxo não tem mudança de sinal." /> <strong>{analiseFinanceiraResult.tir_mensal_percent != null ? `${analiseFinanceiraResult.tir_mensal_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
-                        <span className="pill">TIR anual <strong>{analiseFinanceiraResult.tir_anual_percent != null ? `${analiseFinanceiraResult.tir_anual_percent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : '—'}</strong></span>
-                        <span className="pill">VPL <InfoTooltip text={afTaxaDesconto > 0 ? `Valor Presente Líquido com taxa de desconto de ${afTaxaDesconto}% a.a.` : 'Informe a taxa de desconto (% a.a.) acima para calcular o VPL.'} /> <strong>{analiseFinanceiraResult.vpl != null ? currency(analiseFinanceiraResult.vpl) : '—'}</strong></span>
-                        {analiseFinanceiraResult.payback_descontado_meses != null ? (
-                          <span className="pill">Payback descontado <strong>{analiseFinanceiraResult.payback_descontado_meses} meses</strong></span>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="simulacoes-module-tile">
-                  <p className="simulacoes-description">
-                    {afModo === 'venda'
-                      ? 'Preencha o Custo do Kit e o Valor do Contrato para calcular a análise financeira.'
-                      : 'Preencha o Custo do Kit para calcular a análise financeira de leasing.'}
-                  </p>
-                </div>
-              )}
-
-              {/* Approval checklist */}
-              <div className="simulacoes-approval-grid" style={{ marginTop: '1.5rem' }}>
-                <div className="simulacoes-module-tile">
-                  <h4>Checklist de aprovação</h4>
-                  <ul className="simulacoes-checklist">
-                    {(afModo === 'leasing'
-                      ? (['roi', 'tir', 'vpl', 'payback', 'eficiencia', 'lucro'] as AprovacaoChecklistKey[])
-                      : (['roi', 'tir', 'spread', 'vpl'] as AprovacaoChecklistKey[])
-                    ).map((item) => (
-                      <li key={item}>
-                        <label className="simulacoes-check">
-                          <input
-                            type="checkbox"
-                            checked={aprovacaoChecklist[item]}
-                            onChange={() => toggleAprovacaoChecklist(item)}
-                          />
-                          <span>
-                            {item === 'roi'
-                              ? (afModo === 'leasing' ? 'ROI mínimo do leasing atendido' : 'ROI mínimo SolarInvest atendido')
-                              : item === 'tir'
-                                ? 'TIR anual acima do piso definido'
-                                : item === 'spread'
-                                  ? 'Spread e margem dentro do range'
-                                  : item === 'vpl'
-                                    ? 'VPL positivo no horizonte definido'
-                                    : item === 'payback'
-                                      ? 'Payback dentro do limite aceitável'
-                                      : item === 'eficiencia'
-                                        ? 'Indicador de eficiência acima do mínimo'
-                                        : 'Lucro mensal positivo e saudável'}
-                          </span>
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {isAnaliseMobileSimpleView ? null : (
-                  <div className="simulacoes-module-tile">
-                    <h4>Selo e decisão</h4>
-                    <p className={`simulacoes-status status-${aprovacaoStatus}`}>{APROVACAO_SELLOS[aprovacaoStatus]}</p>
-                    <p className="simulacoes-description">
-                      Última decisão registrada: {formatAprovacaoData(ultimaDecisaoTimestamp)}
-                    </p>
-                    <div className="simulacoes-hero-buttons">
-                      <button type="button" className="primary" onClick={() => registrarDecisaoInterna('aprovado')}>
-                        Aprovar
-                      </button>
-                      <button type="button" className="secondary" onClick={() => registrarDecisaoInterna('reprovado')}>
-                        Reprovar
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => registrarDecisaoInterna(aprovacaoStatus)}
-                      >
-                        Salvar decisão
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      </div>
-    )
-  }
-
-  const renderSettingsPage = () => (
-    <div className="settings-page">
-      <div className="settings-page-header">
-        <div>
-          <h2>Preferências</h2>
-          <p>Configure parâmetros de mercado e vendas para personalizar as propostas.</p>
-        </div>
-        <button type="button" className="ghost" onClick={voltarParaPaginaPrincipal}>
-          Voltar
-        </button>
-      </div>
-      <div className="config-page">
-        <div className="cfg-tabs" role="tablist" aria-label="Seções de Configuração">
-          {SETTINGS_TABS.filter((tab) => tab.id !== 'usuarios' || canSeeUsersEffective).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`cfg-tab-${tab.id}`}
-              aria-selected={settingsTab === tab.id}
-              aria-controls={`settings-panel-${tab.id}`}
-              className={`cfg-tab${settingsTab === tab.id ? ' is-active' : ''}`}
-              onClick={() => setSettingsTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div className="config-panels">
-          {canSeeUsersEffective ? (
-            <section
-              id="settings-panel-usuarios"
-              role="tabpanel"
-              aria-labelledby="cfg-tab-usuarios"
-              className={`settings-panel config-card${settingsTab === 'usuarios' ? ' active' : ''}`}
-              hidden={settingsTab !== 'usuarios'}
-              aria-hidden={settingsTab !== 'usuarios'}
-            >
-              <AdminUsersPage embedded />
-            </section>
-          ) : null}
-          <section
-            id="settings-panel-mercado"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-mercado"
-            className={`settings-panel config-card${settingsTab === 'mercado' ? ' active' : ''}`}
-            hidden={settingsTab !== 'mercado'}
-            aria-hidden={settingsTab !== 'mercado'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Mercado & energia</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Ajuste as premissas macroeconômicas da projeção.
-              </p>
-            </div>
-            <div className="grid g2">
-              <Field
-                label={labelWithTooltip(
-                  'Inflação energética (%)',
-                  'Percentual anual de reajuste tarifário. Tarifa projetada = Tarifa base × (1 + inflação)^ano.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={inflacaoAa}
-                  onChange={(e) => setInflacaoAa(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Preço por kWp (R$)',
-                  'Preço médio de investimento por kWp. CAPEX estimado = Potência (kWp) × Preço por kWp.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={precoPorKwp}
-                  onChange={(e) => setPrecoPorKwp(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Irradiação média (kWh/m²/dia)',
-                  'Valor médio diário usado na estimativa: Geração = kWp × Irradiação × Eficiência × dias.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  min={0.01}
-                  value={irradiacao}
-                  readOnly
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Eficiência do sistema',
-                  'Performance ratio global (PR). Impacta diretamente a geração estimada na fórmula acima.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.01"
-                  min={0.01}
-                  value={eficiencia}
-                  onChange={(e) => {
-                    if (e.target.value === '') {
-                      setEficiencia(0)
-                      return
-                    }
-                    handleEficienciaInput(Number(e.target.value))
-                  }}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Dias no mês (cálculo)',
-                  'Quantidade de dias considerada por mês na estimativa de geração (padrão: 30).',
-                )}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={diasMes > 0 ? diasMes : ''}
-                  onChange={(e) => {
-                    const { value } = e.target
-                    if (value === '') {
-                      setDiasMes(0)
-                      return
-                    }
-                    const parsed = Number(value)
-                    setDiasMes(Number.isFinite(parsed) ? parsed : 0)
-                  }}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-            </div>
-          </section>
-          <section
-            id="settings-panel-vendas"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-vendas"
-            className={`settings-panel config-card${settingsTab === 'vendas' ? ' active' : ''}`}
-            hidden={settingsTab !== 'vendas'}
-            aria-hidden={settingsTab !== 'vendas'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Parâmetros de vendas</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Configure custos, margens e impostos utilizados nos cálculos comerciais.
-              </p>
-            </div>
-            {renderVendasParametrosInternosSettings()}
-          </section>
-          <section
-            id="settings-panel-leasing"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-leasing"
-            className={`settings-panel config-card${settingsTab === 'leasing' ? ' active' : ''}`}
-            hidden={settingsTab !== 'leasing'}
-            aria-hidden={settingsTab !== 'leasing'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Leasing parâmetros</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Personalize as condições do contrato de leasing.
-              </p>
-            </div>
-            <div className="grid g3">
-              <Field
-                label={labelWithTooltip(
-                  'Prazo contratual (meses)',
-                  'Quantidade de meses do contrato de leasing. Utilizada no cálculo das parcelas.',
-                )}
-              >
-                <input
-                  type="number"
-                  min={1}
-                  value={prazoMeses}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value)
-                    setPrazoMeses(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                  }}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Bandeira tarifária (R$)',
-                  'Valor adicional por kWh conforme bandeira vigente. Aplicado às tarifas projetadas.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={bandeiraEncargo}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value)
-                    setBandeiraEncargo(Number.isFinite(parsed) ? parsed : 0)
-                  }}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Contribuição CIP (R$)',
-                  'Valor mensal da Contribuição de Iluminação Pública considerado no cenário.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={cipEncargo}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value)
-                    setCipEncargo(Number.isFinite(parsed) ? parsed : 0)
-                  }}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Uso da entrada',
-                  'Define se a entrada gera crédito mensal ou reduz o piso contratado do cliente.',
-                )}
-              >
-                <select value={entradaModo} onChange={(e) => setEntradaModo(e.target.value as EntradaModoLabel)}>
-                  <option value="Crédito mensal">Crédito mensal</option>
-                  <option value="Reduz piso contratado">Reduz piso contratado</option>
-                </select>
-              </Field>
-            </div>
-            <div className="info-inline">
-              <span className="pill">
-                Margem mínima: <strong>{currency(parcelasSolarInvest.margemMinima)}</strong>
-              </span>
-              <span className="pill">
-                Total pago no prazo: <strong>{currency(parcelasSolarInvest.totalPago)}</strong>
-              </span>
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">Parcelas — Total pago acumulado</p>
-              <div className="table-controls">
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaParcelasConfig((prev) => !prev)}
-                  aria-expanded={mostrarTabelaParcelasConfig}
-                  aria-controls="config-parcelas-total"
-                >
-                  {mostrarTabelaParcelasConfig
-                    ? 'Ocultar tabela de parcelas (configurações)'
-                    : 'Exibir tabela de parcelas (configurações)'}
-                </button>
-              </div>
-              {mostrarTabelaParcelasConfig ? (
-                <div className="table-wrapper">
-                  <table id="config-parcelas-total">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Mensalidade projetada</th>
-                        <th>TUSD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parcelasSolarInvest.lista.length > 0 ? (
-                        parcelasSolarInvest.lista.map((row) => (
-                          <tr key={`config-parcela-${row.mes}`}>
-                            <td>{row.mes}</td>
-                            <td>{currency(row.mensalidade)}</td>
-                            <td>{currency(row.tusd)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={3} className="muted">
-                            Defina um prazo contratual para visualizar a tabela configurável de parcelas.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">Financiamento</p>
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'Juros anuais (%)',
-                    'Taxa de juros anual aplicada na simulação de financiamento para comparação.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={jurosFinAa}
-                    onChange={(e) => setJurosFinAa(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Prazo financiamento (meses)',
-                    'Quantidade de meses considerados no cenário de financiamento.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    value={prazoFinMeses}
-                    onChange={(e) => setPrazoFinMeses(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Entrada (%)',
-                    'Percentual de entrada considerado no cenário financiado (Entrada = CAPEX × %).',
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={entradaFinPct}
-                    onChange={(e) => setEntradaFinPct(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-            </div>
-          </section>
-          <section
-            id="settings-panel-buyout"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-buyout"
-            className={`settings-panel config-card${settingsTab === 'buyout' ? ' active' : ''}`}
-            hidden={settingsTab !== 'buyout'}
-            aria-hidden={settingsTab !== 'buyout'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Buyout parâmetros</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Configure premissas de recompra e fluxo residual.
-              </p>
-            </div>
-            <div className="grid g3">
-              <Field
-                label={labelWithTooltip(
-                  'Cashback (%)',
-                  'Percentual devolvido ao cliente em caso de compra antecipada.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={cashbackPct}
-                  onChange={(e) => setCashbackPct(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Depreciação (%)',
-                  'Taxa anual de depreciação dos ativos considerados no buyout.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={depreciacaoAa}
-                  onChange={(e) => setDepreciacaoAa(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Inadimplência (%)',
-                  'Percentual anual de inadimplência considerado na projeção.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={inadimplenciaAa}
-                  onChange={(e) => setInadimplenciaAa(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Tributos (%)',
-                  'Percentual de tributos incidentes sobre o fluxo financeiro do buyout.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={tributosAa}
-                  onChange={(e) => setTributosAa(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'IPCA (%)',
-                  'Inflação geral (IPCA) para atualizar valores reais ao longo do tempo.',
-                )}
-              >
-                <input
-                  type="number"
-                  step="0.1"
-                  value={ipcaAa}
-                  onChange={(e) => setIpcaAa(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Custos fixos (R$)',
-                  'Custos fixos mensais associados à operação no cenário buyout.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={custosFixosM}
-                  onChange={(e) => setCustosFixosM(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'OPEX (R$)',
-                  'Despesas operacionais mensais (manutenção, monitoramento etc.).',
-                )}
-              >
-                <input
-                  type="number"
-                  value={opexM}
-                  onChange={(e) => setOpexM(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Seguro (R$)',
-                  'Prêmio mensal de seguro considerado na simulação.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={seguroM}
-                  onChange={(e) => setSeguroM(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Duração (meses)',
-                  'Janela de tempo analisada para o fluxo residual e compra antecipada.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={duracaoMeses}
-                  onChange={(e) => setDuracaoMeses(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-              <Field
-                label={labelWithTooltip(
-                  'Receita acumulada (R$) — referência',
-                  'Campo de referência histórica. O cálculo do VEC contratual não usa parcelas pagas como redutor.',
-                )}
-              >
-                <input
-                  type="number"
-                  value={pagosAcumAteM}
-                  onChange={(e) => setPagosAcumAteM(Number(e.target.value) || 0)}
-                  onFocus={selectNumberInputOnFocus}
-                />
-              </Field>
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">Buyout — Receita acumulada</p>
-              <div className="table-controls">
-                <button
-                  type="button"
-                  className="collapse-toggle"
-                  onClick={() => setMostrarTabelaBuyoutConfig((prev) => !prev)}
-                  aria-expanded={mostrarTabelaBuyoutConfig}
-                  aria-controls="config-buyout-receita"
-                >
-                  {mostrarTabelaBuyoutConfig ? 'Ocultar tabela de buyout' : 'Exibir tabela de buyout'}
-                </button>
-              </div>
-              {mostrarTabelaBuyoutConfig ? (
-                <div className="table-wrapper">
-                  <table id="config-buyout-receita">
-                    <thead>
-                      <tr>
-                        <th>Mês</th>
-                        <th>Receita acumulada</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {buyoutReceitaRows.length > 0 ? (
-                        buyoutReceitaRows.map((row) => (
-                          <tr key={`config-buyout-${row.mes}`}>
-                            <td>{row.mes}</td>
-                            <td>{currency(row.prestacaoAcum)}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={2} className="muted">
-                            Defina os parâmetros para visualizar a receita acumulada.
-                          </td>
-                        </tr>
-                      )}
-                      {buyoutAceiteFinal ? (
-                        <tr>
-                          <td>{buyoutMesAceiteFinal}</td>
-                          <td>{currency(buyoutAceiteFinal.prestacaoAcum)}</td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          </section>
-          <section
-            id="settings-panel-outros"
-            role="tabpanel"
-            aria-labelledby="cfg-tab-outros"
-            className={`settings-panel config-card${settingsTab === 'outros' ? ' active' : ''}`}
-            hidden={settingsTab !== 'outros'}
-            aria-hidden={settingsTab !== 'outros'}
-          >
-            <div className="cfg-panel-header">
-              <h2 className="cfg-section-title">Outros</h2>
-              <p className="settings-panel-description cfg-section-subtitle">
-                Controles complementares de operação e apresentação.
-              </p>
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">O&M e seguro</p>
-              <div className="grid g3">
-                <Field
-                  label={labelWithTooltip(
-                    'O&M base (R$/kWp)',
-                    'Valor base de contrato de operação e manutenção por kWp instalado.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    value={oemBase}
-                    onChange={(e) => setOemBase(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Inflação O&M (%)',
-                    'Reajuste anual do contrato de operação e manutenção.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={oemInflacao}
-                    onChange={(e) => setOemInflacao(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Reajuste seguro (%)',
-                    'Percentual anual de reajuste do seguro quando o modo percentual está ativo.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={seguroReajuste}
-                    onChange={(e) => setSeguroReajuste(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Modo de seguro',
-                    'Escolha entre valor fixo por kWp (Modo A) ou percentual do valor de mercado (Modo B).',
-                  )}
-                >
-                  <select value={seguroModo} onChange={(e) => setSeguroModo(e.target.value as SeguroModo)}>
-                    <option value="A">Modo A — Potência (R$)</option>
-                    <option value="B">Modo B — % Valor de mercado</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Base seguro modo A (R$/kWp)',
-                    'Valor aplicado por kWp quando o seguro está configurado no modo A.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    value={seguroValorA}
-                    onChange={(e) => setSeguroValorA(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Seguro modo B (%)',
-                    'Percentual aplicado sobre o valor de mercado quando o modo B está ativo.',
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={seguroPercentualB}
-                    onChange={(e) => setSeguroPercentualB(Number(e.target.value) || 0)}
-                    onFocus={selectNumberInputOnFocus}
-                  />
-                </Field>
-              </div>
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">Exibição</p>
-              <div className="grid g2">
-                <Field
-                  label={labelWithTooltip(
-                    'Densidade da interface',
-                    'Ajuste visual dos espaçamentos da interface (compacto, acolhedor ou confortável).',
-                  )}
-                >
-                  <select value={density} onChange={(event) => setDensity(event.target.value as DensityMode)}>
-                    <option value="compact">Compacto</option>
-                    <option value="cozy">Acolhedor</option>
-                    <option value="comfortable">Confortável</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Mostrar gráfico ROI',
-                    'Liga ou desliga a visualização do gráfico de retorno sobre investimento.',
-                  )}
-                >
-                  <select value={mostrarGrafico ? '1' : '0'} onChange={(e) => setMostrarGrafico(e.target.value === '1')}>
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'PDF Bento Grid (Leasing)',
-                    'Ativa o layout premium com cards Bento Grid para propostas de leasing. Desabilite para usar o formato legado.',
-                  )}
-                >
-                  <select value={useBentoGridPdf ? '1' : '0'} onChange={(e) => setUseBentoGridPdf(e.target.value === '1')}>
-                    <option value="1">Ativado (Premium)</option>
-                    <option value="0">Desativado (leagado)</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Mostrar coluna financiamento',
-                    'Exibe ou oculta a coluna de comparação com financiamento na tela principal.',
-                  )}
-                >
-                  <select
-                    value={mostrarFinanciamento ? '1' : '0'}
-                    onChange={(e) => setMostrarFinanciamento(e.target.value === '1')}
-                  >
-                    <option value="1">Sim</option>
-                    <option value="0">Não</option>
-                  </select>
-                </Field>
-              </div>
-            </div>
-            <div className="settings-subsection">
-              <p className="settings-subheading">Visualização simplificada</p>
-              <div className="grid g2">
-                <Field
-                  label={labelWithTooltip(
-                    'Mobile view simples',
-                    'Oculta blocos avançados no formulário de Leasing em dispositivos móveis para simplificar a interface.',
-                  )}
-                >
-                  <select
-                    value={mobileSimpleView ? '1' : '0'}
-                    onChange={(e) => setMobileSimpleView(e.target.value === '1')}
-                  >
-                    <option value="1">Ativado</option>
-                    <option value="0">Desativado</option>
-                  </select>
-                </Field>
-                <Field
-                  label={labelWithTooltip(
-                    'Desktop view simples',
-                    'Oculta blocos avançados no formulário de Leasing e simplifica o menu lateral em desktop.',
-                  )}
-                >
-                  <select
-                    value={desktopSimpleView ? '1' : '0'}
-                    onChange={(e) => setDesktopSimpleView(e.target.value === '1')}
-                  >
-                    <option value="1">Ativado</option>
-                    <option value="0">Desativado</option>
-                  </select>
-                </Field>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-    </div>
-  )
-
-  const renderClientesPage = () => (
-    <ClientesPanel
-      registros={clientesSalvos}
-      onClose={fecharClientesPainel}
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onEditar={handleEditarCliente}
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onExcluir={handleExcluirCliente}
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      onExportarCarteira={handleExportarParaCarteira}
-      onExportarCsv={handleExportarClientesCsv}
-      onExportarJson={handleExportarClientesJson}
-      onImportar={handleClientesImportarClick}
-      onBackupCliente={handleBackupBancoDados}
-      isImportando={isImportandoClientes}
-      isGerandoBackupBanco={isGerandoBackupBanco}
-      canBackupBanco={isAdmin || isOffice}
-      isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
-      canExportarCarteira={isAdmin || isOffice}
-      allConsultores={allConsultores}
-      formConsultores={formConsultores}
-    />
-  )
-
-  const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'carteira'
-            ? 'carteira-clientes'
-            : activePage === 'consultar'
-              ? 'orcamentos-importar'
-          : activePage === 'settings' || activePage === 'admin-users'
-                ? 'gestao-financeira-home'
-                : activePage === 'financial-management'
-                  ? 'gestao-financeira-home'
-                  : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                    : activeTab === 'vendas'
-                      ? 'propostas-vendas'
-                      : 'propostas-leasing'
+  // renderSimulacoesPage extracted to SimulacoesPage component (Subfase 2B-final)
 
 
   // If in print mode, render the Bento Grid print page
@@ -29342,12 +18606,8 @@ export default function App() {
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
             onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
-            menuButtonLabel: isMobileViewport
-              ? isSidebarMobileOpen
-                ? 'Fechar menu Painel SolarInvest'
-                : 'Abrir menu Painel SolarInvest'
-              : 'Painel SolarInvest',
-            menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
+            menuButtonLabel,
+            menuButtonExpanded,
             menuButtonText: 'Painel SolarInvest',
             userInfo: user?.displayName
               ? { name: user.displayName, role: userRole }
@@ -29385,17 +18645,171 @@ export default function App() {
           </React.Suspense>
         </div>
         {activePage === 'dashboard' ? (
-          renderDashboardPage()
+          <DashboardPage />
         ) : activePage === 'crm' ? (
-          renderCrmPage()
+          <CrmPage {...crmState} />
         ) : activePage === 'consultar' ? (
-          renderBudgetSearchPage()
+          <BudgetSearchPage
+            registros={orcamentosSalvos}
+            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+            isProposalReadOnly={isProposalReadOnly}
+            onClose={fecharPesquisaOrcamentos}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onCarregarOrcamento={carregarOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onAbrirOrcamento={abrirOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onConfirmarRemocao={confirmarRemocaoOrcamento}
+          />
         ) : activePage === 'clientes' ? (
-          renderClientesPage()
+          <ClientesPage
+            registros={clientesSalvos}
+            onClose={fecharClientesPainel}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onEditar={handleEditarCliente}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onExcluir={handleExcluirCliente}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onExportarCarteira={handleExportarParaCarteira}
+            onExportarCsv={handleExportarClientesCsv}
+            onExportarJson={handleExportarClientesJson}
+            onImportar={handleClientesImportarClick}
+            onBackupCliente={handleBackupBancoDados}
+            isImportando={isImportandoClientes}
+            isGerandoBackupBanco={isGerandoBackupBanco}
+            canBackupBanco={isAdmin || isOffice}
+            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+            canExportarCarteira={isAdmin || isOffice}
+            allConsultores={allConsultores}
+            formConsultores={formConsultores}
+          />
         ) : activePage === 'simulacoes' ? (
-          renderSimulacoesPage()
+          <SimulacoesPage
+            simulacoesSection={simulacoesSection}
+            isMobileViewport={isMobileViewport}
+            isMobileSimpleEnabled={isMobileSimpleEnabled}
+            isSimulacoesWorkspaceActive={isSimulacoesWorkspaceActive}
+            onAbrirSimulacoes={abrirSimulacoes}
+            capexSolarInvest={capexSolarInvest}
+            tipoSistema={tipoSistema}
+            leasingPrazo={leasingPrazo}
+            afMensalidadeBaseAuto={afMensalidadeBaseAuto}
+            analiseFinanceiraResult={analiseFinanceiraResult}
+            indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+            serverClientId={
+              clienteEmEdicaoId
+                ? (Number(clientServerIdMapRef.current[clienteEmEdicaoId]) || null)
+                : null
+            }
+            clienteNome={cliente.nome ?? undefined}
+            consultorNome={cliente.consultorNome ?? undefined}
+            consultorId={cliente.consultorId ?? undefined}
+          />
         ) : activePage === 'settings' ? (
-          renderSettingsPage()
+          <SettingsPage
+            settingsTab={settingsTab}
+            setSettingsTab={setSettingsTab}
+            voltarParaPaginaPrincipal={voltarParaPaginaPrincipal}
+            canSeeUsersEffective={canSeeUsersEffective}
+            inflacaoAa={inflacaoAa}
+            setInflacaoAa={setInflacaoAa}
+            precoPorKwp={precoPorKwp}
+            setPrecoPorKwp={setPrecoPorKwp}
+            irradiacao={irradiacao}
+            eficiencia={eficiencia}
+            setEficiencia={setEficiencia}
+            handleEficienciaInput={handleEficienciaInput}
+            diasMes={diasMes}
+            setDiasMes={setDiasMes}
+            vendasConfig={vendasConfig}
+            tipoInstalacao={tipoInstalacao}
+            composicaoTelhadoCalculo={composicaoTelhadoCalculo}
+            composicaoSoloCalculo={composicaoSoloCalculo}
+            composicaoTelhado={composicaoTelhado}
+            composicaoSolo={composicaoSolo}
+            descontosValor={descontosValor}
+            aprovadoresResumo={aprovadoresResumo}
+            capexBaseResumoSettingsField={capexBaseResumoSettingsField}
+            capexBaseResumoValor={capexBaseResumoValor}
+            capexBaseManualValor={capexBaseManualValor}
+            margemOperacionalResumoSettingsField={margemOperacionalResumoSettingsField}
+            margemManualAtiva={margemManualAtiva}
+            impostosOverridesDraft={impostosOverridesDraft}
+            aprovadoresText={aprovadoresText}
+            custoImplantacaoReferencia={custoImplantacaoReferencia}
+            updateVendasConfig={updateVendasConfig}
+            onUpdateResumoProposta={(data) => vendaActions.updateResumoProposta(data)}
+            onComposicaoTelhadoChange={handleComposicaoTelhadoChange}
+            onComposicaoSoloChange={handleComposicaoSoloChange}
+            setImpostosOverridesDraft={setImpostosOverridesDraft}
+            setAprovadoresText={setAprovadoresText}
+            prazoMeses={prazoMeses}
+            setPrazoMeses={setPrazoMeses}
+            bandeiraEncargo={bandeiraEncargo}
+            setBandeiraEncargo={setBandeiraEncargo}
+            cipEncargo={cipEncargo}
+            setCipEncargo={setCipEncargo}
+            entradaModo={entradaModo}
+            setEntradaModo={setEntradaModo}
+            parcelasSolarInvest={parcelasSolarInvest}
+            mostrarTabelaParcelasConfig={mostrarTabelaParcelasConfig}
+            setMostrarTabelaParcelasConfig={setMostrarTabelaParcelasConfig}
+            jurosFinAa={jurosFinAa}
+            setJurosFinAa={setJurosFinAa}
+            prazoFinMeses={prazoFinMeses}
+            setPrazoFinMeses={setPrazoFinMeses}
+            entradaFinPct={entradaFinPct}
+            setEntradaFinPct={setEntradaFinPct}
+            cashbackPct={cashbackPct}
+            setCashbackPct={setCashbackPct}
+            depreciacaoAa={depreciacaoAa}
+            setDepreciacaoAa={setDepreciacaoAa}
+            inadimplenciaAa={inadimplenciaAa}
+            setInadimplenciaAa={setInadimplenciaAa}
+            tributosAa={tributosAa}
+            setTributosAa={setTributosAa}
+            ipcaAa={ipcaAa}
+            setIpcaAa={setIpcaAa}
+            custosFixosM={custosFixosM}
+            setCustosFixosM={setCustosFixosM}
+            opexM={opexM}
+            setOpexM={setOpexM}
+            seguroM={seguroM}
+            setSeguroM={setSeguroM}
+            duracaoMeses={duracaoMeses}
+            setDuracaoMeses={setDuracaoMeses}
+            pagosAcumAteM={pagosAcumAteM}
+            setPagosAcumAteM={setPagosAcumAteM}
+            mostrarTabelaBuyoutConfig={mostrarTabelaBuyoutConfig}
+            setMostrarTabelaBuyoutConfig={setMostrarTabelaBuyoutConfig}
+            buyoutReceitaRows={buyoutReceitaRows}
+            buyoutAceiteFinal={buyoutAceiteFinal}
+            buyoutMesAceiteFinal={buyoutMesAceiteFinal}
+            oemBase={oemBase}
+            setOemBase={setOemBase}
+            oemInflacao={oemInflacao}
+            setOemInflacao={setOemInflacao}
+            seguroReajuste={seguroReajuste}
+            setSeguroReajuste={setSeguroReajuste}
+            seguroModo={seguroModo}
+            setSeguroModo={setSeguroModo}
+            seguroValorA={seguroValorA}
+            setSeguroValorA={setSeguroValorA}
+            seguroPercentualB={seguroPercentualB}
+            setSeguroPercentualB={setSeguroPercentualB}
+            density={density}
+            setDensity={setDensity}
+            mostrarGrafico={mostrarGrafico}
+            setMostrarGrafico={setMostrarGrafico}
+            useBentoGridPdf={useBentoGridPdf}
+            setUseBentoGridPdf={setUseBentoGridPdf}
+            mostrarFinanciamento={mostrarFinanciamento}
+            setMostrarFinanciamento={setMostrarFinanciamento}
+            mobileSimpleView={mobileSimpleView}
+            setMobileSimpleView={setMobileSimpleView}
+            desktopSimpleView={desktopSimpleView}
+            setDesktopSimpleView={setDesktopSimpleView}
+          />
         ) : activePage === 'admin-users' ? (
           <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : activePage === 'carteira' ? (
@@ -29424,6 +18838,8 @@ export default function App() {
           canSeeDashboardEffective
             ? <OperationalDashboardPage />
             : null
+        ) : activePage === 'project-hub' ? (
+          <ProjectHubPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
         ) : (
           <div className="page">
             <div className="app-main">
@@ -29496,7 +18912,93 @@ export default function App() {
                       ) : null}
                     </div>
                     ) : null}
-                    {renderClienteDadosSection()}
+                    <ClienteDadosSection
+                      cliente={cliente}
+                      budgetCodeDisplay={budgetCodeDisplay}
+                      segmentoCliente={segmentoCliente}
+                      tipoEdificacaoOutro={tipoEdificacaoOutro}
+                      tusdTipoCliente={tusdTipoCliente}
+                      clienteMensagens={clienteMensagens}
+                      buscandoCep={buscandoCep}
+                      cidadeBloqueadaPorCep={cidadeBloqueadaPorCep}
+                      cidadeSelectOpen={cidadeSelectOpen}
+                      cidadeSearchTerm={cidadeSearchTerm}
+                      cidadesCarregando={cidadesCarregando}
+                      cidadesFiltradas={cidadesFiltradas}
+                      cidadeManualDigitada={cidadeManualDigitada}
+                      cidadeManualDisponivel={cidadeManualDisponivel}
+                      verificandoCidade={verificandoCidade}
+                      ufsDisponiveis={ufsDisponiveis}
+                      clienteDistribuidorasDisponiveis={clienteDistribuidorasDisponiveis}
+                      clienteDistribuidoraDisabled={clienteDistribuidoraDisabled}
+                      ucGeradoraTitularDiferente={leasingContrato.ucGeradoraTitularDiferente}
+                      ucGeradora_importarEnderecoCliente={leasingContrato.ucGeradora_importarEnderecoCliente}
+                      ucGeradoraTitularPanel={
+                        <UcGeradoraTitularPanel
+                          ucGeradoraTitularDiferente={leasingContrato.ucGeradoraTitularDiferente}
+                          ucGeradoraTitular={leasingContrato.ucGeradoraTitular}
+                          ucGeradoraTitularDraft={leasingContrato.ucGeradoraTitularDraft}
+                          ucGeradoraTitularDistribuidoraAneel={leasingContrato.ucGeradoraTitularDistribuidoraAneel}
+                          panelOpen={ucGeradoraTitularPanelOpen}
+                          errors={ucGeradoraTitularErrors}
+                          buscandoCep={ucGeradoraTitularBuscandoCep}
+                          cepMessage={ucGeradoraTitularCepMessage}
+                          cidadeBloqueadaPorCep={ucGeradoraCidadeBloqueadaPorCep}
+                          ufsDisponiveis={ufsDisponiveis}
+                          titularDistribuidoraDisabled={titularDistribuidoraDisabled}
+                          ucGeradoraTitularUf={ucGeradoraTitularUf}
+                          ucGeradoraTitularDistribuidorasDisponiveis={ucGeradoraTitularDistribuidorasDisponiveis}
+                          onUpdateDraft={updateUcGeradoraTitularDraft}
+                          onClearError={clearUcGeradoraTitularError}
+                          onUfChange={handleUcGeradoraTitularUfChange}
+                          onDistribuidoraChange={handleUcGeradoraTitularDistribuidoraChange}
+                          onSalvar={() => { void handleSalvarUcGeradoraTitular() }}
+                          onCancelar={handleCancelarUcGeradoraTitular}
+                          onEditar={handleEditarUcGeradoraTitular}
+                          onSetCepMessage={setUcGeradoraTitularCepMessage}
+                          onSetBuscandoCep={setUcGeradoraTitularBuscandoCep}
+                          onSetCidadeBloqueada={setUcGeradoraCidadeBloqueadaPorCep}
+                        />
+                      }
+                      ucsBeneficiarias={ucsBeneficiarias}
+                      consumoTotalUcsBeneficiarias={consumoTotalUcsBeneficiarias}
+                      consumoUcsExcedeInformado={consumoUcsExcedeInformado}
+                      kcKwhMes={kcKwhMes}
+                      temCorresponsavelFinanceiro={leasingContrato.temCorresponsavelFinanceiro}
+                      clienteIndicacaoCheckboxId={clienteIndicacaoCheckboxId}
+                      clienteIndicacaoNomeId={clienteIndicacaoNomeId}
+                      clienteConsultorSelectId={clienteConsultorSelectId}
+                      clienteHerdeirosContentId={clienteHerdeirosContentId}
+                      clienteHerdeirosExpandidos={clienteHerdeirosExpandidos}
+                      formConsultores={formConsultores}
+                      clienteTemDadosNaoSalvos={clienteTemDadosNaoSalvos}
+                      clienteSaveLabel={clienteSaveLabel}
+                      oneDriveIntegrationAvailable={oneDriveIntegrationAvailable}
+                      onClienteChange={handleClienteChange}
+                      onUpdateClienteSync={updateClienteSync}
+                      onClearFieldHighlight={clearFieldHighlight}
+                      onSetCidadeBloqueadaPorCep={setCidadeBloqueadaPorCep}
+                      onSetCidadeSelectOpen={setCidadeSelectOpen}
+                      onSetCidadeSearchTerm={setCidadeSearchTerm}
+                      onSetClienteMensagens={setClienteMensagens}
+                      onClearCepAviso={() => { cepCidadeAvisoRef.current = null }}
+                      onSegmentoChange={handleSegmentoClienteChange}
+                      onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
+                      onEnderecoFocus={() => { isEditingEnderecoRef.current = true }}
+                      onEnderecoBlur={() => { isEditingEnderecoRef.current = false }}
+                      onToggleUcGeradoraTitularDiferente={handleToggleUcGeradoraTitularDiferente}
+                      onImportEnderecoClienteParaUcGeradora={handleImportEnderecoClienteParaUcGeradora}
+                      onAtualizarUcBeneficiaria={handleAtualizarUcBeneficiaria}
+                      onAdicionarUcBeneficiaria={handleAdicionarUcBeneficiaria}
+                      onRemoverUcBeneficiaria={handleRemoverUcBeneficiaria}
+                      onHerdeiroChange={handleHerdeiroChange}
+                      onAdicionarHerdeiro={handleAdicionarHerdeiro}
+                      onRemoverHerdeiro={handleRemoverHerdeiro}
+                      onSetClienteHerdeirosExpandidos={setClienteHerdeirosExpandidos}
+                      onAbrirCorresponsavelModal={handleAbrirCorresponsavelModal}
+                      onSalvarCliente={() => { void handleSalvarCliente() }}
+                      onAbrirClientesPainel={() => { void abrirClientesPainel() }}
+                    />
                     {activeTab === 'vendas' ? (
                       <>
                         <section className="card">
@@ -29604,12 +19106,150 @@ export default function App() {
                         </section>
                       </>
                     ) : null}
-                    {renderPropostaImagensSection()}
+                    <PropostaImagensSection
+                      propostaImagens={propostaImagens}
+                      activeTab={activeTab}
+                      onAddImages={handleAbrirUploadImagens}
+                      onRemoveImagem={handleRemoverPropostaImagem}
+                    />
               {activeTab === 'leasing' ? (
                 <>
-                  {renderParametrosPrincipaisSection()}
-                  {renderConfiguracaoUsinaSection()}
-                  {shouldHideSimpleViewItems ? null : renderLeasingContratoSection()}
+                  <ParametrosPrincipaisSection
+                    kcKwhMes={kcKwhMes}
+                    tipoRedeLabel={tipoRedeLabel}
+                    vendaForm={vendaForm}
+                    tarifaCheiaField={tarifaCheiaField}
+                    taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                    taxaMinima={taxaMinima}
+                    encargosFixosExtras={encargosFixosExtras}
+                    baseIrradiacao={baseIrradiacao}
+                    shouldHideSimpleViewItems={shouldHideSimpleViewItems}
+                    tusdPercent={tusdPercent}
+                    tusdTipoCliente={tusdTipoCliente}
+                    tusdSubtipo={tusdSubtipo}
+                    tusdSimultaneidade={tusdSimultaneidade}
+                    tusdTarifaRkwh={tusdTarifaRkwh}
+                    tusdAnoReferencia={tusdAnoReferencia}
+                    tusdOpcoesExpandidas={tusdOpcoesExpandidas}
+                    segmentoCliente={segmentoCliente}
+                    tipoEdificacaoOutro={tipoEdificacaoOutro}
+                    tusdOptionsTitleId={tusdOptionsTitleId}
+                    tusdOptionsToggleId={tusdOptionsToggleId}
+                    tusdOptionsContentId={tusdOptionsContentId}
+                    multiUcAtivo={multiUcAtivo}
+                    multiUcRateioModo={multiUcRateioModo}
+                    multiUcEnergiaGeradaKWh={multiUcEnergiaGeradaKWh}
+                    multiUcEnergiaGeradaTouched={multiUcEnergiaGeradaTouched}
+                    multiUcAnoVigencia={multiUcAnoVigencia}
+                    multiUcOverrideEscalonamento={multiUcOverrideEscalonamento}
+                    multiUcEscalonamentoCustomPercent={multiUcEscalonamentoCustomPercent}
+                    multiUcEscalonamentoPadrao={multiUcEscalonamentoPadrao}
+                    multiUcEscalonamentoPercentual={multiUcEscalonamentoPercentual}
+                    multiUcEscalonamentoTabela={multiUcEscalonamentoTabela}
+                    multiUcRows={multiUcRows}
+                    multiUcResultado={multiUcResultado}
+                    multiUcResultadoPorId={multiUcResultadoPorId}
+                    multiUcRateioPercentualTotal={multiUcRateioPercentualTotal}
+                    multiUcRateioManualTotal={multiUcRateioManualTotal}
+                    multiUcErrors={multiUcErrors}
+                    multiUcWarnings={multiUcWarnings}
+                    distribuidoraAneelEfetiva={distribuidoraAneelEfetiva}
+                    initialMultiUcAnoVigencia={INITIAL_VALUES.multiUcAnoVigencia}
+                    onSetKcKwhMes={setKcKwhMes}
+                    onApplyVendaUpdates={applyVendaUpdates}
+                    onNormalizeTaxaMinimaInputValue={normalizeTaxaMinimaInputValue}
+                    onSetEncargosFixosExtras={setEncargosFixosExtras}
+                    onTusdPercentChange={(normalized) => {
+                      setTusdPercent(normalized)
+                      applyVendaUpdates({ tusd_percentual: normalized })
+                      resetRetorno()
+                    }}
+                    onTusdTipoClienteChange={handleTusdTipoClienteChange}
+                    onTusdSubtipoChange={(value) => {
+                      setTusdSubtipo(value)
+                      applyVendaUpdates({ tusd_subtipo: value || undefined })
+                      resetRetorno()
+                    }}
+                    onTusdSimultaneidadeChange={(value) => {
+                      setTusdSimultaneidadeFromSource(value, 'manual')
+                      resetRetorno()
+                    }}
+                    onTusdTarifaRkwhChange={(value) => {
+                      setTusdTarifaRkwh(value)
+                      applyVendaUpdates({ tusd_tarifa_r_kwh: value ?? undefined })
+                      resetRetorno()
+                    }}
+                    onTusdAnoReferenciaChange={(value) => {
+                      setTusdAnoReferencia(value)
+                      applyVendaUpdates({ tusd_ano_referencia: value })
+                      resetRetorno()
+                    }}
+                    onTusdOpcoesExpandidasChange={setTusdOpcoesExpandidas}
+                    onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
+                    onHandleMultiUcToggle={handleMultiUcToggle}
+                    onHandleMultiUcQuantidadeChange={handleMultiUcQuantidadeChange}
+                    onSetMultiUcEnergiaGeradaKWh={setMultiUcEnergiaGeradaKWh}
+                    onHandleMultiUcRateioModoChange={handleMultiUcRateioModoChange}
+                    onSetMultiUcAnoVigencia={setMultiUcAnoVigencia}
+                    onSetMultiUcOverrideEscalonamento={setMultiUcOverrideEscalonamento}
+                    onSetMultiUcEscalonamentoCustomPercent={setMultiUcEscalonamentoCustomPercent}
+                    onHandleMultiUcClasseChange={handleMultiUcClasseChange}
+                    onHandleMultiUcConsumoChange={handleMultiUcConsumoChange}
+                    onHandleMultiUcRateioPercentualChange={handleMultiUcRateioPercentualChange}
+                    onHandleMultiUcManualRateioChange={handleMultiUcManualRateioChange}
+                    onHandleMultiUcTeChange={handleMultiUcTeChange}
+                    onHandleMultiUcTusdTotalChange={handleMultiUcTusdTotalChange}
+                    onHandleMultiUcTusdFioBChange={handleMultiUcTusdFioBChange}
+                    onHandleMultiUcObservacoesChange={handleMultiUcObservacoesChange}
+                    onHandleMultiUcAdicionar={handleMultiUcAdicionar}
+                    onHandleMultiUcRecarregarTarifas={handleMultiUcRecarregarTarifas}
+                    onHandleMultiUcRemover={handleMultiUcRemover}
+                  />
+                  <LeasingConfiguracaoUsinaSection
+                    configuracaoUsinaObservacoesExpanded={configuracaoUsinaObservacoesExpanded}
+                    configuracaoUsinaObservacoesLeasingContainerId={configuracaoUsinaObservacoesLeasingContainerId}
+                    setConfiguracaoUsinaObservacoesExpanded={setConfiguracaoUsinaObservacoesExpanded}
+                    configuracaoUsinaObservacoes={configuracaoUsinaObservacoes}
+                    configuracaoUsinaObservacoesLeasingId={configuracaoUsinaObservacoesLeasingId}
+                    setConfiguracaoUsinaObservacoes={setConfiguracaoUsinaObservacoes}
+                    normComplianceBanner={normComplianceBanner}
+                    normComplianceStatus={normCompliance?.status}
+                    precheckClienteCiente={precheckClienteCiente}
+                    setPrecheckClienteCiente={setPrecheckClienteCiente}
+                    potenciaModulo={potenciaModulo}
+                    setPotenciaModuloDirty={setPotenciaModuloDirty}
+                    setPotenciaModulo={setPotenciaModulo}
+                    numeroModulosManual={numeroModulosManual}
+                    numeroModulosEstimado={numeroModulosEstimado}
+                    moduleQuantityInputRef={moduleQuantityInputRef}
+                    setNumeroModulosManual={setNumeroModulosManual}
+                    tipoRede={tipoRede}
+                    handleTipoRedeSelection={handleTipoRedeSelection}
+                    potenciaFonteManual={potenciaFonteManual}
+                    vendaForm={vendaForm}
+                    potenciaInstaladaKwp={potenciaInstaladaKwp}
+                    handlePotenciaInstaladaChange={handlePotenciaInstaladaChange}
+                    geracaoMensalKwh={geracaoMensalKwh}
+                    areaInstalacao={areaInstalacao}
+                    tipoRedeCompatMessage={tipoRedeCompatMessage}
+                    estruturaTipoWarning={estruturaTipoWarning}
+                    handleMissingInfoUploadClick={handleMissingInfoUploadClick}
+                    inverterModelInputRef={inverterModelInputRef}
+                    applyVendaUpdates={applyVendaUpdates}
+                    geracaoDiariaKwh={geracaoDiariaKwh}
+                  />
+                  {shouldHideSimpleViewItems ? null : (
+                    <LeasingContratoSection
+                      leasingContrato={leasingContrato}
+                      leasingHomologacaoInputId={leasingHomologacaoInputId}
+                      clienteDiaVencimento={cliente.diaVencimento}
+                      onCampoChange={handleLeasingContratoCampoChange}
+                      onClienteDiaVencimentoChange={(value) => handleClienteChange('diaVencimento', value)}
+                      onProprietarioChange={handleLeasingContratoProprietarioChange}
+                      onAdicionarProprietario={handleAdicionarContratoProprietario}
+                      onRemoverProprietario={handleRemoverContratoProprietario}
+                    />
+                  )}
                   <section className="card">
                     <div className="card-header">
                       <h2>SolarInvest Leasing</h2>
@@ -29924,10 +19564,98 @@ export default function App() {
             ) : null}
             {modoOrcamento === 'manual' ? (
               <>
-                {renderVendaParametrosSection()}
-                {renderVendaConfiguracaoSection()}
-                {renderVendaResumoPublicoSection()}
-                {renderComposicaoUfvSection()}
+                <VendaParametrosSection
+                  vendaForm={vendaForm}
+                  vendaFormErrors={vendaFormErrors}
+                  taxaMinimaInputEmpty={taxaMinimaInputEmpty}
+                  taxaMinima={taxaMinima}
+                  tipoRedeLabel={tipoRedeLabel}
+                  tarifaCheiaVendaField={tarifaCheiaVendaField}
+                  baseIrradiacao={baseIrradiacao}
+                  tusdPercent={tusdPercent}
+                  tusdTipoCliente={tusdTipoCliente}
+                  tusdSubtipo={tusdSubtipo}
+                  tusdSimultaneidade={tusdSimultaneidade}
+                  tusdTarifaRkwh={tusdTarifaRkwh}
+                  tusdAnoReferencia={tusdAnoReferencia}
+                  tusdOpcoesExpandidas={tusdOpcoesExpandidas}
+                  segmentoCliente={segmentoCliente}
+                  tipoEdificacaoOutro={tipoEdificacaoOutro}
+                  tusdOptionsTitleId={tusdOptionsTitleId}
+                  tusdOptionsToggleId={tusdOptionsToggleId}
+                  tusdOptionsContentId={tusdOptionsContentId}
+                  ufTarifa={ufTarifa}
+                  ufsDisponiveis={ufsDisponiveis}
+                  distribuidoraTarifa={distribuidoraTarifa}
+                  distribuidorasDisponiveis={distribuidorasDisponiveis}
+                  calcularModulosPorGeracao={calcularModulosPorGeracao}
+                  calcularPotenciaSistemaKwp={calcularPotenciaSistemaKwp}
+                  estimarGeracaoPorPotencia={estimarGeracaoPorPotencia}
+                  normalizarGeracaoMensal={normalizarGeracaoMensal}
+                  normalizarPotenciaKwp={normalizarPotenciaKwp}
+                  normalizeTaxaMinimaInputValue={normalizeTaxaMinimaInputValue}
+                  onSetNumeroModulosManual={setNumeroModulosManual}
+                  onSetKcKwhMes={setKcKwhMes}
+                  onApplyVendaUpdates={applyVendaUpdates}
+                  onSetInflacaoAa={setInflacaoAa}
+                  onHandleParametrosUfChange={handleParametrosUfChange}
+                  onHandleParametrosDistribuidoraChange={handleParametrosDistribuidoraChange}
+                  onSetTusdPercent={setTusdPercent}
+                  onTusdTipoClienteChange={handleTusdTipoClienteChange}
+                  onSetTusdSubtipo={setTusdSubtipo}
+                  onTusdSimultaneidadeFromSource={setTusdSimultaneidadeFromSource}
+                  onSetTusdTarifaRkwh={setTusdTarifaRkwh}
+                  onSetTusdAnoReferencia={setTusdAnoReferencia}
+                  onSetTusdOpcoesExpandidas={setTusdOpcoesExpandidas}
+                  onSetTipoEdificacaoOutro={setTipoEdificacaoOutro}
+                  onResetRetorno={resetRetorno}
+                />
+                <VendaConfiguracaoSection
+                  configuracaoUsinaObservacoesExpanded={configuracaoUsinaObservacoesExpanded}
+                  configuracaoUsinaObservacoesVendaContainerId={configuracaoUsinaObservacoesVendaContainerId}
+                  setConfiguracaoUsinaObservacoesExpanded={setConfiguracaoUsinaObservacoesExpanded}
+                  configuracaoUsinaObservacoes={configuracaoUsinaObservacoes}
+                  configuracaoUsinaObservacoesVendaId={configuracaoUsinaObservacoesVendaId}
+                  setConfiguracaoUsinaObservacoes={setConfiguracaoUsinaObservacoes}
+                  potenciaModulo={potenciaModulo}
+                  setPotenciaModuloDirty={setPotenciaModuloDirty}
+                  setPotenciaModulo={setPotenciaModulo}
+                  numeroModulosManual={numeroModulosManual}
+                  numeroModulosEstimado={numeroModulosEstimado}
+                  moduleQuantityInputRef={moduleQuantityInputRef}
+                  setNumeroModulosManual={setNumeroModulosManual}
+                  applyVendaUpdates={applyVendaUpdates}
+                  tipoInstalacao={tipoInstalacao}
+                  handleTipoInstalacaoChange={handleTipoInstalacaoChange}
+                  tipoSistema={tipoSistema}
+                  handleTipoSistemaChange={handleTipoSistemaChange}
+                  tipoRede={tipoRede}
+                  handleTipoRedeSelection={handleTipoRedeSelection}
+                  potenciaFonteManual={potenciaFonteManual}
+                  vendaForm={vendaForm}
+                  potenciaInstaladaKwp={potenciaInstaladaKwp}
+                  handlePotenciaInstaladaChange={handlePotenciaInstaladaChange}
+                  geracaoMensalKwh={geracaoMensalKwh}
+                  areaInstalacao={areaInstalacao}
+                  tipoRedeCompatMessage={tipoRedeCompatMessage}
+                  estruturaTipoWarning={estruturaTipoWarning}
+                  handleMissingInfoUploadClick={handleMissingInfoUploadClick}
+                  inverterModelInputRef={inverterModelInputRef}
+                  geracaoDiariaKwh={geracaoDiariaKwh}
+                />
+                <VendaResumoPublicoSection
+                  valorTotalPropostaNormalizado={valorTotalPropostaNormalizado}
+                  economiaEstimativaValorCalculado={economiaEstimativaValorCalculado}
+                />
+                <ComposicaoUfvSection
+                  descontosMoneyField={descontosMoneyField}
+                  capexBaseResumoField={capexBaseResumoField}
+                  capexBaseResumoValor={capexBaseResumoValor}
+                  capexBaseManualValor={capexBaseManualValor}
+                  margemOperacionalResumoField={margemOperacionalResumoField}
+                  margemManualAtiva={margemManualAtiva}
+                  onOpenVendasConfig={() => { void abrirConfiguracoes('vendas') }}
+                />
                 <section className="card">
                   <h2>Upload de Orçamento</h2>
                   <div className="budget-upload-section">
@@ -30149,8 +19877,14 @@ export default function App() {
                     </>
                   )}
                 </section>
-                {renderCondicoesPagamentoSection()}
-                {renderRetornoProjetadoSection()}
+                {condicoesPagamentoSection}
+                <RetornoProjetadoSection
+                  retornoProjetado={retornoProjetado}
+                  retornoStatus={retornoStatus}
+                  retornoError={retornoError}
+                  capexTotal={Number.isFinite(vendaForm.capex_total) ? Number(vendaForm.capex_total) : 0}
+                  onCalcular={handleCalcularRetorno}
+                />
               </>
             ) : null}
           </>
@@ -30168,6 +19902,31 @@ export default function App() {
               </main>
             </div>
           </div>
+        )}
+        {/* TEMP: Project Hub quick-access button — remove when a sidebar entry is added */}
+        {activePage !== 'project-hub' && (
+          <button
+            type="button"
+            onClick={() => setActivePage('project-hub')}
+            title="Project Hub (acesso temporário)"
+            style={{
+              position: 'fixed',
+              bottom: '1.5rem',
+              right: '1.5rem',
+              zIndex: 9999,
+              background: 'var(--color-primary, #1d4ed8)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 24,
+              padding: '0.5rem 1.1rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            }}
+          >
+            🗂 Project Hub
+          </button>
         )}
       </AppShell>
       <input
@@ -30280,7 +20039,14 @@ export default function App() {
           onClose={handleFecharModalContratos}
         />
       ) : null}
-      {renderPrecheckModal()}
+      {precheckModalData ? (
+        <PrecheckModal
+          data={precheckModalData}
+          clienteCiente={precheckModalClienteCiente}
+          setClienteCiente={setPrecheckModalClienteCiente}
+          onDecision={resolvePrecheckDecision}
+        />
+      ) : null}
 
       {(clientsSyncState === 'local-fallback' || clientsSyncState === 'degraded-api' || proposalsSyncState === 'local-only' || proposalsSyncState === 'failed') ? (
         <div className="sync-warning-banner" role="status" aria-live="polite">

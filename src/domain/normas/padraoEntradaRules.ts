@@ -188,6 +188,9 @@ export const evaluateNormCompliance = (
   }
 }
 
+export type PrecheckDecisionAction = 'adjust_current' | 'adjust_upgrade' | 'proceed' | 'cancel'
+export type PrecheckDecision = { action: PrecheckDecisionAction; clienteCiente: boolean }
+
 export const formatTipoLigacaoLabel = (tipo: TipoLigacaoNorma): string => {
   switch (tipo) {
     case 'MONOFASICO':

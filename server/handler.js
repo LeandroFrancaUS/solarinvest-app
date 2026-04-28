@@ -122,8 +122,15 @@ import {
   handleProjectStatus,
   handleProjectPvData,
   handleProjectFromPlan,
+  handleProjectFromAnalise,
 } from './projects/handler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
+import { handleProjectFinanceAnalysis } from './project-finance/analysisHandler.js'
+import {
+  handleProjectChargesList,
+  handleProjectChargesGenerate,
+  handleChargeUpdate,
+} from './project-charges/handler.js'
 import {
   handleFinancialImportParse,
   handleFinancialImportConfirm,
@@ -1545,6 +1552,14 @@ export default async function handler(req, res) {
       return
     }
 
+    // POST /api/projects/from-analise
+    if (pathname === '/api/projects/from-analise') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
+      return
+    }
+
     // POST /api/projects/from-plan/:planId
     {
       const fromPlanMatch = pathname.match(/^\/api\/projects\/from-plan\/([^/]+)$/)
@@ -1553,6 +1568,25 @@ export default async function handler(req, res) {
         const sj = (s, b) => sendJson(res, s, b)
         const planId = decodeURIComponent(fromPlanMatch[1])
         await handleProjectFromPlan(req, res, { method, planId, readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // POST /api/projects/from-analise
+    if (pathname === '/api/projects/from-analise') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
+      return
+    }
+
+    // GET|PUT /api/projects/:id/financial-analysis
+    {
+      const analysisMatch = pathname.match(/^\/api\/projects\/([^/]+)\/financial-analysis$/)
+      if (analysisMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectFinanceAnalysis(req, res, { method, projectId: analysisMatch[1], readJsonBody, sendJson: sj })
         return
       }
     }
@@ -1586,6 +1620,39 @@ export default async function handler(req, res) {
         if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
         const sj = (s, b) => sendJson(res, s, b)
         await handleProjectPvData(req, res, { method, projectId: pvDataMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // POST /api/projects/:id/charges/generate
+    {
+      const chargesGenerateMatch = pathname.match(/^\/api\/projects\/([^/]+)\/charges\/generate$/)
+      if (chargesGenerateMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectChargesGenerate(req, res, { method, projectId: chargesGenerateMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
+    }
+
+    // GET /api/projects/:id/charges
+    {
+      const chargesMatch = pathname.match(/^\/api\/projects\/([^/]+)\/charges$/)
+      if (chargesMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectChargesList(req, res, { method, projectId: chargesMatch[1], sendJson: sj })
+        return
+      }
+    }
+
+    // PATCH /api/charges/:id
+    {
+      const chargeByIdMatch = pathname.match(/^\/api\/charges\/([^/]+)$/)
+      if (chargeByIdMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleChargeUpdate(req, res, { method, chargeId: chargeByIdMatch[1], readJsonBody, sendJson: sj })
         return
       }
     }

@@ -1,4 +1,5 @@
-import { formatMoneyBR, formatMoneyBRWithDigits } from '../lib/locale/br-number'
+import { formatMoneyBR, formatMoneyBRWithDigits, formatNumberBRWithOptions } from '../lib/locale/br-number'
+import type { LeasingEndereco } from '../store/useLeasingStore'
 
 export const currency = (value: number) => formatMoneyBR(value)
 
@@ -131,4 +132,61 @@ export const formatTelefone = (value: string) => {
   const part1 = remaining.slice(0, 5)
   const part2 = remaining.slice(5)
   return part2 ? `(${ddd}) ${part1}-${part2}` : `(${ddd}) ${part1}`
+}
+
+const formatKwhValue = (value: number | null | undefined, digits = 2): string | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return formatNumberBRWithOptions(value, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
+  }
+  return null
+}
+
+export const formatKwhWithUnit = (value: number | null | undefined, digits = 2): string | null => {
+  const formatted = formatKwhValue(value, digits)
+  return formatted ? `${formatted} kWh` : null
+}
+
+/**
+ * Formata um timestamp de aprovação para exibição em pt-BR.
+ * Retorna '—' para valores nulos/inválidos.
+ */
+export const formatAprovacaoData = (timestamp: number | null): string => {
+  if (!timestamp) {
+    return '—'
+  }
+  try {
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
+      new Date(timestamp),
+    )
+  } catch (_error) {
+    return '—'
+  }
+}
+
+export const formatUcGeradoraTitularEndereco = (
+  endereco?: LeasingEndereco | null,
+): string => {
+  if (!endereco) {
+    return ''
+  }
+  const logradouro = endereco.logradouro?.trim() ?? ''
+  const numero = endereco.numero?.trim() ?? ''
+  const complemento = endereco.complemento?.trim() ?? ''
+  const bairro = endereco.bairro?.trim() ?? ''
+  const cidade = endereco.cidade?.trim() ?? ''
+  const uf = endereco.uf?.trim() ?? ''
+  const cep = endereco.cep?.trim() ?? ''
+  const primeiraLinha = [logradouro, numero].filter(Boolean).join(', ')
+  const primeiraLinhaCompleta =
+    complemento && primeiraLinha ? `${primeiraLinha}, ${complemento}` : primeiraLinha || complemento
+  const partes = [
+    primeiraLinhaCompleta,
+    bairro || '',
+    [cidade, uf].filter(Boolean).join('/'),
+    cep ? `CEP ${cep}` : '',
+  ].filter(Boolean)
+  return partes.join(' — ')
 }
