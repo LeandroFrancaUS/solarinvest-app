@@ -21,7 +21,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
   let rows
   if (!searchTerm) {
     rows = await sql`
-      SELECT
+      SELECT DISTINCT ON (c.id)
         c.id,
         c.client_name                          AS name,
         c.client_email                         AS email,
@@ -51,12 +51,12 @@ export async function listPortfolioClients(sql, { search } = {}) {
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY c.created_at DESC
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST
     `
   } else {
     const like = `%${searchTerm}%`
     rows = await sql`
-      SELECT
+      SELECT DISTINCT ON (c.id)
         c.id,
         c.client_name                          AS name,
         c.client_email                         AS email,
@@ -95,7 +95,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
-      ORDER BY c.created_at DESC
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST
     `
   }
 
