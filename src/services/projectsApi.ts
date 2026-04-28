@@ -138,6 +138,28 @@ export async function fetchProjectsSummary(): Promise<ProjectSummary> {
 }
 
 /**
+ * Creates (or reuses) a project from a financial analysis result.
+ * Uses POST /api/projects/from-analise — idempotent when the same plan_id is
+ * provided. The plan_id is generated client-side (e.g. "analise:<uuid>") so
+ * that repeated clicks of "Converter em Projeto" do not create duplicates.
+ * Returns the project row plus a `created` flag.
+ */
+export async function createProjectFromAnalise(params: {
+  client_id: number
+  project_type: ProjectType
+  client_name_snapshot?: string | null
+  /** Stable identifier for idempotency. Must start with "analise:". */
+  plan_id: string
+}): Promise<{ project: ProjectRow; created: boolean }> {
+  const url = buildUrl('/api/projects/from-analise')
+  const res = await apiFetch<{ data: ProjectRow; meta: { created: boolean } }>(url, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+  return { project: res.data, created: res.meta.created }
+}
+
+/**
  * Creates (or reuses) a project in Gestão Financeira for the given contract.
  * Uses POST /api/projects/from-plan/:contractId — idempotent, safe to call
  * every time a contract is activated.
