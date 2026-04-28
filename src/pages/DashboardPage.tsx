@@ -1,95 +1,176 @@
 // src/pages/DashboardPage.tsx
-// Main analytics dashboard: fetches real data, applies filters, and renders KPIs + charts.
+// Operational dashboard — actionable cards for the current moment.
+// Etapa 7: Simplified view. Deep analysis lives in Indicadores.
+// Each card links to the corresponding area (Clientes, Cobranças, Operação, Comercial).
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listClients } from '../lib/api/clientsApi.js'
 import { listProposals } from '../lib/api/proposalsApi.js'
-import { fetchProjectsSummary } from '../services/projectsApi.js'
+import { fetchProjects } from '../services/projectsApi.js'
 import { fetchFinancialDashboardFeed } from '../services/financialManagementApi.js'
-import {
-  computeDashboardSnapshot,
-  defaultFilters,
-  invalidateSnapshotCache,
-  normalizeClient,
-  normalizeProposal,
-  trackEvent,
-} from '../domain/analytics/index.js'
-import type { AnalyticsRecord, DashboardFilters } from '../domain/analytics/types.js'
-import type { ProjectSummary } from '../domain/projects/types.js'
-import type { FinancialDashboardFeed } from '../domain/projects/projectsPanelKpis.js'
-import { deriveProjectsPanelKPIs } from '../domain/projects/projectsPanelKpis.js'
-import {
-  DashboardFiltersPanel,
-  KpiCards,
-  ContractsChart,
-  RevenueChart,
-  ForecastPanel,
-  DrilldownTable,
-  ProjectsPanel,
-} from '../components/dashboard/index.js'
+import { listInvoices } from '../services/invoicesApi.js'
+import { listOperationalTasks } from '../lib/api/operationalDashboardApi.js'
+import { formatMoneyBR } from '../lib/locale/br-number.js'
 import { useAppAuth } from '../auth/guards/RequireAuthorizedUser.js'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface DashboardPageProps {
+  onNavigateToClientes?: (() => void) | undefined
+  onNavigateToCobrancasMensalidades?: (() => void) | undefined
+  onNavigateToCobrancasRecebimentos?: (() => void) | undefined
+  onNavigateToCobrancasInadimplencia?: (() => void) | undefined
+  onNavigateToOperacaoChamados?: (() => void) | undefined
+  onNavigateToOperacaoManutencoes?: (() => void) | undefined
+  onNavigateToComercialLeads?: (() => void) | undefined
+  onNavigateToComercialContratos?: (() => void) | undefined
+  onNavigateToComercialPropostas?: (() => void) | undefined
+}
+
+interface DashboardData {
+  clientesAtivos: number
+  receitaPrevistaMes: number | null
+  recebidoNoMes: number
+  mensalidadesEmAtraso: number
+  cobrancasVencendoHoje: number
+  proximasManutencoes: number
+  chamadosAbertos: number
+  contratosAguardandoAssinatura: number
+  propostasEmNegociacao: number
+}
 
 type LoadingState = 'idle' | 'loading' | 'loaded' | 'error'
 
-export function DashboardPage() {
-  const [records, setRecords] = useState<AnalyticsRecord[]>([])
-  const [filters, setFilters] = useState<DashboardFilters>(defaultFilters())
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function padded(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function todayISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${padded(d.getMonth() + 1)}-${padded(d.getDate())}`
+}
+
+function currentMonthPrefix(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${padded(d.getMonth() + 1)}`
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function DashboardPage({
+  onNavigateToClientes,
+  onNavigateToCobrancasMensalidades,
+  onNavigateToCobrancasRecebimentos,
+  onNavigateToCobrancasInadimplencia,
+  onNavigateToOperacaoChamados,
+  onNavigateToOperacaoManutencoes,
+  onNavigateToComercialLeads,
+  onNavigateToComercialContratos,
+  onNavigateToComercialPropostas,
+}: DashboardPageProps) {
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loadState, setLoadState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
-  const [projectSummary, setProjectSummary] = useState<ProjectSummary | null>(null)
-  const [financialFeed, setFinancialFeed] = useState<FinancialDashboardFeed | null>(null)
 
-  // Gate data loading on a confirmed authenticated session from the auth context.
-  // DashboardPage is rendered inside RequireAuthorizedUser which guarantees the user
-  // is authenticated, but the API token providers (proposalsApi, clientsApi) are
-  // registered in a parent component's useEffect that runs AFTER child effects.
-  // Reading `me` from the auth context lets us defer the API call until after the
-  // parent's effect has set the token providers.
+  // Gate data loading on confirmed auth so token providers are ready.
   const { me } = useAppAuth()
   const isAuthenticated = Boolean(me?.authenticated)
 
-  // ── Fetch data from real APIs ───────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoadState('loading')
     setError(null)
     try {
-      const [clientsRes, proposalsRes, projectSummaryRes, financialFeedRes] = await Promise.allSettled([
-        listClients({ limit: 1000 }),
-        listProposals({ limit: 1000 }),
-        fetchProjectsSummary(),
-        fetchFinancialDashboardFeed(),
-      ])
+      const today = todayISO()
+      const monthPrefix = currentMonthPrefix()
 
-      const allRecords: AnalyticsRecord[] = []
+      const [clientsRes, proposalsRes, projectsRes, financialRes, invoicesRes, tasksRes] =
+        await Promise.allSettled([
+          listClients({ limit: 500 }),
+          listProposals({ status: 'sent', limit: 200 }),
+          fetchProjects({ status: 'Aguardando', limit: 200 }),
+          fetchFinancialDashboardFeed(),
+          listInvoices({ limit: 500 }),
+          listOperationalTasks({ limit: 200 }),
+        ])
 
+      // ── Clientes ativos (in_portfolio = true) ────────────────────────────
+      let clientesAtivos = 0
       if (clientsRes.status === 'fulfilled') {
-        for (const c of clientsRes.value.data) {
-          allRecords.push(normalizeClient(c as unknown as Record<string, unknown>))
-        }
+        clientesAtivos = clientsRes.value.data.filter((c) => c.in_portfolio === true).length
       }
 
-      if (proposalsRes.status === 'fulfilled') {
-        // Only add proposals that don't overlap with clients (by client_id).
-        const clientIds = new Set(allRecords.map((r) => r.id))
-        for (const p of proposalsRes.value.data) {
-          const rec = normalizeProposal(p as unknown as Record<string, unknown>)
-          if (!clientIds.has(p.client_id ?? '')) {
-            allRecords.push(rec)
+      // ── Receita prevista do mês (MRR from financial feed) ─────────────────
+      let receitaPrevistaMes: number | null = null
+      if (financialRes.status === 'fulfilled') {
+        receitaPrevistaMes = financialRes.value.mrr_leasing ?? null
+      }
+
+      // ── Invoice-based metrics ─────────────────────────────────────────────
+      let recebidoNoMes = 0
+      let mensalidadesEmAtraso = 0
+      let cobrancasVencendoHoje = 0
+      if (invoicesRes.status === 'fulfilled') {
+        const invoices = invoicesRes.value.data
+        for (const inv of invoices) {
+          const isPaid = inv.payment_status === 'pago' || inv.payment_status === 'confirmado'
+          // Recebido no mês: confirmed payments this calendar month
+          if (isPaid && inv.paid_at && inv.paid_at.startsWith(monthPrefix)) {
+            recebidoNoMes += inv.amount
+          }
+          // Mensalidades em atraso: explicitly overdue status
+          if (inv.payment_status === 'vencida') {
+            mensalidadesEmAtraso += 1
+          }
+          // Vencendo hoje: due today and not yet paid
+          if (!isPaid && inv.due_date && inv.due_date.startsWith(today)) {
+            cobrancasVencendoHoje += 1
           }
         }
       }
 
-      // Project summary and financial feed are loaded independently (may fail for
-      // users without the required permissions — handled gracefully).
-      if (projectSummaryRes.status === 'fulfilled') {
-        setProjectSummary(projectSummaryRes.value)
-      }
-      if (financialFeedRes.status === 'fulfilled') {
-        setFinancialFeed(financialFeedRes.value)
+      // ── Operational tasks ─────────────────────────────────────────────────
+      // MAINTENANCE and CLEANING are not yet defined task types in the schema.
+      // proximasManutencoes uses INSTALLATION + GRID_APPROVAL as current proxies.
+      let proximasManutencoes = 0
+      let chamadosAbertos = 0
+      if (tasksRes.status === 'fulfilled') {
+        const tasks = tasksRes.value.data
+        for (const task of tasks) {
+          const isActive = task.status !== 'DONE' && task.status !== 'CANCELLED'
+          if (isActive && (task.type === 'INSTALLATION' || task.type === 'GRID_APPROVAL')) {
+            proximasManutencoes += 1
+          }
+          if (isActive && task.type === 'TECH_SUPPORT') {
+            chamadosAbertos += 1
+          }
+        }
       }
 
-      invalidateSnapshotCache()
-      setRecords(allRecords)
+      // ── Contratos aguardando assinatura (projects status = 'Aguardando') ──
+      let contratosAguardandoAssinatura = 0
+      if (projectsRes.status === 'fulfilled') {
+        contratosAguardandoAssinatura = projectsRes.value.rows.length
+      }
+
+      // ── Propostas em negociação (status = 'sent') ─────────────────────────
+      let propostasEmNegociacao = 0
+      if (proposalsRes.status === 'fulfilled') {
+        propostasEmNegociacao = proposalsRes.value.data.filter((p) => p.deleted_at === null || p.deleted_at === undefined).length
+      }
+
+      setData({
+        clientesAtivos,
+        receitaPrevistaMes,
+        recebidoNoMes,
+        mensalidadesEmAtraso,
+        cobrancasVencendoHoje,
+        proximasManutencoes,
+        chamadosAbertos,
+        contratosAguardandoAssinatura,
+        propostasEmNegociacao,
+      })
       setLoadState('loaded')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados')
@@ -98,39 +179,19 @@ export function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    // Only load data after auth is fully established so token providers are ready.
     if (!isAuthenticated) return
     void loadData()
-    trackEvent('dashboard_viewed')
   }, [isAuthenticated, loadData])
 
-  // ── Compute snapshot (memoised inside engine) ───────────────────────────
-  const snapshot = useMemo(
-    () => computeDashboardSnapshot(records, filters),
-    [records, filters],
-  )
+  // ── Greeting ──────────────────────────────────────────────────────────────
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Bom dia'
+    if (hour < 18) return 'Boa tarde'
+    return 'Boa noite'
+  }, [])
 
-  // ── Project/financial panel KPIs (server-aggregated, no re-derivation) ──
-  const projectsPanelKPIs = useMemo(
-    () => deriveProjectsPanelKPIs(projectSummary, financialFeed),
-    [projectSummary, financialFeed],
-  )
-
-  // ── Extract available filter values ─────────────────────────────────────
-  const availableConsultants = useMemo(
-    () => [...new Set(records.map((r) => r.consultant).filter((c): c is string => c != null))].sort(),
-    [records],
-  )
-  const availableStates = useMemo(
-    () => [...new Set(records.map((r) => r.state).filter((s): s is string => s != null))].sort(),
-    [records],
-  )
-  const availableRegions = useMemo(
-    () => [...new Set(records.map((r) => r.region).filter((r): r is string => r != null))].sort(),
-    [records],
-  )
-
-  // ── Render ──────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (loadState === 'idle' || loadState === 'loading') {
     return (
@@ -142,8 +203,14 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-ds-text-primary">Dashboard Analítico</h1>
+        <div>
+          <h1 className="text-xl font-bold text-ds-text-primary">{greeting} 👋</h1>
+          <p className="text-sm text-ds-text-muted">
+            Visão operacional do momento atual
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => void loadData()}
@@ -159,32 +226,154 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <DashboardFiltersPanel
-        filters={filters}
-        onChange={setFilters}
-        availableConsultants={availableConsultants}
-        availableStates={availableStates}
-        availableRegions={availableRegions}
-      />
+      {/* Actionable cards grid */}
+      {data && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* ── Clientes ─────────────────────────────────────── */}
+          <ActionCard
+            icon="👥"
+            title="Clientes ativos"
+            value={data.clientesAtivos}
+            area="Clientes"
+            onNavigate={onNavigateToClientes}
+          />
 
-      {/* KPI Cards */}
-      <KpiCards kpis={snapshot.kpis} />
+          {/* ── Cobranças ────────────────────────────────────── */}
+          <ActionCard
+            icon="📅"
+            title="Receita prevista do mês"
+            value={data.receitaPrevistaMes !== null ? formatMoneyBR(data.receitaPrevistaMes) : '—'}
+            subtitle="MRR leasing"
+            area="Cobranças → Mensalidades"
+            onNavigate={onNavigateToCobrancasMensalidades}
+          />
 
-      {/* Projects + financial aggregation panel */}
-      <ProjectsPanel kpis={projectsPanelKPIs} />
+          <ActionCard
+            icon="✅"
+            title="Recebido no mês"
+            value={formatMoneyBR(data.recebidoNoMes)}
+            subtitle="Pagamentos confirmados"
+            area="Cobranças → Recebimentos"
+            onNavigate={onNavigateToCobrancasRecebimentos}
+          />
 
-      {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ContractsChart data={snapshot.timeSeries} />
-        <RevenueChart data={snapshot.timeSeries} />
+          <ActionCard
+            icon="⚠️"
+            title="Mensalidades em atraso"
+            value={data.mensalidadesEmAtraso}
+            severity={data.mensalidadesEmAtraso > 0 ? 'warning' : 'neutral'}
+            area="Cobranças → Inadimplência"
+            onNavigate={onNavigateToCobrancasInadimplencia}
+          />
+
+          <ActionCard
+            icon="🔔"
+            title="Cobranças vencendo hoje"
+            value={data.cobrancasVencendoHoje}
+            severity={data.cobrancasVencendoHoje > 0 ? 'warning' : 'neutral'}
+            area="Cobranças → Mensalidades"
+            onNavigate={onNavigateToCobrancasMensalidades}
+          />
+
+          {/* ── Operação ─────────────────────────────────────── */}
+          <ActionCard
+            icon="🔧"
+            title="Próximas manutenções"
+            value={data.proximasManutencoes}
+            subtitle="Pendentes ou agendadas"
+            area="Operação → Manutenções"
+            onNavigate={onNavigateToOperacaoManutencoes}
+          />
+
+          <ActionCard
+            icon="🎫"
+            title="Chamados abertos"
+            value={data.chamadosAbertos}
+            severity={data.chamadosAbertos > 0 ? 'info' : 'neutral'}
+            area="Operação → Chamados"
+            onNavigate={onNavigateToOperacaoChamados}
+          />
+
+          {/* ── Comercial ────────────────────────────────────── */}
+          <ActionCard
+            icon="🖋️"
+            title="Contratos aguardando assinatura"
+            value={data.contratosAguardandoAssinatura}
+            severity={data.contratosAguardandoAssinatura > 0 ? 'info' : 'neutral'}
+            area="Comercial → Contratos"
+            onNavigate={onNavigateToComercialContratos}
+          />
+
+          <ActionCard
+            icon="📋"
+            title="Propostas em negociação"
+            value={data.propostasEmNegociacao}
+            area="Comercial → Propostas"
+            onNavigate={onNavigateToComercialPropostas}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ActionCard component ──────────────────────────────────────────────────────
+
+type Severity = 'neutral' | 'info' | 'warning' | 'error'
+
+interface ActionCardProps {
+  icon: string
+  title: string
+  value: number | string
+  subtitle?: string | undefined
+  severity?: Severity | undefined
+  area: string
+  onNavigate?: (() => void) | undefined
+}
+
+function ActionCard({ icon, title, value, subtitle, severity = 'neutral', area, onNavigate }: ActionCardProps) {
+  const severityClasses: Record<Severity, string> = {
+    neutral: 'border-ds-border bg-ds-panel',
+    info: 'border-blue-200 bg-blue-50',
+    warning: 'border-yellow-200 bg-yellow-50',
+    error: 'border-red-200 bg-red-50',
+  }
+
+  const valueSeverityClasses: Record<Severity, string> = {
+    neutral: 'text-ds-text-primary',
+    info: 'text-blue-800',
+    warning: 'text-yellow-800',
+    error: 'text-red-800',
+  }
+
+  return (
+    <div
+      className={`rounded-xl border p-5 transition-shadow hover:shadow-md ${severityClasses[severity]}`}
+      aria-label={title}
+    >
+      <div className="mb-3 flex items-start justify-between">
+        <span className="text-2xl" aria-hidden="true">{icon}</span>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={onNavigate}
+            className="text-xs font-medium text-ds-primary underline-offset-2 hover:underline"
+            aria-label={`Ver ${area}`}
+          >
+            Ver →
+          </button>
+        )}
       </div>
-
-      {/* Forecast */}
-      <ForecastPanel forecast={snapshot.forecast} />
-
-      {/* Drilldown table */}
-      <DrilldownTable records={snapshot.filtered} />
+      <div className={`text-3xl font-bold tabular-nums ${valueSeverityClasses[severity]}`} aria-live="polite">
+        {value}
+      </div>
+      <h3 className="mt-1 text-sm font-medium text-ds-text-primary">{title}</h3>
+      {subtitle && (
+        <div className="mt-0.5 text-xs text-ds-text-muted">{subtitle}</div>
+      )}
+      {onNavigate && (
+        <div className="mt-2 text-xs text-ds-text-muted">{area}</div>
+      )}
     </div>
   )
 }
