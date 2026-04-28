@@ -26,7 +26,6 @@ function getTipoBadgeStyles(tipo: string): React.CSSProperties {
 
 interface ProjetoCardProps {
   projeto: Projeto
-  selected: boolean
   onSelect: (id: string) => void
 }
 
@@ -43,7 +42,7 @@ const PROJETO_STATUS_LABEL: Record<ProjetoStatus, string> = {
   cancelado: 'Cancelado',
 }
 
-function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
+function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
   const { cliente, tipo, status, consultor } = projeto
   const [focused, setFocused] = useState(false)
   return (
@@ -55,14 +54,10 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={{
-        border: selected
-          ? '2px solid var(--color-primary, #1d4ed8)'
-          : '1px solid var(--color-border, #e2e8f0)',
+        border: '1px solid var(--color-border, #e2e8f0)',
         borderRadius: 8,
         padding: '0.75rem 1rem',
-        background: selected
-          ? 'var(--color-primary-light, #dbeafe)'
-          : 'var(--color-surface, #fff)',
+        background: 'var(--color-surface, #fff)',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.3rem',
@@ -96,8 +91,6 @@ function ProjetoCard({ projeto, selected, onSelect }: ProjetoCardProps) {
 // ---------------------------------------------------------------------------
 // Commission automation helper
 // ---------------------------------------------------------------------------
-
-
 
 /**
  * Returns a Partial<Projeto> patch that updates comissaoConsultor when a
@@ -344,7 +337,6 @@ export function ProjectHubPage({ onBack, onOpenProjectDetail }: ProjectHubPagePr
             <ProjetoCard
               key={projeto.id}
               projeto={projeto}
-              selected={false}
               onSelect={onOpenProjectDetail}
             />
           ))}
