@@ -60,15 +60,17 @@ function fmtBRL(value: number | null | undefined): string {
 
 function fmtDate(value: string | null | undefined): string {
   if (!value) return '—'
-  const parts = value.slice(0, 10).split('-').map(Number) as [number, number, number]
-  const date = new Date(parts[0], parts[1] - 1, parts[2])
+  const parts = value.slice(0, 10).split('-').map(Number)
+  if (parts.length < 3) return '—'
+  const date = new Date(parts[0]!, parts[1]! - 1, parts[2]!)
   return isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR')
 }
 
 function fmtMonth(value: string | null | undefined): string {
   if (!value) return '—'
-  const parts = value.slice(0, 10).split('-').map(Number) as [number, number]
-  const date = new Date(parts[0], parts[1] - 1, 1)
+  const parts = value.slice(0, 10).split('-').map(Number)
+  if (parts.length < 2) return '—'
+  const date = new Date(parts[0]!, parts[1]! - 1, 1)
   if (isNaN(date.getTime())) return '—'
   return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
 }
@@ -80,8 +82,9 @@ function todayIso(): string {
 
 function diasAtraso(dueDate: string): number {
   const today = new Date()
-  const parts = dueDate.slice(0, 10).split('-').map(Number) as [number, number, number]
-  const due = new Date(parts[0], parts[1] - 1, parts[2])
+  const parts = dueDate.slice(0, 10).split('-').map(Number)
+  if (parts.length < 3) return 0
+  const due = new Date(parts[0]!, parts[1]! - 1, parts[2]!)
   const diff = today.getTime() - due.getTime()
   return Math.max(0, Math.floor(diff / 86_400_000))
 }
