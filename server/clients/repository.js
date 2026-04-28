@@ -1065,54 +1065,71 @@ export async function findClientByNormalizedName(sql, name, ownerUserId) {
  * Similarity is measured by normalising both names (lowercase, collapsed
  * whitespace, diacritics stripped) and returning rows where the trigram
  * similarity (pg_trgm) is above 0.55 OR the names are identical after
- * normalisation.  Falls back to a plain ILIKE name match when the pg_trgm
- * extension is unavailable.
+ * normalisation.  Falls back to a plain normalised-name equality match when
+ * the pg_trgm extension is unavailable (PostgreSQL error code 42883).
  *
  * @param {Function} sql       - user-scoped sql handle
  * @param {string}   name      - Raw client name to search for
- * @param {string}   city      - City to scope the search (ILIKE)
+ * @param {string}   city      - City to scope the search (ILIKE, special chars escaped)
  * @param {number}   [limit=5] - Maximum number of candidates to return
  * @returns {Promise<object[]>} Array of matching client rows (may be empty)
  */
 export async function findClientsBySimilarNameAndCity(sql, name, city, limit = 5) {
   if (!name || !name.trim() || !city || !city.trim()) return []
-  const normalizedName = name.trim()
-  const normalizedCity = city.trim()
+  const trimmedName = name.trim()
+  // Escape ILIKE special characters so literal '%', '_', and '\' in the city
+  // string are treated as literals, not wildcard/escape metacharacters.
+  const escapedCity = city.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
 
   // Try trigram similarity first (requires pg_trgm extension).
-  // Falls back to normalised-name equality + ILIKE city if pg_trgm is absent.
+  // Falls back to normalised-name equality + ILIKE city when pg_trgm is absent
+  // (PostgreSQL error code 42883 = undefined_function).
   try {
     const rows = await sql`
-      SELECT * FROM clients
-      WHERE deleted_at IS NULL
-        AND merged_into_client_id IS NULL
-        AND client_city ILIKE ${`%${normalizedCity}%`}
-        AND (
-          lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
-            = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
-          OR similarity(
-               lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')),
-               lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
-             ) > 0.55
-        )
+      WITH candidates AS (
+        SELECT
+          *,
+          lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS name_norm
+        FROM clients
+        WHERE deleted_at IS NULL
+          AND merged_into_client_id IS NULL
+          AND client_city ILIKE ${`%${escapedCity}%`} ESCAPE '\'
+      ),
+      needle AS (
+        SELECT lower(regexp_replace(btrim(${trimmedName}), '\s+', ' ', 'g')) AS norm
+      )
+      SELECT c.*
+      FROM candidates c, needle n
+      WHERE c.name_norm = n.norm
+         OR similarity(c.name_norm, n.norm) > 0.55
       ORDER BY
-        lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
-          = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g')) DESC,
+        (c.name_norm = n.norm) DESC,
         updated_at DESC NULLS LAST
       LIMIT ${limit}
     `
     return rows
   } catch (err) {
-    // pg_trgm not available — fall back to exact normalised-name match
+    // PostgreSQL error code 42883 = undefined_function (pg_trgm not installed)
+    const code = err?.code ?? ''
     const message = err instanceof Error ? err.message : String(err)
-    if (message.includes('similarity') || message.includes('pg_trgm')) {
+    if (code === '42883' || message.includes('similarity') || message.includes('pg_trgm')) {
+      // Fallback: exact normalised-name match without trigram similarity
       const rows = await sql`
-        SELECT * FROM clients
-        WHERE deleted_at IS NULL
-          AND merged_into_client_id IS NULL
-          AND client_city ILIKE ${`%${normalizedCity}%`}
-          AND lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
-                = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
+        WITH candidates AS (
+          SELECT
+            *,
+            lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS name_norm
+          FROM clients
+          WHERE deleted_at IS NULL
+            AND merged_into_client_id IS NULL
+            AND client_city ILIKE ${`%${escapedCity}%`} ESCAPE '\'
+        ),
+        needle AS (
+          SELECT lower(regexp_replace(btrim(${trimmedName}), '\s+', ' ', 'g')) AS norm
+        )
+        SELECT c.*
+        FROM candidates c, needle n
+        WHERE c.name_norm = n.norm
         ORDER BY updated_at DESC NULLS LAST
         LIMIT ${limit}
       `
