@@ -15,6 +15,9 @@ export type ActivePage =
   | 'carteira'
   | 'financial-management'
   | 'project-hub'
+  // Área Comercial (Etapa 3)
+  | 'comercial-leads'
+  | 'comercial-propostas'
   // Operação placeholder sections (Etapa 1 — sem página real ainda)
   | 'operacao-agenda'
   | 'operacao-chamados'

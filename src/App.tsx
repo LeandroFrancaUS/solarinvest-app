@@ -405,6 +405,8 @@ import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
 import { BudgetSearchPage } from './pages/BudgetSearchPage'
+import { ComercialLeadsPage } from './pages/ComercialLeadsPage'
+import { ComercialPropostasPage } from './pages/ComercialPropostasPage'
 import { PrecheckModal } from './pages/PrecheckModal'
 import { PropostaImagensSection } from './components/PropostaImagensSection'
 import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
@@ -16755,6 +16757,22 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
+  const abrirComercialLeads = useCallback(() => {
+    void runWithUnsavedChangesGuard(() => {
+      setActivePage('comercial-leads')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage])
+
+  const [comercialPropostasTab, setComercialPropostasTab] = useState<'leasing' | 'vendas'>('leasing')
+  const abrirComercialPropostas = useCallback((tab: 'leasing' | 'vendas') => {
+    setComercialPropostasTab(tab)
+    void runWithUnsavedChangesGuard(async () => {
+      const registros = await carregarOrcamentosPrioritarios()
+      setOrcamentosSalvos(registros)
+      setActivePage('comercial-propostas')
+    })
+  }, [runWithUnsavedChangesGuard, setActivePage, carregarOrcamentosPrioritarios, setOrcamentosSalvos])
+
   const abrirOperacaoPlaceholder = useCallback((section: OperacaoSection) => {
     void runWithUnsavedChangesGuard(() => {
       setActivePage(section)
@@ -18459,47 +18477,55 @@ export default function App() {
       ? undefined
       : activePage === 'crm'
         ? 'CRM Gestão de Relacionamento e Operações'
-        : activePage === 'consultar'
-          ? 'Consulta de orçamentos salvos'
-          : activePage === 'clientes'
-            ? 'Gestão de clientes salvos'
-            : activePage === 'simulacoes'
-              ? 'Simulações financeiras, risco e aprovação interna'
-              : activePage === 'settings'
-                ? 'Preferências e integrações da proposta'
-                : activePage === 'carteira'
-                  ? 'Carteira de clientes ativos'
-                  : activePage === 'financial-management'
-                    ? 'Cobranças e gestão financeira'
-                    : activePage === 'operational-dashboard'
-                      ? 'Painel operacional'
-                      : (activePage === 'operacao-agenda' ||
-                          activePage === 'operacao-chamados' ||
-                          activePage === 'operacao-manutencoes' ||
-                          activePage === 'operacao-limpezas' ||
-                          activePage === 'operacao-seguros')
-                        ? `Operação — ${OPERACAO_SECTION_LABELS[activePage]}`
-                        : undefined
+        : activePage === 'comercial-leads'
+          ? 'Leads em andamento — Área Comercial'
+          : activePage === 'comercial-propostas'
+            ? 'Propostas por tipo e status — Área Comercial'
+            : activePage === 'consultar'
+              ? 'Consulta de orçamentos salvos'
+              : activePage === 'clientes'
+                ? 'Gestão de clientes salvos'
+                : activePage === 'simulacoes'
+                  ? 'Simulações financeiras, risco e aprovação interna'
+                  : activePage === 'settings'
+                    ? 'Preferências e integrações da proposta'
+                    : activePage === 'carteira'
+                      ? 'Carteira de clientes ativos'
+                      : activePage === 'financial-management'
+                        ? 'Cobranças e gestão financeira'
+                        : activePage === 'operational-dashboard'
+                          ? 'Painel operacional'
+                          : (activePage === 'operacao-agenda' ||
+                              activePage === 'operacao-chamados' ||
+                              activePage === 'operacao-manutencoes' ||
+                              activePage === 'operacao-limpezas' ||
+                              activePage === 'operacao-seguros')
+                            ? `Operação — ${OPERACAO_SECTION_LABELS[activePage]}`
+                            : undefined
   const currentPageIndicator =
     activePage === 'dashboard'
       ? 'Dashboard'
       : activePage === 'crm'
         ? 'Leads'
-        : activePage === 'consultar'
-          ? 'Relatórios'
-          : activePage === 'clientes'
-            ? 'Clientes'
-            : activePage === 'simulacoes'
-              ? 'Simulações'
-              : activePage === 'settings'
-                ? 'Configurações'
-                : activePage === 'carteira'
-                  ? 'Clientes'
-                  : activePage === 'financial-management'
-                    ? 'Cobranças'
-                    : activePage === 'operational-dashboard'
-                      ? 'Operação'
-                      : (activePage === 'operacao-agenda' ||
+        : activePage === 'comercial-leads'
+          ? 'Leads'
+          : activePage === 'comercial-propostas'
+            ? 'Propostas'
+            : activePage === 'consultar'
+              ? 'Relatórios'
+              : activePage === 'clientes'
+                ? 'Clientes'
+                : activePage === 'simulacoes'
+                  ? 'Simulações'
+                  : activePage === 'settings'
+                    ? 'Configurações'
+                    : activePage === 'carteira'
+                      ? 'Clientes'
+                      : activePage === 'financial-management'
+                        ? 'Cobranças'
+                        : activePage === 'operational-dashboard'
+                          ? 'Operação'
+                          : (activePage === 'operacao-agenda' ||
                           activePage === 'operacao-chamados' ||
                           activePage === 'operacao-manutencoes' ||
                           activePage === 'operacao-limpezas' ||
@@ -18583,6 +18609,8 @@ export default function App() {
     abrirConfiguracoes: () => { void abrirConfiguracoes() },
     handleLogout,
     abrirOperacaoPlaceholder,
+    abrirComercialLeads,
+    abrirComercialPropostas,
     crmItems,
     gerandoContratos,
     contatosEnvio,
@@ -18695,6 +18723,28 @@ export default function App() {
           <DashboardPage />
         ) : activePage === 'crm' ? (
           <CrmPage {...crmState} />
+        ) : activePage === 'comercial-leads' ? (
+          <ComercialLeadsPage
+            leads={crmState.crmDataset.leads}
+            onAbrirLead={(leadId) => {
+              crmState.handleSelecionarLead(leadId)
+              setActivePage('crm')
+            }}
+            onAbrirCrmCompleto={() => { void abrirCrmCentral() }}
+          />
+        ) : activePage === 'comercial-propostas' ? (
+          <ComercialPropostasPage
+            propostas={orcamentosSalvos}
+            initialTab={comercialPropostasTab}
+            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+            isProposalReadOnly={isProposalReadOnly}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onCarregarProposta={carregarOrcamentoSalvo}
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+            onAbrirProposta={abrirOrcamentoSalvo}
+            onAbrirBudgetSearch={() => { void abrirPesquisaOrcamentos() }}
+            onEnviarProposta={() => { abrirEnvioPropostaModal() }}
+          />
         ) : activePage === 'consultar' ? (
           <BudgetSearchPage
             registros={orcamentosSalvos}
