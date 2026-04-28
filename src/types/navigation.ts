@@ -15,8 +15,30 @@ export type ActivePage =
   | 'carteira'
   | 'financial-management'
   | 'project-hub'
+  // Operação placeholder sections (Etapa 1 — sem página real ainda)
+  | 'operacao-agenda'
+  | 'operacao-chamados'
+  | 'operacao-manutencoes'
+  | 'operacao-limpezas'
+  | 'operacao-seguros'
 
 export type SimulacoesSection =
   | 'nova'
   | 'salvas'
   | 'analise'
+
+/** Subset of ActivePage values that represent Operação placeholder sections. */
+export type OperacaoSection =
+  | 'operacao-agenda'
+  | 'operacao-chamados'
+  | 'operacao-manutencoes'
+  | 'operacao-limpezas'
+  | 'operacao-seguros'
+
+export const OPERACAO_SECTION_LABELS: Record<OperacaoSection, string> = {
+  'operacao-agenda': 'Agenda',
+  'operacao-chamados': 'Chamados',
+  'operacao-manutencoes': 'Manutenções',
+  'operacao-limpezas': 'Limpezas',
+  'operacao-seguros': 'Seguros',
+}

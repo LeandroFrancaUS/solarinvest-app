@@ -95,15 +95,23 @@ export function useShellLayout({
 
   const mobileAllowedIds = [
     ...(canSeeProposalsEffective ? ['propostas-leasing', 'propostas-vendas'] : []),
-    ...(canSeeContractsEffective ? ['propostas-contratos'] : []),
-    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['orcamentos-importar'] : []),
+    ...(canSeeContractsEffective ? ['comercial-contratos-gerar'] : []),
+    ...(canSeeClientsEffective || canSeeProposalsEffective ? ['relatorios-pdfs'] : []),
     ...(canSeeClientsEffective ? ['crm-clientes'] : []),
     ...(canSeePortfolioEffective ? ['carteira-clientes'] : []),
     ...(canSeeFinancialAnalysisEffective ? ['simulacoes-analise'] : []),
-    ...(canSeeFinancialManagementEffective ? ['gestao-financeira-home'] : []),
+    ...(canSeeFinancialManagementEffective ? ['cobrancas-mensalidades'] : []),
   ]
 
-  const allSidebarItems = new Map(sidebarGroups.flatMap((group) => group.items.map((item) => [item.id, item])))
+  // Flatten all sidebar items (including nested) into a map for quick lookup
+  const allSidebarItems = new Map<string, SidebarItem>()
+  const collectItems = (items: SidebarItem[]) => {
+    for (const item of items) {
+      allSidebarItems.set(item.id, item)
+      if (item.items) collectItems(item.items)
+    }
+  }
+  for (const group of sidebarGroups) collectItems(group.items)
 
   const desktopSimpleSidebarGroups: SidebarGroup[] = sidebarGroups.filter(
     (group) => group.id !== 'simulacoes' && group.id !== 'crm',
@@ -124,26 +132,31 @@ export function useShellLayout({
     ? desktopSimpleSidebarGroups
     : sidebarGroups
 
+  // Map activePage → sidebar item ID to highlight
+  const ACTIVE_PAGE_TO_SIDEBAR_ITEM: Partial<Record<ActivePage, string>> = {
+    dashboard: 'dashboard-home',
+    crm: 'comercial-leads',
+    clientes: 'crm-clientes',
+    carteira: 'carteira-clientes',
+    consultar: 'relatorios-pdfs',
+    settings: 'configuracoes-home',
+    'admin-users': 'configuracoes-home',
+    'financial-management': 'cobrancas-mensalidades',
+    'operational-dashboard': 'operational-dashboard',
+    'operacao-agenda': 'operacao-agenda',
+    'operacao-chamados': 'operacao-chamados',
+    'operacao-manutencoes': 'operacao-manutencoes',
+    'operacao-limpezas': 'operacao-limpezas',
+    'operacao-seguros': 'operacao-seguros',
+  }
+
   const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'carteira'
-            ? 'carteira-clientes'
-            : activePage === 'consultar'
-              ? 'orcamentos-importar'
-          : activePage === 'settings' || activePage === 'admin-users'
-                ? 'gestao-financeira-home'
-                : activePage === 'financial-management'
-                  ? 'gestao-financeira-home'
-                  : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                    : activeTab === 'vendas'
-                      ? 'propostas-vendas'
-                      : 'propostas-leasing'
+    ACTIVE_PAGE_TO_SIDEBAR_ITEM[activePage] ??
+    (activePage === 'simulacoes'
+      ? `simulacoes-${simulacoesSection}`
+      : activeTab === 'vendas'
+        ? 'propostas-vendas'
+        : 'propostas-leasing')
 
   const menuButtonLabel = isMobileViewport
     ? isSidebarMobileOpen
