@@ -1,6 +1,6 @@
 // src/features/projectHub/ProjectHubPage.tsx
-// Temporary first version of ProjectHubPage — lists projects created via "Converter em Projeto".
-// Access is provided by a temporary button in App.tsx and can be removed without side effects.
+// Lists projects linked to active clients / signed contracts.
+// Accessible via the "Projetos" sidebar entry.
 
 import React, { useState } from 'react'
 import { useProjectStore, selectProjetos, selectAddProjeto, selectRemoveProjeto, type Projeto, type ProjetoStatus, type ComissaoStatus } from './useProjectStore'
@@ -106,7 +106,7 @@ function ProjetoCard({ projeto, onSelect }: ProjetoCardProps) {
       </div>
       {!isBackend && (
         <div style={{ fontSize: '0.78rem', color: 'var(--color-warning, #a16207)', marginTop: '0.2rem' }}>
-          Projeto local — para habilitar cobranças, acesse a análise e use "Converter em Projeto" com um cliente vinculado.
+          Projeto local — para habilitar cobranças, vincule este projeto a um cliente ativo na Carteira.
         </div>
       )}
     </div>

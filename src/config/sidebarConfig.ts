@@ -30,6 +30,8 @@ export interface SidebarConfigParams {
   // State
   gerandoContratos: boolean
   contatosEnvio: unknown[]
+  /** Whether the user may access the Project Hub. Defaults to canSeePortfolioEffective when omitted. */
+  canSeeProjectHubEffective?: boolean
 }
 
 export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] {
@@ -55,6 +57,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     crmItems,
     gerandoContratos,
     contatosEnvio,
+    canSeeProjectHubEffective = canSeePortfolioEffective,
   } = params
 
   return [
@@ -108,6 +111,18 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
                       icon: '⚙️',
                       onSelect: () => {
                         void abrirDashboardOperacional()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeProjectHubEffective
+                ? [
+                    {
+                      id: 'project-hub',
+                      label: 'Projetos',
+                      icon: '🗂',
+                      onSelect: () => {
+                        setActivePage('project-hub')
                       },
                     },
                   ]

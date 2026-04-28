@@ -141,7 +141,7 @@ export async function fetchProjectsSummary(): Promise<ProjectSummary> {
  * Creates (or reuses) a project from a financial analysis result.
  * Uses POST /api/projects/from-analise — idempotent when the same plan_id is
  * provided. The plan_id is generated client-side (e.g. "analise:<uuid>") so
- * that repeated clicks of "Converter em Projeto" do not create duplicates.
+ * that repeated calls with the same plan_id do not create duplicate projects.
  * Returns the project row plus a `created` flag.
  */
 export async function createProjectFromAnalise(params: {

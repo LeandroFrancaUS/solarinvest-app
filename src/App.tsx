@@ -19917,31 +19917,6 @@ export default function App() {
             </div>
           </div>
         )}
-        {/* TEMP: Project Hub quick-access button — remove when a sidebar entry is added */}
-        {activePage !== 'project-hub' && (
-          <button
-            type="button"
-            onClick={() => { setSelectedHubProjectId(null); setActivePage('project-hub') }}
-            title="Project Hub (acesso temporário)"
-            style={{
-              position: 'fixed',
-              bottom: '1.5rem',
-              right: '1.5rem',
-              zIndex: 9999,
-              background: 'var(--color-primary, #1d4ed8)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 24,
-              padding: '0.5rem 1.1rem',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
-            }}
-          >
-            🗂 Project Hub
-          </button>
-        )}
       </AppShell>
       <input
         ref={imagensUploadInputRef}
