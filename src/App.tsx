@@ -18822,6 +18822,10 @@ export default function App() {
                   setPendingFinancialProjectId(projectId)
                   setActivePage('financial-management')
                 }}
+                onOpenProjectHub={(projectId) => {
+                  setSelectedHubProjectId(projectId)
+                  setActivePage('project-hub')
+                }}
               />
             : null
         ) : activePage === 'financial-management' ? (
