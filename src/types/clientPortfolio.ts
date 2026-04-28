@@ -162,6 +162,13 @@ export interface PortfolioClientRow {
   /** Multiple contract attachments (migration 0037). null when column not yet available. */
   contract_attachments?: ContractAttachment[] | null
 
+  // ── Customer lifecycle status (Etapa 2 — status_cliente) ──
+  /**
+   * Explicit customer status from the database when available.
+   * When absent (legacy records), use resolveStatusCliente() for a safe fallback.
+   */
+  status_cliente?: StatusCliente | null
+
   // ── Leasing plan ──
   kwh_mes_contratado?: number | null
   valor_mensalidade?: number | null
@@ -342,6 +349,83 @@ export const INVOICE_PAYMENT_STATUS_LABELS: Record<InvoicePaymentStatus, string>
   pago: 'Pago',
   confirmado: 'Confirmado',
   vencida: 'Vencida',
+}
+
+// ── StatusCliente (Etapa 2 — customer lifecycle status) ─────────────────────
+
+/**
+ * Explicit customer status values.
+ * When status_cliente is absent from the backend row, derive via resolveStatusCliente().
+ */
+export type StatusCliente = 'ATIVO' | 'INATIVO' | 'CANCELADO' | 'FINALIZADO'
+
+export const STATUS_CLIENTE_LABELS: Record<StatusCliente, string> = {
+  ATIVO: 'Ativo',
+  INATIVO: 'Inativo',
+  CANCELADO: 'Cancelado',
+  FINALIZADO: 'Finalizado',
+}
+
+export const STATUS_CLIENTE_COLORS: Record<StatusCliente, { bg: string; text: string }> = {
+  ATIVO: { bg: 'rgba(34,197,94,0.12)', text: '#22c55e' },
+  INATIVO: { bg: 'rgba(234,179,8,0.12)', text: '#eab308' },
+  CANCELADO: { bg: 'rgba(239,68,68,0.12)', text: '#ef4444' },
+  FINALIZADO: { bg: 'rgba(148,163,184,0.12)', text: '#94a3b8' },
+}
+
+/**
+ * Derives a safe StatusCliente for any portfolio row, even when the DB has not
+ * yet been migrated to include the status_cliente column.
+ *
+ * Priority chain:
+ *  1. status_cliente (explicit DB value) — highest priority
+ *  2. lifecycle_status  (client_lifecycle table)
+ *  3. contract_status   (client_contracts table)
+ *  4. is_converted_customer flag — all portfolio clients are converted, so ATIVO
+ */
+export function resolveStatusCliente(
+  row: Pick<
+    PortfolioClientRow,
+    'status_cliente' | 'lifecycle_status' | 'contract_status' | 'is_converted_customer'
+  >,
+): StatusCliente {
+  // 1. Explicit DB field
+  if (row.status_cliente) return row.status_cliente
+
+  // 2. Lifecycle status
+  if (row.lifecycle_status) {
+    switch (row.lifecycle_status) {
+      case 'contracted':
+      case 'active':
+      case 'implementation':
+      case 'billing':
+        return 'ATIVO'
+      case 'churned':
+        return 'INATIVO'
+      case 'cancelled':
+        return 'CANCELADO'
+      // 'lead' falls through to contract_status check below
+    }
+  }
+
+  // 3. Contract status
+  if (row.contract_status) {
+    switch (row.contract_status) {
+      case 'active':
+      case 'signed':
+        return 'ATIVO'
+      case 'suspended':
+        return 'INATIVO'
+      case 'cancelled':
+        return 'CANCELADO'
+      case 'completed':
+        return 'FINALIZADO'
+      // 'draft' falls through
+    }
+  }
+
+  // 4. All portfolio clients were converted — safe default
+  return 'ATIVO'
 }
 
 /**
