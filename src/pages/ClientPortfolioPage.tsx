@@ -1473,7 +1473,9 @@ function ProjetoTab({
     setCreateProjectError(null)
     try {
       const { project } = await createProjectFromContract(client.contract_id)
-      // Mirror the new project into the local hub store so it appears in Project Hub list
+      // Mirror the new project into the local hub store so it appears in Project Hub list.
+      // Financial values default to 0 here — the authoritative data lives in the backend;
+      // ProjectDetailPage loads them from /api/projects/:id directly.
       addProjetoToStore({
         id: project.id,
         tipo: project.project_type,
@@ -1654,7 +1656,8 @@ function ProjetoTab({
           </button>
         </div>
       )}
-      {projectFetchDone && !financialProjectId && client.contract_id != null &&
+      {projectFetchDone && !financialProjectId && client.contract_id !== null &&
+        client.contract_id !== undefined &&
         (client.contract_status === 'active' || client.contract_status === 'signed') && (
         <div style={{ marginTop: 12 }}>
           <button
