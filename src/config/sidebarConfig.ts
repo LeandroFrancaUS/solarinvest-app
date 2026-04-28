@@ -34,6 +34,9 @@ export interface SidebarConfigParams {
   abrirConfiguracoes: () => void
   handleLogout: () => void
   abrirOperacaoPlaceholder: (section: OperacaoSection) => void
+  // Navigation handlers — Área Comercial (Etapa 3)
+  abrirComercialLeads: () => void
+  abrirComercialPropostas: (tab: 'leasing' | 'vendas') => void
   // Legacy CRM items (kept for backward compat, no longer in primary nav)
   crmItems: SidebarItem[]
   // State
@@ -65,6 +68,8 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     abrirConfiguracoes,
     handleLogout,
     abrirOperacaoPlaceholder,
+    abrirComercialLeads,
+    abrirComercialPropostas,
     gerandoContratos,
     contatosEnvio,
   } = params
@@ -91,13 +96,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
   if (canSeeProposalsEffective || canSeeContractsEffective) {
     const comercialItems: SidebarItem[] = []
 
-    // Leads → CRM Central
+    // Leads → Área Comercial Leads (filtro etapa !== 'fechado')
     if (canSeeProposalsEffective) {
       comercialItems.push({
         id: 'comercial-leads',
         label: 'Leads',
         icon: '🛰️',
-        onSelect: () => { void abrirCrmCentral() },
+        onSelect: abrirComercialLeads,
       })
     }
 
@@ -108,13 +113,13 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           id: 'propostas-leasing',
           label: 'Leasing',
           icon: '📝',
-          onSelect: () => { void handleNavigateToProposalTab('leasing') },
+          onSelect: () => { abrirComercialPropostas('leasing') },
         },
         {
           id: 'propostas-vendas',
           label: 'Vendas',
           icon: '🧾',
-          onSelect: () => { void handleNavigateToProposalTab('vendas') },
+          onSelect: () => { abrirComercialPropostas('vendas') },
         },
         {
           id: 'propostas-enviar',

@@ -136,6 +136,8 @@ export function useShellLayout({
   const ACTIVE_PAGE_TO_SIDEBAR_ITEM: Partial<Record<ActivePage, string>> = {
     dashboard: 'dashboard-home',
     crm: 'comercial-leads',
+    'comercial-leads': 'comercial-leads',
+    'comercial-propostas': 'propostas-leasing',
     clientes: 'crm-clientes',
     carteira: 'carteira-clientes',
     consultar: 'relatorios-pdfs',
