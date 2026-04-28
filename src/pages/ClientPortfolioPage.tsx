@@ -3721,24 +3721,31 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               )}
             </div>
           )}
-          {!isLoading && !error && hasClients && sortedClients.length === 0 && (
-            <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
-              <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nenhum cliente encontrado</p>
-              <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>
-                {searchInput
-                  ? `Nenhum cliente "${searchInput}" com status "${statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]}".`
-                  : `Nenhum cliente com status "${statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]}".`}
-              </p>
-              <button
-                type="button"
-                onClick={() => { setStatusFilter('TODOS'); setSearchInput(''); setSearch('') }}
-                style={{ marginTop: 10, padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
-              >
-                Ver todos
-              </button>
-            </div>
-          )}
+          {!isLoading && !error && hasClients && sortedClients.length === 0 && (() => {
+            const statusLabel = statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]
+            return (
+              <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+                <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nenhum cliente encontrado</p>
+                <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>
+                  {searchInput
+                    ? `Nenhum cliente "${searchInput}" com status "${statusLabel}".`
+                    : `Nenhum cliente com status "${statusLabel}".`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('TODOS')
+                    setSearchInput('')
+                    setSearch('')
+                  }}
+                  style={{ marginTop: 10, padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+                >
+                  Ver todos
+                </button>
+              </div>
+            )
+          })()}
           {!isLoading && !error && hasClients && sortedClients.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {sortedClients.map((c) => (
