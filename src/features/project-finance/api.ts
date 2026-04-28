@@ -3,7 +3,13 @@
 // Mirrors the pattern used in src/services/projectsApi.ts.
 
 import { resolveApiUrl } from '../../utils/apiUrl'
-import type { ProjectFinanceFormState, ProjectFinanceGetResponse, ProjectFinanceProfile } from './types'
+import type {
+  ProjectFinanceFormState,
+  ProjectFinanceGetResponse,
+  ProjectFinanceProfile,
+  ProjectFinanceAnalysisResponse,
+  ProjectFinanceAnalysisPutPayload,
+} from './types'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Auth token provider (injected by App.tsx via setProjectsTokenProvider)
@@ -65,6 +71,30 @@ export async function saveProjectFinance(
   const res = await apiFetch<{ ok: boolean; data: ProjectFinanceProfile }>(url, {
     method: 'PUT',
     body: JSON.stringify(form),
+  })
+  return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Financial-Analysis snapshot (embedded AF mode)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function fetchProjectFinanceAnalysis(
+  projectId: string,
+): Promise<ProjectFinanceAnalysisResponse> {
+  const url = resolveApiUrl(`/api/projects/${encodeURIComponent(projectId)}/financial-analysis`)
+  const res = await apiFetch<{ data: ProjectFinanceAnalysisResponse }>(url)
+  return res.data
+}
+
+export async function saveProjectFinanceAnalysis(
+  projectId: string,
+  payload: ProjectFinanceAnalysisPutPayload,
+): Promise<ProjectFinanceAnalysisResponse> {
+  const url = resolveApiUrl(`/api/projects/${encodeURIComponent(projectId)}/financial-analysis`)
+  const res = await apiFetch<{ ok: boolean; data: ProjectFinanceAnalysisResponse }>(url, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   })
   return res.data
 }
