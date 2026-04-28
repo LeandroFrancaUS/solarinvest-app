@@ -3158,8 +3158,19 @@ function ClientDetailPanel({
     setLocalClient((prev) => prev ? { ...prev, ...patch } : prev)
     setHookClient((prev) => prev ? { ...prev, ...patch } : prev)
 
-    // Step 2+3 — silent refetch, then bump key to re-init forms
-    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+    // When the patch only carries installments_json (e.g. a per-installment
+    // valor override or payment confirmation), skip remounting the active tab.
+    // CobrancaTab already has a useEffect that re-syncs confirmedPayments /
+    // valorOverrides whenever client.installments_json changes, so the UI
+    // stays consistent without a full remount.  Remounting would reset any
+    // unsaved billing-profile form edits (due_day, reading_day, etc.) that
+    // the user has made in the same edit session.
+    const keys = Object.keys(patch)
+    const isInstallmentsOnly = keys.length > 0 && keys.every((k) => k === 'installments_json')
+    if (!isInstallmentsOnly) {
+      // Step 2+3 — silent refetch, then bump key to re-init forms
+      void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+    }
 
     // Step 4 — refresh the sidebar list
     onClientUpdated()
