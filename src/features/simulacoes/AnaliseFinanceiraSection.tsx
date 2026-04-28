@@ -1,6 +1,19 @@
 // src/features/simulacoes/AnaliseFinanceiraSection.tsx
-// Extracted from App.tsx (Subfase 2B.12.4A).
-// Renders the full Análise Financeira block when simulacoesSection === 'analise'.
+// Renders the full Análise Financeira block.
+//
+// Modos de uso:
+//   standalone — usado em SimulacoesPage; simulação livre; usuário pode alternar Venda/Leasing.
+//   embedded   — (futuro) usado na Central de Projetos; modo financeiro derivado do tipo do projeto;
+//                o usuário não deve alternar Venda/Leasing manualmente.
+//
+// Props futuras planejadas (não utilizadas ainda):
+//   analysisMode?:     'standalone' | 'embedded'   — default 'standalone'
+//   lockedProjectType?: 'leasing'  | 'venda'        — só relevante no modo embedded
+//
+// Regra embedded (a implementar quando a Central de Projetos estiver pronta):
+//   embedded + lockedProjectType='leasing' → abre em modo Leasing; tabs Venda/Leasing ocultas.
+//   embedded + lockedProjectType='venda'   → abre em modo Venda; tabs Venda/Leasing ocultas.
+//   Os campos serão populados a partir dos dados salvos do projeto no banco (fora do escopo atual).
 
 import { useCallback, useEffect, useRef } from 'react'
 import { Field } from '../../components/ui/Field'
@@ -387,42 +400,6 @@ export function AnaliseFinanceiraSection({
                 analiseFinanceiraResult={analiseFinanceiraResult}
                 indicadorEficienciaProjeto={indicadorEficienciaProjeto}
               />
-              <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--color-text-secondary, #64748b)', fontStyle: 'italic' }}>
-                Esta análise é uma ferramenta de apoio. Para convertê-la em projeto, complete o fluxo de cliente/proposta na aba correspondente.
-              </p>
-              {/*
-               * PONTO DE CONVERSÃO CORRETO:
-               * A conversão real para projeto operacional deve ocorrer na tela de
-               * Cliente/Proposta aprovada, após o cliente estar vinculado ao backend,
-               * ter dados pessoais completos e proposta aceita.
-               * Nunca inicie a conversão diretamente a partir da Análise Financeira.
-               */}
-              {/* Guardrail: pré-requisitos para entrar no Project Hub */}
-              <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', background: 'var(--color-surface-secondary, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                <p style={{ margin: 0, marginBottom: '0.375rem', fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-primary, #1e293b)' }}>
-                  Pré-requisitos para conversão em projeto:
-                </p>
-                {[
-                  'Cliente vinculado',
-                  'Dados pessoais completos',
-                  'Pré-aprovação concluída',
-                  'Proposta aceita',
-                ].map((item) => (
-                  <div key={item} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--color-text-secondary, #64748b)' }}>
-                    <span style={{ color: 'var(--color-warning, #d97706)', fontWeight: 700 }}>○</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="primary"
-                  disabled
-                  title="Para converter em projeto, complete os dados do cliente e finalize a pré-aprovação."
-                  style={{ marginTop: '0.5rem', cursor: 'not-allowed', opacity: 0.5, alignSelf: 'flex-start' }}
-                >
-                  🗂 Preparar Projeto
-                </button>
-              </div>
             </>
           ) : (
             <div className="simulacoes-module-tile">
