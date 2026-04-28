@@ -33,6 +33,8 @@ export type ActivePage =
   | 'indicadores-leasing'
   | 'indicadores-vendas'
   | 'indicadores-fluxo-caixa'
+  // Etapa 8: Permissions UI — shown when the user lacks permission for the requested page
+  | 'no-permission'
 
 export type SimulacoesSection =
   | 'nova'

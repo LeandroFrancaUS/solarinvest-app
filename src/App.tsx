@@ -184,6 +184,8 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
+import { resolveUserRole } from './features/auth/permissions'
+import { NoPermissionPage } from './pages/NoPermissionPage'
 import { useTheme } from './hooks/useTheme'
 import { useShellLayout } from './hooks/useShellLayout'
 import { CHART_THEME } from './helpers/ChartTheme'
@@ -3986,6 +3988,9 @@ export default function App() {
   // Keep the redirect guard from firing until BOTH sources have resolved so we
   // don't prematurely redirect the admin away from protected pages.
   const isRbacLoading = isStackPermLoading || meAuthState === 'loading'
+  // Resolve the frontend role for the permissions UI (Etapa 8).
+  // Falls back to 'ADMIN' while loading or when no role is recognized.
+  const userRoleFrontend = resolveUserRole({ isAdmin, isOffice, isFinanceiro, isComercial, isLoading: isRbacLoading })
   const showAdminDiagnostics = useMemo(() => {
     if (typeof window === 'undefined') return false
     const params = new URLSearchParams(window.location.search)
@@ -4293,14 +4298,15 @@ export default function App() {
     }
   }, [activePage])
 
-  // Guard protected pages: redirect unauthorized users away from 'settings',
-  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
-  // have been resolved. The isRbacLoading check prevents premature redirects.
+  // Guard protected pages: redirect unauthorized users to 'no-permission'.
+  // Uses both the frontend permissionMap (userRoleFrontend) and the existing
+  // canSee* flags for fine-grained Stack Auth-derived checks.
   useRouteGuard({
     activePage,
     simulacoesSection,
     isRbacLoading,
     isAdmin,
+    userRole: userRoleFrontend,
     canSeeFinancialAnalysisEffective,
     canSeeUsersEffective,
     canSeeDashboardEffective,
@@ -18683,6 +18689,7 @@ export default function App() {
     canSeeClientsEffective,
     canSeeFinancialAnalysisEffective,
     isAdmin,
+    userRole: userRoleFrontend,
     abrirDashboard,
     abrirCarteira,
     abrirGestaoFinanceira,
@@ -18815,7 +18822,9 @@ export default function App() {
             <PrintableProposal ref={printableRef} {...printableData} />
           </React.Suspense>
         </div>
-        {activePage === 'dashboard' ? (
+        {activePage === 'no-permission' ? (
+          <NoPermissionPage />
+        ) : activePage === 'dashboard' ? (
           <DashboardPage
             onNavigateToClientes={() => { void abrirCarteira() }}
             onNavigateToCobrancasMensalidades={abrirCobrancasMensalidades}

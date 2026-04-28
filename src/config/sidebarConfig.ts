@@ -6,6 +6,7 @@
 
 import type { SidebarGroup, SidebarItem } from '../layout/Sidebar'
 import type { ActivePage, OperacaoSection, SimulacoesSection } from '../types/navigation'
+import { hasPermission, type UserRole } from '../features/auth/permissions'
 
 export interface SidebarConfigParams {
   // Permissions
@@ -17,6 +18,8 @@ export interface SidebarConfigParams {
   canSeeClientsEffective: boolean
   canSeeFinancialAnalysisEffective: boolean
   isAdmin: boolean
+  /** Resolved frontend role — used to filter sections via the permissionMap. */
+  userRole: UserRole
   // Navigation handlers — existing
   abrirDashboard: () => void
   abrirCarteira: () => void
@@ -63,6 +66,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     canSeeClientsEffective,
     canSeeFinancialAnalysisEffective,
     isAdmin,
+    userRole,
     abrirDashboard,
     abrirCarteira,
     abrirGestaoFinanceira,
@@ -249,7 +253,12 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
   }
 
   // ── Operação ───────────────────────────────────────────────────────────────
-  {
+  // Show only when the user's role grants access to at least one operacao page.
+  const operacaoPageIds: ActivePage[] = [
+    'operacao-agenda', 'operacao-chamados', 'operacao-manutencoes',
+    'operacao-limpezas', 'operacao-seguros',
+  ]
+  if (operacaoPageIds.some((p) => hasPermission(userRole, p))) {
     const operacaoItems: SidebarItem[] = [
       {
         id: 'operacao-agenda',
