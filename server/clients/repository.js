@@ -1057,6 +1057,72 @@ export async function findClientByNormalizedName(sql, name, ownerUserId) {
 }
 
 /**
+ * Find clients whose name is similar to the given name and who are in the same
+ * city.  Used as a server-side soft-match guard during bulk import to prevent
+ * duplicates from being created for clients that already exist in the database
+ * but do not share a CPF/CNPJ with the import row.
+ *
+ * Similarity is measured by normalising both names (lowercase, collapsed
+ * whitespace, diacritics stripped) and returning rows where the trigram
+ * similarity (pg_trgm) is above 0.55 OR the names are identical after
+ * normalisation.  Falls back to a plain ILIKE name match when the pg_trgm
+ * extension is unavailable.
+ *
+ * @param {Function} sql       - user-scoped sql handle
+ * @param {string}   name      - Raw client name to search for
+ * @param {string}   city      - City to scope the search (ILIKE)
+ * @param {number}   [limit=5] - Maximum number of candidates to return
+ * @returns {Promise<object[]>} Array of matching client rows (may be empty)
+ */
+export async function findClientsBySimilarNameAndCity(sql, name, city, limit = 5) {
+  if (!name || !name.trim() || !city || !city.trim()) return []
+  const normalizedName = name.trim()
+  const normalizedCity = city.trim()
+
+  // Try trigram similarity first (requires pg_trgm extension).
+  // Falls back to normalised-name equality + ILIKE city if pg_trgm is absent.
+  try {
+    const rows = await sql`
+      SELECT * FROM clients
+      WHERE deleted_at IS NULL
+        AND merged_into_client_id IS NULL
+        AND client_city ILIKE ${`%${normalizedCity}%`}
+        AND (
+          lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
+            = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
+          OR similarity(
+               lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')),
+               lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
+             ) > 0.55
+        )
+      ORDER BY
+        lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
+          = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g')) DESC,
+        updated_at DESC NULLS LAST
+      LIMIT ${limit}
+    `
+    return rows
+  } catch (err) {
+    // pg_trgm not available — fall back to exact normalised-name match
+    const message = err instanceof Error ? err.message : String(err)
+    if (message.includes('similarity') || message.includes('pg_trgm')) {
+      const rows = await sql`
+        SELECT * FROM clients
+        WHERE deleted_at IS NULL
+          AND merged_into_client_id IS NULL
+          AND client_city ILIKE ${`%${normalizedCity}%`}
+          AND lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g'))
+                = lower(regexp_replace(btrim(${normalizedName}), '\s+', ' ', 'g'))
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT ${limit}
+      `
+      return rows
+    }
+    throw err
+  }
+}
+
+/**
  * Back-fill offline_origin_id on an existing client (only when the column is
  * currently null).  Used by the name-dedup path so that subsequent auto-save
  * retries from the same device are resolved by the faster offline_origin_id
