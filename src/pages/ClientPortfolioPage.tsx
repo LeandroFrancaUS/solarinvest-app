@@ -10,8 +10,8 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
-import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, StatusCliente } from '../types/clientPortfolio'
+import { DUE_DAY_OPTIONS, resolveStatusCliente, STATUS_CLIENTE_LABELS, STATUS_CLIENTE_COLORS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
   buildProjetoSavePayload,
@@ -454,20 +454,38 @@ function ClientCard({
   )
   const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
   const clientName = client.name?.trim() || '—'
+  const statusCliente = resolveStatusCliente(client)
+  const statusColor = STATUS_CLIENTE_COLORS[statusCliente]
 
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
         <div className="pf-card-info">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="pf-card-name-button"
-            aria-label={`Abrir cliente ${clientName}`}
-            title={`Abrir cliente ${clientName}`}
-          >
-            <span className="pf-card-name">{clientName}</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="pf-card-name-button"
+              aria-label={`Abrir cliente ${clientName}`}
+              title={`Abrir cliente ${clientName}`}
+            >
+              <span className="pf-card-name">{clientName}</span>
+            </button>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '2px 7px',
+                borderRadius: 20,
+                background: statusColor.bg,
+                color: statusColor.text,
+                letterSpacing: '0.03em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {STATUS_CLIENTE_LABELS[statusCliente]}
+            </span>
+          </div>
           <div className="pf-card-doc">{client.document ?? '—'}</div>
           <div className="pf-card-meta">
             <span className="pf-card-contract">{contractLabel}</span>
@@ -3277,6 +3295,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [showAddClient, setShowAddClient] = useState(false)
   const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'city'>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [statusFilter, setStatusFilter] = useState<StatusCliente | 'TODOS'>('TODOS')
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3331,9 +3350,14 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const total = clients.length
   const hasClients = total > 0
 
-  // Sort clients based on selected criteria
+  // Sort + filter clients by status and sort criteria
   const sortedClients = useMemo(() => {
-    const sorted = [...clients].sort((a, b) => {
+    // Apply status filter first (before sort so counts are correct)
+    const filtered = statusFilter === 'TODOS'
+      ? clients
+      : clients.filter((c) => resolveStatusCliente(c) === statusFilter)
+
+    return [...filtered].sort((a, b) => {
       let compareResult = 0
       if (sortBy === 'name') {
         const nameA = (a.name ?? '').toLowerCase()
@@ -3350,8 +3374,22 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       }
       return sortDir === 'asc' ? compareResult : -compareResult
     })
-    return sorted
-  }, [clients, sortBy, sortDir])
+  }, [clients, sortBy, sortDir, statusFilter])
+
+  // Per-status counts for the filter tab badges
+  const statusCounts = useMemo<Record<StatusCliente | 'TODOS', number>>(() => {
+    const counts: Record<StatusCliente | 'TODOS', number> = {
+      TODOS: clients.length,
+      ATIVO: 0,
+      INATIVO: 0,
+      CANCELADO: 0,
+      FINALIZADO: 0,
+    }
+    for (const c of clients) {
+      counts[resolveStatusCliente(c)]++
+    }
+    return counts
+  }, [clients])
 
   const toggleSort = useCallback((field: 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
@@ -3461,7 +3499,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
         <div style={{ position: 'relative', maxWidth: 480, marginTop: 4 }}>
           <input
             type="search"
-            placeholder="Buscar por nome, e-mail, documento, cidade, UC…"
+            placeholder="Buscar por nome, e-mail, documento, telefone, cidade, UC…"
             value={searchInput}
             onChange={handleSearch}
             className="pf-search-input"
@@ -3482,9 +3520,78 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           )}
         </div>
 
+        {/* Status filter tabs */}
+        {!isLoading && hasClients && (
+          <div
+            style={{
+              marginTop: 12,
+              display: 'flex',
+              gap: 6,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+            role="tablist"
+            aria-label="Filtrar por status do cliente"
+          >
+            {([
+              { key: 'TODOS' as const, label: 'Todos' },
+              { key: 'ATIVO' as const, label: STATUS_CLIENTE_LABELS.ATIVO },
+              { key: 'INATIVO' as const, label: STATUS_CLIENTE_LABELS.INATIVO },
+              { key: 'CANCELADO' as const, label: STATUS_CLIENTE_LABELS.CANCELADO },
+              { key: 'FINALIZADO' as const, label: STATUS_CLIENTE_LABELS.FINALIZADO },
+            ] as const).map(({ key, label }) => {
+              const isActive = statusFilter === key
+              const count = statusCounts[key]
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setStatusFilter(key)
+                    setSelectedClientId(null)
+                  }}
+                  style={{
+                    padding: '5px 12px',
+                    fontSize: 12,
+                    borderRadius: 20,
+                    border: isActive ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    background: isActive ? 'var(--accent-bg, rgba(255,140,0,0.1))' : 'transparent',
+                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontWeight: isActive ? 700 : 400,
+                    transition: 'all 0.15s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}
+                  title={`Mostrar clientes com status: ${label}`}
+                >
+                  {label}
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '0 5px',
+                      borderRadius: 10,
+                      background: isActive ? 'var(--accent)' : 'var(--surface-2, rgba(148,163,184,0.1))',
+                      color: isActive ? '#fff' : 'var(--text-muted)',
+                      minWidth: 18,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* Sort controls */}
         {!isLoading && hasClients && (
-          <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>Ordenar por:</span>
             <button
               type="button"
@@ -3614,7 +3721,25 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               )}
             </div>
           )}
-          {!isLoading && !error && hasClients && (
+          {!isLoading && !error && hasClients && sortedClients.length === 0 && (
+            <div style={{ padding: '48px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+              <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Nenhum cliente encontrado</p>
+              <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: 13 }}>
+                {searchInput
+                  ? `Nenhum cliente "${searchInput}" com status "${statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]}".`
+                  : `Nenhum cliente com status "${statusFilter === 'TODOS' ? 'Todos' : STATUS_CLIENTE_LABELS[statusFilter]}".`}
+              </p>
+              <button
+                type="button"
+                onClick={() => { setStatusFilter('TODOS'); setSearchInput(''); setSearch('') }}
+                style={{ marginTop: 10, padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 13 }}
+              >
+                Ver todos
+              </button>
+            </div>
+          )}
+          {!isLoading && !error && hasClients && sortedClients.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {sortedClients.map((c) => (
                 <ClientCard
