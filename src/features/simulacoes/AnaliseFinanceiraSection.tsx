@@ -254,8 +254,10 @@ export function AnaliseFinanceiraSection({
     ? 'lockedProjectType ausente no modo embedded. Configure a aba corretamente.'
     : null
 
-  // Read current full store state for snapshot saving
-  const currentAfInputState = useAfInputStore((s) => ({
+  // Read current full store state for snapshot saving.
+  // The selector explicitly enumerates every field of AfInputState so the
+  // returned object satisfies the type without a cast.
+  const currentAfInputState = useAfInputStore((s): AfInputState => ({
     afModo: s.afModo,
     afConsumoOverride: s.afConsumoOverride,
     afNumModulosOverride: s.afNumModulosOverride,
@@ -354,7 +356,7 @@ export function AnaliseFinanceiraSection({
     setSaveSnapshotError(null)
     setSaveSnapshotSuccess(false)
     try {
-      await onSaveSnapshot(currentAfInputState as AfInputState, analiseFinanceiraResult)
+      await onSaveSnapshot(currentAfInputState, analiseFinanceiraResult)
       setSaveSnapshotSuccess(true)
       setTimeout(() => setSaveSnapshotSuccess(false), 3000)
     } catch (err) {

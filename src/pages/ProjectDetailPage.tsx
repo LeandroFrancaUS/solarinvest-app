@@ -898,10 +898,10 @@ export function ProjectDetailPage({ projectId, onBack }: Props) {
               pvData={pvData}
               stateUf={project?.state_snapshot ?? null}
             />
-            {project && (project.project_type === 'leasing' || project.project_type === 'venda') && (
+            {project && (
               <ProjectAfAnalysisSection
                 projectId={projectId}
-                projectType={project.project_type as 'leasing' | 'venda'}
+                projectType={project.project_type}
               />
             )}
           </>
