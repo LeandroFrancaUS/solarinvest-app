@@ -122,10 +122,9 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           icon: '📨',
           onSelect: () => { abrirEnvioPropostaModal() },
           disabled: contatosEnvio.length === 0,
-          title:
-            contatosEnvio.length === 0
-              ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-              : undefined,
+          ...(contatosEnvio.length === 0
+            ? { title: 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.' }
+            : {}),
         },
       ]
 
@@ -155,14 +154,14 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
         icon: '🖋️',
         items: [
           {
-            id: 'propostas-contratos',
+            id: 'comercial-contratos-gerar',
             label: gerandoContratos ? 'Gerando…' : 'Gerar contratos',
             icon: '🖋️',
             onSelect: () => { void handleGerarContratosComConfirmacao() },
             disabled: gerandoContratos,
           },
           {
-            id: 'relatorios-contratos',
+            id: 'comercial-contratos-ver',
             label: 'Ver contratos',
             icon: '📂',
             onSelect: () => { void abrirPesquisaOrcamentos() },
@@ -362,7 +361,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           onSelect: () => { void abrirPesquisaOrcamentos() },
         },
         {
-          id: 'orcamentos-importar',
+          id: 'relatorios-contratos',
           label: 'Contratos',
           icon: '🖋️',
           onSelect: () => { void abrirPesquisaOrcamentos() },
