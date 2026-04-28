@@ -19,6 +19,8 @@ const PERM_ADMIN      = 'role_admin'
 const PERM_COMERCIAL  = 'role_comercial'
 const PERM_OFFICE     = 'role_office'
 const PERM_FINANCEIRO = 'role_financeiro'
+const PERM_OPERACAO   = 'role_operacao'
+const PERM_SUPORTE    = 'role_suporte'
 const BOOTSTRAP_ADMIN_EMAIL = getBootstrapAdminEmail().toLowerCase().trim()
 const BOOTSTRAP_ADMIN_USER_ID = getBootstrapAdminUserId()
 
@@ -49,6 +51,8 @@ export async function resolveActor(req) {
       isComercial: false,
       isOffice: false,
       isFinanceiro: false,
+      isOperacao: false,
+      isSuporte: false,
       hasAnyRole: true,
     }
   }
@@ -60,12 +64,14 @@ export async function resolveActor(req) {
   // Generate correlation ID from request for better debugging
   const correlationId = req.headers?.['x-vercel-id'] || req.headers?.['x-request-id'] || ''
 
-  // Resolve roles from Stack Auth permissions (all four in parallel)
-  const [isAdmin, isComercial, isOffice, isFinanceiro] = await Promise.all([
+  // Resolve roles from Stack Auth permissions (all six in parallel)
+  const [isAdmin, isComercial, isOffice, isFinanceiro, isOperacao, isSuporte] = await Promise.all([
     hasStackPermission(req, PERM_ADMIN, { correlationId }),
     hasStackPermission(req, PERM_COMERCIAL, { correlationId }),
     hasStackPermission(req, PERM_OFFICE, { correlationId }),
     hasStackPermission(req, PERM_FINANCEIRO, { correlationId }),
+    hasStackPermission(req, PERM_OPERACAO, { correlationId }),
+    hasStackPermission(req, PERM_SUPORTE, { correlationId }),
   ])
 
   // DB fallback: if Stack Auth returned no role at all, check the DB role.
@@ -78,7 +84,7 @@ export async function resolveActor(req) {
   // precedence over the DB snapshot — this prevents first-user bootstrap self-heal
   // from wrongly elevating a comercial user who was auto-promoted to DB 'admin'
   // before the Stack Auth permissions were configured.
-  const hasAnyStackAuthRole = isAdmin || isComercial || isOffice || isFinanceiro
+  const hasAnyStackAuthRole = isAdmin || isComercial || isOffice || isFinanceiro || isOperacao || isSuporte
   const normalizedEmail = (appUser.email ?? '').toLowerCase().trim()
   const isApproved = appUser.access_status === 'approved'
   const dbRoleIsAdmin = !hasAnyStackAuthRole && appUser.role === 'admin' && isApproved
@@ -91,7 +97,7 @@ export async function resolveActor(req) {
     (appUser.auth_provider_user_id === BOOTSTRAP_ADMIN_USER_ID || appUser.id === BOOTSTRAP_ADMIN_USER_ID) &&
     isApproved
 
-  // Precedence: admin > office > financeiro > comercial
+  // Precedence: admin > office > financeiro > comercial > operacao > suporte
   // When a user holds multiple permissions the highest-privilege one wins.
   // office takes priority over financeiro because office grants write access
   // while financeiro is read-only — a user with both roles should retain write access.
@@ -99,6 +105,8 @@ export async function resolveActor(req) {
   const resolvedOffice     = !resolvedAdmin && isOffice
   const resolvedFinanceiro = !resolvedAdmin && !resolvedOffice && isFinanceiro
   const resolvedComercial  = !resolvedAdmin && !resolvedOffice && !resolvedFinanceiro && isComercial
+  const resolvedOperacao   = !resolvedAdmin && !resolvedOffice && !resolvedFinanceiro && !resolvedComercial && isOperacao
+  const resolvedSuporte    = !resolvedAdmin && !resolvedOffice && !resolvedFinanceiro && !resolvedComercial && !resolvedOperacao && isSuporte
 
   if (dbRoleIsAdmin || bootstrapEmailIsAdmin || bootstrapUserIdIsAdmin) {
     console.info('[RBAC] resolveActor: using admin fallback', {
@@ -117,7 +125,9 @@ export async function resolveActor(req) {
     isOffice: resolvedOffice,
     isFinanceiro: resolvedFinanceiro,
     isComercial: resolvedComercial,
-    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial,
+    isOperacao: resolvedOperacao,
+    isSuporte: resolvedSuporte,
+    hasAnyRole: resolvedAdmin || resolvedFinanceiro || resolvedOffice || resolvedComercial || resolvedOperacao || resolvedSuporte,
   }
 }
 
@@ -136,6 +146,8 @@ export function actorRole(actor) {
   if (actor.isOffice)     return 'role_office'
   if (actor.isFinanceiro) return 'role_financeiro'
   if (actor.isComercial)  return 'role_comercial'
+  if (actor.isOperacao)   return 'role_operacao'
+  if (actor.isSuporte)    return 'role_suporte'
   return null
 }
 

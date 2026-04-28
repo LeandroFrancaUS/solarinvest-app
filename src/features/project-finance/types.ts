@@ -170,6 +170,36 @@ export interface ProjectFinanceGetResponse {
   project_id: string
 }
 
+// ─── Financial-Analysis snapshot (embedded AF mode) ──────────────────────────
+
+/**
+ * Shape returned by GET /api/projects/:id/financial-analysis.
+ * Carries the full AF engine inputs + outputs as opaque JSON blobs, plus
+ * the locked project type derived server-side from the contract/project.
+ */
+export interface ProjectFinanceAnalysisResponse {
+  project_id: string
+  project_type: string | null
+  analysis_mode: 'embedded'
+  /** Derived from projects.project_type / client_contracts.contract_type — authoritative. */
+  locked_project_type: ProjectFinanceContractType
+  /** Full AF engine input payload (free-form JSON). Null when never saved. */
+  inputs_json: Record<string, unknown> | null
+  /** Full AF engine computed output payload (free-form JSON). Null when never saved. */
+  outputs_json: Record<string, unknown> | null
+  updated_at: string | null
+}
+
+/**
+ * Body accepted by PUT /api/projects/:id/financial-analysis.
+ * The backend ignores project_type / locked_project_type from the payload;
+ * both are always resolved server-side from the projects table.
+ */
+export interface ProjectFinanceAnalysisPutPayload {
+  inputs_json: Record<string, unknown> | null
+  outputs_json: Record<string, unknown> | null
+}
+
 // ─── Engine-derive params ─────────────────────────────────────────────────────
 
 /**
