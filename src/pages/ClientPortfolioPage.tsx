@@ -2954,6 +2954,9 @@ function ClientDetailPanel({
   const handleTabSaved = useCallback((patch: Partial<PortfolioClientRow>) => {
     setLocalClient((prev) => prev ? { ...prev, ...patch } : prev)
     setHookClient((prev) => prev ? { ...prev, ...patch } : prev)
+    // During a global save, handleGlobalSave handles the single reload/refresh
+    // cycle after all tabs finish. Individual tab callbacks still run to keep
+    // localClient optimistically up-to-date, but we skip the per-tab reload.
     if (savingAllRef.current) return
     const keys = Object.keys(patch)
     const isInstallmentsOnly = keys.length > 0 && keys.every((k) => k === 'installments_json')
@@ -2967,14 +2970,21 @@ function ClientDetailPanel({
     setShowGlobalSavePrompt(false)
     setSavingAll(true)
     savingAllRef.current = true
+    const errors: string[] = []
     try {
       for (const saveFn of tabSaveFnsRef.current.values()) {
-        try { await saveFn() } catch { /* errors show inline in tabs */ }
+        try { await saveFn() } catch (err) {
+          errors.push(err instanceof Error ? err.message : 'Erro desconhecido')
+        }
       }
       await reloadSilent()
       setRefreshKey((k) => k + 1)
       onClientUpdated()
-      setEditMode(false)
+      if (errors.length > 0) {
+        onToast(`Algumas abas não puderam ser salvas: ${errors.join('; ')}`, 'error')
+      } else {
+        setEditMode(false)
+      }
     } finally {
       setSavingAll(false)
       savingAllRef.current = false
@@ -2983,8 +2993,9 @@ function ClientDetailPanel({
 
   function handleGlobalCancel() {
     setEditMode(false)
-    setRefreshKey((k) => k + 1)
     tabSaveFnsRef.current.clear()
+    // Reload from server to ensure forms remount with authoritative server data.
+    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
   }
 
   async function handleRemoveFromPortfolio() {
@@ -3104,28 +3115,28 @@ function ClientDetailPanel({
               <EditarTab
                 client={displayClient}
                 editMode={editMode}
-                onRegisterSave={(fn) => fn ? registerTabSave('editar', fn) : registerTabSave('editar', null)}
+                onRegisterSave={(fn) => registerTabSave('editar', fn)}
                 onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
                 onToast={onToast}
               />
             </div>
             <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
-              <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('usina', fn) : registerTabSave('usina', null)} onSaved={handleTabSaved} />
+              <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
             </div>
             <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
-              <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('contrato', fn) : registerTabSave('contrato', null)} onSaved={handleTabSaved} />
+              <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
             </div>
             {displayClient.contract_type === 'leasing' && (
               <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
-                <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('plano', fn) : registerTabSave('plano', null)} onSaved={handleTabSaved} />
+                <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
               </div>
             )}
             <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('projeto', fn) : registerTabSave('projeto', null)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
             </div>
             {resolveCobrancaGating(displayClient).enabled && (
               <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
-                <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('cobranca', fn) : registerTabSave('cobranca', null)} onSaved={handleTabSaved} />
+                <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
               </div>
             )}
             {displayClient.is_contratante_titular === false && (
@@ -3232,28 +3243,28 @@ function ClientDetailPanel({
                   <EditarTab
                     client={displayClient}
                     editMode={editMode}
-                    onRegisterSave={(fn) => fn ? registerTabSave('editar', fn) : registerTabSave('editar', null)}
+                    onRegisterSave={(fn) => registerTabSave('editar', fn)}
                     onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
                     onToast={onToast}
                   />
                 </div>
                 <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
-                  <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('usina', fn) : registerTabSave('usina', null)} onSaved={handleTabSaved} />
+                  <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
                 </div>
                 <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
-                  <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('contrato', fn) : registerTabSave('contrato', null)} onSaved={handleTabSaved} />
+                  <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
                 </div>
                 {displayClient.contract_type === 'leasing' && (
                   <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
-                    <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('plano', fn) : registerTabSave('plano', null)} onSaved={handleTabSaved} />
+                    <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
                   </div>
                 )}
                 <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('projeto', fn) : registerTabSave('projeto', null)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
                 </div>
                 {resolveCobrancaGating(displayClient).enabled && (
                   <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
-                    <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => fn ? registerTabSave('cobranca', fn) : registerTabSave('cobranca', null)} onSaved={handleTabSaved} />
+                    <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
                   </div>
                 )}
                 {displayClient.is_contratante_titular === false && (
