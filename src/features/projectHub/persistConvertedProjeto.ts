@@ -5,13 +5,13 @@
 //
 // Design principles:
 //   • convertAnaliseToProjeto stays pure (no I/O) — this file owns all side effects.
-//   • client_id is required for backend persistence. When absent, the function
-//     returns the locally-generated Projeto unchanged and sets persisted=false.
-//   • analise_id acts as an idempotency key: repeated calls with the same key
+//   • serverClientId is required for backend persistence. When absent, the function
+//     returns the locally-generated Projeto unchanged.
+//   • planId acts as an idempotency key: repeated calls with the same key
 //     will return the existing backend project instead of creating a duplicate.
 
 import { convertAnaliseToProjeto } from './convertAnaliseToProjeto'
-import { createProjectFromAnalise } from './projectsApi'
+import { createProjectFromAnalise } from '../../services/projectsApi'
 import type { Projeto } from './useProjectStore'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 
@@ -31,30 +31,13 @@ export interface PersistConvertedProjetoParams {
    * and the returned Projeto.id will be the real UUID from the database.
    * When absent, the project is created locally only.
    */
-  clientId?: number
+  serverClientId?: number | null
   /**
    * Stable identifier for this analise run (idempotency key).
-   * Recommended: generate once with crypto.randomUUID() per analise session
-   * and reuse across retries so that repeated conversions don't create
-   * duplicate projects.
+   * Must start with "analise:". Generated once per analise session and reused
+   * across retries so that repeated conversions don't create duplicate projects.
    */
-  analiseId?: string
-}
-
-export interface PersistConvertedProjetoResult {
-  projeto: Projeto
-  /** True when the project was successfully persisted to the backend. */
-  persisted: boolean
-  /**
-   * True when the backend returned an already-existing project rather than
-   * creating a new one (idempotent replay). Only relevant when persisted=true.
-   */
-  alreadyExisted: boolean
-  /**
-   * Non-fatal warning message when backend persistence was skipped because
-   * client_id was not available. The caller should surface this to the user.
-   */
-  warning?: string
+  planId?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,7 +46,11 @@ export interface PersistConvertedProjetoResult {
 
 /**
  * Converts an AnaliseFinanceira result into a Projeto and persists it to the
- * backend when a clientId is provided.
+ * backend when a serverClientId is provided.
+ *
+ * Returns the Projeto with its real backend UUID when persisted, a locally-
+ * generated Projeto when serverClientId is absent, or null when the analysis
+ * result is incomplete.
  *
  * Backend persistence:
  *   • Calls POST /api/projects/from-analise with the minimal snapshot.
@@ -71,16 +58,15 @@ export interface PersistConvertedProjetoResult {
  *     which makes ProjectChargesTab able to load and generate charges for it.
  *
  * Graceful degradation:
- *   • When clientId is absent, the function returns the locally-built Projeto
- *     (with a generated id) and sets persisted=false + warning. The caller
- *     should inform the user that billing features will not work until the
- *     project is linked to a backend client.
+ *   • When serverClientId is absent, the function returns the locally-built
+ *     Projeto (with a generated id). The caller should inform the user that
+ *     billing features will not work until the project is linked to a backend client.
  *
  * convertAnaliseToProjeto is intentionally NOT modified — it remains pure.
  */
 export async function persistConvertedProjeto(
   params: PersistConvertedProjetoParams,
-): Promise<PersistConvertedProjetoResult> {
+): Promise<Projeto | null> {
   const {
     analiseFinanceiraResult,
     tipo,
@@ -88,8 +74,8 @@ export async function persistConvertedProjeto(
     consultorNome,
     consultorId,
     pagamentoModalidade,
-    clientId,
-    analiseId,
+    serverClientId,
+    planId,
   } = params
 
   const projetoLocal = convertAnaliseToProjeto({
@@ -102,36 +88,24 @@ export async function persistConvertedProjeto(
   })
 
   if (projetoLocal === null) {
-    throw new Error('Análise Financeira incompleta — não é possível converter em projeto.')
+    return null
   }
 
-  if (clientId == null || !Number.isFinite(clientId) || clientId <= 0) {
-    return {
-      projeto: projetoLocal,
-      persisted: false,
-      alreadyExisted: false,
-      warning:
-        'Projeto criado localmente. Para habilitar cobranças é necessário vincular a um cliente no backend (client_id ausente).',
-    }
+  if (serverClientId == null || !Number.isFinite(serverClientId) || serverClientId <= 0) {
+    return projetoLocal
   }
 
-  const { project, created } = await createProjectFromAnalise({
-    client_id: clientId,
+  const { project } = await createProjectFromAnalise({
+    client_id: serverClientId,
     project_type: tipo,
-    analise_id: analiseId,
-    client_name: clienteNome,
+    plan_id: planId ?? `analise:${crypto.randomUUID()}`,
+    client_name_snapshot: clienteNome ?? null,
   })
 
-  const projetoPersistido: Projeto = {
+  return {
     ...projetoLocal,
     // Replace the locally-generated id with the real backend UUID so that
     // ProjectChargesTab and other backend-aware features work correctly.
     id: project.id,
-  }
-
-  return {
-    projeto: projetoPersistido,
-    persisted: true,
-    alreadyExisted: !created,
   }
 }
