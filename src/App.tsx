@@ -350,6 +350,12 @@ import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplay
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
+import { setOperationsTokenProvider } from './features/operacao/operationsApi'
+import { AgendaPage } from './features/operacao/AgendaPage'
+import { ChamadosPage } from './features/operacao/ChamadosPage'
+import { ManutencoesPage } from './features/operacao/ManutencoesPage'
+import { LimpezasPage } from './features/operacao/LimpezasPage'
+import { SegurosPage } from './features/operacao/SegurosPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
   selectAfCidadeDestino,
@@ -4059,6 +4065,7 @@ export default function App() {
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
+    setOperationsTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -4175,7 +4182,12 @@ export default function App() {
       storedPage === 'simulacoes' ||
       storedPage === 'admin-users' ||
       storedPage === 'carteira' ||
-      storedPage === 'financial-management'
+      storedPage === 'financial-management' ||
+      storedPage === 'operacao-agenda' ||
+      storedPage === 'operacao-chamados' ||
+      storedPage === 'operacao-manutencoes' ||
+      storedPage === 'operacao-limpezas' ||
+      storedPage === 'operacao-seguros'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
@@ -18840,6 +18852,16 @@ export default function App() {
             : null
         ) : activePage === 'project-hub' ? (
           <ProjectHubPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+        ) : activePage === 'operacao-agenda' ? (
+          <AgendaPage />
+        ) : activePage === 'operacao-chamados' ? (
+          <ChamadosPage />
+        ) : activePage === 'operacao-manutencoes' ? (
+          <ManutencoesPage />
+        ) : activePage === 'operacao-limpezas' ? (
+          <LimpezasPage />
+        ) : activePage === 'operacao-seguros' ? (
+          <SegurosPage />
         ) : (
           <div className="page">
             <div className="app-main">
