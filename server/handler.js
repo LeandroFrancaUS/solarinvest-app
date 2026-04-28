@@ -125,6 +125,7 @@ import {
   handleProjectFromAnalise,
 } from './projects/handler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
+import { handleProjectFinanceAnalysis } from './project-finance/analysisHandler.js'
 import {
   handleProjectChargesList,
   handleProjectChargesGenerate,
@@ -1577,6 +1578,17 @@ export default async function handler(req, res) {
       const sj = (s, b) => sendJson(res, s, b)
       await handleProjectFromAnalise(req, res, { method, readJsonBody, sendJson: sj })
       return
+    }
+
+    // GET|PUT /api/projects/:id/financial-analysis
+    {
+      const analysisMatch = pathname.match(/^\/api\/projects\/([^/]+)\/financial-analysis$/)
+      if (analysisMatch) {
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
+        const sj = (s, b) => sendJson(res, s, b)
+        await handleProjectFinanceAnalysis(req, res, { method, projectId: analysisMatch[1], readJsonBody, sendJson: sj })
+        return
+      }
     }
 
     // GET|PUT /api/projects/:id/finance
