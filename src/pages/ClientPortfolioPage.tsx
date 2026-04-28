@@ -3159,13 +3159,14 @@ function ClientDetailPanel({
                   onClientUpdated()
                 }}
                 onToast={onToast}
+                editMode={false}
               />
             )}
-            {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
           </>
@@ -3287,13 +3288,14 @@ function ClientDetailPanel({
                       onClientUpdated()
                     }}
                     onToast={onToast}
+                    editMode={false}
                   />
                 )}
-                {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-                {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-                {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-                {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+                {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+                {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
                 {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
               </>
