@@ -1057,6 +1057,28 @@ export async function findClientByNormalizedName(sql, name, ownerUserId) {
 }
 
 /**
+ * Back-fill offline_origin_id on an existing client (only when the column is
+ * currently null).  Used by the name-dedup path so that subsequent auto-save
+ * retries from the same device are resolved by the faster offline_origin_id
+ * lookup instead of triggering the name-scan again.
+ *
+ * @param {Function} sql        - user-scoped sql handle
+ * @param {string|number} clientId
+ * @param {string}        offlineOriginId
+ * @returns {Promise<void>}
+ */
+export async function patchClientOfflineOriginId(sql, clientId, offlineOriginId) {
+  if (!clientId || !offlineOriginId) return
+  await sql`
+    UPDATE clients
+       SET offline_origin_id = ${offlineOriginId},
+           updated_at        = now()
+     WHERE id = ${clientId}
+       AND offline_origin_id IS NULL
+  `
+}
+
+/**
  * Upsert (insert or update) the energy profile for a client.
  * On conflict (client already has a profile), updates all non-null incoming fields.
  */
