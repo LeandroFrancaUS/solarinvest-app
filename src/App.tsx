@@ -16566,6 +16566,32 @@ export default function App() {
       })
       return false
     }
+
+    // Cancel any pending auto-save and wait for any in-flight auto-save to
+    // complete before dispatching the manual save.  This prevents the race
+    // condition where both writes reach the server simultaneously and the
+    // name-based deduplication check passes for both (the first INSERT hasn't
+    // committed yet when the second transaction reads), resulting in two
+    // identical client rows being created.
+    if (clientAutoSaveTimeoutRef.current) {
+      clearTimeout(clientAutoSaveTimeoutRef.current)
+      clientAutoSaveTimeoutRef.current = null
+    }
+    if (clientServerAutoSaveInFlightRef.current) {
+      // Poll until the in-flight auto-save settles (max 3 s to avoid blocking indefinitely).
+      await new Promise<void>((resolve) => {
+        const deadline = Date.now() + 3000
+        const poll = () => {
+          if (!clientServerAutoSaveInFlightRef.current || Date.now() >= deadline) {
+            resolve()
+          } else {
+            setTimeout(poll, 50)
+          }
+        }
+        poll()
+      })
+    }
+
     setClientLastSaveStatus('saving')
 
     const dadosClonados = cloneClienteDados(cliente)
