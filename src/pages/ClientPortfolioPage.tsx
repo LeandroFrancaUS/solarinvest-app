@@ -698,7 +698,8 @@ function EditarTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block',
@@ -999,7 +1000,8 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const code = (form.source_proposal_code || form.source_proposal_id || '').trim()
@@ -1388,7 +1390,8 @@ function ProjetoTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -1801,7 +1804,8 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -2360,7 +2364,8 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -2436,7 +2441,8 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  }, [onRegisterSave])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -2971,10 +2977,16 @@ function ClientDetailPanel({
     setSavingAll(true)
     savingAllRef.current = true
     const errors: string[] = []
+    const tabLabels: Record<string, string> = {
+      editar: 'Dados', usina: 'Usina', contrato: 'Contrato',
+      plano: 'Plano', projeto: 'Projeto', cobranca: 'Cobrança',
+    }
     try {
-      for (const saveFn of tabSaveFnsRef.current.values()) {
+      for (const [tabId, saveFn] of tabSaveFnsRef.current.entries()) {
         try { await saveFn() } catch (err) {
-          errors.push(err instanceof Error ? err.message : 'Erro desconhecido')
+          const label = tabLabels[tabId] ?? tabId
+          const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+          errors.push(`${label}: ${msg}`)
         }
       }
       await reloadSilent()
