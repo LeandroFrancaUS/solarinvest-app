@@ -18,6 +18,10 @@ export type ActivePage =
   // Área Comercial (Etapa 3)
   | 'comercial-leads'
   | 'comercial-propostas'
+  // Área Cobranças (Etapa 4)
+  | 'cobrancas-mensalidades'
+  | 'cobrancas-recebimentos'
+  | 'cobrancas-inadimplencia'
   // Operação placeholder sections (Etapa 1 — sem página real ainda)
   | 'operacao-agenda'
   | 'operacao-chamados'

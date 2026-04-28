@@ -37,6 +37,10 @@ export interface SidebarConfigParams {
   // Navigation handlers — Área Comercial (Etapa 3)
   abrirComercialLeads: () => void
   abrirComercialPropostas: (tab: 'leasing' | 'vendas') => void
+  // Navigation handlers — Área Cobranças (Etapa 4)
+  abrirCobrancasMensalidades: () => void
+  abrirCobrancasRecebimentos: () => void
+  abrirCobrancasInadimplencia: () => void
   // Legacy CRM items (kept for backward compat, no longer in primary nav)
   crmItems: SidebarItem[]
   // State
@@ -70,6 +74,9 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     abrirOperacaoPlaceholder,
     abrirComercialLeads,
     abrirComercialPropostas,
+    abrirCobrancasMensalidades,
+    abrirCobrancasRecebimentos,
+    abrirCobrancasInadimplencia,
     gerandoContratos,
     contatosEnvio,
   } = params
@@ -215,19 +222,19 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
           id: 'cobrancas-mensalidades',
           label: 'Mensalidades',
           icon: '💰',
-          onSelect: () => { void abrirGestaoFinanceira() },
+          onSelect: abrirCobrancasMensalidades,
         },
         {
           id: 'cobrancas-recebimentos',
           label: 'Recebimentos',
           icon: '💳',
-          onSelect: () => { void abrirGestaoFinanceira() },
+          onSelect: abrirCobrancasRecebimentos,
         },
         {
           id: 'cobrancas-inadimplencia',
           label: 'Inadimplência',
           icon: '⚠️',
-          onSelect: () => { void abrirGestaoFinanceira() },
+          onSelect: abrirCobrancasInadimplencia,
         },
       ],
     })
