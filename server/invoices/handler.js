@@ -1,10 +1,11 @@
 // server/invoices/handler.js
 // Handles /api/invoices routes for client invoice management (faturas).
-// RBAC: read → admin|office|financeiro; write → admin|office|financeiro.
+// RBAC: read → ADMIN|DIRETORIA|FINANCEIRO; write → ADMIN|FINANCEIRO.
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { hasPermission } from '../auth/permissionMap.js'
 import {
   listClientInvoices,
   getInvoiceById,
@@ -26,8 +27,7 @@ function requireReadAccess(actor, sendJson) {
     sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
     return false
   }
-  const role = actorRole(actor)
-  if (!['role_admin', 'role_office', 'role_financeiro'].includes(role)) {
+  if (!hasPermission(actor, 'cobrancas:read')) {
     sendError(sendJson, 403, 'FORBIDDEN', 'Acesso às faturas não permitido para este perfil.')
     return false
   }
@@ -39,8 +39,7 @@ function requireWriteAccess(actor, sendJson) {
     sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
     return false
   }
-  const role = actorRole(actor)
-  if (!['role_admin', 'role_office', 'role_financeiro'].includes(role)) {
+  if (!hasPermission(actor, 'cobrancas:write')) {
     sendError(sendJson, 403, 'FORBIDDEN', 'Operação de escrita em faturas requer perfil adequado.')
     return false
   }

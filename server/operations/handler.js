@@ -2,21 +2,15 @@
 // Handles /api/operations/* routes for the post-contract Operação domain.
 //
 // RBAC:
-//   read  → role_admin | role_office | role_operacao | role_suporte
-//   write → role_admin | role_office | role_operacao
+//   read  → role_admin | role_office (DIRETORIA) | role_operacao | role_suporte
+//   write → role_admin | role_office (DIRETORIA) | role_operacao
 //
-// Note: role_operacao and role_suporte are Stack Auth permission keys that
-// follow the same convention as role_admin / role_office. resolveActor
-// currently exposes isAdmin / isOffice / isFinanceiro / isComercial from
-// Stack Auth. Until a dedicated Stack Auth role is provisioned for operacao /
-// suporte the handler treats role_office as the write gate and any recognised
-// role as the read gate — this matches the "office has unrestricted access"
-// contract and allows the permission model to be tightened later without
-// breaking existing actors.
+// Permission checks now use the central permissionMap for consistency.
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { hasPermission } from '../auth/permissionMap.js'
 import {
   listServiceTickets,
   createServiceTicket,
@@ -53,28 +47,27 @@ function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
 }
 
-/** Any authenticated actor can read operation data. */
+/** Read access: admin, DIRETORIA (office), operacao, suporte — via permissionMap. */
 function requireReadAccess(actor, sendJson) {
   if (!actor) {
     sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
     return false
   }
-  if (!actor.hasAnyRole) {
+  if (!hasPermission(actor, 'operacao:read')) {
     sendError(sendJson, 403, 'FORBIDDEN', 'Acesso à operação não permitido para este perfil.')
     return false
   }
   return true
 }
 
-/** Write access: admin, office, operacao (currently mapped to office until dedicated role). */
+/** Write access: admin, DIRETORIA (office), operacao — via permissionMap. */
 function requireWriteAccess(actor, sendJson) {
   if (!actor) {
     sendError(sendJson, 401, 'UNAUTHORIZED', 'Autenticação necessária.')
     return false
   }
-  const role = actorRole(actor)
-  if (!['role_admin', 'role_office'].includes(role)) {
-    sendError(sendJson, 403, 'FORBIDDEN', 'Escrita na operação requer perfil admin ou office.')
+  if (!hasPermission(actor, 'operacao:write')) {
+    sendError(sendJson, 403, 'FORBIDDEN', 'Escrita na operação requer perfil admin, office ou operacao.')
     return false
   }
   return true

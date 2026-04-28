@@ -1,10 +1,11 @@
 // server/financial-management/handler.js
 // Handles /api/financial-management/* routes.
-// RBAC: requires page_financial_management permission (or role_admin).
+// RBAC: read → ADMIN | DIRETORIA (indicadores:read).
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { hasPermission } from '../auth/permissionMap.js'
 import {
   listFinancialCategories,
   listFinancialEntries,
@@ -21,30 +22,25 @@ import {
 // Access helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ALLOWED_ROLES = ['role_admin']
-const ALLOWED_PERMISSION = 'page_financial_management'
-
 function requireAccess(actor, sendJson) {
   if (!actor) {
     sendJson(401, { error: { code: 'UNAUTHORIZED', message: 'Autenticação necessária.' } })
     return false
   }
 
-  const role = actorRole(actor)
+  // Use central permissionMap: indicadores:read → ADMIN, DIRETORIA
+  if (hasPermission(actor, 'indicadores:read')) return true
 
-  // Admin always has access
-  if (ALLOWED_ROLES.includes(role)) return true
-
-  // Check page_financial_management permission
+  // Legacy fallback: page_financial_management stack permission
   const perms = actor.permissions ?? []
-  if (perms.includes(ALLOWED_PERMISSION) || perms.includes('page:financial_management')) {
+  if (perms.includes('page_financial_management') || perms.includes('page:financial_management')) {
     return true
   }
 
   sendJson(403, {
     error: {
       code: 'FORBIDDEN',
-      message: 'Acesso à Gestão Financeira requer a permissão page_financial_management.',
+      message: 'Acesso à Gestão Financeira requer permissão de admin ou diretoria.',
     },
   })
   return false
