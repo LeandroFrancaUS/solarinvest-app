@@ -22,6 +22,7 @@ import {
   getPortfolioSummary,
 } from './repository.js'
 import { upsertClientEnergyProfile } from '../clients/repository.js'
+import { applyContractSignedStatus } from '../clients/contractSignedStatus.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
@@ -286,6 +287,11 @@ export async function handlePortfolioContractPatch(req, res, { method, clientId,
       if (normalizedTerm == null || Number.isFinite(normalizedTerm)) {
         await upsertClientEnergyProfile(sql, clientId, { prazo_meses: normalizedTerm })
       }
+    }
+
+    // When a contract is signed, promote the client domain statuses (idempotent).
+    if (body.contract_status === 'ASSINADO') {
+      await applyContractSignedStatus(sql, clientId)
     }
 
     sendJson(200, { data: result })
