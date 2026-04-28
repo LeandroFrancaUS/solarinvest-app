@@ -2,7 +2,7 @@
 // "Carteira de Clientes" — professional operational management hub.
 // Access: admin | office | financeiro only.
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import '../styles/portfolio.css'
 import { useStackRbac } from '../lib/auth/rbac'
 import {
@@ -596,15 +596,16 @@ function EditarTab({
   client,
   onSaved,
   onToast,
+  editMode,
+  onRegisterSave,
 }: {
   client: PortfolioClientRow
   onSaved: (updated: PortfolioClientRow) => void
   onToast: (msg: string, type: 'success' | 'error') => void
+  editMode: boolean
+  onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
   const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
@@ -684,13 +685,21 @@ function EditarTab({
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : client.system_kwp,
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
       })
-      setEditMode(false)
     } catch {
       onToast('Não foi possível salvar as alterações do cliente.', 'error')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block',
@@ -833,50 +842,6 @@ function EditarTab({
         </div>
       </div>
 
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => {
-            setEditMode(false)
-            setShowUcBeneficiariaField(hasUcBeneficiaria)
-            resetForm()
-          }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Cliente"
-          message="Deseja realmente editar os dados do cliente?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Cliente"
-          message="Deseja realmente salvar as alterações dos dados do cliente?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -891,12 +856,9 @@ function buildBuyoutEligibleDefault(contractType: string, persisted: boolean | n
   return contractType === 'leasing' || contractType === 'buyout'
 }
 
-function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showProposalSearchDialog, setShowProposalSearchDialog] = useState(false)
@@ -1019,7 +981,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_file_name: form.contract_file_name || null,
         contract_attachments: contractAttachments,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
       // Auto-create a project in Gestão Financeira when contract becomes active
       if (form.contract_status === 'active' && client.contract_status !== 'active') {
         createProjectFromContract(savedContractId).catch((err) => {
@@ -1032,6 +993,15 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const code = (form.source_proposal_code || form.source_proposal_id || '').trim()
@@ -1272,46 +1242,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       </div>
 
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Contrato"
-          message="Deseja realmente editar os dados do contrato?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Contrato"
-          message="Deseja realmente salvar as alterações dos dados do contrato?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
       <ProposalOriginSearchDialog
         open={showProposalSearchDialog}
         onClose={() => setShowProposalSearchDialog(false)}
@@ -1389,16 +1319,17 @@ function ProjetoTab({
   client,
   onSaved,
   onOpenFinancialProject,
+  editMode,
+  onRegisterSave,
 }: {
   client: PortfolioClientRow
   onSaved: (patch: Partial<PortfolioClientRow>) => void
   onOpenFinancialProject?: (projectId: string) => void
+  editMode: boolean
+  onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   // Financial project linked to this client in Gestão Financeira
   const [financialProjectId, setFinancialProjectId] = useState<string | null>(null)
@@ -1446,13 +1377,21 @@ function ProjetoTab({
         art_status: form.art_status || null,
         project_notes: (payload.notes as string | null) ?? null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -1615,46 +1554,6 @@ function ProjetoTab({
           </button>
         </div>
       )}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Projeto"
-          message="Deseja realmente editar os dados do projeto?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Projeto"
-          message="Deseja realmente salvar as alterações dos dados do projeto?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -1662,15 +1561,12 @@ function ProjetoTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // Billing Tab
 // ─────────────────────────────────────────────────────────────────────────────
-function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const { isAdmin, isOffice, isFinanceiro } = useStackRbac()
   const canManageBilling = isAdmin || isOffice || isFinanceiro
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
   const [proofError, setProofError] = useState<string | null>(null)
@@ -1895,13 +1791,21 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -2363,46 +2267,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       )}
 
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && canManageBilling && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Cobrança"
-          message="Deseja realmente editar os dados de cobrança?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Cobrança"
-          message="Deseja realmente salvar as alterações dos dados de cobrança?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -2410,11 +2274,8 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
-function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2473,7 +2334,6 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
         tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
       // Best-effort sync: if a financial project exists for this client, also
       // write the usina data to project_pv_data so both views stay in sync.
       void fetchProjectByClientId(client.id).then((proj) => {
@@ -2498,49 +2358,18 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
     }
   }
 
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} />
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetUfData() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Usina"
-          message="Deseja realmente editar os dados da usina?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Usina"
-          message="Deseja realmente salvar as alterações dos dados da usina?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -2553,12 +2382,9 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
 // NEVER use latest_proposal_profile as a source for these fields.
 // If energy_profile is null, the UI must show empty — not fallback to proposal.
 // ─────────────────────────────────────────────────────────────────────────────
-function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const prazoUnificado = client.contractual_term_months ?? client.prazo_meses ?? null
 
   // Note: potencia_kwp, tipo_rede, marca_inversor, indicacao removed from this form.
@@ -2602,13 +2428,21 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
         contractual_term_months: form.prazo_meses ? Number(form.prazo_meses) : null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar plano.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -2654,46 +2488,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         </div>
       </div>
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Plano"
-          message="Deseja realmente editar os dados do plano?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Plano"
-          message="Deseja realmente salvar as alterações dos dados do plano?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -3134,6 +2928,16 @@ function ClientDetailPanel({
   // Counter to force tab remount after a silent reload completes, so forms
   // re-initialise from the fresh server data instead of stale props.
   const [refreshKey, setRefreshKey] = useState(0)
+  const [editMode, setEditMode] = useState(false)
+  const [showGlobalSavePrompt, setShowGlobalSavePrompt] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const tabSaveFnsRef = useRef<Map<string, () => Promise<void>>>(new Map())
+  const savingAllRef = useRef(false)
+
+  const registerTabSave = useCallback((tabId: string, fn: (() => Promise<void>) | null) => {
+    if (fn === null) tabSaveFnsRef.current.delete(tabId)
+    else tabSaveFnsRef.current.set(tabId, fn)
+  }, [])
 
   useEffect(() => {
     if (client) setLocalClient(client)
@@ -3154,27 +2958,57 @@ function ClientDetailPanel({
    * 4. Refresh the clients list in the background.
    */
   const handleTabSaved = useCallback((patch: Partial<PortfolioClientRow>) => {
-    // Step 1 — optimistic merge
     setLocalClient((prev) => prev ? { ...prev, ...patch } : prev)
     setHookClient((prev) => prev ? { ...prev, ...patch } : prev)
-
-    // When the patch only carries installments_json (e.g. a per-installment
-    // valor override or payment confirmation), skip remounting the active tab.
-    // CobrancaTab already has a useEffect that re-syncs confirmedPayments /
-    // valorOverrides whenever client.installments_json changes, so the UI
-    // stays consistent without a full remount.  Remounting would reset any
-    // unsaved billing-profile form edits (due_day, reading_day, etc.) that
-    // the user has made in the same edit session.
+    // During a global save, handleGlobalSave handles the single reload/refresh
+    // cycle after all tabs finish. Individual tab callbacks still run to keep
+    // localClient optimistically up-to-date, but we skip the per-tab reload.
+    if (savingAllRef.current) return
     const keys = Object.keys(patch)
     const isInstallmentsOnly = keys.length > 0 && keys.every((k) => k === 'installments_json')
     if (!isInstallmentsOnly) {
-      // Step 2+3 — silent refetch, then bump key to re-init forms
       void reloadSilent().then(() => setRefreshKey((k) => k + 1))
     }
-
-    // Step 4 — refresh the sidebar list
     onClientUpdated()
   }, [reloadSilent, setHookClient, onClientUpdated])
+
+  async function handleGlobalSave() {
+    setShowGlobalSavePrompt(false)
+    setSavingAll(true)
+    savingAllRef.current = true
+    const errors: string[] = []
+    const tabLabels: Record<string, string> = {
+      editar: 'Dados', usina: 'Usina', contrato: 'Contrato',
+      plano: 'Plano', projeto: 'Projeto', cobranca: 'Cobrança',
+    }
+    try {
+      for (const [tabId, saveFn] of tabSaveFnsRef.current.entries()) {
+        try { await saveFn() } catch (err) {
+          const label = tabLabels[tabId] ?? tabId
+          const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+          errors.push(`${label}: ${msg}`)
+        }
+      }
+      await reloadSilent()
+      setRefreshKey((k) => k + 1)
+      onClientUpdated()
+      if (errors.length > 0) {
+        onToast(`Algumas abas não puderam ser salvas: ${errors.join('; ')}`, 'error')
+      } else {
+        setEditMode(false)
+      }
+    } finally {
+      setSavingAll(false)
+      savingAllRef.current = false
+    }
+  }
+
+  function handleGlobalCancel() {
+    setEditMode(false)
+    tabSaveFnsRef.current.clear()
+    // Reload from server to ensure forms remount with authoritative server data.
+    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+  }
 
   async function handleRemoveFromPortfolio() {
     setConfirmRemove(false)
@@ -3271,26 +3105,84 @@ function ClientDetailPanel({
           cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
           cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
         />
-        {activeTab === 'editar' && (
-          <EditarTab
-            key={`editar-${refreshKey}`}
-            client={displayClient}
-            onSaved={(updated) => {
-              setLocalClient(updated)
-              setHookClient(updated)
-              void reloadSilent().then(() => setRefreshKey((k) => k + 1))
-              onClientUpdated()
-            }}
-            onToast={onToast}
-          />
+
+        {/* Global edit controls */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {!editMode && (
+            <button type="button" className="pf-btn pf-btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button>
+          )}
+          {editMode && (
+            <>
+              <button type="button" className="pf-btn pf-btn-save" disabled={savingAll} onClick={() => setShowGlobalSavePrompt(true)}>
+                {savingAll ? 'Salvando…' : '💾 Salvar Alterações'}
+              </button>
+              <button type="button" className="pf-btn pf-btn-cancel" onClick={handleGlobalCancel}>Cancelar</button>
+            </>
+          )}
+        </div>
+
+        {editMode ? (
+          <>
+            <div style={{ display: activeTab === 'editar' ? undefined : 'none' }}>
+              <EditarTab
+                client={displayClient}
+                editMode={editMode}
+                onRegisterSave={(fn) => registerTabSave('editar', fn)}
+                onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
+                onToast={onToast}
+              />
+            </div>
+            <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
+              <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
+            </div>
+            <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
+              <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
+            </div>
+            {displayClient.contract_type === 'leasing' && (
+              <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
+                <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
+              </div>
+            )}
+            <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
+              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+            </div>
+            {resolveCobrancaGating(displayClient).enabled && (
+              <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
+                <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
+              </div>
+            )}
+            {displayClient.is_contratante_titular === false && (
+              <div style={{ display: activeTab === 'faturas' ? undefined : 'none' }}>
+                <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />
+              </div>
+            )}
+            {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
+          </>
+        ) : (
+          <>
+            {activeTab === 'editar' && (
+              <EditarTab
+                key={`editar-${refreshKey}`}
+                client={displayClient}
+                onSaved={(updated) => {
+                  setLocalClient(updated)
+                  setHookClient(updated)
+                  void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+                  onClientUpdated()
+                }}
+                onToast={onToast}
+                editMode={false}
+              />
+            )}
+            {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
+          </>
         )}
-        {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-        {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
       {/* Confirm dialogs */}
@@ -3314,6 +3206,16 @@ function ClientDetailPanel({
           onCancel={() => setConfirmDelete(false)}
         />
       )}
+      {showGlobalSavePrompt && (
+        <ConfirmDialog
+          title="Salvar Alterações"
+          message="Deseja realmente salvar todas as alterações feitas?"
+          confirmLabel="Salvar"
+          variant="success"
+          onConfirm={() => void handleGlobalSave()}
+          onCancel={() => setShowGlobalSavePrompt(false)}
+        />
+      )}
 
       {/* Full-screen editor shell */}
       {viewMode === 'expanded' && (
@@ -3332,26 +3234,84 @@ function ClientDetailPanel({
               cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
               cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
             />
-            {activeTab === 'editar' && (
-              <EditarTab
-                key={`fs-editar-${refreshKey}`}
-                client={displayClient}
-                onSaved={(updated) => {
-                  setLocalClient(updated)
-                  setHookClient(updated)
-                  void reloadSilent().then(() => setRefreshKey((k) => k + 1))
-                  onClientUpdated()
-                }}
-                onToast={onToast}
-              />
+
+            {/* Global edit controls */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {!editMode && (
+                <button type="button" className="pf-btn pf-btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button>
+              )}
+              {editMode && (
+                <>
+                  <button type="button" className="pf-btn pf-btn-save" disabled={savingAll} onClick={() => setShowGlobalSavePrompt(true)}>
+                    {savingAll ? 'Salvando…' : '💾 Salvar Alterações'}
+                  </button>
+                  <button type="button" className="pf-btn pf-btn-cancel" onClick={handleGlobalCancel}>Cancelar</button>
+                </>
+              )}
+            </div>
+
+            {editMode ? (
+              <>
+                <div style={{ display: activeTab === 'editar' ? undefined : 'none' }}>
+                  <EditarTab
+                    client={displayClient}
+                    editMode={editMode}
+                    onRegisterSave={(fn) => registerTabSave('editar', fn)}
+                    onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
+                    onToast={onToast}
+                  />
+                </div>
+                <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
+                  <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
+                </div>
+                <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
+                  <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
+                </div>
+                {displayClient.contract_type === 'leasing' && (
+                  <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
+                    <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
+                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+                </div>
+                {resolveCobrancaGating(displayClient).enabled && (
+                  <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
+                    <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                {displayClient.is_contratante_titular === false && (
+                  <div style={{ display: activeTab === 'faturas' ? undefined : 'none' }}>
+                    <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
+              </>
+            ) : (
+              <>
+                {activeTab === 'editar' && (
+                  <EditarTab
+                    key={`fs-editar-${refreshKey}`}
+                    client={displayClient}
+                    onSaved={(updated) => {
+                      setLocalClient(updated)
+                      setHookClient(updated)
+                      void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+                      onClientUpdated()
+                    }}
+                    onToast={onToast}
+                    editMode={false}
+                  />
+                )}
+                {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+                {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+                {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
+              </>
             )}
-            {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
       )}
