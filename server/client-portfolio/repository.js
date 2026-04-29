@@ -43,12 +43,15 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
         c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        c.metadata,
         cc.contractual_term_months,
         cc.contract_start_date,
         cc.contract_type,
-        cc.contract_status
+        cc.contract_status,
+        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
+      LEFT JOIN public.client_usina_config cu ON cu.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
       ORDER BY c.id, cc.updated_at DESC NULLS LAST
@@ -78,12 +81,15 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
         c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        c.metadata,
         cc.contractual_term_months,
         cc.contract_start_date,
         cc.contract_type,
-        cc.contract_status
+        cc.contract_status,
+        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
+      LEFT JOIN public.client_usina_config cu ON cu.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
         AND (
@@ -305,7 +311,7 @@ export async function getPortfolioClient(sql, clientId) {
       cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
       cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh,
       cu.valordemercado                      AS usina_valordemercado,
-      cu.wifi_status,
+      COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status,
 
       -- contract attachments (migration 0037 — optional)
       cc.contract_attachments_json
@@ -439,7 +445,7 @@ export async function getPortfolioClient(sql, clientId) {
       -- valordemercado replaced with NULL so this fallback query succeeds even when
       -- the column has not yet been added to client_usina_config
       NULL::numeric                          AS usina_valordemercado,
-      cu.wifi_status,
+      COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status,
 
       -- contract attachments replaced with NULL so this fallback query succeeds even
       -- when migration 0037 (contract_attachments_json) has not been applied
@@ -525,7 +531,8 @@ export async function getPortfolioClient(sql, clientId) {
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
         c.portfolio_exported_by_user_id        AS exported_by_user_id,
-        c.metadata
+        c.metadata,
+        c.metadata ->> 'wifi_status'           AS wifi_status
       FROM public.clients c
       WHERE c.id = ${clientId}
         AND c.in_portfolio = true
