@@ -231,6 +231,14 @@ export interface InstallmentPayment {
   confirmed_by: string | null
   /** Per-installment value override in BRL. When set, overrides the global valor_mensalidade for this installment. */
   valor_override?: number | null
+  /** Per-installment value in BRL (fallback after valor_override). */
+  valor?: number | null
+  /** Per-installment amount in BRL (fallback after valor). */
+  amount?: number | null
+  /** ISO due date string for this installment (e.g. "2026-04-10"). */
+  due_date?: string | null
+  /** Alternative due date field name used by some data sources. */
+  vencimento?: string | null
 }
 
 /** Single contract attachment record stored inside contract_attachments_json */

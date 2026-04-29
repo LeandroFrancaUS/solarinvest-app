@@ -488,8 +488,14 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
  * Resolves installment progress for a portfolio client.
  * Returns { value, current, total } where:
  *   - value = amount for the current installment (BRL)
- *   - current = 1-based installment number (first unpaid, or last if all paid)
+ *   - current = 1-based installment number representing the current billing position
  *   - total = total number of installments
+ *
+ * Priority for "current" installment selection:
+ *   A) Installment whose due_date/vencimento falls in the current calendar month/year.
+ *   B) If no per-installment dates, use the largest-numbered paid/confirmado installment.
+ *   C) If none paid, use the smallest-numbered pending installment.
+ *   D) Fallback: first installment.
  */
 function getInstallmentProgress(client: PortfolioClientRow): {
   value: number | null
@@ -502,8 +508,8 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
-  // Parse installments_json (may be null, array, or JSON string)
-  let installments: InstallmentPayment[] | null = null
+  // --- 1. Parse installments_json (may be null, array, or JSON string) ---
+  let installments: InstallmentPayment[] = []
   if (client.installments_json) {
     if (Array.isArray(client.installments_json)) {
       installments = client.installments_json
@@ -517,64 +523,91 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     }
   }
 
-  // Determine current installment number
-  let current: number | null = null
-  let valueOverride: number | null = null
-  if (installments && installments.length > 0) {
-    const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
-    const unpaid = installments.filter((i) => !isPaid(i.status))
-    if (unpaid.length > 0) {
-      const next = unpaid.reduce((min, i) => (i.number < min.number ? i : min), unpaid[0])
-      current = next.number
-      valueOverride = toNum(next.valor_override)
+  const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
+
+  // --- 2. Identify current installment ---
+  let chosen: InstallmentPayment | null = null
+
+  if (installments.length > 0) {
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth() // 0-based
+
+    // A) Match by due_date / vencimento in current month+year
+    const matchedByDate = installments.find((i) => {
+      const dateStr = i.due_date ?? i.vencimento
+      if (!dateStr) return false
+      const d = new Date(dateStr)
+      return !isNaN(d.getTime()) && d.getFullYear() === nowYear && d.getMonth() === nowMonth
+    })
+    if (matchedByDate) {
+      chosen = matchedByDate
     } else {
-      // All paid — use the last installment
-      const last = installments.reduce((max, i) => (i.number > max.number ? i : max), installments[0])
-      current = last.number
-      valueOverride = toNum(last.valor_override)
+      // B) Largest-numbered paid/confirmado installment
+      const paid = installments.filter((i) => isPaid(i.status))
+      if (paid.length > 0) {
+        chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
+      } else {
+        // C) Smallest-numbered pending installment
+        const pending = installments.filter((i) => !isPaid(i.status))
+        if (pending.length > 0) {
+          chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
+        } else {
+          // D) First installment
+          chosen = installments[0]
+        }
+      }
     }
   }
 
-  // Determine value
-  let value: number | null = valueOverride
+  // --- 3. Derive current number ---
+  const current: number | null = chosen ? (chosen.number ?? 1) : null
+
+  // --- 4. Derive value ---
+  let value: number | null = null
+  if (chosen) {
+    value =
+      toNum(chosen.valor_override) ??
+      toNum(chosen.valor) ??
+      toNum(chosen.amount) ??
+      null
+  }
   if (value === null) {
-    if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
-      value =
-        toNum(client.installment_value) ??
-        toNum(client.valor_parcela) ??
-        toNum(client.valor_prestacao) ??
-        null
-    }
-    if (value === null) {
-      value =
-        toNum(client.mensalidade) ??
-        toNum(client.valor_mensalidade) ??
-        toNum(client.monthly_payment) ??
-        null
-    }
+    value =
+      toNum(client.mensalidade) ??
+      toNum(client.valor_mensalidade) ??
+      toNum(client.monthly_payment) ??
+      toNum(client.installment_value) ??
+      toNum(client.valor_parcela) ??
+      toNum(client.valor_prestacao) ??
+      null
   }
 
-  // Determine total
+  // --- 5. Derive total ---
   let total: number | null = null
-  if (installments && installments.length > 0) {
+  if (installments.length > 0) {
     total = installments.length
-  } else if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
+  }
+  if (total === null) {
     total =
+      toNum(client.contractual_term_months) ??
+      toNum(client.prazo_meses) ??
+      toNum(client.term_months) ??
       toNum(client.number_of_installments) ??
       toNum(client.parcelas) ??
       toNum(client.installments_count) ??
       null
-  } else {
-    total =
-      toNum(client.contractual_term_months) ??
-      toNum(client.term_months) ??
-      toNum(client.prazo_meses) ??
-      null
   }
 
-  // Default current to 1 if we have a total/value but no current
-  if (current === null && (value !== null || total !== null)) {
-    current = 1
+  // --- 6. Dev logging ---
+  if (import.meta.env.DEV) {
+    console.info('[wallet-card][mensalidade]', {
+      clientId: client.id,
+      installmentsCount: installments.length,
+      current,
+      total,
+      value,
+    })
   }
 
   return { value, current, total }
