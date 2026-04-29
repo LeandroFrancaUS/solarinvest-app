@@ -66,6 +66,7 @@ import { ProposalOriginField } from '../components/carteira/contrato/ProposalOri
 import { ProposalOriginSearchDialog } from '../components/carteira/contrato/ProposalOriginSearchDialog'
 import { createProposalOriginLink, validateProposalOriginLink } from '../lib/proposals/proposalOriginLink'
 import { findSavedProposalByExactCode, getSavedProposalRecord, openSavedProposalPreview } from '../services/proposalRecordsService'
+import { formatCpfCnpj } from '../lib/format/document'
 
 interface Props {
   onBack: () => void
@@ -543,102 +544,115 @@ function ClientCard({
   const nextDueDate = getNextDueDate(client)
   const dueDateLabel = nextDueDate ? nextDueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
 
-  return (
-    <div className="pf-client-card">
-      <div className="pf-card-body">
-        <div className="pf-card-info">
-          {/* Name row: client name on left, payment status badge on right */}
-          <div className="pf-card-name-row">
-            <button
-              type="button"
-              onClick={onEdit}
-              className="pf-card-name-button"
-              style={{ flex: '1 1 0%', minWidth: 0 }}
-              aria-label={`Abrir cliente ${clientName}`}
-              title={`Abrir cliente ${clientName}`}
-            >
-              <span className="pf-card-name">{clientName}</span>
-            </button>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '2px 8px',
-                borderRadius: 10,
-                background: statusStyle.bg,
-                color: statusStyle.fg,
-                fontSize: 10,
-                fontWeight: 600,
-                lineHeight: 1.4,
-                flexShrink: 0,
-                whiteSpace: 'nowrap',
-              }}
-              title={
-                paymentStatus === 'SEM_COBRANCA'
-                  ? 'Nenhuma cobrança registrada para este cliente'
-                  : paymentStatus === 'EM_DIA'
-                  ? 'Pagamentos em dia — parcelas pagas e próximas pendentes'
-                  : paymentStatus === 'VENCIDO'
-                  ? 'Pagamento vencido (dentro do período de 5 dias)'
-                  : paymentStatus === 'ATRASADO'
-                  ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
-                  : paymentStatus === 'PARCIALMENTE_PAGO'
-                  ? 'Alguns meses pagos, outros em atraso'
-                  : paymentStatusResult.label
-              }
-            >
-              <span aria-hidden="true">{statusStyle.icon}</span>
-              <span>{paymentStatusResult.label}</span>
-            </span>
-          </div>
-          <div className="pf-card-doc">{client.document ?? '—'}</div>
-          <div className="pf-card-meta">
-            <span className="pf-card-contract">{contractLabel}</span>
-            <span className="pf-card-meta-sep">·</span>
-            <span className="pf-card-remaining">{remainingLabel}</span>
-          </div>
+  const formattedDocument = formatCpfCnpj(client.document)
 
-          {/* Client attributes - horizontal layout */}
-          <div className="pf-card-attributes">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consumo</span>
-              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{kwhContratadoLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cidade/UF</span>
-              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{cityStateLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tarifa</span>
-              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{tarifaLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Potência</span>
-              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{systemKwpLabel}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vencimento</span>
-              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{dueDateLabel}</span>
-            </div>
-          </div>
-        </div>
-        <div className="pf-card-actions">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="pf-row-btn pf-row-btn-edit"
-          >
-            ✏️ Editar
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="pf-row-btn pf-row-btn-delete"
-          >
-            🗑️ Excluir
-          </button>
-        </div>
+  return (
+    <div className="pf-client-card active-wallet-card">
+      {/* Col 1: Client name + document */}
+      <div className="client-cell">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="pf-card-name-button"
+          aria-label={`Abrir cliente ${clientName}`}
+          title={`Abrir cliente ${clientName}`}
+        >
+          <span className="pf-card-name">{clientName}</span>
+        </button>
+        <span className="pf-card-doc">{formattedDocument}</span>
+      </div>
+
+      {/* Col 2: Produto/Plano */}
+      <div className="info-cell">
+        <span className="info-label">Produto</span>
+        <span className="info-value">
+          {contractLabel}
+          {remainingLabel !== '—' && (
+            <span className="info-value-muted"> · {remainingLabel}</span>
+          )}
+        </span>
+      </div>
+
+      {/* Col 3: Cidade/UF */}
+      <div className="info-cell">
+        <span className="info-label">Cidade/UF</span>
+        <span className="info-value">{cityStateLabel}</span>
+      </div>
+
+      {/* Col 4: Consumo */}
+      <div className="info-cell">
+        <span className="info-label">Consumo</span>
+        <span className="info-value">{kwhContratadoLabel}</span>
+      </div>
+
+      {/* Col 5: Tarifa */}
+      <div className="info-cell">
+        <span className="info-label">Tarifa</span>
+        <span className="info-value">{tarifaLabel}</span>
+      </div>
+
+      {/* Col 6: Potência */}
+      <div className="info-cell">
+        <span className="info-label">Potência</span>
+        <span className="info-value">{systemKwpLabel}</span>
+      </div>
+
+      {/* Col 7: Vencimento */}
+      <div className="info-cell">
+        <span className="info-label">Vencimento</span>
+        <span className="info-value">{dueDateLabel}</span>
+      </div>
+
+      {/* Col 8: Payment status badge */}
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          padding: '3px 9px',
+          borderRadius: 10,
+          background: statusStyle.bg,
+          color: statusStyle.fg,
+          fontSize: 10,
+          fontWeight: 600,
+          lineHeight: 1.4,
+          whiteSpace: 'nowrap',
+          alignSelf: 'center',
+        }}
+        title={
+          paymentStatus === 'SEM_COBRANCA'
+            ? 'Nenhuma cobrança registrada para este cliente'
+            : paymentStatus === 'EM_DIA'
+            ? 'Pagamentos em dia — parcelas pagas e próximas pendentes'
+            : paymentStatus === 'VENCIDO'
+            ? 'Pagamento vencido (dentro do período de 5 dias)'
+            : paymentStatus === 'ATRASADO'
+            ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
+            : paymentStatus === 'PARCIALMENTE_PAGO'
+            ? 'Alguns meses pagos, outros em atraso'
+            : paymentStatusResult.label
+        }
+      >
+        <span aria-hidden="true">{statusStyle.icon}</span>
+        <span>{paymentStatusResult.label}</span>
+      </span>
+
+      {/* Col 9: Actions */}
+      <div className="wallet-card-actions">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          className="pf-row-btn pf-row-btn-edit"
+        >
+          ✏️ Editar
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="pf-row-btn pf-row-btn-delete"
+        >
+          🗑️ Excluir
+        </button>
       </div>
     </div>
   )
