@@ -497,6 +497,14 @@ const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: str
   PARCIALMENTE_PAGO: { bg: '#ede9fe', fg: '#5b21b6', icon: '🔵' },
 }
 
+const WIFI_BADGE_MAP: Record<string, { icon: string; label: string; color: string }> = {
+  conectado:    { icon: '🟢', label: 'Online',       color: '#166534' },
+  desconectado: { icon: '🟡', label: 'Desconectado', color: '#854d0e' },
+  falha:        { icon: '🔴', label: 'Falha',        color: '#991b1b' },
+}
+
+const WIFI_BADGE_DEFAULT = { icon: '⚪', label: 'Sem monitoramento', color: '#6b7280' }
+
 function ClientCard({
   client,
   onEdit,
@@ -525,7 +533,7 @@ function ClientCard({
     if (value === null || value === undefined || value === '') return null
     const parsed = typeof value === 'number'
       ? value
-      : Number(String(value).replace(/\./g, '').replace(',', '.'))
+      : Number(String(value).replace(',', '.'))
     return Number.isFinite(parsed) ? parsed : null
   }
 
@@ -552,14 +560,7 @@ function ClientCard({
 
   // WiFi / monitoring badge
   const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
-  const WIFI_BADGE: Record<string, { icon: string; label: string; color: string }> = {
-    conectado:    { icon: '🟢', label: 'Online',          color: '#166534' },
-    desconectado: { icon: '🟡', label: 'Desconectado',    color: '#854d0e' },
-    falha:        { icon: '🔴', label: 'Falha',           color: '#991b1b' },
-  }
-  const wifiBadge = wifiStatus && WIFI_BADGE[wifiStatus]
-    ? WIFI_BADGE[wifiStatus]
-    : { icon: '⚪', label: 'Sem monitoramento', color: '#6b7280' }
+  const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
 
   const formattedDocument = formatCpfCnpj(client.document)
 
