@@ -1,5 +1,3 @@
-// src/pages/DashboardPage.tsx
-
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listClients } from '../lib/api/clientsApi.js'
 import { listProposals } from '../lib/api/proposalsApi.js'
@@ -46,34 +44,36 @@ export function DashboardPage() {
   const loadData = useCallback(async () => {
     setLoadState('loading')
     setError(null)
+
     try {
-      const [clientsRes, proposalsRes, portfolioRes, projectSummaryRes, financialFeedRes] = await Promise.allSettled([
-        listClients({ limit: 1000 }),
-        listProposals({ limit: 1000 }),
-        fetchPortfolioClients(),
-        fetchProjectsSummary(),
-        fetchFinancialDashboardFeed(),
-      ])
+      const [clientsRes, proposalsRes, portfolioRes, projectSummaryRes, financialFeedRes] =
+        await Promise.allSettled([
+          listClients({ limit: 1000 }),
+          listProposals({ limit: 1000 }),
+          fetchPortfolioClients(),
+          fetchProjectsSummary(),
+          fetchFinancialDashboardFeed(),
+        ])
 
       const recordsById = new Map<string, AnalyticsRecord>()
 
       if (portfolioRes.status === 'fulfilled') {
         for (const row of portfolioRes.value) {
-          const rec = normalizePortfolio(row as any)
+          const rec = normalizePortfolio(row as unknown as Record<string, unknown>)
           if (rec.id) recordsById.set(rec.id, rec)
         }
       }
 
       if (clientsRes.status === 'fulfilled') {
         for (const c of clientsRes.value.data) {
-          const rec = normalizeClient(c as any)
+          const rec = normalizeClient(c as unknown as Record<string, unknown>)
           if (rec.id && !recordsById.has(rec.id)) recordsById.set(rec.id, rec)
         }
       }
 
       if (proposalsRes.status === 'fulfilled') {
         for (const p of proposalsRes.value.data) {
-          const rec = normalizeProposal(p as any)
+          const rec = normalizeProposal(p as unknown as Record<string, unknown>)
           if (rec.id && !recordsById.has(rec.id)) recordsById.set(rec.id, rec)
         }
       }
@@ -103,20 +103,47 @@ export function DashboardPage() {
     [projectSummary, financialFeed],
   )
 
-  const availableConsultants = useMemo(() => [...new Set(records.map(r => r.consultant).filter(Boolean))] as string[], [records])
-  const availableStates = useMemo(() => [...new Set(records.map(r => r.state).filter(Boolean))] as string[], [records])
-  const availableRegions = useMemo(() => [...new Set(records.map(r => r.region).filter(Boolean))] as string[], [records])
+  const availableConsultants = useMemo(
+    () => [...new Set(records.map((r) => r.consultant).filter((c): c is string => c != null))].sort(),
+    [records],
+  )
+
+  const availableStates = useMemo(
+    () => [...new Set(records.map((r) => r.state).filter((s): s is string => s != null))].sort(),
+    [records],
+  )
+
+  const availableRegions = useMemo(
+    () => [...new Set(records.map((r) => r.region).filter((r): r is string => r != null))].sort(),
+    [records],
+  )
 
   if (loadState === 'idle' || loadState === 'loading') {
-    return <div className="flex h-96 items-center justify-center text-sm text-ds-text-muted">Carregando dashboard…</div>
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="text-sm text-ds-text-muted">Carregando dashboard…</div>
+      </div>
+    )
   }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Dashboard Analítico</h1>
-        <button onClick={() => void loadData()} className="text-xs border px-3 py-1 rounded">↻ Atualizar</button>
+        <h1 className="text-xl font-bold text-ds-text-primary">Dashboard Analítico</h1>
+        <button
+          type="button"
+          onClick={() => void loadData()}
+          className="cursor-pointer rounded-lg border border-ds-border px-3 py-1.5 text-xs text-ds-text-secondary transition-colors hover:border-ds-primary/50 hover:text-ds-primary"
+        >
+          ↻ Atualizar
+        </button>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-ds-warning/30 bg-ds-warning/10 px-4 py-2 text-sm text-ds-warning">
+          {error} — exibindo dados parciais.
+        </div>
+      )}
 
       <DashboardFiltersPanel
         filters={filters}

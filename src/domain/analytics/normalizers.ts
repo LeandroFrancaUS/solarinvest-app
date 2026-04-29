@@ -1,11 +1,7 @@
 // src/domain/analytics/normalizers.ts
 // Convert heterogeneous data sources into AnalyticsRecord.
 
-import type { AnalyticsRecord } from './types.js'
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import type { AnalyticsRecord, AnalyticsContractType } from './types.js'
 
 function str(v: unknown): string | null {
   if (v == null) return null
@@ -33,21 +29,41 @@ function regionFromState(uf: string | null): string | null {
   return STATE_TO_REGION[uf.toUpperCase()] ?? null
 }
 
-// ---------------------------------------------------------------------------
-// Client normalizer
-// ---------------------------------------------------------------------------
+function normalizeContractType(value: unknown): AnalyticsContractType {
+  const raw = str(value)?.toLowerCase()
+  if (raw === 'leasing') return 'leasing'
+  if (raw === 'sale' || raw === 'venda') return 'sale'
+  if (raw === 'buyout' || raw === 'buy_out' || raw === 'buy-out') return 'buyout'
+  return 'unknown'
+}
 
-/**
- * Normalize a client row (from /api/clients) into an AnalyticsRecord.
- * Accepts the shape returned by clientsApi.listClients().
- */
+function resolveConsultant(row: Record<string, unknown>): string | null {
+  return str(
+    row.consultant_name ??
+    row.consultor_nome ??
+    row.consultor ??
+    row.owner_display_name ??
+    row.ownerName ??
+    row.created_by_name,
+  )
+}
+
+function baseRecord(row: Record<string, unknown>, state: string | null): Pick<AnalyticsRecord, 'city' | 'state' | 'region' | 'consumption'> {
+  return {
+    city: str(row.city ?? row.cidade ?? row.client_city),
+    state,
+    region: regionFromState(state),
+    consumption: num(row.consumption_kwh_month ?? row.kwh_contratado ?? row.kwh_mes_contratado),
+  }
+}
+
 export function normalizeClient(c: Record<string, unknown>): AnalyticsRecord {
   const state = str(c.state ?? c.uf) ?? str(c.client_state)
   const closedAt = str(c.portfolio_exported_at ?? c.exported_to_portfolio_at)
   const activatedAt = str(c.clientActivatedAt ?? c.client_activated_at)
   const inPortfolio = Boolean(c.in_portfolio ?? c.inPortfolio ?? c.is_converted_customer)
+  const contractType = normalizeContractType(c.contract_type)
 
-  // contract_value may come from energy_profile or latest_proposal_profile
   let contractValue = num(c.contract_value)
   if (contractValue == null && c.energy_profile && typeof c.energy_profile === 'object') {
     contractValue = num((c.energy_profile as Record<string, unknown>).mensalidade)
@@ -61,79 +77,66 @@ export function normalizeClient(c: Record<string, unknown>): AnalyticsRecord {
     createdAt: str(c.created_at ?? c.criadoEm),
     closedAt,
     activatedAt,
-    consultant: str(c.owner_display_name ?? c.ownerName),
-    city: str(c.city ?? c.cidade),
-    state,
-    region: regionFromState(state),
+    consultant: resolveConsultant(c),
+    ...baseRecord(c, state),
     contractValue,
-    consumption: num(c.consumption_kwh_month),
+    saleContractValue: contractType === 'sale' || contractType === 'buyout' ? contractValue : null,
+    leasingMonthlyValue: contractType === 'leasing' ? contractValue : null,
+    contractType,
     isClosed: inPortfolio || closedAt != null,
     isActive: Boolean(c.is_active_portfolio_client) || activatedAt != null,
   }
 }
 
-// ---------------------------------------------------------------------------
-// Proposal normalizer
-// ---------------------------------------------------------------------------
-
-/**
- * Normalize a proposal row (from /api/proposals) into an AnalyticsRecord.
- */
 export function normalizeProposal(p: Record<string, unknown>): AnalyticsRecord {
   const state = str(p.client_state)
   const status = str(p.status) ?? ''
   const isClosed = status === 'approved'
   const closedAt = isClosed ? str(p.updated_at) : null
+  const contractType = normalizeContractType(p.contract_type ?? p.proposal_type ?? p.tipo_proposta)
+  const contractValue = num(p.contract_value ?? p.capex_total)
 
   return {
     id: String((p.id ?? '') as string | number),
     createdAt: str(p.created_at),
     closedAt,
     activatedAt: null,
-    consultant: str(p.owner_display_name),
-    city: str(p.client_city),
-    state,
-    region: regionFromState(state),
-    contractValue: num(p.contract_value ?? p.capex_total),
-    consumption: num(p.consumption_kwh_month),
+    consultant: resolveConsultant(p),
+    ...baseRecord(p, state),
+    contractValue,
+    saleContractValue: contractType === 'sale' || contractType === 'buyout' ? contractValue : null,
+    leasingMonthlyValue: contractType === 'leasing' ? num(p.mensalidade ?? p.valor_mensalidade) : null,
+    contractType,
     isClosed,
     isActive: false,
   }
 }
 
-// ---------------------------------------------------------------------------
-// Portfolio normalizer
-// ---------------------------------------------------------------------------
-
-/**
- * Normalize a portfolio client row (PortfolioClientRow) into an AnalyticsRecord.
- */
 export function normalizePortfolio(row: Record<string, unknown>): AnalyticsRecord {
   const state = str(row.state)
-  const activatedAt = str(row.exported_to_portfolio_at)
-
-  let contractValue = num(row.mensalidade)
-  if (contractValue == null) {
-    contractValue = num(row.buyout_amount_reference)
-  }
-
+  const contractType = normalizeContractType(row.contract_type)
+  const leasingMonthlyValue = num(row.valor_mensalidade ?? row.mensalidade)
+  const saleContractValue = num(row.buyout_amount_reference ?? row.contract_value ?? row.valordemercado)
+  const contractValue = contractType === 'leasing' ? leasingMonthlyValue : saleContractValue
   const lifecycleStatus = str(row.lifecycle_status) ?? ''
+  const activatedAt = str(row.exported_to_portfolio_at ?? row.contract_start_date ?? row.client_created_at)
   const isActive =
     Boolean(row.is_active_portfolio_client) ||
     lifecycleStatus === 'active' ||
-    lifecycleStatus === 'billing'
+    lifecycleStatus === 'billing' ||
+    Boolean(row.is_converted_customer)
 
   return {
     id: String((row.id ?? '') as string | number),
     createdAt: str(row.client_created_at),
     closedAt: str(row.contract_signed_at ?? row.exported_to_portfolio_at),
     activatedAt,
-    consultant: null, // portfolio rows don't carry owner display name
-    city: str(row.city),
-    state,
-    region: regionFromState(state),
+    consultant: resolveConsultant(row),
+    ...baseRecord(row, state),
     contractValue,
-    consumption: num(row.consumption_kwh_month ?? row.kwh_contratado),
+    saleContractValue: contractType === 'sale' || contractType === 'buyout' ? saleContractValue : null,
+    leasingMonthlyValue: contractType === 'leasing' ? leasingMonthlyValue : null,
+    contractType,
     isClosed: Boolean(row.is_converted_customer),
     isActive,
   }
