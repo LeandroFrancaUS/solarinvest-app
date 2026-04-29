@@ -1,5 +1,6 @@
 // src/domain/billing/index.ts
 export {
+  buildInstallmentDueDate,
   calculateBillingDates,
   generateInstallments,
   getBillingAlert,

@@ -53,7 +53,7 @@ import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfol
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { FaturasTab } from '../components/portfolio/FaturasTab'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
@@ -156,16 +156,20 @@ function getNextDueDate(client: PortfolioClientRow): Date | null {
       continue
     }
 
-    // Calculate due date for this installment
-    const month = start.getMonth() + (inst.number - 1)
-    const year = start.getFullYear() + Math.floor(month / 12)
-    const monthNormalized = ((month % 12) + 12) % 12
-
-    // Clamp day to valid range for the month
-    const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
-    const day = Math.min(dueDay, lastDay)
-
-    const dueDate = new Date(year, monthNormalized, day)
+    // Installment #1 → exact firstBillingDate; #2+ → dueDay in successive months
+    let dueDate: Date
+    if (inst.number === 1) {
+      dueDate = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    } else {
+      const targetMonthOffset = inst.number - 1
+      const month = start.getMonth() + targetMonthOffset
+      const year = start.getFullYear() + Math.floor(month / 12)
+      const monthNormalized = ((month % 12) + 12) % 12
+      // Clamp day to valid range for the month
+      const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
+      const day = Math.min(dueDay, lastDay)
+      dueDate = new Date(year, monthNormalized, day)
+    }
     dueDate.setHours(0, 0, 0, 0)
 
     // Track the earliest unpaid due date
@@ -2026,25 +2030,12 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
-  // "Último Vencimento Previsto" =
-  //   Próxima cobrança recorrente + (Prazo − 1) meses
+  // "Último Vencimento Previsto" = due date of the last generated installment
   const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
   const ultimoVencimentoPrevisto = useMemo(() => {
-    if (
-      billingDatesV2.status !== 'OK' ||
-      !billingDatesV2.proximaCobrancaRecorrente ||
-      !termMonths ||
-      termMonths < 1 ||
-      !billingDatesV2.vencimentoRecorrenteMensal
-    ) {
-      return null
-    }
-    return addMonthsSafeV2(
-      billingDatesV2.proximaCobrancaRecorrente,
-      Math.max(0, termMonths - 1),
-      billingDatesV2.vencimentoRecorrenteMensal,
-    )
-  }, [billingDatesV2, termMonths])
+    if (installments.length === 0) return null
+    return installments[installments.length - 1].data_vencimento
+  }, [installments])
 
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
@@ -2073,6 +2064,13 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
   }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
+
+  // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
+  const proximaCobrancaRecorrenteDate = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return installments.find((inst) => inst.data_vencimento >= today)?.data_vencimento ?? null
+  }, [installments])
 
   // Generate notifications preview
   const notifications = useMemo(() => {
@@ -2252,7 +2250,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
             <div className="pf-info-row">
               <span className="pf-info-label">Próxima cobrança recorrente:</span>
               <span className="pf-info-value">
-                {billingDatesV2.proximaCobrancaRecorrente?.toLocaleDateString('pt-BR')}
+                {proximaCobrancaRecorrenteDate?.toLocaleDateString('pt-BR') ?? '—'}
               </span>
             </div>
             <div className="pf-info-row">
