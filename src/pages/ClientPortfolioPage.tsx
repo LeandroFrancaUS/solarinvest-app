@@ -483,6 +483,19 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
   buyout: 'Buy Out',
 }
 
+/**
+ * Central map of visual styles for each ClientPaymentStatusV2 value.
+ * Single source of truth for badge bg/fg/icon in the portfolio card.
+ */
+const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
+  INATIVO:         { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
+  PENDENTE:        { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
+  PAGO:            { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
+  VENCIDO:         { bg: '#ffedd5', fg: '#9a3412', icon: '🟠' },
+  ATRASADO:        { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
+  PARCIALMENTE_PAGO: { bg: '#ede9fe', fg: '#5b21b6', icon: '🔵' },
+}
+
 function ClientCard({
   client,
   onEdit,
@@ -504,18 +517,7 @@ function ClientCard({
   // Get payment status for this client
   const paymentStatusResult = getClientPaymentStatusV2(client)
   const paymentStatus = paymentStatusResult.status
-
-  // Status badge styles
-  const statusStyles: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
-    INATIVO: { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
-    PENDENTE: { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
-    PAGO: { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
-    VENCIDO: { bg: '#fee2e2', fg: '#991b1b', icon: '⚠️' },
-    ATRASADO: { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
-    PARCIALMENTE_PAGO: { bg: '#fef3c7', fg: '#92400e', icon: '⚠️' },
-  }
-
-  const statusStyle = statusStyles[paymentStatus]
+  const statusStyle = PAYMENT_STATUS_STYLES[paymentStatus]
 
   // Format new required fields
   const kwhContratado = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
@@ -544,15 +546,49 @@ function ClientCard({
     <div className="pf-client-card">
       <div className="pf-card-body">
         <div className="pf-card-info">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="pf-card-name-button"
-            aria-label={`Abrir cliente ${clientName}`}
-            title={`Abrir cliente ${clientName}`}
-          >
-            <span className="pf-card-name">{clientName}</span>
-          </button>
+          {/* Name row: client name on left, payment status badge on right */}
+          <div className="pf-card-name-row">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="pf-card-name-button"
+              style={{ flex: '1 1 0%', minWidth: 0 }}
+              aria-label={`Abrir cliente ${clientName}`}
+              title={`Abrir cliente ${clientName}`}
+            >
+              <span className="pf-card-name">{clientName}</span>
+            </button>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '2px 8px',
+                borderRadius: 10,
+                background: statusStyle.bg,
+                color: statusStyle.fg,
+                fontSize: 10,
+                fontWeight: 600,
+                lineHeight: 1.4,
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+              }}
+              title={
+                paymentStatus === 'INATIVO'
+                  ? 'Cobrança não ativa para este cliente'
+                  : paymentStatus === 'VENCIDO'
+                  ? 'Pagamento vencido (dentro do período de 5 dias)'
+                  : paymentStatus === 'ATRASADO'
+                  ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
+                  : paymentStatus === 'PARCIALMENTE_PAGO'
+                  ? 'Alguns meses pagos, outros em atraso'
+                  : paymentStatusResult.label
+              }
+            >
+              <span aria-hidden="true">{statusStyle.icon}</span>
+              <span>{paymentStatusResult.label}</span>
+            </span>
+          </div>
           <div className="pf-card-doc">{client.document ?? '—'}</div>
           <div className="pf-card-meta">
             <span className="pf-card-contract">{contractLabel}</span>
@@ -561,7 +597,7 @@ function ClientCard({
           </div>
 
           {/* Client attributes - horizontal layout */}
-          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
+          <div className="pf-card-attributes">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consumo</span>
               <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{kwhContratadoLabel}</span>
@@ -582,38 +618,6 @@ function ClientCard({
               <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vencimento</span>
               <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{dueDateLabel}</span>
             </div>
-          </div>
-
-          {/* Payment status badge */}
-          <div style={{ marginTop: 12 }}>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '3px 10px',
-                borderRadius: 12,
-                background: statusStyle.bg,
-                color: statusStyle.fg,
-                fontSize: 11,
-                fontWeight: 600,
-                lineHeight: 1.4,
-              }}
-              title={
-                paymentStatus === 'INATIVO'
-                  ? 'Cobrança não ativa para este cliente'
-                  : paymentStatus === 'VENCIDO'
-                  ? 'Pagamento vencido (dentro do período de 5 dias)'
-                  : paymentStatus === 'ATRASADO'
-                  ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
-                  : paymentStatus === 'PARCIALMENTE_PAGO'
-                  ? 'Alguns meses pagos, outros em atraso'
-                  : paymentStatusResult.label
-              }
-            >
-              <span aria-hidden="true">{statusStyle.icon}</span>
-              <span>{paymentStatusResult.label}</span>
-            </span>
           </div>
         </div>
         <div className="pf-card-actions">
