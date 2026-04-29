@@ -488,7 +488,8 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
  * Single source of truth for badge bg/fg/icon in the portfolio card.
  */
 const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
-  INATIVO:         { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
+  SEM_COBRANCA:    { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
+  EM_DIA:          { bg: '#dbeafe', fg: '#1e40af', icon: '✅' },
   PENDENTE:        { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
   PAGO:            { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
   VENCIDO:         { bg: '#ffedd5', fg: '#9a3412', icon: '🟠' },
@@ -574,8 +575,10 @@ function ClientCard({
                 whiteSpace: 'nowrap',
               }}
               title={
-                paymentStatus === 'INATIVO'
-                  ? 'Cobrança não ativa para este cliente'
+                paymentStatus === 'SEM_COBRANCA'
+                  ? 'Nenhuma cobrança registrada para este cliente'
+                  : paymentStatus === 'EM_DIA'
+                  ? 'Pagamentos em dia — parcelas pagas e próximas pendentes'
                   : paymentStatus === 'VENCIDO'
                   ? 'Pagamento vencido (dentro do período de 5 dias)'
                   : paymentStatus === 'ATRASADO'
