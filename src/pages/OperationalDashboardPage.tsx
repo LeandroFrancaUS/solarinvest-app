@@ -480,10 +480,12 @@ function getTaskTypeLabel(type: string): string {
   return labels[type] || type
 }
 
+function hasWifiIssue(c: PortfolioClientRow): boolean {
+  return c.wifi_status === 'desconectado' || c.wifi_status === 'falha' || !c.wifi_status
+}
+
 function WifiMonitoringSection({ portfolio }: { portfolio: PortfolioClientRow[] }) {
-  const alerts = portfolio.filter(
-    (c) => c.wifi_status === 'desconectado' || c.wifi_status === 'falha' || !c.wifi_status
-  )
+  const alerts = portfolio.filter(hasWifiIssue)
 
   if (alerts.length === 0) {
     return (

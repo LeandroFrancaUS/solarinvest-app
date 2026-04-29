@@ -2561,9 +2561,11 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   async function handleWifiChange(value: string) {
     setWifiStatus(value)
     setWifiSaving(true)
+    const normalized: PortfolioClientRow['wifi_status'] =
+      value === 'conectado' || value === 'desconectado' || value === 'falha' ? value : null
     try {
-      await patchPortfolioUsina(client.id, { wifi_status: value || null })
-      onSaved({ wifi_status: (value || null) as PortfolioClientRow['wifi_status'] })
+      await patchPortfolioUsina(client.id, { wifi_status: normalized })
+      onSaved({ wifi_status: normalized })
     } finally {
       setWifiSaving(false)
     }
