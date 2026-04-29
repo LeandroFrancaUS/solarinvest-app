@@ -605,6 +605,7 @@ function ClientCard({
 
       {/* Col 8: Payment status badge */}
       <span
+        className="wallet-status-badge"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
