@@ -130,6 +130,52 @@ function sanitizeBeneficiaryUCs(values: string[]): string[] {
     .filter((value) => value.length > 0)
 }
 
+/**
+ * Calculates the next due date for a client based on unpaid installments.
+ * Returns the due date of the earliest unpaid installment, or null if unable to calculate.
+ */
+function getNextDueDate(client: PortfolioClientRow): Date | null {
+  const installments = client.installments_json ?? []
+  if (installments.length === 0) return null
+
+  const dueDay = client.due_day
+  if (!dueDay || dueDay < 1 || dueDay > 31) return null
+
+  const startDate = client.first_billing_date ?? client.inicio_da_mensalidade ?? client.commissioning_date_billing
+  if (!startDate) return null
+
+  const start = new Date(startDate)
+  if (isNaN(start.getTime())) return null
+
+  let nextDue: Date | null = null
+
+  for (const inst of installments) {
+    // Skip paid installments
+    if (inst.status === 'pago' || inst.status === 'confirmado') {
+      continue
+    }
+
+    // Calculate due date for this installment
+    const month = start.getMonth() + (inst.number - 1)
+    const year = start.getFullYear() + Math.floor(month / 12)
+    const monthNormalized = ((month % 12) + 12) % 12
+
+    // Clamp day to valid range for the month
+    const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
+    const day = Math.min(dueDay, lastDay)
+
+    const dueDate = new Date(year, monthNormalized, day)
+    dueDate.setHours(0, 0, 0, 0)
+
+    // Track the earliest unpaid due date
+    if (!nextDue || dueDate < nextDue) {
+      nextDue = dueDate
+    }
+  }
+
+  return nextDue
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Brazilian state UF list (used by AddClientModal)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -490,6 +536,10 @@ function ClientCard({
     ? `${formatNumberBR(systemKwp)} kWp`
     : '—'
 
+  // Get next due date
+  const nextDueDate = getNextDueDate(client)
+  const dueDateLabel = nextDueDate ? nextDueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
@@ -512,6 +562,10 @@ function ClientCard({
 
           {/* New information fields */}
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Vencimento:</span>
+              <span style={{ color: 'var(--ds-text-primary)' }}>{dueDateLabel}</span>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Consumo:</span>
               <span style={{ color: 'var(--ds-text-primary)' }}>{kwhContratadoLabel}</span>
@@ -3442,8 +3496,8 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [showAddClient, setShowAddClient] = useState(false)
-  const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'city'>('created_at')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [sortBy, setSortBy] = useState<'due_date' | 'created_at' | 'name' | 'city'>('due_date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3500,9 +3554,37 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
 
   // Sort clients based on selected criteria
   const sortedClients = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
     const sorted = [...clients].sort((a, b) => {
       let compareResult = 0
-      if (sortBy === 'name') {
+      if (sortBy === 'due_date') {
+        const dueDateA = getNextDueDate(a)
+        const dueDateB = getNextDueDate(b)
+
+        // Handle null dates (put at end)
+        if (!dueDateA && !dueDateB) return 0
+        if (!dueDateA) return 1
+        if (!dueDateB) return -1
+
+        // Special logic: upcoming dates (>= today) have precedence over overdue dates (< today)
+        const isUpcomingA = dueDateA >= today
+        const isUpcomingB = dueDateB >= today
+
+        if (isUpcomingA && !isUpcomingB) {
+          // A is upcoming, B is overdue → A comes first
+          return -1
+        } else if (!isUpcomingA && isUpcomingB) {
+          // B is upcoming, A is overdue → B comes first
+          return 1
+        } else {
+          // Both upcoming or both overdue → sort by proximity to today
+          const diffA = Math.abs(dueDateA.getTime() - today.getTime())
+          const diffB = Math.abs(dueDateB.getTime() - today.getTime())
+          compareResult = diffA - diffB
+        }
+      } else if (sortBy === 'name') {
         const nameA = (a.name ?? '').toLowerCase()
         const nameB = (b.name ?? '').toLowerCase()
         compareResult = nameA.localeCompare(nameB, 'pt-BR')
@@ -3520,7 +3602,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     return sorted
   }, [clients, sortBy, sortDir])
 
-  const toggleSort = useCallback((field: 'created_at' | 'name' | 'city') => {
+  const toggleSort = useCallback((field: 'due_date' | 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
