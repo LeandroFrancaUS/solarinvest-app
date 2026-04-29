@@ -560,27 +560,27 @@ function ClientCard({
             <span className="pf-card-remaining">{remainingLabel}</span>
           </div>
 
-          {/* New information fields */}
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Vencimento:</span>
-              <span style={{ color: 'var(--ds-text-primary)' }}>{dueDateLabel}</span>
+          {/* Client attributes - horizontal layout */}
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consumo</span>
+              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{kwhContratadoLabel}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Consumo:</span>
-              <span style={{ color: 'var(--ds-text-primary)' }}>{kwhContratadoLabel}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Cidade/UF</span>
+              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{cityStateLabel}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Localização:</span>
-              <span style={{ color: 'var(--ds-text-primary)' }}>{cityStateLabel}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tarifa</span>
+              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{tarifaLabel}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Tarifa:</span>
-              <span style={{ color: 'var(--ds-text-primary)' }}>{tarifaLabel}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Potência</span>
+              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{systemKwpLabel}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Potência:</span>
-              <span style={{ color: 'var(--ds-text-primary)' }}>{systemKwpLabel}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Vencimento</span>
+              <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{dueDateLabel}</span>
             </div>
           </div>
 
