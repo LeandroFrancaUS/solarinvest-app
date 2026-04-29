@@ -149,6 +149,7 @@ export function AnaliseFinanceiraSection({
   afPROverride,
   setAfPROverride,
   afDiasOverride,
+  setAfDiasOverride,
   potenciaModulo,
   baseIrradiacao,
   eficienciaNormalizada,
