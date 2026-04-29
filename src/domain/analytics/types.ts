@@ -1,6 +1,8 @@
 // src/domain/analytics/types.ts
 // Canonical data model for the analytics layer.
 
+export type AnalyticsContractType = 'leasing' | 'sale' | 'buyout' | 'unknown'
+
 /** Unified record that every data source normalizes into. */
 export type AnalyticsRecord = {
   id: string
@@ -13,7 +15,13 @@ export type AnalyticsRecord = {
   state: string | null
   region: string | null
 
+  /** Legacy/general value. Prefer saleContractValue or leasingMonthlyValue when contractType is known. */
   contractValue: number | null
+  /** Venda / buy-out contract value. Used for sales ticket. */
+  saleContractValue: number | null
+  /** Leasing monthly payment. Used for recurring contracted revenue. */
+  leasingMonthlyValue: number | null
+  contractType: AnalyticsContractType
   consumption: number | null
 
   isClosed: boolean
@@ -41,7 +49,11 @@ export type DashboardFilters = {
 export type DashboardKPIs = {
   closedContracts: number
   activeClients: number
+  /** Venda / buy-out total. Leasing is intentionally excluded. */
   totalContractValue: number
+  /** Monthly recurring value from leasing mensalidades. */
+  leasingMonthlyContracted: number
+  /** Ticket médio only for sale/buy-out closed contracts. */
   averageTicket: number
   totalConsumption: number
   averageConsumption: number
