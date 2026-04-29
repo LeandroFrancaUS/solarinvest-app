@@ -12,6 +12,7 @@ import {
   findClientByCnpj,
   findClientByOfflineOriginId,
   findClientByNormalizedName,
+  patchClientOfflineOriginId,
   createClient,
   updateClient,
   softDeleteClient,
@@ -351,23 +352,31 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
     const mappedBody = toClientWritePayload(body)
 
     // ── NAME-BASED DEDUPLICATION FALLBACK ─────────────────────────────────────
-    // When no CPF, CNPJ, or offline_origin_id matched, check if the same owner
-    // already has a client with the exact same normalized name.  This prevents
-    // duplicate records from being created by auto-save retries or cross-device
-    // saves when the client-side ID map is lost (e.g. localStorage cleared).
-    // Only applies when there is no document at all — clients with documents
-    // that differ are legitimately different people.
-    if (!cpfNormalized && !cnpjNormalized && !offlineOriginId) {
+    // When no CPF or CNPJ matched, check if the same owner already has a client
+    // with the exact same normalized name.  This prevents duplicate records from
+    // being created by auto-save retries or cross-device saves when the
+    // client-side ID map is lost (e.g. localStorage cleared) or when a new
+    // offline_origin_id is generated for an already-saved client.
+    // NOTE: We intentionally run this check even when offlineOriginId is present
+    // (but was not found above) — the new UUID may differ from the one stored on
+    // the original record.  Only applies when there is no valid document at all;
+    // clients with distinct documents are legitimately different people.
+    if (!cpfNormalized && !cnpjNormalized) {
       const existingByName = await findClientByNormalizedName(
         db.sql,
         (mappedBody.name ?? body.name ?? '').trim(),
         actor.userId,
       )
       if (existingByName) {
+        // Back-fill offline_origin_id so that future requests from this device
+        // are resolved immediately by the faster offline_origin_id lookup.
+        if (offlineOriginId && !existingByName.offline_origin_id) {
+          await patchClientOfflineOriginId(db.sql, existingByName.id, offlineOriginId)
+        }
         await appendClientAuditLog(
           db.sql, existingByName.id, actor.userId, actor.email ?? null,
           'client_deduplicated', null,
-          { linked_by: actor.userId },
+          { linked_by: actor.userId, offline_origin_id: offlineOriginId },
           'Name deduplication — existing client reused (no document)', null,
         )
         if (body.energyProfile && typeof body.energyProfile === 'object') {
@@ -405,7 +414,7 @@ export async function handleUpsertClientByCpf(req, res, ctx) {
       created_by_user_id: actor.userId,
       owner_user_id: actor.userId,
       identity_status: identityStatus,
-      origin: offlineOriginId ? 'offline_sync' : 'online',
+      origin: offlineOriginId ? 'offline' : 'online',
       offline_origin_id: offlineOriginId,
       metadata: body.metadata ?? null,
     })
@@ -556,6 +565,54 @@ export async function handleClientsRequest(req, res, ctx) {
       else if (docType === 'cnpj') identityStatus = 'pending_cnpj'
       const userSql = sqlForActor(db, actor)
       const mappedBody = toClientWritePayload(body)
+
+      // ── DEDUPLICATION CHECKS ───────────────────────────────────────────────
+      if (cpfNormalized) {
+        const existing = await findClientByCpf(db.sql, cpfNormalized)
+        if (existing) {
+          await appendClientAuditLog(
+            db.sql, existing.id, actor.userId, actor.email ?? null,
+            'client_deduplicated', null,
+            { linked_by: actor.userId },
+            'CPF deduplication — existing client reused (POST /api/clients)', null,
+          )
+          logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: existing.id, deduplicated: true })
+          return sendJson(200, { data: normalizeClientResponse(existing), deduplicated: true })
+        }
+      }
+
+      if (cnpjNormalized) {
+        const existing = await findClientByCnpj(db.sql, cnpjNormalized)
+        if (existing) {
+          await appendClientAuditLog(
+            db.sql, existing.id, actor.userId, actor.email ?? null,
+            'client_deduplicated', null,
+            { linked_by: actor.userId },
+            'CNPJ deduplication — existing client reused (POST /api/clients)', null,
+          )
+          logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: existing.id, deduplicated: true })
+          return sendJson(200, { data: normalizeClientResponse(existing), deduplicated: true })
+        }
+      }
+
+      if (!cpfNormalized && !cnpjNormalized) {
+        const existingByName = await findClientByNormalizedName(
+          db.sql,
+          (mappedBody.name ?? body.name ?? '').trim(),
+          actor.userId,
+        )
+        if (existingByName) {
+          await appendClientAuditLog(
+            db.sql, existingByName.id, actor.userId, actor.email ?? null,
+            'client_deduplicated', null,
+            { linked_by: actor.userId },
+            'Name deduplication — existing client reused (POST /api/clients, no document)', null,
+          )
+          logRoute('/api/clients', { method: 'POST', actorUserId: actor.userId, success: true, clientId: existingByName.id, deduplicated: true })
+          return sendJson(200, { data: normalizeClientResponse(existingByName), deduplicated: true })
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
 
       // Validate for UC and address duplicates (migration 0058)
       const duplicateValidation = await validateClientDuplicates(db.sql, {

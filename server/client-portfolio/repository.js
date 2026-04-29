@@ -21,7 +21,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
   let rows
   if (!searchTerm) {
     rows = await sql`
-      SELECT
+      SELECT DISTINCT ON (c.id)
         c.id,
         c.client_name                          AS name,
         c.client_email                         AS email,
@@ -42,16 +42,21 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.updated_at                           AS client_updated_at,
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
-        c.portfolio_exported_by_user_id        AS exported_by_user_id
+        c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        cc.contractual_term_months,
+        cc.contract_start_date,
+        cc.contract_type,
+        cc.contract_status
       FROM public.clients c
+      LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY c.created_at DESC
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST
     `
   } else {
     const like = `%${searchTerm}%`
     rows = await sql`
-      SELECT
+      SELECT DISTINCT ON (c.id)
         c.id,
         c.client_name                          AS name,
         c.client_email                         AS email,
@@ -72,8 +77,13 @@ export async function listPortfolioClients(sql, { search } = {}) {
         c.updated_at                           AS client_updated_at,
         c.in_portfolio                         AS is_converted_customer,
         c.portfolio_exported_at                AS exported_to_portfolio_at,
-        c.portfolio_exported_by_user_id        AS exported_by_user_id
+        c.portfolio_exported_by_user_id        AS exported_by_user_id,
+        cc.contractual_term_months,
+        cc.contract_start_date,
+        cc.contract_type,
+        cc.contract_status
       FROM public.clients c
+      LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
         AND (
@@ -85,7 +95,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
-      ORDER BY c.created_at DESC
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST
     `
   }
 
