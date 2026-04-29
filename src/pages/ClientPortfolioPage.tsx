@@ -2472,7 +2472,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? '',
+    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
   })
 
   const resetUfData = () => setUfData({
@@ -2485,7 +2485,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? '',
+    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {

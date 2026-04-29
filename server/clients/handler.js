@@ -149,7 +149,7 @@ function toClientWritePayload(body) {
   const usinaKeys = [
     'potencia_modulo_wp', 'numero_modulos', 'modelo_modulo',
     'modelo_inversor', 'tipo_instalacao', 'area_instalacao_m2',
-    'geracao_estimada_kwh', 'valordemercado',
+    'geracao_estimada_kwh', 'valordemercado', 'wifi_status',
   ]
   for (const key of usinaKeys) {
     if (body[key] !== undefined) usinaFields[key] = body[key]
