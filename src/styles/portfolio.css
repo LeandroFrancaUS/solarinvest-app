@@ -290,6 +290,24 @@
   font-size: 11.5px;
 }
 
+.pf-status-overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.pf-status-overdue-severe {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
 /* ── 10. CLIENT CARD ──────────────────────────────────────────── */
 .pf-client-card {
   padding: 16px;

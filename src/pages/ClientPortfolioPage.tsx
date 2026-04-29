@@ -56,6 +56,7 @@ import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addM
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
+import { getClientPaymentStatus, type ClientPaymentStatus } from '../domain/billing/clientPaymentStatus'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
@@ -453,6 +454,21 @@ function ClientCard({
   const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
   const clientName = client.name?.trim() || '—'
 
+  // Get payment status for this client
+  const paymentStatusResult = getClientPaymentStatus(client)
+  const paymentStatus = paymentStatusResult.status
+
+  // Status badge styles
+  const statusStyles: Record<ClientPaymentStatus, { bg: string; fg: string; icon: string }> = {
+    inativo: { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
+    pendente: { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
+    pago: { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
+    vencido: { bg: '#fee2e2', fg: '#991b1b', icon: '⚠️' },
+    em_atraso: { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
+  }
+
+  const statusStyle = statusStyles[paymentStatus]
+
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
@@ -471,6 +487,37 @@ function ClientCard({
             <span className="pf-card-contract">{contractLabel}</span>
             <span className="pf-card-meta-sep">·</span>
             <span className="pf-card-remaining">{remainingLabel}</span>
+          </div>
+          {/* Payment status badge */}
+          <div style={{ marginTop: 8 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 10px',
+                borderRadius: 12,
+                background: statusStyle.bg,
+                color: statusStyle.fg,
+                fontSize: 11,
+                fontWeight: 600,
+                lineHeight: 1.4,
+              }}
+              title={
+                paymentStatus === 'inativo'
+                  ? 'Cobrança não ativa para este cliente'
+                  : paymentStatus === 'vencido' && paymentStatusResult.overdueCount
+                  ? `${paymentStatusResult.overdueCount} parcela(s) vencida(s)`
+                  : paymentStatus === 'em_atraso' && paymentStatusResult.overdueCount
+                  ? `${paymentStatusResult.overdueCount} parcela(s) em atraso (>30 dias)`
+                  : paymentStatus === 'pendente' && paymentStatusResult.unpaidCount
+                  ? `${paymentStatusResult.unpaidCount} parcela(s) pendente(s)`
+                  : paymentStatusResult.label
+              }
+            >
+              <span aria-hidden="true">{statusStyle.icon}</span>
+              <span>{paymentStatusResult.label}</span>
+            </span>
           </div>
         </div>
         <div className="pf-card-actions">
@@ -1991,6 +2038,32 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                     const isConfirmed = !!confirmed
                     const displayValor = valorOverrides[inst.numero] ?? inst.valor
                     const isEditingValor = editMode && canManageBilling && editingValorInstallment === inst.numero
+
+                    // Calculate payment status based on due date
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const dueDate = new Date(inst.data_vencimento)
+                    dueDate.setHours(0, 0, 0, 0)
+                    const diffMs = dueDate.getTime() - today.getTime()
+                    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+                    // Determine display status
+                    let statusLabel = '⏳ Pendente'
+                    let statusClass = 'pf-status-pending'
+
+                    if (isConfirmed) {
+                      statusLabel = '✅ Confirmado'
+                      statusClass = 'pf-status-confirmed'
+                    } else if (diffDays < -30) {
+                      // More than 30 days overdue
+                      statusLabel = '🔴 Em Atraso'
+                      statusClass = 'pf-status-overdue-severe'
+                    } else if (diffDays < 0) {
+                      // Overdue but less than 30 days
+                      statusLabel = `⚠️ Vencido (${Math.abs(diffDays)}d)`
+                      statusClass = 'pf-status-overdue'
+                    }
+
                     return (
                       <tr key={inst.numero}>
                         <td>{inst.numero}</td>
@@ -2046,10 +2119,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                           )}
                         </td>
                         <td className="center">
-                          {isConfirmed
-                            ? <span className="pf-status-confirmed">✅ Confirmado</span>
-                            : <span className="pf-status-pending">⏳ Pendente</span>
-                          }
+                          <span className={statusClass}>{statusLabel}</span>
                         </td>
                         <td className="mono" style={{ color: isConfirmed ? 'var(--text-base)' : 'var(--text-muted)' }}>
                           {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
