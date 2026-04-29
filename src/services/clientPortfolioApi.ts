@@ -23,7 +23,7 @@ export function setPortfolioTokenProvider(fn: GetAccessToken): void {
 
 async function authHeaders(): Promise<Record<string, string>> {
   const token = portfolioTokenProvider ? await portfolioTokenProvider() : null
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return token ? { Authorization: ['Bearer', token].join(' ') } : {}
 }
 
 async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -45,6 +45,26 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+function normalizePortfolioWifi(row: PortfolioClientRow): PortfolioClientRow {
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+  const wifiStatus = row.wifi_status ?? (metadata as Record<string, unknown>).wifi_status ?? null
+  return { ...row, wifi_status: wifiStatus as PortfolioClientRow['wifi_status'] }
+}
+
+function withWifiMetadata(data: Record<string, unknown>): Record<string, unknown> {
+  if (!Object.prototype.hasOwnProperty.call(data, 'wifi_status')) return data
+  const currentMetadata = data.metadata && typeof data.metadata === 'object'
+    ? data.metadata as Record<string, unknown>
+    : {}
+  return {
+    ...data,
+    metadata: {
+      ...currentMetadata,
+      wifi_status: data.wifi_status || null,
+    },
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Portfolio list
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +77,7 @@ export async function fetchPortfolioClients(search?: string): Promise<PortfolioC
   const url = new URL(resolved, window.location.origin)
   if (search) url.searchParams.set('search', search)
   const res = await apiFetch<{ data: PortfolioClientRow[] }>(url.toString())
-  return res.data
+  return (res.data ?? []).map(normalizePortfolioWifi)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,7 +88,7 @@ export async function fetchPortfolioClient(clientId: number): Promise<PortfolioC
     const res = await apiFetch<{ data: PortfolioClientRow }>(
       resolveApiUrl(`/api/client-portfolio/${clientId}`),
     )
-    return res.data
+    return res.data ? normalizePortfolioWifi(res.data) : null
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     if (!msg.includes('404') && !msg.toLowerCase().includes('not found')) {
@@ -101,7 +121,7 @@ export async function updateClientFromPortfolio(
 ): Promise<Record<string, unknown>> {
   const res = await apiFetch<{ data: Record<string, unknown> }>(
     resolveApiUrl(`/api/clients/${clientId}`),
-    { method: 'PUT', body: JSON.stringify(payload) },
+    { method: 'PUT', body: JSON.stringify(withWifiMetadata(payload)) },
   )
   return res.data
 }
@@ -150,12 +170,13 @@ export async function patchPortfolioBilling(
 }
 
 export async function patchPortfolioUsina(clientId: number, data: Record<string, unknown>): Promise<void> {
-  // Usina fields are persisted through the general client update endpoint
-  // which upserts into client_usina_config. We route through the same PUT
-  // /api/clients/:id that the backend already uses for usina persistence.
+  // Usina fields are persisted through the general client update endpoint.
+  // WiFi is additionally mirrored into metadata so migration 0061 can sync it
+  // into client_usina_config.wifi_status even before the handler accepts the
+  // column directly in usinaKeys.
   await apiFetch(resolveApiUrl(`/api/clients/${clientId}`), {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(withWifiMetadata(data)),
   })
 }
 
