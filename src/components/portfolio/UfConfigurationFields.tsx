@@ -71,7 +71,10 @@ function isConcluido(status?: string | null): boolean {
 }
 
 export function UfConfigurationFields({ data, onChange, readOnly, installationStatus }: UfConfigurationFieldsProps) {
-  const wifiEnabled = !readOnly && isConcluido(installationStatus)
+  // When installationStatus is not passed by the parent, do not falsely lock the field.
+  // The backend/dashboard still treats wifi_status as the canonical persisted value.
+  const hasInstallationStatus = installationStatus !== undefined && installationStatus !== null && String(installationStatus).trim() !== ''
+  const wifiEnabled = !readOnly && (!hasInstallationStatus || isConcluido(installationStatus))
 
   return (
     <div className="pf-section-card">
