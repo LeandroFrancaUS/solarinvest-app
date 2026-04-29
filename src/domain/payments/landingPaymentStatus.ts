@@ -97,10 +97,10 @@ export function isPaidLike(charge: MonthlyCharge): boolean {
 }
 
 /**
- * Returns the end-of-day timestamp for the last day of the current month.
+ * Returns the first day (midnight) of the month containing the given date.
  */
-function endOfCurrentMonth(today: Date): Date {
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999)
+function firstDayOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1)
 }
 
 /**
@@ -155,13 +155,18 @@ export function normalizeChargeStatus(
  * Uses only the installment list as the source of truth.
  * Does NOT check contract_type, contract_status, or any billing-active flags.
  *
- * Only considers charges up to and including the current month end,
- * plus any charges that are already paid (regardless of month).
+ * Considers ALL charges (including future ones) so that a client who paid
+ * a future installment in advance is correctly shown as PAGO rather than
+ * SEM_COBRANCA or EM_DIA.
  *
- * Scenario from requirements:
- *   Parcela 1: Confirmado → hasPaid = true
- *   Parcelas 2,3,...: Pendente (future) → hasPending = true (but filtered out as future)
- *   Result: EM_DIA (not Inativo, not Pendente)
+ * Key rule: future pending charges do NOT count as open debt. A charge is
+ * only considered "open" if its month has already started and it is unpaid.
+ *
+ * Scenarios:
+ *   Future parcela confirmed/paid + no past/current open charges → PAGO
+ *   Past parcela paid + future parcelas pending → PAGO
+ *   Past parcela unpaid (overdue >5 days) → ATRASADO
+ *   Past parcela unpaid (overdue >5 days) + some paid → PARCIALMENTE_PAGO
  *
  * @param charges - Array of monthly charges from the billing table
  * @param today - Reference date (defaults to current date)
@@ -175,55 +180,36 @@ export function getLandingPaymentStatus(
 
   const todayNorm = new Date(today)
   todayNorm.setHours(0, 0, 0, 0)
-  const monthEnd = endOfCurrentMonth(today)
 
-  // Relevant charges: those with dueDate in the current month or earlier,
-  // plus any paid/confirmed charges regardless of month.
-  const relevant = charges.filter((charge) => {
-    if (isPaidLike(charge)) return true
-    const due = parseDateBRorISO(charge.dueDate)
-    if (!due) return true // Include when date cannot be determined
-    return due <= monthEnd
-  })
-
-  if (relevant.length === 0) return 'PENDENTE'
-
-  const statuses = relevant.map((c) => normalizeChargeStatus(c, todayNorm))
+  const statuses = charges.map((c) => normalizeChargeStatus(c, todayNorm))
 
   const hasPaid = statuses.includes('PAGO')
-  const hasPending = statuses.includes('PENDENTE')
-  const hasVencido = statuses.includes('VENCIDO')
   const hasAtrasado = statuses.includes('ATRASADO')
+  const hasVencido = statuses.includes('VENCIDO')
 
-  // Has delayed (>5 days) AND some paid → PARCIALMENTE_PAGO
+  // An unpaid charge is "open past or current" when its month has already
+  // started. Future months whose billing period hasn't begun yet are NOT
+  // considered open debt.
+  const hasOpenPastOrCurrent = charges.some((c) => {
+    if (isPaidLike(c)) return false
+    const due = parseDateBRorISO(c.dueDate)
+    if (!due) return false
+    return todayNorm >= firstDayOfMonth(due)
+  })
+
   if (hasAtrasado && hasPaid) return 'PARCIALMENTE_PAGO'
-
-  // Has delayed (>5 days) and no paid → ATRASADO
   if (hasAtrasado) return 'ATRASADO'
 
-  // Has overdue within grace period AND some paid → PARCIALMENTE_PAGO
   if (hasVencido && hasPaid) return 'PARCIALMENTE_PAGO'
-
-  // Has overdue within grace period (none paid) → VENCIDO
   if (hasVencido) return 'VENCIDO'
 
-  // All relevant charges paid, nothing pending within range
-  if (hasPaid && !hasPending) {
-    // Check if there are future pending charges not included in `relevant`
-    // (charges whose dueDate is after the current month end and are not paid)
-    const hasFuturePending = charges.some((charge) => {
-      if (isPaidLike(charge)) return false
-      const due = parseDateBRorISO(charge.dueDate)
-      if (!due) return false
-      return due > monthEnd
-    })
-    // Paid up to now, but more charges are coming → EM_DIA
-    if (hasFuturePending) return 'EM_DIA'
-    return 'PAGO'
-  }
+  // Paid charges exist and no past/current unpaid charges → client is up to date
+  if (hasPaid && !hasOpenPastOrCurrent) return 'PAGO'
 
-  // Paid + pending within range (on track)
-  if (hasPaid && hasPending) return 'EM_DIA'
+  // Paid charges exist but there are open unpaid charges in the current/past period
+  if (hasPaid && hasOpenPastOrCurrent) return 'PARCIALMENTE_PAGO'
 
-  return 'PENDENTE'
+  if (statuses.some((s) => s === 'PENDENTE')) return 'PENDENTE'
+
+  return 'SEM_COBRANCA'
 }
