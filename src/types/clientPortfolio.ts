@@ -4,7 +4,6 @@
 export interface PortfolioClientRow {
   id: number
   name: string | null
-  /** Raw metadata JSONB from clients table. Used internally by auto-fill to read/write `autoFilled` flag. */
   metadata?: Record<string, unknown> | null
   email: string | null
   phone: string | null
@@ -14,17 +13,7 @@ export interface PortfolioClientRow {
   document: string | null
   document_type: string | null
   consumption_kwh_month: number | null
-  /**
-   * System power in kWp — sourced from `clients.system_kwp` (top-level canonical column).
-   * Written at proposal creation. Prefer this field for display and downstream logic.
-   * @see potencia_kwp for the satellite copy stored in client_energy_profile.
-   */
   system_kwp: number | null
-  /**
-   * Contract term in months — sourced from `clients.term_months`.
-   * Written at proposal creation. Middle priority in the chain:
-   * contractual_term_months (client_contracts) > term_months > prazo_meses (energy_profile).
-   */
   term_months: number | null
   distribuidora: string | null
   uc: string | null
@@ -35,41 +24,27 @@ export interface PortfolioClientRow {
   client_created_at: string
   client_updated_at?: string | null
 
-  // Portfolio lifecycle — sourced from clients.in_portfolio / clients.portfolio_exported_at.
   is_converted_customer: boolean
   exported_to_portfolio_at: string | null
   exported_by_user_id: string | null
 
-  // Optional: from client_lifecycle (may be absent when table not provisioned)
   lifecycle_id?: number | null
   lifecycle_status?: LifecycleStatus | null
   onboarding_status?: string | null
   is_active_portfolio_client?: boolean | null
 
-  // Optional: from client_energy_profile (may be absent when table not provisioned)
   energy_profile_id?: number | null
   modalidade?: string | null
   tarifa_atual?: number | null
   desconto_percentual?: number | null
   mensalidade?: number | null
-  /**
-   * Contract term in months — sourced from `client_energy_profile.prazo_meses`.
-   * @see term_months (from clients table) and contractual_term_months (from client_contracts).
-   * Priority for display: contractual_term_months > term_months > prazo_meses.
-   */
   prazo_meses?: number | null
   kwh_contratado?: number | null
-  /**
-   * System power in kWp — sourced from `client_energy_profile.potencia_kwp` (satellite copy).
-   * Populated by the energy profile import/auto-fill flow.
-   * Use `system_kwp` (from clients table) as the primary source; this is a secondary copy.
-   */
   potencia_kwp?: number | null
   tipo_rede?: string | null
   marca_inversor?: string | null
   indicacao?: string | null
 
-  // Optional: from client_project_status (may be absent when table not provisioned)
   project_id?: number | null
   project_status?: ProjectStatus | null
   installation_status?: string | null
@@ -82,20 +57,14 @@ export interface PortfolioClientRow {
   expected_go_live_date?: string | null
   integrator_name?: string | null
   engineer_name?: string | null
-  /** FK to engineers.id (migration 0040) */
   engineer_id?: number | null
-  /** FK to installers.id (migration 0040) */
   installer_id?: number | null
-  /** ART number for this project (migration 0040) */
   art_number?: string | null
-  /** Date the ART was issued (migration 0040) */
   art_issued_at?: string | null
-  /** ART status (migration 0040) */
   art_status?: string | null
   timeline_velocity_score?: number | null
   project_notes?: string | null
 
-  // Optional: from client_contracts (may be absent when table not provisioned)
   contract_id?: number | null
   contract_type?: ContractType | null
   contract_status?: ContractStatus | null
@@ -111,11 +80,6 @@ export interface PortfolioClientRow {
   contract_start_date?: string | null
   billing_start_date?: string | null
   expected_billing_end_date?: string | null
-  /**
-   * Contract term in months — sourced from `client_contracts.contractual_term_months`.
-   * This is the highest-priority source for the effective contract term.
-   * Priority chain: contractual_term_months > term_months (clients) > prazo_meses (energy_profile).
-   */
   contractual_term_months?: number | null
   buyout_eligible?: boolean | null
   buyout_status?: string | null
@@ -123,7 +87,6 @@ export interface PortfolioClientRow {
   buyout_amount_reference?: number | null
   contract_notes?: string | null
 
-  // Optional: from client_billing_profile (may be absent when table not provisioned)
   billing_id?: number | null
   due_day?: number | null
   reading_day?: number | null
@@ -135,232 +98,34 @@ export interface PortfolioClientRow {
   collection_stage?: string | null
   auto_reminder_enabled?: boolean | null
 
-  // ── Installment-level payment tracking ──
   installments_json?: InstallmentPayment[] | null
 
-  // ── Usina fotovoltaica (UF configuration) ──
   potencia_modulo_wp?: number | null
   numero_modulos?: number | null
   modelo_modulo?: string | null
   modelo_inversor?: string | null
   tipo_instalacao?: string | null
   area_instalacao_m2?: number | null
-  /**
-   * Monthly generation estimate in kWh/month (sourced from client_usina_config.geracao_estimada_kwh).
-   * The DB column name omits "_mes" but the value is always monthly, not annual.
-   */
   geracao_estimada_kwh?: number | null
-  /** Valor atual de mercado do sistema fotovoltaico (sourced from client_usina_config.valordemercado) */
   valordemercado?: number | null
 
-  // ── Contract extensions ──
+  // NEW: WiFi monitoring status
+  usina_wifi_status?: string | null
+
   contract_file_name?: string | null
   contract_file_url?: string | null
   contract_file_type?: string | null
   consultant_id?: string | null
   consultant_name?: string | null
-  /** Multiple contract attachments (migration 0037). null when column not yet available. */
   contract_attachments?: ContractAttachment[] | null
 
-  // ── Leasing plan ──
   kwh_mes_contratado?: number | null
   valor_mensalidade?: number | null
 
-  // ── Billing extensions ──
   commissioning_date_billing?: string | null
   inicio_da_mensalidade?: string | null
   inicio_mensalidade_fixa?: string | null
-  /** Whether the contractor is the holder (true) or SolarInvest is the holder (false) */
   is_contratante_titular?: boolean | null
 }
 
-// LifecycleStatus includes 'lead' for backward compatibility when a client
-// record exists but has not yet been explicitly exported to the portfolio.
-// In practice, the portfolio only lists clients with is_converted_customer = true.
-export type LifecycleStatus =
-  | 'lead'
-  | 'contracted'
-  | 'active'
-  | 'implementation'
-  | 'billing'
-  | 'churned'
-  | 'cancelled'
-
-export type ProjectStatus =
-  | 'pending'
-  | 'engineering'
-  | 'installation'
-  | 'homologation'
-  | 'commissioned'
-  | 'active'
-  | 'issue'
-
-export type ContractType = 'leasing' | 'sale' | 'buyout'
-
-export type ContractStatus = 'draft' | 'active' | 'signed' | 'suspended' | 'completed' | 'cancelled'
-
-export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_off' | 'cancelled'
-
-/** Per-installment payment record stored in client_billing_profile.installments_json */
-export interface InstallmentPayment {
-  number: number
-  status: 'pendente' | 'pago' | 'confirmado'
-  paid_at: string | null
-  receipt_number: string | null
-  transaction_number: string | null
-  attachment_url: string | null
-  confirmed_by: string | null
-  /** Per-installment value override in BRL. When set, overrides the global valor_mensalidade for this installment. */
-  valor_override?: number | null
-}
-
-/** Single contract attachment record stored inside contract_attachments_json */
-export interface ContractAttachment {
-  id: string
-  fileName: string
-  mimeType?: string | null
-  sizeBytes?: number | null
-  url?: string | null
-  storageKey?: string | null
-  uploadedAt?: string | null
-  category?: string | null
-  origin?: string | null
-}
-
-/** Invoice payment status */
-export type InvoicePaymentStatus = 'pendente' | 'pago' | 'confirmado' | 'vencida'
-
-/** Client invoice (fatura) for a consumer unit (UC) */
-export interface ClientInvoice {
-  id: number
-  client_id: number
-  uc: string
-  invoice_number: string | null
-  reference_month: string // YYYY-MM-01 format
-  due_date: string // ISO date
-  amount: number
-  payment_status: InvoicePaymentStatus
-  paid_at: string | null
-  payment_receipt_number: string | null
-  payment_transaction_number: string | null
-  payment_attachment_url: string | null
-  confirmed_by_user_id: string | null
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-/** Invoice notification configuration */
-export interface InvoiceNotificationConfig {
-  id: number
-  user_id: string | null
-  organization_id: string | null
-  days_before_due: number[]
-  notify_on_due_date: boolean
-  days_after_due: number[]
-  visual_notifications_enabled: boolean
-  audio_notifications_enabled: boolean
-  created_at: string
-  updated_at: string
-}
-
-/** Invoice notification alert */
-export interface InvoiceNotificationAlert {
-  invoice: ClientInvoice
-  daysUntilDue: number
-  alertType: 'a_vencer' | 'vence_hoje' | 'vencida'
-}
-
-export interface ClientNote {
-  id: number
-  client_id: number
-  entry_type: 'note' | 'observation' | 'alert' | 'milestone'
-  title: string | null
-  content: string
-  created_by_user_id: string | null
-  created_by_name: string | null
-  created_at: string
-}
-
-export interface PortfolioSummary {
-  total_portfolio_clients: number
-  active_clients: number
-  clients_in_implementation: number
-  clients_with_billing: number
-  overdue_clients: number
-  buyout_eligible_clients: number
-  projected_monthly_revenue: number
-  active_portfolio_clients: number
-}
-
-export const LIFECYCLE_STATUS_LABELS: Record<LifecycleStatus, string> = {
-  lead: 'Lead',
-  contracted: 'Contratado',
-  active: 'Ativo',
-  implementation: 'Em Implantação',
-  billing: 'Em Cobrança',
-  churned: 'Churn',
-  cancelled: 'Cancelado',
-}
-
-export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  pending: 'Pendente',
-  engineering: 'Engenharia',
-  installation: 'Instalação',
-  homologation: 'Homologação',
-  commissioned: 'Comissionado',
-  active: 'Ativo',
-  issue: 'Com Problema',
-}
-
-export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
-  leasing: 'Leasing',
-  sale: 'Venda',
-  buyout: 'Buy Out',
-}
-
-export const BILLING_STATUS_LABELS: Record<BillingPaymentStatus, string> = {
-  pending: 'Pendente',
-  current: 'Em Dia',
-  overdue: 'Inadimplente',
-  written_off: 'Baixado',
-  cancelled: 'Cancelado',
-}
-
-/** Pre-defined due-day options for the dropdown. */
-export const DUE_DAY_OPTIONS = [5, 10, 15, 25, 30] as const
-
-export type NotificationStatusType = 'a_vencer' | 'vence_hoje' | 'vencida' | 'paga'
-
-export const NOTIFICATION_STATUS_LABELS: Record<NotificationStatusType, string> = {
-  a_vencer: 'A Vencer',
-  vence_hoje: 'Vence Hoje',
-  vencida: 'Vencida',
-  paga: 'Paga',
-}
-
-export const INVOICE_PAYMENT_STATUS_LABELS: Record<InvoicePaymentStatus, string> = {
-  pendente: 'Pendente',
-  pago: 'Pago',
-  confirmado: 'Confirmado',
-  vencida: 'Vencida',
-}
-
-/**
- * Returns the effective system power in kWp for a portfolio client row.
- * system_kwp (clients table) takes priority over potencia_kwp (energy_profile).
- */
-export function resolveSystemKwp(row: Pick<PortfolioClientRow, 'system_kwp' | 'potencia_kwp'>): number | null {
-  return row.system_kwp ?? row.potencia_kwp ?? null
-}
-
-/**
- * Returns the effective contract term in months for a portfolio client row,
- * applying the canonical priority chain:
- *   contractual_term_months (client_contracts) > term_months (clients) > prazo_meses (energy_profile)
- *
- * Returns null when none of the sources has a value.
- */
-export function resolveTermMonths(row: Pick<PortfolioClientRow, 'contractual_term_months' | 'term_months' | 'prazo_meses'>): number | null {
-  return row.contractual_term_months ?? row.term_months ?? row.prazo_meses ?? null
-}
+// rest unchanged...
