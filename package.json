@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "audit:site": "node tools/audit/site-audit.mjs",
+    "audit:all": "node tools/audit/run-audit.mjs",
     "prebuild": "rm -rf node_modules/.vite && node scripts/force-rollup-wasm.js",
     "build": "node scripts/build.mjs",
     "preview": "vite preview --strictPort --port 4173",
