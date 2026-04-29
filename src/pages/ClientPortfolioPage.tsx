@@ -266,7 +266,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', variant = '
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
+        position: 'fixed', inset: 0, zIndex: 1100,
         background: 'var(--backdrop, rgba(0,0,0,0.65))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
