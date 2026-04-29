@@ -7,6 +7,7 @@ import {
   findClientByUc,
   findClientByEmail,
   findClientByPhone,
+  findClientsBySimilarNameAndCity,
   normalizeDocumentServer,
   normalizeCpfServer,
   normalizeCnpjServer,
@@ -170,23 +171,22 @@ export async function checkDuplicateClient(sql, row) {
   }
 
   // ── LEVEL 3: SOFT MATCH ───────────────────────────────────────────────────
-  // We skip a full-table name scan for performance. Instead, if city is
-  // provided we look for possible name similarity using client-side check
-  // (the caller can optionally supply existing names for a local comparison).
-  // Server-side soft match is marked as a signal that the caller can verify.
+  // Query the database for clients with a similar name in the same city.
+  // This prevents bulk imports from creating duplicate records for clients
+  // that already exist but don't share a CPF/CNPJ with the import row.
   if (row.name && row.city) {
-    // We return a soft match result marker. The actual similarity check
-    // against DB rows is expensive; front-end performs it locally against
-    // the already-loaded client list.
-    return {
-      matchLevel: 'none',
-      status: 'new',
-      confidence: 'high',
-      suggestedAction: 'import',
-      matchReason: null,
-      existingClient: null,
-      matchFields: [],
-      _softCheckPending: true,
+    const similarClients = await findClientsBySimilarNameAndCity(sql, row.name, row.city)
+    if (similarClients.length > 0) {
+      const best = similarClients[0]
+      return {
+        matchLevel: 'soft',
+        status: 'possible_duplicate',
+        confidence: 'low',
+        suggestedAction: 'merge',
+        matchReason: `Nome similar ao do cliente #${best.id} na mesma cidade`,
+        existingClient: best,
+        matchFields: ['name', 'city'],
+      }
     }
   }
 

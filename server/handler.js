@@ -129,6 +129,7 @@ import {
   handleFinancialImportConfirm,
   handleFinancialImportBatches,
 } from './financial-import/handler.js'
+import { handleFinancialAnalyses } from './financial-analyses/handler.js'
 import {
   handleInvoicesListRequest,
   handleInvoicesCreateRequest,
@@ -1632,6 +1633,15 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleFinancialImportBatches(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
+      return
+    }
+
+    if (pathname === '/api/financial-analyses') {
+      await handleFinancialAnalyses(req, res, {
+        method,
+        readJsonBody,
+        sendJson: (status, payload) => sendJson(res, status, payload),
+      })
       return
     }
 

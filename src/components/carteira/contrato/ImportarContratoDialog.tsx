@@ -66,14 +66,8 @@ export function ImportarContratoDialog({
   }, [preview, decisions])
 
   const canConfirm = useMemo(() => {
-    if (!preview) return false
-    const pendingComparisonApprovals = preview.comparisons
-      .filter((item) => item.requiresManualApproval)
-      .some((item) => !decisions[item.code])
-    const blocking = preview.discrepancies.filter((item) => item.severity === 'blocking')
-    const hasPendingBlocking = blocking.some((item) => item.code && !resolvedApprovalCodes.has(item.code))
-    return (preview.eligibility.canImport || !hasPendingBlocking) && !pendingComparisonApprovals
-  }, [preview, decisions, resolvedApprovalCodes])
+    return preview !== null
+  }, [preview])
 
   if (!open) return null
 
