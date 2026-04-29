@@ -41,24 +41,6 @@ export type ActivePage =
 | 'relatorios-operacao'
 // Permissão
 | 'no-permission'
-  | 'operacao-agenda'
-  | 'operacao-chamados'
-  | 'operacao-manutencoes'
-  | 'operacao-limpezas'
-  | 'operacao-seguros'
-// Área Indicadores (Etapa 6) — financial-management kept as alias → indicadores-visao-geral
-| 'indicadores-visao-geral'
-| 'indicadores-leasing'
-| 'indicadores-vendas'
-| 'indicadores-fluxo-caixa'
-// Área Relatórios (Etapa 9)
-| 'relatorios-propostas'
-| 'relatorios-contratos'
-| 'relatorios-financeiro'
-| 'relatorios-clientes'
-| 'relatorios-operacao'
-// Etapa 8: Permissions UI — shown when the user lacks permission for the requested page
-| 'no-permission'
 export type SimulacoesSection =
   | 'nova'
   | 'salvas'

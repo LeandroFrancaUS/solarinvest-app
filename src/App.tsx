@@ -4218,7 +4218,11 @@ export default function App() {
       storedPage === 'relatorios-contratos' ||
       storedPage === 'relatorios-financeiro' ||
       storedPage === 'relatorios-clientes' ||
-      storedPage === 'relatorios-operacao'
+      storedPage === 'relatorios-operacao' ||
+      storedPage === 'comercial-leads' ||
+      storedPage === 'comercial-propostas' ||
+      storedPage === 'project-hub' ||
+      storedPage === 'no-permission'
 
     return isKnownPage ? (storedPage as ActivePage) : 'app'
   })
