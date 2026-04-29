@@ -1,5 +1,4 @@
 // src/components/portfolio/PortfolioPaymentStatusBadge.tsx
-import React from 'react'
 import {
   LANDING_PAYMENT_STATUS_META,
   type LandingPaymentStatus,
