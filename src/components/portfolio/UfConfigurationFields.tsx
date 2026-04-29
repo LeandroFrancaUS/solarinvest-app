@@ -14,6 +14,7 @@ export interface UfConfigData {
   geracao_estimada_kwh: string
   potencia_kwp: string
   tipo_rede: string
+  usina_wifi_status: string
 }
 
 interface UfConfigurationFieldsProps {
@@ -37,6 +38,14 @@ const TIPO_REDE_OPTIONS = [
   { value: 'monofasico', label: 'Monofásico' },
   { value: 'bifasico', label: 'Bifásico' },
   { value: 'trifasico', label: 'Trifásico' },
+]
+
+const USINA_WIFI_STATUS_OPTIONS = [
+  { value: '', label: 'Selecione…' },
+  { value: 'connected', label: 'Conectada à rede WiFi' },
+  { value: 'not_connected', label: 'Não conectada à rede WiFi' },
+  { value: 'not_applicable', label: 'Não se aplica' },
+  { value: 'unknown', label: 'Não informado' },
 ]
 
 const POTENCIA_MODULO_OPTIONS = [440, 450, 455, 460, 465, 470, 475, 480, 505, 540, 545, 550, 555, 560, 565, 570, 575, 580, 585, 590, 595, 600, 605, 610, 615, 620, 625, 630, 635, 640, 645, 650, 655, 660, 665, 670, 700]
@@ -120,6 +129,20 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
             </select>
           </label>
         </div>
+
+        <label className="pf-label" style={labelStyle}>
+          Conexão WiFi do inversor / monitoramento
+          <select
+            value={data.usina_wifi_status ?? ''}
+            onChange={(e) => onChange('usina_wifi_status', e.target.value)}
+            disabled={readOnly}
+            style={inputStyle}
+          >
+            {USINA_WIFI_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </label>
 
         <div style={gridStyle}>
           <label className="pf-label" style={labelStyle}>
