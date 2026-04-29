@@ -721,3 +721,104 @@ export async function upsertProjectFinance(sql, projectId, fields, userId = null
     throw err
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Financial-Analysis snapshot (inputs_json / outputs_json)
+// Added in migration 0060.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the AF snapshot for a project.
+ * project_type is included so the handler can derive locked_project_type.
+ */
+export async function findProjectFinanceAnalysis(sql, projectId) {
+  const rows = await sql`
+    SELECT
+      pfp.project_id::text,
+      p.project_type,
+      pfp.inputs_json,
+      pfp.outputs_json,
+      pfp.updated_at
+    FROM public.project_financial_profiles pfp
+    JOIN public.projects p ON p.id = pfp.project_id
+    WHERE pfp.project_id = ${String(projectId)}::uuid
+      AND p.deleted_at IS NULL
+    LIMIT 1
+  `
+  return rows[0] ?? null
+}
+
+/**
+ * Upserts inputs_json / outputs_json for the AF snapshot.
+ * Always sets snapshot_source = 'analise_financeira'.
+ * Creates the profile row if it does not yet exist, using defaults sourced
+ * from the projects table (contract_type, client_id).
+ */
+export async function upsertProjectFinanceAnalysis(sql, projectId, payload, userId = null) {
+  const inputsJson  = payload.inputs_json  !== undefined ? payload.inputs_json  : null
+  const outputsJson = payload.outputs_json !== undefined ? payload.outputs_json : null
+  const now = new Date()
+
+  // Attempt UPDATE first (profile row already exists).
+  const updated = await sql`
+    UPDATE public.project_financial_profiles
+    SET
+      inputs_json          = ${inputsJson}::jsonb,
+      outputs_json         = ${outputsJson}::jsonb,
+      snapshot_source      = 'analise_financeira',
+      updated_at           = ${now},
+      updated_by_user_id   = ${userId ?? null}
+    WHERE project_id = ${String(projectId)}::uuid
+    RETURNING
+      project_id::text,
+      inputs_json,
+      outputs_json,
+      snapshot_source,
+      updated_at
+  `
+
+  if (updated.length > 0) return updated[0]
+
+  // Profile row does not exist yet — insert a minimal one.
+  // Resolve contract_type and client_id from the projects table.
+  const projectRows = await sql`
+    SELECT p.project_type, p.client_id
+    FROM public.projects p
+    WHERE p.id = ${String(projectId)}::uuid
+      AND p.deleted_at IS NULL
+    LIMIT 1
+  `
+  if (!projectRows.length) return null
+
+  const { project_type, client_id } = projectRows[0]
+  const contractType = resolveContractType(null, project_type)
+
+  const inserted = await sql`
+    INSERT INTO public.project_financial_profiles (
+      project_id,
+      client_id,
+      contract_type,
+      snapshot_source,
+      inputs_json,
+      outputs_json,
+      created_by_user_id,
+      updated_by_user_id
+    ) VALUES (
+      ${String(projectId)}::uuid,
+      ${client_id ?? null},
+      ${contractType},
+      'analise_financeira',
+      ${inputsJson}::jsonb,
+      ${outputsJson}::jsonb,
+      ${userId ?? null},
+      ${userId ?? null}
+    )
+    RETURNING
+      project_id::text,
+      inputs_json,
+      outputs_json,
+      snapshot_source,
+      updated_at
+  `
+  return inserted[0] ?? null
+}

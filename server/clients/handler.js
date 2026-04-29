@@ -25,6 +25,7 @@ import {
 } from './repository.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
 import { validateClientDuplicates } from './duplicateValidation.js'
+import { VALID_STATUS_COMERCIAL, VALID_STATUS_CLIENTE } from './client-status-values.js'
 
 function sendError(sendJson, statusCode, code, message) {
   sendJson(statusCode, { error: { code, message } })
@@ -168,6 +169,15 @@ function toClientWritePayload(body) {
   const rawConsultantId = firstDefined(body.consultant_id)
   if (rawConsultantId !== undefined && rawConsultantId !== null && rawConsultantId !== '') {
     accepted.consultant_id = rawConsultantId
+  }
+
+  // Client status domain (migration 0061).
+  // Only accepted values are forwarded; repository.js validates and ignores unknown values.
+  if (body.status_comercial !== undefined && VALID_STATUS_COMERCIAL.has(body.status_comercial)) {
+    accepted.status_comercial = body.status_comercial
+  }
+  if (body.status_cliente !== undefined && VALID_STATUS_CLIENTE.has(body.status_cliente)) {
+    accepted.status_cliente = body.status_cliente
   }
 
   // Expose usina fields separately so the handler can persist them in client_usina_config

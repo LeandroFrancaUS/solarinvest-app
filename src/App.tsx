@@ -363,6 +363,12 @@ import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { useProjectStore } from './features/projectHub/useProjectStore'
 import { SimulacoesPage } from './features/simulacoes/SimulacoesPage'
+import { setOperationsTokenProvider } from './features/operacao/operationsApi'
+import { AgendaPage } from './features/operacao/AgendaPage'
+import { ChamadosPage } from './features/operacao/ChamadosPage'
+import { ManutencoesPage } from './features/operacao/ManutencoesPage'
+import { LimpezasPage } from './features/operacao/LimpezasPage'
+import { SegurosPage } from './features/operacao/SegurosPage'
 import { useAfDeslocamentoStore } from './features/simulacoes/useAfDeslocamentoStore'
 import {
   selectAfCidadeDestino,
@@ -4078,6 +4084,7 @@ export default function App() {
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
     setOperationalDashboardTokenProvider(getAccessToken)
+    setOperationsTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -19190,12 +19197,16 @@ export default function App() {
               }}
             />
           )
-        ) : (activePage === 'operacao-agenda' ||
-            activePage === 'operacao-chamados' ||
-            activePage === 'operacao-manutencoes' ||
-            activePage === 'operacao-limpezas' ||
-            activePage === 'operacao-seguros') ? (
-          <PlaceholderPage title={OPERACAO_SECTION_LABELS[activePage]} />
+        ) : activePage === 'operacao-agenda' ? (
+          <AgendaPage />
+        ) : activePage === 'operacao-chamados' ? (
+          <ChamadosPage />
+        ) : activePage === 'operacao-manutencoes' ? (
+          <ManutencoesPage />
+        ) : activePage === 'operacao-limpezas' ? (
+          <LimpezasPage />
+        ) : activePage === 'operacao-seguros' ? (
+          <SegurosPage />
         ) : (
           <div className="page">
             <div className="app-main">
