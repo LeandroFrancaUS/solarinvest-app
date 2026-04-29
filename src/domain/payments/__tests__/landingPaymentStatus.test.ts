@@ -65,8 +65,9 @@ describe('normalizeChargeStatus', () => {
 })
 
 describe('getLandingPaymentStatus', () => {
-  // Test 1: Parcela 1 confirmada + próximas pendentes → EM_DIA
-  it('returns EM_DIA when first charge is confirmed and remaining are future pending', () => {
+  // Test 1: Parcela 1 confirmada + próximas pendentes → PAGO
+  // Future pending charges do not count as open debt, so status is PAGO.
+  it('returns PAGO when first charge is confirmed and remaining are future pending', () => {
     const today = new Date('2026-04-29')
     const charges: MonthlyCharge[] = [
       paidCharge('2026-04-28'),       // Parcela 1: Confirmado / pago em 28/04/2026
@@ -74,7 +75,7 @@ describe('getLandingPaymentStatus', () => {
       pendingCharge('2026-06-28'),    // Parcela 3: Pendente – vencimento futuro
       pendingCharge('2026-07-28'),    // Parcela 4: Pendente – vencimento futuro
     ]
-    expect(getLandingPaymentStatus(charges, today)).toBe('EM_DIA')
+    expect(getLandingPaymentStatus(charges, today)).toBe('PAGO')
   })
 
   // Test 2: Todas confirmadas → PAGO
@@ -136,11 +137,11 @@ describe('getLandingPaymentStatus', () => {
     const today = new Date('2026-04-29')
     const charges: MonthlyCharge[] = [
       paidCharge('2026-04-05'),        // current month – paid
-      pendingCharge('2026-05-05'),     // future month – should be ignored for overdue calc
-      pendingCharge('2026-06-05'),     // future month – should be ignored
+      pendingCharge('2026-05-05'),     // future month – should not count as open debt
+      pendingCharge('2026-06-05'),     // future month – should not count as open debt
     ]
-    // Only April is relevant; it's paid → EM_DIA (paid + pending future)
-    expect(getLandingPaymentStatus(charges, today)).toBe('EM_DIA')
+    // April is paid, future pending charges don't count as open → PAGO
+    expect(getLandingPaymentStatus(charges, today)).toBe('PAGO')
   })
 
   it('returns VENCIDO when overdue within grace period and also has paid', () => {
@@ -150,5 +151,15 @@ describe('getLandingPaymentStatus', () => {
       pendingCharge('2026-04-28'),    // 2 days overdue (within grace)
     ]
     expect(getLandingPaymentStatus(charges, today)).toBe('PARCIALMENTE_PAGO')
+  })
+
+  // Required regression: future confirmed parcela + no past open charges → PAGO
+  it('returns PAGO when a future parcela is confirmed and no prior open charges exist', () => {
+    const today = new Date('2026-04-28')
+    const charges: MonthlyCharge[] = [
+      { dueDate: '05/05/2026', status: 'Confirmado', paidAt: '28/04/2026' },
+      { dueDate: '05/06/2026', status: 'Pendente' },
+    ]
+    expect(getLandingPaymentStatus(charges, today)).toBe('PAGO')
   })
 })
