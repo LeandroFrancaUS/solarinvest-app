@@ -543,15 +543,15 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     if (matchedByDate) {
       chosen = matchedByDate
     } else {
-      // B) Largest-numbered paid/confirmado installment
-      const paid = installments.filter((i) => isPaid(i.status))
-      if (paid.length > 0) {
-        chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
+      // B) Smallest-numbered pending installment (next to be paid — best for operations/billing)
+      const pending = installments.filter((i) => !isPaid(i.status))
+      if (pending.length > 0) {
+        chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
       } else {
-        // C) Smallest-numbered pending installment
-        const pending = installments.filter((i) => !isPaid(i.status))
-        if (pending.length > 0) {
-          chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
+        // C) Largest-numbered paid/confirmado installment (all paid — show last)
+        const paid = installments.filter((i) => isPaid(i.status))
+        if (paid.length > 0) {
+          chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
         } else {
           // D) First installment
           chosen = installments[0]
