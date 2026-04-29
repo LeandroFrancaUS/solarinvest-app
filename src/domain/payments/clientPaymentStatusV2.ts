@@ -11,36 +11,16 @@ import {
   type MonthlyCharge,
 } from './landingPaymentStatus'
 
-/**
- * Client payment status for the landing page badge.
- * Delegates to LandingPaymentStatus which uses the installment list as source of truth.
- */
 export type ClientPaymentStatusV2 = LandingPaymentStatus
 
-/**
- * Result object with status and display information.
- */
 export interface ClientPaymentStatusResultV2 {
   status: ClientPaymentStatusV2
   label: string
 }
 
-/**
- * Display labels for client payment status.
- */
 export const CLIENT_PAYMENT_STATUS_V2_LABELS: Record<ClientPaymentStatusV2, string> =
   LANDING_PAYMENT_STATUS_LABELS
 
-/**
- * Calculates the due date string for a given installment number based on client billing config.
- * Returns null when required configuration is missing or invalid.
- */
-/**
- * Fallback chain for billing start date (highest to lowest priority):
- * 1. first_billing_date — explicit billing start from client_billing_profile
- * 2. inicio_da_mensalidade — legacy field for billing start
- * 3. commissioning_date_billing — commissioning date used as billing proxy
- */
 function resolveInstallmentDueDate(client: PortfolioClientRow, installmentNumber: number): string | null {
   const startDate =
     client.first_billing_date ?? client.inicio_da_mensalidade ?? client.commissioning_date_billing
@@ -52,7 +32,8 @@ function resolveInstallmentDueDate(client: PortfolioClientRow, installmentNumber
   const start = new Date(startDate)
   if (isNaN(start.getTime())) return null
 
-  const month = start.getMonth() + (installmentNumber - 1)
+  const safeNumber = installmentNumber > 0 ? installmentNumber : 1
+  const month = start.getMonth() + (safeNumber - 1)
   const year = start.getFullYear() + Math.floor(month / 12)
   const monthNormalized = ((month % 12) + 12) % 12
 
@@ -66,33 +47,29 @@ function resolveInstallmentDueDate(client: PortfolioClientRow, installmentNumber
   return `${yyyy}-${mm}-${dd}`
 }
 
-/**
- * Converts a portfolio client's installments_json to MonthlyCharge format
- * that can be consumed by getLandingPaymentStatus.
- *
- * Uses the status already stored on each installment (pago/confirmado/pendente)
- * and calculates the dueDate from billing configuration when possible.
- */
-function toMonthlyCharges(client: PortfolioClientRow): MonthlyCharge[] {
-  const installments = client.installments_json ?? []
-  return installments.map((inst) => ({
-    dueDate: resolveInstallmentDueDate(client, inst.number),
-    status: inst.status,
-    paidAt: inst.paid_at,
-  }))
+function readInstallments(raw: unknown): Array<{ number?: number; status?: string; paid_at?: string | null; paidAt?: string | null; payment_date?: string | null }> {
+  if (Array.isArray(raw)) return raw as Array<{ number?: number; status?: string; paid_at?: string | null; paidAt?: string | null; payment_date?: string | null }>
+  if (typeof raw !== 'string') return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
-/**
- * Determines the payment status for the Carteira Ativa landing page card badge.
- *
- * Uses installments_json as the exclusive source of truth.
- * Never returns "Inativo" just because contract_status is not 'active' —
- * if there are installment records, the actual payment situation is used.
- *
- * @param client - The portfolio client to analyze
- * @param today - Reference date for calculations (defaults to current date)
- * @returns Status result with label
- */
+function toMonthlyCharges(client: PortfolioClientRow): MonthlyCharge[] {
+  const installments = readInstallments(client.installments_json)
+  return installments.map((inst, index) => {
+    const number = typeof inst.number === 'number' && inst.number > 0 ? inst.number : index + 1
+    return {
+      dueDate: resolveInstallmentDueDate(client, number),
+      status: inst.status,
+      paidAt: inst.paid_at ?? inst.paidAt ?? inst.payment_date ?? null,
+    }
+  })
+}
+
 export function getClientPaymentStatusV2(
   client: PortfolioClientRow,
   today: Date = new Date(),
