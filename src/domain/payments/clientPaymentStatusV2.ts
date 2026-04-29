@@ -2,14 +2,15 @@
 // Payment status for the Carteira Ativa landing page.
 // Source of truth: installments_json from the billing table.
 // Does NOT rely on contract_status, contract_type, or isBillingActive.
+// Delegates to the canonical paymentStatusEngine for all status logic.
 
 import type { PortfolioClientRow } from '../../types/clientPortfolio'
 import {
   getLandingPaymentStatus,
   type LandingPaymentStatus,
-  LANDING_PAYMENT_STATUS_LABELS,
-  type MonthlyCharge,
-} from './landingPaymentStatus'
+  LANDING_PAYMENT_STATUS_META,
+  type MonthlyChargeLike,
+} from '../billing/paymentStatusEngine'
 
 /**
  * Client payment status for the landing page badge.
@@ -26,15 +27,13 @@ export interface ClientPaymentStatusResultV2 {
 }
 
 /**
- * Display labels for client payment status.
+ * Display labels for client payment status, derived from the engine metadata.
  */
 export const CLIENT_PAYMENT_STATUS_V2_LABELS: Record<ClientPaymentStatusV2, string> =
-  LANDING_PAYMENT_STATUS_LABELS
+  Object.fromEntries(
+    Object.entries(LANDING_PAYMENT_STATUS_META).map(([k, v]) => [k, v.label]),
+  ) as Record<ClientPaymentStatusV2, string>
 
-/**
- * Calculates the due date string for a given installment number based on client billing config.
- * Returns null when required configuration is missing or invalid.
- */
 /**
  * Fallback chain for billing start date (highest to lowest priority):
  * 1. first_billing_date — explicit billing start from client_billing_profile
@@ -67,13 +66,13 @@ function resolveInstallmentDueDate(client: PortfolioClientRow, installmentNumber
 }
 
 /**
- * Converts a portfolio client's installments_json to MonthlyCharge format
- * that can be consumed by getLandingPaymentStatus.
+ * Converts a portfolio client's installments_json to MonthlyChargeLike format
+ * accepted by the paymentStatusEngine.
  *
  * Uses the status already stored on each installment (pago/confirmado/pendente)
  * and calculates the dueDate from billing configuration when possible.
  */
-function toMonthlyCharges(client: PortfolioClientRow): MonthlyCharge[] {
+function toMonthlyCharges(client: PortfolioClientRow): MonthlyChargeLike[] {
   const installments = client.installments_json ?? []
   return installments.map((inst) => ({
     dueDate: resolveInstallmentDueDate(client, inst.number),
