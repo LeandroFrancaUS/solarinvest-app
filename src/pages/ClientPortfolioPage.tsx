@@ -547,12 +547,12 @@ function ClientCard({
       <div className="pf-card-body">
         <div className="pf-card-info">
           {/* Name row: client name on left, payment status badge on right */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+          <div className="pf-card-name-row">
             <button
               type="button"
               onClick={onEdit}
               className="pf-card-name-button"
-              style={{ flex: '1 1 0', minWidth: 0 }}
+              style={{ flex: '1 1 0%', minWidth: 0 }}
               aria-label={`Abrir cliente ${clientName}`}
               title={`Abrir cliente ${clientName}`}
             >
@@ -597,7 +597,7 @@ function ClientCard({
           </div>
 
           {/* Client attributes - horizontal layout */}
-          <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 12 }}>
+          <div className="pf-card-attributes">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Consumo</span>
               <span style={{ color: 'var(--ds-text-primary)', fontWeight: 500 }}>{kwhContratadoLabel}</span>

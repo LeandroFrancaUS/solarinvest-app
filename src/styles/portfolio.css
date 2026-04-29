@@ -434,7 +434,23 @@
   flex-shrink: 0;
 }
 
-/* ── 10b. ROW BUTTONS (shared) ────────────────────────────────── */
+/* ── 10e. CARD NAME ROW (name + status badge) ─────────────────── */
+.pf-card-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ── 10f. CARD ATTRIBUTES (metadata grid below meta row) ─────── */
+.pf-card-attributes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  margin-top: 6px;
+}
 .pf-row-btn {
   padding: 6px 14px;
   border-radius: 8px;
