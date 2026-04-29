@@ -11,7 +11,7 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, InstallmentPayment } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
@@ -503,13 +503,13 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   }
 
   // Parse installments_json (may be null, array, or JSON string)
-  let installments: import('../types/clientPortfolio').InstallmentPayment[] | null = null
+  let installments: InstallmentPayment[] | null = null
   if (client.installments_json) {
     if (Array.isArray(client.installments_json)) {
       installments = client.installments_json
     } else if (typeof client.installments_json === 'string') {
       try {
-        const parsed = JSON.parse(client.installments_json as string)
+        const parsed = JSON.parse(client.installments_json)
         if (Array.isArray(parsed)) installments = parsed
       } catch {
         // ignore malformed JSON
