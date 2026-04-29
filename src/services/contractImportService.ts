@@ -195,18 +195,6 @@ export async function applyContractImport(input: {
   userId?: string
 }): Promise<{ savedContractId: number; attachment: ContractAttachment; payload: ContractImportPayload }> {
   const manualApprovalCodes = new Set(input.approvedCodes)
-  const eligibility = buildImportEligibility({
-    isPdf: true,
-    parsedText: input.preview.plainText,
-    fields: input.preview.parsedFields,
-    contractorSignature: input.preview.contractorSignature,
-    discrepancies: input.preview.discrepancies,
-    manualApprovalCodes,
-  })
-
-  if (!eligibility.canImport) {
-    throw new Error(eligibility.reasons[0] ?? 'Importação inválida. Revise os dados do contrato.')
-  }
 
   const payload = buildPayload(input.preview, input.approvedCodes)
   const decisions = input.decisions ?? {}
