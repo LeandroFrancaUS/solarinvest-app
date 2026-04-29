@@ -46,6 +46,7 @@ import {
   isValidUc,
 } from '../lib/validation/clientReadiness'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { formatNumberBR, formatMoneyBR } from '../lib/locale/br-number'
 import { getDistribuidorasFallback } from '../utils/distribuidorasAneel'
 import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
@@ -469,6 +470,25 @@ function ClientCard({
 
   const statusStyle = statusStyles[paymentStatus]
 
+  // Format new required fields
+  const kwhContratado = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
+  const kwhContratadoLabel = kwhContratado !== null && typeof kwhContratado === 'number'
+    ? `${formatNumberBR(kwhContratado)} kWh/mês`
+    : '—'
+
+  const cityState = [client.city, client.state].filter(Boolean).join('/')
+  const cityStateLabel = cityState || '—'
+
+  const tarifaAtual = client.tarifa_atual ?? null
+  const tarifaLabel = tarifaAtual !== null && typeof tarifaAtual === 'number'
+    ? formatMoneyBR(tarifaAtual)
+    : '—'
+
+  const systemKwp = client.system_kwp ?? client.potencia_kwp ?? null
+  const systemKwpLabel = systemKwp !== null && typeof systemKwp === 'number'
+    ? `${formatNumberBR(systemKwp)} kWp`
+    : '—'
+
   return (
     <div className="pf-client-card">
       <div className="pf-card-body">
@@ -488,8 +508,29 @@ function ClientCard({
             <span className="pf-card-meta-sep">·</span>
             <span className="pf-card-remaining">{remainingLabel}</span>
           </div>
+
+          {/* New information fields */}
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Consumo:</span>
+              <span style={{ color: 'var(--ds-text-primary)' }}>{kwhContratadoLabel}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Localização:</span>
+              <span style={{ color: 'var(--ds-text-primary)' }}>{cityStateLabel}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Tarifa:</span>
+              <span style={{ color: 'var(--ds-text-primary)' }}>{tarifaLabel}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 600, color: 'var(--ds-text-secondary)', minWidth: 100 }}>Potência:</span>
+              <span style={{ color: 'var(--ds-text-primary)' }}>{systemKwpLabel}</span>
+            </div>
+          </div>
+
           {/* Payment status badge */}
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 12 }}>
             <span
               style={{
                 display: 'inline-flex',
