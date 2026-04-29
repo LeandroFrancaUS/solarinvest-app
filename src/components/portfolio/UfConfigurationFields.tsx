@@ -14,12 +14,14 @@ export interface UfConfigData {
   geracao_estimada_kwh: string
   potencia_kwp: string
   tipo_rede: string
+  wifi_status?: 'conectado' | 'desconectado' | 'falha' | '' | null
 }
 
 interface UfConfigurationFieldsProps {
   data: UfConfigData
   onChange: (field: keyof UfConfigData, value: string) => void
   readOnly?: boolean
+  installationStatus?: string | null
 }
 
 const TIPO_INSTALACAO_OPTIONS = [
@@ -39,6 +41,13 @@ const TIPO_REDE_OPTIONS = [
   { value: 'trifasico', label: 'Trifásico' },
 ]
 
+const WIFI_STATUS_OPTIONS = [
+  { value: '', label: 'Selecione…' },
+  { value: 'conectado', label: '🟢 Conectado' },
+  { value: 'desconectado', label: '🟡 Desconectado' },
+  { value: 'falha', label: '🔴 Falha' },
+]
+
 const POTENCIA_MODULO_OPTIONS = [440, 450, 455, 460, 465, 470, 475, 480, 505, 540, 545, 550, 555, 560, 565, 570, 575, 580, 585, 590, 595, 600, 605, 610, 615, 620, 625, 630, 635, 640, 645, 650, 655, 660, 665, 670, 700]
 
 const inputStyle: React.CSSProperties = {
@@ -56,7 +65,14 @@ const gridStyle: React.CSSProperties = {
   gap: 12,
 }
 
-export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurationFieldsProps) {
+function isConcluido(status?: string | null): boolean {
+  const normalized = String(status ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return normalized === 'concluido'
+}
+
+export function UfConfigurationFields({ data, onChange, readOnly, installationStatus }: UfConfigurationFieldsProps) {
+  const wifiEnabled = !readOnly && isConcluido(installationStatus)
+
   return (
     <div className="pf-section-card">
       <div className="pf-section-title">
@@ -120,6 +136,25 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
             </select>
           </label>
         </div>
+
+        <label className="pf-label" style={labelStyle}>
+          Status WiFi / Monitoramento
+          <select
+            value={data.wifi_status ?? ''}
+            onChange={(e) => onChange('wifi_status', e.target.value)}
+            disabled={!wifiEnabled}
+            style={inputStyle}
+          >
+            {WIFI_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {!wifiEnabled && (
+            <small style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)' }}>
+              Disponível após status de instalação em Projeto ficar Concluído.
+            </small>
+          )}
+        </label>
 
         <div style={gridStyle}>
           <label className="pf-label" style={labelStyle}>
