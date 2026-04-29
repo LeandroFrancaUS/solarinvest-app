@@ -2461,12 +2461,6 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
-  const [wifiStatus, setWifiStatus] = useState<string>(client.wifi_status ?? '')
-  const [wifiSaving, setWifiSaving] = useState(false)
-
-  const isInstalled = ['concluido', 'concluído'].includes(
-    (client.installation_status ?? '').toLowerCase()
-  )
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2478,6 +2472,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
+    wifi_status: client.wifi_status ?? '',
   })
 
   const resetUfData = () => setUfData({
@@ -2490,6 +2485,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
+    wifi_status: client.wifi_status ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
@@ -2508,6 +2504,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
         area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+        wifi_status: ufData.wifi_status || null,
         // Persist tipo_rede via energy profile upsert
         energyProfile: {
           tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
@@ -2524,6 +2521,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
         tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+        wifi_status: ufData.wifi_status || null,
       } as Partial<PortfolioClientRow>)
       // Best-effort sync: if a financial project exists for this client, also
       // write the usina data to project_pv_data so both views stay in sync.
@@ -2558,46 +2556,9 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleWifiChange(value: string) {
-    setWifiStatus(value)
-    setWifiSaving(true)
-    const normalized: PortfolioClientRow['wifi_status'] =
-      value === 'conectado' || value === 'desconectado' || value === 'falha' ? value : null
-    try {
-      await patchPortfolioUsina(client.id, { wifi_status: normalized })
-      onSaved({ wifi_status: normalized })
-    } finally {
-      setWifiSaving(false)
-    }
-  }
-
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} />
-      <div className="pf-section-card">
-        <div className="pf-section-title">
-          <span className="pf-icon">📡</span> WiFi / Monitoramento
-        </div>
-        <label className="pf-label">
-          Status WiFi / Monitoramento
-          <select
-            value={wifiStatus}
-            onChange={(e) => void handleWifiChange(e.target.value)}
-            disabled={!isInstalled || wifiSaving}
-            style={{ display: 'block', width: '100%', marginTop: 4 }}
-          >
-            <option value="">Selecione</option>
-            <option value="conectado">🟢 Conectado</option>
-            <option value="desconectado">🟡 Desconectado</option>
-            <option value="falha">🔴 Falha</option>
-          </select>
-          {!isInstalled && (
-            <span style={{ fontSize: 11, color: '#999', marginTop: 2, display: 'block' }}>
-              Disponível somente quando a instalação estiver concluída
-            </span>
-          )}
-        </label>
-      </div>
+      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} installationStatus={client.installation_status} />
     </div>
   )
 }
