@@ -172,6 +172,9 @@ export interface PortfolioClientRow {
   inicio_mensalidade_fixa?: string | null
   /** Whether the contractor is the holder (true) or SolarInvest is the holder (false) */
   is_contratante_titular?: boolean | null
+
+  // ── WiFi / monitoring ──
+  wifi_status?: 'conectado' | 'desconectado' | 'falha' | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client

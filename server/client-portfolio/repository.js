@@ -116,6 +116,7 @@ function enrichPortfolioClientRow(row) {
   row.area_instalacao_m2 = row.usina_area_instalacao_m2 ?? meta.area_instalacao_m2 ?? null
   row.geracao_estimada_kwh = row.usina_geracao_estimada_kwh ?? meta.geracao_estimada_kwh ?? null
   row.valordemercado = row.usina_valordemercado ?? null
+  row.wifi_status = row.wifi_status ?? row.usina_wifi_status ?? row.metadata?.wifi_status ?? null
 
   // Parse contract_attachments_json into an array — preserve null when absent
   const rawAttachments = row.contract_attachments_json
@@ -304,6 +305,7 @@ export async function getPortfolioClient(sql, clientId) {
       cu.area_instalacao_m2                  AS usina_area_instalacao_m2,
       cu.geracao_estimada_kwh                AS usina_geracao_estimada_kwh,
       cu.valordemercado                      AS usina_valordemercado,
+      cu.wifi_status,
 
       -- contract attachments (migration 0037 — optional)
       cc.contract_attachments_json
@@ -437,6 +439,7 @@ export async function getPortfolioClient(sql, clientId) {
       -- valordemercado replaced with NULL so this fallback query succeeds even when
       -- the column has not yet been added to client_usina_config
       NULL::numeric                          AS usina_valordemercado,
+      cu.wifi_status,
 
       -- contract attachments replaced with NULL so this fallback query succeeds even
       -- when migration 0037 (contract_attachments_json) has not been applied
