@@ -57,7 +57,7 @@ import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addM
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
-import { getClientPaymentStatus, type ClientPaymentStatus } from '../domain/billing/clientPaymentStatus'
+import { getClientPaymentStatusV2, type ClientPaymentStatusV2 } from '../domain/payments/clientPaymentStatusV2'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
@@ -456,16 +456,17 @@ function ClientCard({
   const clientName = client.name?.trim() || '—'
 
   // Get payment status for this client
-  const paymentStatusResult = getClientPaymentStatus(client)
+  const paymentStatusResult = getClientPaymentStatusV2(client)
   const paymentStatus = paymentStatusResult.status
 
   // Status badge styles
-  const statusStyles: Record<ClientPaymentStatus, { bg: string; fg: string; icon: string }> = {
-    inativo: { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
-    pendente: { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
-    pago: { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
-    vencido: { bg: '#fee2e2', fg: '#991b1b', icon: '⚠️' },
-    em_atraso: { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
+  const statusStyles: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
+    INATIVO: { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
+    PENDENTE: { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
+    PAGO: { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
+    VENCIDO: { bg: '#fee2e2', fg: '#991b1b', icon: '⚠️' },
+    ATRASADO: { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
+    PARCIALMENTE_PAGO: { bg: '#fef3c7', fg: '#92400e', icon: '⚠️' },
   }
 
   const statusStyle = statusStyles[paymentStatus]
@@ -545,14 +546,14 @@ function ClientCard({
                 lineHeight: 1.4,
               }}
               title={
-                paymentStatus === 'inativo'
+                paymentStatus === 'INATIVO'
                   ? 'Cobrança não ativa para este cliente'
-                  : paymentStatus === 'vencido' && paymentStatusResult.overdueCount
-                  ? `${paymentStatusResult.overdueCount} parcela(s) vencida(s)`
-                  : paymentStatus === 'em_atraso' && paymentStatusResult.overdueCount
-                  ? `${paymentStatusResult.overdueCount} parcela(s) em atraso (>30 dias)`
-                  : paymentStatus === 'pendente' && paymentStatusResult.unpaidCount
-                  ? `${paymentStatusResult.unpaidCount} parcela(s) pendente(s)`
+                  : paymentStatus === 'VENCIDO'
+                  ? 'Pagamento vencido (dentro do período de 5 dias)'
+                  : paymentStatus === 'ATRASADO'
+                  ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
+                  : paymentStatus === 'PARCIALMENTE_PAGO'
+                  ? 'Alguns meses pagos, outros em atraso'
                   : paymentStatusResult.label
               }
             >
