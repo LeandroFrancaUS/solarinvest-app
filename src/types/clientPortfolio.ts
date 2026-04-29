@@ -165,6 +165,22 @@ export interface PortfolioClientRow {
   // ── Leasing plan ──
   kwh_mes_contratado?: number | null
   valor_mensalidade?: number | null
+  /** Monthly payment amount — alternative field name for valor_mensalidade from external sources. */
+  monthly_payment?: number | string | null
+  /** Per-installment value for sale/buyout contracts (English field name variant). */
+  installment_value?: number | string | null
+  /** Per-installment value for sale/buyout contracts (Portuguese field name variant). */
+  valor_parcela?: number | string | null
+  /** Per-installment value for sale/buyout contracts (prestacao variant). */
+  valor_prestacao?: number | string | null
+  /** Total contract value used as fallback to derive installment amount. */
+  total_value?: number | string | null
+  /** Total number of installments for sale/buyout contracts (English variant). */
+  number_of_installments?: number | string | null
+  /** Total number of installments for sale/buyout contracts (parcelas variant). */
+  parcelas?: number | string | null
+  /** Total number of installments for sale/buyout contracts (count variant). */
+  installments_count?: number | string | null
 
   // ── Billing extensions ──
   commissioning_date_billing?: string | null

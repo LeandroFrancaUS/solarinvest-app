@@ -11,7 +11,7 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, InstallmentPayment } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
@@ -485,6 +485,102 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
 }
 
 /**
+ * Resolves installment progress for a portfolio client.
+ * Returns { value, current, total } where:
+ *   - value = amount for the current installment (BRL)
+ *   - current = 1-based installment number (first unpaid, or last if all paid)
+ *   - total = total number of installments
+ */
+function getInstallmentProgress(client: PortfolioClientRow): {
+  value: number | null
+  current: number | null
+  total: number | null
+} {
+  const toNum = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null
+    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+
+  // Parse installments_json (may be null, array, or JSON string)
+  let installments: InstallmentPayment[] | null = null
+  if (client.installments_json) {
+    if (Array.isArray(client.installments_json)) {
+      installments = client.installments_json
+    } else if (typeof client.installments_json === 'string') {
+      try {
+        const parsed = JSON.parse(client.installments_json)
+        if (Array.isArray(parsed)) installments = parsed
+      } catch {
+        // ignore malformed JSON
+      }
+    }
+  }
+
+  // Determine current installment number
+  let current: number | null = null
+  let valueOverride: number | null = null
+  if (installments && installments.length > 0) {
+    const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
+    const unpaid = installments.filter((i) => !isPaid(i.status))
+    if (unpaid.length > 0) {
+      const next = unpaid.reduce((min, i) => (i.number < min.number ? i : min), unpaid[0])
+      current = next.number
+      valueOverride = toNum(next.valor_override)
+    } else {
+      // All paid — use the last installment
+      const last = installments.reduce((max, i) => (i.number > max.number ? i : max), installments[0])
+      current = last.number
+      valueOverride = toNum(last.valor_override)
+    }
+  }
+
+  // Determine value
+  let value: number | null = valueOverride
+  if (value === null) {
+    if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
+      value =
+        toNum(client.installment_value) ??
+        toNum(client.valor_parcela) ??
+        toNum(client.valor_prestacao) ??
+        null
+    }
+    if (value === null) {
+      value =
+        toNum(client.mensalidade) ??
+        toNum(client.valor_mensalidade) ??
+        toNum(client.monthly_payment) ??
+        null
+    }
+  }
+
+  // Determine total
+  let total: number | null = null
+  if (installments && installments.length > 0) {
+    total = installments.length
+  } else if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
+    total =
+      toNum(client.number_of_installments) ??
+      toNum(client.parcelas) ??
+      toNum(client.installments_count) ??
+      null
+  } else {
+    total =
+      toNum(client.contractual_term_months) ??
+      toNum(client.term_months) ??
+      toNum(client.prazo_meses) ??
+      null
+  }
+
+  // Default current to 1 if we have a total/value but no current
+  if (current === null && (value !== null || total !== null)) {
+    current = 1
+  }
+
+  return { value, current, total }
+}
+
+/**
  * Central map of visual styles for each ClientPaymentStatusV2 value.
  * Single source of truth for badge bg/fg/icon in the portfolio card.
  */
@@ -515,12 +611,6 @@ function ClientCard({
   onDelete: () => void
 }) {
   const contractLabel = client.contract_type ? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type) : '—'
-  const remainingMonths = calcRemainingMonths(
-    client.contractual_term_months ?? client.term_months,
-    client.contract_start_date,
-    client.client_created_at,
-  )
-  const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
   const clientName = client.name?.trim() || '—'
 
   // Get payment status for this client
@@ -544,11 +634,16 @@ function ClientCard({
   const cityState = [client.city, client.state].filter(Boolean).join('/')
   const cityStateLabel = cityState || '—'
 
-  const tarifa = toFiniteNumber(client.tarifa_atual)
-  const tarifaLabel = tarifa != null ? formatMoneyBR(tarifa) : '—'
-
-  const potencia = toFiniteNumber(client.potencia_kwp ?? client.system_kwp)
-  const systemKwpLabel = potencia != null ? `${formatNumberBR(potencia)} kWp` : '—'
+  // Mensalidade / installment progress
+  const installmentProgress = getInstallmentProgress(client)
+  const mensalidadeLabel = (() => {
+    const { value, current, total } = installmentProgress
+    if (value === null && current === null && total === null) return '—'
+    const valorStr = value != null ? formatMoneyBR(value) : null
+    if (valorStr && current != null && total != null) return `${valorStr} (${current}/${total})`
+    if (valorStr) return valorStr
+    return '—'
+  })()
 
   // Vencimento — use next unpaid installment date when available, fall back to due_day
   const nextDueDate = getNextDueDate(client)
@@ -583,12 +678,7 @@ function ClientCard({
       {/* Col 2: Produto/Plano */}
       <div className="info-cell">
         <span className="info-label">Produto</span>
-        <span className="info-value">
-          {contractLabel}
-          {remainingLabel !== '—' && (
-            <span className="info-value-muted"> · {remainingLabel}</span>
-          )}
-        </span>
+        <span className="info-value">{contractLabel}</span>
       </div>
 
       {/* Col 3: Cidade/UF */}
@@ -603,25 +693,19 @@ function ClientCard({
         <span className="info-value">{kwhContratadoLabel}</span>
       </div>
 
-      {/* Col 5: Tarifa */}
+      {/* Col 5: Mensalidade */}
       <div className="info-cell">
-        <span className="info-label">Tarifa</span>
-        <span className="info-value">{tarifaLabel}</span>
+        <span className="info-label">Mensalidade</span>
+        <span className="info-value">{mensalidadeLabel}</span>
       </div>
 
-      {/* Col 6: Potência */}
-      <div className="info-cell">
-        <span className="info-label">Potência</span>
-        <span className="info-value">{systemKwpLabel}</span>
-      </div>
-
-      {/* Col 7: Vencimento */}
+      {/* Col 6: Vencimento */}
       <div className="info-cell">
         <span className="info-label">Vencimento</span>
         <span className="info-value">{dueDateLabel}</span>
       </div>
 
-      {/* Col 8: WiFi / monitoring badge */}
+      {/* Col 7: WiFi / monitoring badge */}
       <span
         className="wallet-wifi-badge"
         style={{
@@ -644,7 +728,7 @@ function ClientCard({
         <span>{wifiBadge.label}</span>
       </span>
 
-      {/* Col 9: Payment status badge */}
+      {/* Col 8: Payment status badge */}
       <span
         className="wallet-status-badge"
         style={{
@@ -677,7 +761,7 @@ function ClientCard({
         <span>{paymentStatusResult.label}</span>
       </span>
 
-      {/* Col 10: Actions */}
+      {/* Col 9: Actions */}
       <div className="wallet-card-actions">
         <button
           type="button"
