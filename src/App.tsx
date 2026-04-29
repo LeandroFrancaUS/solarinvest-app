@@ -3928,6 +3928,7 @@ export default function App() {
     role: userRole,
     isOffice,
     isFinanceiro,
+    isComercial,
     isLoading: isStackPermLoading,
     canSeeFinancialAnalysis,
     canSeeContracts,
