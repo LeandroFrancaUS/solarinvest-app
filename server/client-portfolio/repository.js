@@ -48,10 +48,20 @@ export async function listPortfolioClients(sql, { search } = {}) {
         cc.contract_start_date,
         cc.contract_type,
         cc.contract_status,
-        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status
+        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status,
+        COALESCE(ep.kwh_contratado, c.consumption_kwh_month)   AS kwh_contratado,
+        ep.tarifa_atual,
+        COALESCE(ep.potencia_kwp, c.system_kwp)                AS potencia_kwp,
+        ep.prazo_meses,
+        bp.due_day,
+        bp.first_billing_date,
+        bp.commissioning_date                                   AS commissioning_date_billing,
+        bp.installments_json
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       LEFT JOIN public.client_usina_config cu ON cu.client_id = c.id
+      LEFT JOIN public.client_energy_profile ep ON ep.client_id = c.id
+      LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
       ORDER BY c.id, cc.updated_at DESC NULLS LAST
@@ -86,10 +96,20 @@ export async function listPortfolioClients(sql, { search } = {}) {
         cc.contract_start_date,
         cc.contract_type,
         cc.contract_status,
-        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status
+        COALESCE(cu.wifi_status, c.metadata ->> 'wifi_status') AS wifi_status,
+        COALESCE(ep.kwh_contratado, c.consumption_kwh_month)   AS kwh_contratado,
+        ep.tarifa_atual,
+        COALESCE(ep.potencia_kwp, c.system_kwp)                AS potencia_kwp,
+        ep.prazo_meses,
+        bp.due_day,
+        bp.first_billing_date,
+        bp.commissioning_date                                   AS commissioning_date_billing,
+        bp.installments_json
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
       LEFT JOIN public.client_usina_config cu ON cu.client_id = c.id
+      LEFT JOIN public.client_energy_profile ep ON ep.client_id = c.id
+      LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
         AND (

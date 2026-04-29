@@ -497,6 +497,14 @@ const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: str
   PARCIALMENTE_PAGO: { bg: '#ede9fe', fg: '#5b21b6', icon: '🔵' },
 }
 
+const WIFI_BADGE_MAP: Record<string, { icon: string; label: string; color: string }> = {
+  conectado:    { icon: '🟢', label: 'Online',       color: '#166534' },
+  desconectado: { icon: '🟡', label: 'Desconectado', color: '#854d0e' },
+  falha:        { icon: '🔴', label: 'Falha',        color: '#991b1b' },
+}
+
+const WIFI_BADGE_DEFAULT = { icon: '⚪', label: 'Sem monitoramento', color: '#6b7280' }
+
 function ClientCard({
   client,
   onEdit,
@@ -520,28 +528,39 @@ function ClientCard({
   const paymentStatus = paymentStatusResult.status
   const statusStyle = PAYMENT_STATUS_STYLES[paymentStatus]
 
-  // Format new required fields
-  const kwhContratado = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
-  const kwhContratadoLabel = kwhContratado !== null && typeof kwhContratado === 'number'
-    ? `${formatNumberBR(kwhContratado)} kWh/mês`
-    : '—'
+  // Helper: coerce PostgreSQL numeric strings or JS numbers to finite number or null
+  const toFiniteNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null
+    const parsed = typeof value === 'number'
+      ? value
+      : Number(String(value).replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  // Consumo — prefer kwh_mes_contratado / kwh_contratado, fall back to raw consumption
+  const consumo = toFiniteNumber(client.kwh_mes_contratado ?? client.kwh_contratado ?? client.consumption_kwh_month)
+  const kwhContratadoLabel = consumo != null ? `${formatNumberBR(consumo)} kWh/mês` : '—'
 
   const cityState = [client.city, client.state].filter(Boolean).join('/')
   const cityStateLabel = cityState || '—'
 
-  const tarifaAtual = client.tarifa_atual ?? null
-  const tarifaLabel = tarifaAtual !== null && typeof tarifaAtual === 'number'
-    ? formatMoneyBR(tarifaAtual)
-    : '—'
+  const tarifa = toFiniteNumber(client.tarifa_atual)
+  const tarifaLabel = tarifa != null ? formatMoneyBR(tarifa) : '—'
 
-  const systemKwp = client.system_kwp ?? client.potencia_kwp ?? null
-  const systemKwpLabel = systemKwp !== null && typeof systemKwp === 'number'
-    ? `${formatNumberBR(systemKwp)} kWp`
-    : '—'
+  const potencia = toFiniteNumber(client.potencia_kwp ?? client.system_kwp)
+  const systemKwpLabel = potencia != null ? `${formatNumberBR(potencia)} kWp` : '—'
 
-  // Get next due date
+  // Vencimento — use next unpaid installment date when available, fall back to due_day
   const nextDueDate = getNextDueDate(client)
-  const dueDateLabel = nextDueDate ? nextDueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+  const dueDateLabel = nextDueDate
+    ? nextDueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : client.due_day
+    ? `Todo dia ${client.due_day}`
+    : '—'
+
+  // WiFi / monitoring badge
+  const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
+  const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
 
   const formattedDocument = formatCpfCnpj(client.document)
 
@@ -602,7 +621,30 @@ function ClientCard({
         <span className="info-value">{dueDateLabel}</span>
       </div>
 
-      {/* Col 8: Payment status badge */}
+      {/* Col 8: WiFi / monitoring badge */}
+      <span
+        className="wallet-wifi-badge"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 3,
+          padding: '2px 7px',
+          borderRadius: 8,
+          background: 'var(--surface-alt, #f3f4f6)',
+          color: wifiBadge.color,
+          fontSize: 10,
+          fontWeight: 600,
+          lineHeight: 1.4,
+          whiteSpace: 'nowrap',
+          alignSelf: 'center',
+        }}
+        title={`Status de monitoramento: ${wifiBadge.label}`}
+      >
+        <span aria-hidden="true">{wifiBadge.icon}</span>
+        <span>{wifiBadge.label}</span>
+      </span>
+
+      {/* Col 9: Payment status badge */}
       <span
         className="wallet-status-badge"
         style={{
@@ -635,7 +677,7 @@ function ClientCard({
         <span>{paymentStatusResult.label}</span>
       </span>
 
-      {/* Col 9: Actions */}
+      {/* Col 10: Actions */}
       <div className="wallet-card-actions">
         <button
           type="button"
