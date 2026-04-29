@@ -1276,6 +1276,7 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
     area_instalacao_m2 = null,
     geracao_estimada_kwh = null,
     valordemercado = null,
+    wifi_status = null,
   } = config ?? {}
 
   try {
@@ -1283,12 +1284,12 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
       INSERT INTO public.client_usina_config (
         client_id, potencia_modulo_wp, numero_modulos, modelo_modulo,
         modelo_inversor, tipo_instalacao, area_instalacao_m2, geracao_estimada_kwh,
-        valordemercado,
+        valordemercado, wifi_status,
         created_at, updated_at
       ) VALUES (
         ${clientId}, ${potencia_modulo_wp}, ${numero_modulos}, ${modelo_modulo},
         ${modelo_inversor}, ${tipo_instalacao}, ${area_instalacao_m2}, ${geracao_estimada_kwh},
-        ${valordemercado},
+        ${valordemercado}, ${wifi_status},
         now(), now()
       )
       ON CONFLICT (client_id) DO UPDATE SET
@@ -1300,6 +1301,7 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
         area_instalacao_m2   = COALESCE(EXCLUDED.area_instalacao_m2,   client_usina_config.area_instalacao_m2),
         geracao_estimada_kwh = COALESCE(EXCLUDED.geracao_estimada_kwh, client_usina_config.geracao_estimada_kwh),
         valordemercado       = COALESCE(EXCLUDED.valordemercado,       client_usina_config.valordemercado),
+        wifi_status          = COALESCE(EXCLUDED.wifi_status,          client_usina_config.wifi_status),
         updated_at           = now()
       RETURNING *
     `
@@ -1312,9 +1314,9 @@ export async function upsertClientUsinaConfig(sql, clientId, config) {
       console.warn('[clients][upsertUsinaConfig] client_usina_config table not found — skipping')
       return null
     }
-    // 42703 = undefined_column: valordemercado column not yet added — retry without it
-    if (code === '42703' && message.includes('valordemercado')) {
-      console.warn('[clients][upsertUsinaConfig] valordemercado column absent — retrying without it (run migration for valordemercado)')
+    // 42703 = undefined_column: valordemercado or wifi_status column not yet added — retry without it
+    if (code === '42703' && (message.includes('valordemercado') || message.includes('wifi_status'))) {
+      console.warn('[clients][upsertUsinaConfig] optional column absent — retrying without valordemercado/wifi_status (run migration)')
       const rows = await sql`
         INSERT INTO public.client_usina_config (
           client_id, potencia_modulo_wp, numero_modulos, modelo_modulo,
