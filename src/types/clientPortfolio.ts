@@ -165,6 +165,14 @@ export interface PortfolioClientRow {
   // ── Leasing plan ──
   kwh_mes_contratado?: number | null
   valor_mensalidade?: number | null
+  monthly_payment?: number | string | null
+  installment_value?: number | string | null
+  valor_parcela?: number | string | null
+  valor_prestacao?: number | string | null
+  total_value?: number | string | null
+  number_of_installments?: number | string | null
+  parcelas?: number | string | null
+  installments_count?: number | string | null
 
   // ── Billing extensions ──
   commissioning_date_billing?: string | null
