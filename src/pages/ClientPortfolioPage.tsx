@@ -2461,6 +2461,12 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
+  const [wifiStatus, setWifiStatus] = useState<string>(client.wifi_status ?? '')
+  const [wifiSaving, setWifiSaving] = useState(false)
+
+  const isInstalled = ['concluido', 'concluído'].includes(
+    (client.installation_status ?? '').toLowerCase()
+  )
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2552,9 +2558,46 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  async function handleWifiChange(value: string) {
+    setWifiStatus(value)
+    setWifiSaving(true)
+    const normalized: PortfolioClientRow['wifi_status'] =
+      value === 'conectado' || value === 'desconectado' || value === 'falha' ? value : null
+    try {
+      await patchPortfolioUsina(client.id, { wifi_status: normalized })
+      onSaved({ wifi_status: normalized })
+    } finally {
+      setWifiSaving(false)
+    }
+  }
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} />
+      <div className="pf-section-card">
+        <div className="pf-section-title">
+          <span className="pf-icon">📡</span> WiFi / Monitoramento
+        </div>
+        <label className="pf-label">
+          Status WiFi / Monitoramento
+          <select
+            value={wifiStatus}
+            onChange={(e) => void handleWifiChange(e.target.value)}
+            disabled={!isInstalled || wifiSaving}
+            style={{ display: 'block', width: '100%', marginTop: 4 }}
+          >
+            <option value="">Selecione</option>
+            <option value="conectado">🟢 Conectado</option>
+            <option value="desconectado">🟡 Desconectado</option>
+            <option value="falha">🔴 Falha</option>
+          </select>
+          {!isInstalled && (
+            <span style={{ fontSize: 11, color: '#999', marginTop: 2, display: 'block' }}>
+              Disponível somente quando a instalação estiver concluída
+            </span>
+          )}
+        </label>
+      </div>
     </div>
   )
 }
