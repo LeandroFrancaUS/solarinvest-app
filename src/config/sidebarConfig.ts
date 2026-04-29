@@ -17,6 +17,7 @@ export interface SidebarConfigParams {
   isAdmin: boolean
   // Handlers
   abrirDashboard: () => void
+  abrirClientesPainel: () => void
   abrirCarteira: () => void
   abrirGestaoFinanceira: () => void
   abrirDashboardOperacional: () => void
@@ -43,6 +44,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     canSeeFinancialAnalysisEffective,
     isAdmin,
     abrirDashboard,
+    abrirClientesPainel,
     abrirCarteira,
     abrirGestaoFinanceira,
     abrirDashboardOperacional,
@@ -72,6 +74,18 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
                       icon: '📊',
                       onSelect: () => {
                         void abrirDashboard()
+                      },
+                    },
+                  ]
+                : []),
+              ...(canSeeClientsEffective
+                ? [
+                    {
+                      id: 'leads-clientes',
+                      label: 'Leads',
+                      icon: '👥',
+                      onSelect: () => {
+                        void abrirClientesPainel()
                       },
                     },
                   ]

@@ -1057,6 +1057,111 @@ export async function findClientByNormalizedName(sql, name, ownerUserId) {
 }
 
 /**
+ * Find clients whose name is similar to the given name and who are in the same
+ * city.  Used as a server-side soft-match guard during bulk import to prevent
+ * duplicates from being created for clients that already exist in the database
+ * but do not share a CPF/CNPJ with the import row.
+ *
+ * Similarity is measured by normalising both names (lowercase, collapsed
+ * whitespace, diacritics stripped) and returning rows where the trigram
+ * similarity (pg_trgm) is above 0.55 OR the names are identical after
+ * normalisation.  Falls back to a plain normalised-name equality match when
+ * the pg_trgm extension is unavailable (PostgreSQL error code 42883).
+ *
+ * @param {Function} sql       - user-scoped sql handle
+ * @param {string}   name      - Raw client name to search for
+ * @param {string}   city      - City to scope the search (ILIKE, special chars escaped)
+ * @param {number}   [limit=5] - Maximum number of candidates to return
+ * @returns {Promise<object[]>} Array of matching client rows (may be empty)
+ */
+export async function findClientsBySimilarNameAndCity(sql, name, city, limit = 5) {
+  if (!name || !name.trim() || !city || !city.trim()) return []
+  const trimmedName = name.trim()
+  // Escape ILIKE special characters so literal '%', '_', and '\' in the city
+  // string are treated as literals, not wildcard/escape metacharacters.
+  const escapedCity = city.trim().replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+
+  // Try trigram similarity first (requires pg_trgm extension).
+  // Falls back to normalised-name equality + ILIKE city when pg_trgm is absent
+  // (PostgreSQL error code 42883 = undefined_function).
+  try {
+    const rows = await sql`
+      WITH candidates AS (
+        SELECT
+          *,
+          lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS name_norm
+        FROM clients
+        WHERE deleted_at IS NULL
+          AND merged_into_client_id IS NULL
+          AND client_city ILIKE ${`%${escapedCity}%`} ESCAPE '\'
+      ),
+      needle AS (
+        SELECT lower(regexp_replace(btrim(${trimmedName}), '\s+', ' ', 'g')) AS norm
+      )
+      SELECT c.*
+      FROM candidates c, needle n
+      WHERE c.name_norm = n.norm
+         OR similarity(c.name_norm, n.norm) > 0.55
+      ORDER BY
+        (c.name_norm = n.norm) DESC,
+        updated_at DESC NULLS LAST
+      LIMIT ${limit}
+    `
+    return rows
+  } catch (err) {
+    // PostgreSQL error code 42883 = undefined_function (pg_trgm not installed)
+    const code = err?.code ?? ''
+    const message = err instanceof Error ? err.message : String(err)
+    if (code === '42883' || message.includes('similarity') || message.includes('pg_trgm')) {
+      // Fallback: exact normalised-name match without trigram similarity
+      const rows = await sql`
+        WITH candidates AS (
+          SELECT
+            *,
+            lower(regexp_replace(btrim(client_name), '\s+', ' ', 'g')) AS name_norm
+          FROM clients
+          WHERE deleted_at IS NULL
+            AND merged_into_client_id IS NULL
+            AND client_city ILIKE ${`%${escapedCity}%`} ESCAPE '\'
+        ),
+        needle AS (
+          SELECT lower(regexp_replace(btrim(${trimmedName}), '\s+', ' ', 'g')) AS norm
+        )
+        SELECT c.*
+        FROM candidates c, needle n
+        WHERE c.name_norm = n.norm
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT ${limit}
+      `
+      return rows
+    }
+    throw err
+  }
+}
+
+/**
+ * Back-fill offline_origin_id on an existing client (only when the column is
+ * currently null).  Used by the name-dedup path so that subsequent auto-save
+ * retries from the same device are resolved by the faster offline_origin_id
+ * lookup instead of triggering the name-scan again.
+ *
+ * @param {Function} sql        - user-scoped sql handle
+ * @param {string|number} clientId
+ * @param {string}        offlineOriginId
+ * @returns {Promise<void>}
+ */
+export async function patchClientOfflineOriginId(sql, clientId, offlineOriginId) {
+  if (!clientId || !offlineOriginId) return
+  await sql`
+    UPDATE clients
+       SET offline_origin_id = ${offlineOriginId},
+           updated_at        = now()
+     WHERE id = ${clientId}
+       AND offline_origin_id IS NULL
+  `
+}
+
+/**
  * Upsert (insert or update) the energy profile for a client.
  * On conflict (client already has a profile), updates all non-null incoming fields.
  */

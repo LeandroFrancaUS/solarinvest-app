@@ -45,3 +45,5 @@ export const mapTipoBasicoToLabel = (value: string): string => {
   const match = TIPO_BASICO_OPTIONS.find((tipo) => tipo.value === value)
   return match ? match.label : 'Outros (texto)'
 }
+
+export const NOVOS_TIPOS_TUSD = TIPO_BASICO_OPTIONS

@@ -1,8 +1,14 @@
 import type { TipoBasicoCliente } from '../../types/tipoBasico'
+import { NOVOS_TIPOS_TUSD } from '../../types/tipoBasico'
 
 export type TipoClienteTUSD = TipoBasicoCliente
 
 export const DEFAULT_TUSD_ANO_REFERENCIA = 2026
+
+export const TUSD_TIPO_LABELS = NOVOS_TIPOS_TUSD.reduce(
+  (acc, { value, label }) => ({ ...acc, [value]: label }),
+  {} as Record<TipoClienteTUSD, string>,
+)
 
 export interface TUSDInput {
   ano: number
