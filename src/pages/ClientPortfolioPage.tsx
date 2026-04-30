@@ -36,8 +36,8 @@ import {
   addPortfolioNote,
   exportClientToPortfolio,
 } from '../services/clientPortfolioApi'
-import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract } from '../services/projectsApi'
-import { upsertClientByDocument } from '../lib/api/clientsApi'
+import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract, createStandaloneProject } from '../services/projectsApi'
+import { upsertClientByDocument, updateClientById, type ClientPickerRow } from '../lib/api/clientsApi'
 import {
   isValidCpfOrCnpj,
   isValidBrazilPhone,
@@ -68,6 +68,7 @@ import { ProposalOriginSearchDialog } from '../components/carteira/contrato/Prop
 import { createProposalOriginLink, validateProposalOriginLink } from '../lib/proposals/proposalOriginLink'
 import { findSavedProposalByExactCode, getSavedProposalRecord, openSavedProposalPreview } from '../services/proposalRecordsService'
 import { formatCpfCnpj } from '../lib/format/document'
+import { ExistingClientPicker } from '../components/clients/ExistingClientPicker'
 
 interface Props {
   onBack: () => void
@@ -223,6 +224,7 @@ interface ClientFormErrors {
   consumption_kwh_month?: string
   term_months?: string
   uc?: string
+  tipoProjeto?: string
 }
 
 interface AddClientFormData {
@@ -3123,6 +3125,12 @@ function AddClientModal({
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [cepLoading, setCepLoading] = useState(false)
   const [cepError, setCepError] = useState<string | null>(null)
+  // Tracks the server ID of a client selected from the existing-client picker.
+  // null = user is creating a brand-new client.
+  const [selectedExistingClientId, setSelectedExistingClientId] = useState<number | null>(null)
+  // tipoProjeto is required when an existing client is picked so we know what
+  // kind of project to create. For new clients it is also asked.
+  const [tipoProjeto, setTipoProjeto] = useState<'leasing' | 'venda' | null>(null)
   const [form, setForm] = useState<AddClientFormData>({
     name: '',
     document: '',
@@ -3191,6 +3199,9 @@ function AddClientModal({
 
   async function handleSave() {
     const errs = validateClientForm(form)
+    if (!tipoProjeto) {
+      errs.tipoProjeto = 'Selecione o tipo de projeto'
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
       setGlobalError('Preencha corretamente todos os campos obrigatórios antes de salvar.')
@@ -3199,23 +3210,59 @@ function AddClientModal({
     setSaving(true)
     setGlobalError(null)
     try {
-      const created = await upsertClientByDocument({
-        name: form.name.trim(),
-        document: form.document.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        cep: form.cep.trim(),
-        city: form.city.trim(),
-        state: form.state.trim(),
-        address: form.address.trim(),
-        distribuidora: form.distribuidora.trim(),
-        ...(form.uc.trim() && { uc: form.uc.trim() }),
-        consumption_kwh_month: Number(form.consumption_kwh_month),
-        term_months: Number(form.term_months),
-      })
-      const clientId = Number(created.id)
-      console.log('[clients][create] success', { clientId, name: form.name })
+      let clientId: number
+
+      if (selectedExistingClientId !== null) {
+        // ── Existing client path ─────────────────────────────────────────────
+        // Update client data with any changes made in the form, then ensure the
+        // client is in the portfolio and create a new standalone project.
+        await updateClientById(String(selectedExistingClientId), {
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          cep: form.cep.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          address: form.address.trim(),
+          distribuidora: form.distribuidora.trim(),
+          ...(form.uc.trim() ? { uc: form.uc.trim() } : {}),
+          consumption_kwh_month: !Number.isNaN(Number(form.consumption_kwh_month)) ? Number(form.consumption_kwh_month) : null,
+          term_months: !Number.isNaN(Number(form.term_months)) && Number(form.term_months) > 0 ? Number(form.term_months) : null,
+        })
+        clientId = selectedExistingClientId
+        console.log('[clients][update-existing] success', { clientId, name: form.name })
+      } else {
+        // ── New client path ──────────────────────────────────────────────────
+        const created = await upsertClientByDocument({
+          name: form.name.trim(),
+          document: form.document.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          cep: form.cep.trim(),
+          city: form.city.trim(),
+          state: form.state.trim(),
+          address: form.address.trim(),
+          distribuidora: form.distribuidora.trim(),
+          ...(form.uc.trim() && { uc: form.uc.trim() }),
+          consumption_kwh_month: Number(form.consumption_kwh_month),
+          term_months: Number(form.term_months),
+        })
+        clientId = Number(created.id)
+        console.log('[clients][create] success', { clientId, name: form.name })
+      }
+
       await exportClientToPortfolio(clientId)
+
+      if (tipoProjeto) {
+        try {
+          const { project } = await createStandaloneProject(clientId, tipoProjeto)
+          console.log('[clients][project-created] success', { projectId: project.id, clientId, tipoProjeto })
+        } catch (projectErr) {
+          console.warn('[clients][project-created] failed (non-fatal)', projectErr)
+          // Project creation failure is non-fatal — the client was saved successfully.
+        }
+      }
+
       onToast('Cliente adicionado à carteira com sucesso.', 'success')
       onCreated()
       onClose()
@@ -3265,6 +3312,47 @@ function AddClientModal({
             style={{ background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>
             ×
           </button>
+        </div>
+
+        {/* Existing-client picker ─────────────────────────────────────────── */}
+        <div className="pf-section-card" style={{ marginBottom: 14 }}>
+          <div className="pf-section-title"><span className="pf-icon">🔍</span> Cliente existente</div>
+          <p style={{ fontSize: 13, color: 'var(--text-muted, #94a3b8)', marginBottom: 12, marginTop: 0 }}>
+            Selecione um cliente já cadastrado para importar seus dados ou deixe em branco para cadastrar um novo.
+          </p>
+          <ExistingClientPicker
+            onSelect={(picked: ClientPickerRow | null) => {
+              if (picked) {
+                setSelectedExistingClientId(picked.id)
+                setForm((f) => ({
+                  ...f,
+                  name: picked.name ?? f.name,
+                  document: picked.document ?? f.document,
+                  phone: picked.phone ?? f.phone,
+                  email: picked.email ?? f.email,
+                  cep: picked.cep ?? f.cep,
+                  city: picked.city ?? f.city,
+                  state: picked.state ?? f.state,
+                  address: picked.address ?? f.address,
+                  distribuidora: picked.distribuidora ?? f.distribuidora,
+                  uc: picked.uc ?? f.uc,
+                  consumption_kwh_month: picked.consumption_kwh_month != null
+                    ? String(picked.consumption_kwh_month)
+                    : f.consumption_kwh_month,
+                }))
+                // Clear field-level validation errors after auto-fill.
+                setErrors({})
+                setGlobalError(null)
+              } else {
+                setSelectedExistingClientId(null)
+              }
+            }}
+          />
+          {selectedExistingClientId !== null && (
+            <p style={{ fontSize: 12, color: 'var(--ds-success, #22c55e)', marginTop: 6, marginBottom: 0 }}>
+              ✅ Cliente existente selecionado (ID {selectedExistingClientId}). Os dados foram importados — edite se necessário.
+            </p>
+          )}
         </div>
 
         <div className="pf-section-card" style={{ marginBottom: 14 }}>
@@ -3376,6 +3464,37 @@ function AddClientModal({
               {errors.term_months && <span style={errStyle}>{errors.term_months}</span>}
             </label>
           </div>
+        </div>
+
+        {/* Tipo de Projeto ─────────────────────────────────────────────────── */}
+        <div className="pf-section-card" style={{ marginBottom: 14 }}>
+          <div className="pf-section-title"><span className="pf-icon">📁</span> Tipo de Projeto *</div>
+          <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
+            {(['leasing', 'venda'] as const).map((tipo) => (
+              <label
+                key={tipo}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  cursor: 'pointer', fontSize: 14,
+                  fontWeight: tipoProjeto === tipo ? 700 : 400,
+                }}
+              >
+                <input
+                  type="radio"
+                  name="addclient-tipoProjeto"
+                  value={tipo}
+                  checked={tipoProjeto === tipo}
+                  onChange={() => {
+                    setTipoProjeto(tipo)
+                    setErrors(({ tipoProjeto: _t, ...rest }) => rest)
+                    setGlobalError(null)
+                  }}
+                />
+                {tipo === 'leasing' ? 'Leasing' : 'Venda Direta'}
+              </label>
+            ))}
+          </div>
+          {errors.tipoProjeto && <span style={{ ...{ color: 'var(--ds-danger)', fontSize: 11, marginTop: 4, display: 'block' } }}>{errors.tipoProjeto}</span>}
         </div>
 
         {globalError && (

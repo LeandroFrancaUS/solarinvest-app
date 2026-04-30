@@ -314,6 +314,9 @@ export interface ClientPickerRow {
   state: string | null
   address: string | null
   cep: string | null
+  distribuidora: string | null
+  uc: string | null
+  consumption_kwh_month: number | null
 }
 
 /**
@@ -334,6 +337,9 @@ export async function searchClientsForPicker(query: string): Promise<ClientPicke
     state: row.client_state ?? row.state ?? null,
     address: row.client_address ?? row.address ?? null,
     cep: row.client_cep ?? row.cep ?? null,
+    distribuidora: row.distribuidora ?? null,
+    uc: row.uc ?? null,
+    consumption_kwh_month: row.consumption_kwh_month ?? row.consumptionKwhMonth ?? null,
   }))
 }
 

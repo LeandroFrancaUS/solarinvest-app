@@ -12,6 +12,9 @@ import {
 } from './repository.js'
 import { buildNewProjectFields, isProjectType } from './planMapper.js'
 
+/** Prefix used for plan_id on standalone projects (no contract required). */
+export const STANDALONE_PLAN_PREFIX = 'standalone:'
+
 /**
  * Creates a project for the given plan snapshot, or returns the existing
  * project linked to the same plan_id (identified either explicitly or derived
@@ -118,7 +121,7 @@ export async function createStandaloneProject(sql, { clientId, projectType }, op
     throw err
   }
 
-  const planId = `standalone:${crypto.randomUUID()}`
+  const planId = `${STANDALONE_PLAN_PREFIX}${crypto.randomUUID()}`
 
   const textOrNull = (v) => {
     if (v == null) return null
