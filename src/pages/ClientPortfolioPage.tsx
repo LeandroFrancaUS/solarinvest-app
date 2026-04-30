@@ -45,7 +45,8 @@ import {
   isValidCep,
   isValidUc,
 } from '../lib/validation/clientReadiness'
-import { formatCurrencyBRL } from '../utils/formatters'
+import { formatCurrencyBRL, formatTelefone } from '../utils/formatters'
+import { formatWhatsappPhoneNumber } from '../utils/phoneUtils'
 import { formatNumberBR, formatMoneyBR } from '../lib/locale/br-number'
 import { getDistribuidorasFallback } from '../utils/distribuidorasAneel'
 import { lookupCep } from '../shared/cepLookup'
@@ -697,6 +698,13 @@ const WifiIcon = () => (
   </svg>
 )
 
+/** Phone SVG icon */
+const PhoneIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13" aria-hidden="true">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.29h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9a16 16 0 0 0 6.18 6.18l1.07-.94a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+  </svg>
+)
+
 /** Pencil SVG icon */
 const PencilIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
@@ -785,7 +793,10 @@ function ClientCard({
   const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
   const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
 
-  const formattedDocument = formatCpfCnpj(client.document)
+  const rawPhone = client.phone ?? ''
+  const formattedPhone = rawPhone ? formatTelefone(rawPhone) : null
+  const whatsappPhone = rawPhone ? formatWhatsappPhoneNumber(rawPhone) : null
+  const whatsappHref = whatsappPhone ? `https://api.whatsapp.com/send?phone=${whatsappPhone}` : null
 
   const paymentTitle =
     paymentStatus === 'SEM_COBRANCA'
@@ -800,7 +811,7 @@ function ClientCard({
 
   return (
     <div className="pf-client-card active-wallet-card">
-      {/* Col 1: Cliente — name + document */}
+      {/* Col 1: Cliente — name + phone */}
       <div className="client-cell">
         <button
           type="button"
@@ -811,7 +822,25 @@ function ClientCard({
         >
           <span className="pf-card-name">{clientName}</span>
         </button>
-        <span className="pf-card-doc">{formattedDocument}</span>
+        <span className="pf-card-doc pf-card-phone">
+          <PhoneIcon />
+          {formattedPhone && whatsappHref ? (
+            <a
+              className="pf-card-phone-link"
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Abrir conversa no WhatsApp"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {formattedPhone}
+            </a>
+          ) : formattedPhone ? (
+            <span>{formattedPhone}</span>
+          ) : (
+            <span className="pf-card-phone-empty">—</span>
+          )}
+        </span>
       </div>
 
       {/* Col 2: Modalidade */}
