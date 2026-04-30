@@ -284,11 +284,20 @@ export async function updateProjectStatus(sql, projectId, status, userId = null)
 /**
  * Paginated project listing with optional search (name / document / city)
  * and type/status filters. Ordered by updated_at DESC by default.
+ *
+ * Deduplication rules applied at the query level (no data is deleted):
+ *   1. Projects whose client has been merged (merged_into_client_id IS NOT NULL)
+ *      are excluded — the canonical client record takes precedence.
+ *   2. If multiple project rows share the same canonical key
+ *      (contract_id → proposal_id → plan_id), only the most recently
+ *      updated row is returned (ROW_NUMBER dedup). This covers cases where
+ *      duplicate project rows were created before the UNIQUE indexes existed.
  */
 export async function listProjects(sql, filters = {}) {
   const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200)
   const offset = Math.max(Number(filters.offset) || 0, 0)
 
+  // Conditions applied inside the raw CTE (before dedup).
   const conditions = ['p.deleted_at IS NULL']
   const params = []
 
@@ -315,9 +324,9 @@ export async function listProjects(sql, filters = {}) {
   // Whitelist ORDER BY via a static mapping — avoids ANY string
   // interpolation of caller-supplied values into the SQL text.
   const ORDER_BY_SQL = Object.freeze({
-    updated_at: 'p.updated_at',
-    created_at: 'p.created_at',
-    client_name: 'p.client_name_snapshot',
+    updated_at: 'updated_at',
+    created_at: 'created_at',
+    client_name: 'client_name_snapshot',
   })
   const orderCol = ORDER_BY_SQL[filters.order_by] ? filters.order_by : 'updated_at'
   const orderColSql = ORDER_BY_SQL[orderCol]
@@ -329,27 +338,78 @@ export async function listProjects(sql, filters = {}) {
   params.push(offset)
   const offsetIdx = params.length
 
+  // Two-stage CTE:
+  //   project_rows — raw projects joined to their canonical client record,
+  //                  ranked within each dedup bucket so the best row is rn=1.
+  //   deduped      — keeps only rn=1 rows, then paginates.
+  //
+  // Canonical dedup key: contract_id (most specific) → proposal_id →
+  // plan_id. Using COALESCE means two rows share a bucket only when they
+  // resolve to the same non-null value; if all three are NULL the rows are
+  // in separate buckets (each p.id is unique, so no dedup occurs).
   const queryText = `
+    WITH project_rows AS (
+      SELECT
+        p.id::text                 AS id,
+        p.client_id,
+        p.plan_id,
+        p.contract_id,
+        p.proposal_id::text        AS proposal_id,
+        p.project_type,
+        p.status,
+        p.client_name_snapshot,
+        p.cpf_cnpj_snapshot,
+        p.city_snapshot,
+        p.state_snapshot,
+        p.created_at,
+        p.updated_at,
+        p.created_by_user_id,
+        p.updated_by_user_id,
+        p.deleted_at,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(
+            p.contract_id::text,
+            p.proposal_id::text,
+            p.plan_id
+          )
+          ORDER BY
+            p.updated_at  DESC NULLS LAST,
+            p.created_at  DESC NULLS LAST,
+            p.id          DESC
+        ) AS rn
+      FROM projects p
+      -- Exclude projects belonging to merged client records.
+      -- Deleted clients are already excluded by the projects RLS policy,
+      -- but merged clients (deleted_at IS NULL, merged_into_client_id IS NOT NULL)
+      -- are not, so we filter them explicitly here.
+      JOIN clients c
+        ON  c.id                    = p.client_id
+        AND c.deleted_at            IS NULL
+        AND c.merged_into_client_id IS NULL
+      WHERE ${conditions.join(' AND ')}
+    ),
+    deduped AS (
+      SELECT * FROM project_rows WHERE rn = 1
+    )
     SELECT
-      p.id::text,
-      p.client_id,
-      p.plan_id,
-      p.contract_id,
-      p.proposal_id::text,
-      p.project_type,
-      p.status,
-      p.client_name_snapshot,
-      p.cpf_cnpj_snapshot,
-      p.city_snapshot,
-      p.state_snapshot,
-      p.created_at,
-      p.updated_at,
-      p.created_by_user_id,
-      p.updated_by_user_id,
-      p.deleted_at,
+      id,
+      client_id,
+      plan_id,
+      contract_id,
+      proposal_id,
+      project_type,
+      status,
+      client_name_snapshot,
+      cpf_cnpj_snapshot,
+      city_snapshot,
+      state_snapshot,
+      created_at,
+      updated_at,
+      created_by_user_id,
+      updated_by_user_id,
+      deleted_at,
       COUNT(*) OVER() AS total_count
-    FROM projects p
-    WHERE ${conditions.join(' AND ')}
+    FROM deduped
     ORDER BY ${orderSql}
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `
@@ -365,10 +425,35 @@ export async function listProjects(sql, filters = {}) {
 }
 
 export async function getProjectSummary(sql) {
+  // Mirrors the dedup logic in listProjects: count only the canonical
+  // (most-recently-updated) row per dedup bucket, excluding projects whose
+  // client has been merged into another record.
   const rows = await sql`
+    WITH project_rows AS (
+      SELECT
+        p.project_type,
+        p.status,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(
+            p.contract_id::text,
+            p.proposal_id::text,
+            p.plan_id
+          )
+          ORDER BY
+            p.updated_at  DESC NULLS LAST,
+            p.created_at  DESC NULLS LAST,
+            p.id          DESC
+        ) AS rn
+      FROM projects p
+      JOIN clients c
+        ON  c.id                    = p.client_id
+        AND c.deleted_at            IS NULL
+        AND c.merged_into_client_id IS NULL
+      WHERE p.deleted_at IS NULL
+    )
     SELECT project_type, status, COUNT(*)::int AS count
-    FROM projects
-    WHERE deleted_at IS NULL
+    FROM project_rows
+    WHERE rn = 1
     GROUP BY project_type, status
   `
 
