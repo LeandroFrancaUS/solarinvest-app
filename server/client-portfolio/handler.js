@@ -428,10 +428,19 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
       })
 
       const existing = await getBillingInstallmentsJson(sql, clientId)
-      // Preserve valor_override from any existing record when not explicitly provided
+      // Preserve valor_override and due_date fields from any existing record when not explicitly provided
       const existingRecord = existing.find((p) => p.number === payment.number)
       if (existingRecord?.valor_override != null && payment.valor_override === undefined) {
         payment.valor_override = existingRecord.valor_override
+      }
+      if (existingRecord?.due_date != null && payment.due_date === undefined) {
+        payment.due_date = existingRecord.due_date
+      }
+      if (existingRecord?.vencimento != null && payment.vencimento === undefined) {
+        payment.vencimento = existingRecord.vencimento
+      }
+      if (existingRecord?.data_vencimento != null && payment.data_vencimento === undefined) {
+        payment.data_vencimento = existingRecord.data_vencimento
       }
       const merged = existing.filter((p) => p.number !== payment.number)
       merged.push(payment)
@@ -467,6 +476,9 @@ export async function handlePortfolioBillingPatch(req, res, { method, clientId, 
         attachment_url: existingRecord?.attachment_url ?? null,
         confirmed_by: existingRecord?.confirmed_by ?? null,
         valor_override: iv.valor_override != null ? Number(iv.valor_override) : null,
+        due_date: existingRecord?.due_date ?? null,
+        vencimento: existingRecord?.vencimento ?? null,
+        data_vencimento: existingRecord?.data_vencimento ?? null,
       }
       const merged = existing.filter((p) => p.number !== iv.number)
       merged.push(updatedRecord)

@@ -25,7 +25,7 @@ export interface PortfolioClientRow {
    * Written at proposal creation. Middle priority in the chain:
    * contractual_term_months (client_contracts) > term_months > prazo_meses (energy_profile).
    */
-  term_months: number | null
+  term_months: number | string | null
   distribuidora: string | null
   uc: string | null
   uc_beneficiaria: string | null
@@ -57,7 +57,7 @@ export interface PortfolioClientRow {
    * @see term_months (from clients table) and contractual_term_months (from client_contracts).
    * Priority for display: contractual_term_months > term_months > prazo_meses.
    */
-  prazo_meses?: number | null
+  prazo_meses?: number | string | null
   kwh_contratado?: number | null
   /**
    * System power in kWp — sourced from `client_energy_profile.potencia_kwp` (satellite copy).
@@ -116,7 +116,7 @@ export interface PortfolioClientRow {
    * This is the highest-priority source for the effective contract term.
    * Priority chain: contractual_term_months > term_months (clients) > prazo_meses (energy_profile).
    */
-  contractual_term_months?: number | null
+  contractual_term_months?: number | string | null
   buyout_eligible?: boolean | null
   buyout_status?: string | null
   buyout_date?: string | null
@@ -136,7 +136,7 @@ export interface PortfolioClientRow {
   auto_reminder_enabled?: boolean | null
 
   // ── Installment-level payment tracking ──
-  installments_json?: InstallmentPayment[] | null
+  installments_json?: InstallmentPayment[] | string | null
 
   // ── Usina fotovoltaica (UF configuration) ──
   potencia_modulo_wp?: number | null
@@ -164,7 +164,7 @@ export interface PortfolioClientRow {
 
   // ── Leasing plan ──
   kwh_mes_contratado?: number | null
-  valor_mensalidade?: number | null
+  valor_mensalidade?: number | string | null
   /** Monthly payment amount — alternative field name for valor_mensalidade from external sources. */
   monthly_payment?: number | string | null
   /** Per-installment value for sale/buyout contracts (English field name variant). */
@@ -222,23 +222,27 @@ export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_
 
 /** Per-installment payment record stored in client_billing_profile.installments_json */
 export interface InstallmentPayment {
-  number: number
-  status: 'pendente' | 'pago' | 'confirmado'
-  paid_at: string | null
-  receipt_number: string | null
-  transaction_number: string | null
-  attachment_url: string | null
-  confirmed_by: string | null
+  number?: number
+  status?: string | null
+  paid_at?: string | null
+  receipt_number?: string | null
+  transaction_number?: string | null
+  attachment_url?: string | null
+  confirmed_by?: string | null
   /** Per-installment value override in BRL. When set, overrides the global valor_mensalidade for this installment. */
-  valor_override?: number | null
+  valor_override?: number | string | null
   /** Per-installment value in BRL (fallback after valor_override). */
-  valor?: number | null
+  valor?: number | string | null
   /** Per-installment amount in BRL (fallback after valor). */
-  amount?: number | null
+  amount?: number | string | null
+  /** Per-installment value in BRL (English variant, fallback). */
+  value?: number | string | null
   /** ISO due date string for this installment (e.g. "2026-04-10"). */
   due_date?: string | null
   /** Alternative due date field name used by some data sources. */
   vencimento?: string | null
+  /** Alternative due date field name (Portuguese data_vencimento variant). */
+  data_vencimento?: string | null
 }
 
 /** Single contract attachment record stored inside contract_attachments_json */
@@ -389,5 +393,10 @@ export function resolveSystemKwp(row: Pick<PortfolioClientRow, 'system_kwp' | 'p
  * Returns null when none of the sources has a value.
  */
 export function resolveTermMonths(row: Pick<PortfolioClientRow, 'contractual_term_months' | 'term_months' | 'prazo_meses'>): number | null {
-  return row.contractual_term_months ?? row.term_months ?? row.prazo_meses ?? null
+  const toNum = (v: number | string | null | undefined): number | null => {
+    if (v == null || v === '') return null
+    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+  return toNum(row.contractual_term_months) ?? toNum(row.term_months) ?? toNum(row.prazo_meses) ?? null
 }
