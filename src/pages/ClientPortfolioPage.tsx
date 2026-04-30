@@ -806,7 +806,7 @@ function ClientCard({
           title="Editar"
           aria-label="Editar cliente"
         >
-          ✏️
+          <span aria-hidden="true">✏️</span>
         </button>
         <button
           type="button"
@@ -815,7 +815,7 @@ function ClientCard({
           title="Excluir"
           aria-label="Excluir cliente"
         >
-          🗑️
+          <span aria-hidden="true">🗑️</span>
         </button>
       </div>
     </div>
