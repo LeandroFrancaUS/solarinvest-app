@@ -53,7 +53,7 @@ import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfol
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { FaturasTab } from '../components/portfolio/FaturasTab'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2, resolveFirstBillingDate } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
@@ -1111,7 +1111,7 @@ function EditarTab({
           </label>
           <label className="pf-label" style={labelStyle}>
             Documento (CPF/CNPJ)
-            <input type="text" value={form.client_document} onChange={(e) => setForm((f) => ({ ...f, client_document: e.target.value }))} disabled={!editMode} style={inputStyle} />
+            <input type="text" value={!editMode ? formatCpfCnpj(form.client_document) : form.client_document} onChange={(e) => setForm((f) => ({ ...f, client_document: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
@@ -2023,6 +2023,9 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     is_contratante_titular: client.is_contratante_titular != null ? client.is_contratante_titular : true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
+    // Manual override for the first billing date. When set, takes precedence
+    // over the automatic calculation based on commissioning date + reading day.
+    first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
   })
 
   const resetForm = () => setForm({
@@ -2032,6 +2035,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     is_contratante_titular: client.is_contratante_titular != null ? client.is_contratante_titular : true,
     commissioning_date_billing: client.commissioning_date_billing?.slice(0, 10) ?? client.commissioning_date?.slice(0, 10) ?? '',
     valor_mensalidade: client.valor_mensalidade != null ? String(client.valor_mensalidade) : '',
+    first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
   })
 
   // Auto-calculated monthly fee using the available engine.
@@ -2101,32 +2105,37 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // Falls back to commissioning_date_billing so that the table is visible
   // even when reading_day / commissioning_date are not yet set.
   const termMonths = Number(client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0)
-  const installments = useMemo(() => {
-    if (!termMonths || !form.due_day) return []
 
-    // Determine start date: billingDatesV2 (dataPrimeiraCobranca) is the
-    // authoritative first-billing date shown in the "Datas de Cobrança" block,
-    // so use it first so that installment #1 aligns with that displayed date.
-    // Fall back to the legacy engine result, then the raw commissioning date.
-    let inicio: string | Date | null = null
-    if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
-      inicio = billingDatesV2.dataPrimeiraCobranca
-    } else if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
-      inicio = engineResult.inicio_da_mensalidade
-    } else if (form.commissioning_date_billing) {
-      inicio = form.commissioning_date_billing
+  // Resolved first billing date: manual override (form.first_billing_date) takes
+  // precedence; falls back to the automatic calculation from commissioning/reading/due data.
+  // Uses the resolveFirstBillingDate helper for the manual → billingDates resolution,
+  // then falls back to the legacy engine result as a last resort.
+  const resolvedFirstBillingDate = useMemo(() => {
+    const fromHelper = resolveFirstBillingDate({
+      manualFirstBillingDate: form.first_billing_date || null,
+      commissioningDate: form.commissioning_date_billing || null,
+      readingDay: form.reading_day !== '' ? Number(form.reading_day) : null,
+      dueDay: form.due_day !== '' ? Number(form.due_day) : null,
+      valorMensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+    })
+    if (fromHelper) return fromHelper
+    if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
+      return engineResult.inicio_da_mensalidade
     }
+    return null
+  }, [form.first_billing_date, form.commissioning_date_billing, form.reading_day, form.due_day, form.valor_mensalidade, engineResult])
 
-    if (!inicio) return []
+  const installments = useMemo(() => {
+    if (!termMonths || !form.due_day || !resolvedFirstBillingDate) return []
 
     return generateInstallments({
-      inicio_mensalidade: inicio,
+      inicio_mensalidade: resolvedFirstBillingDate,
       prazo: termMonths,
       dia_vencimento: Number(form.due_day),
       // Allow valor = 0 so the table renders before the amount is configured
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
-  }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
+  }, [resolvedFirstBillingDate, termMonths, form.due_day, form.valor_mensalidade])
 
   // "Último Vencimento Previsto" = due date of the last generated installment
   const ultimoVencimentoPrevisto = useMemo(() => {
@@ -2154,30 +2163,65 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       const expectedLast = ultimoVencimentoPrevisto
         ? ultimoVencimentoPrevisto.toISOString().slice(0, 10)
         : null
+
+      // Resolve the first billing date to persist:
+      // - manual override from form takes precedence
+      // - falls back to the auto-calculated date from billingDatesV2
+      const resolvedDateStr: string | null = resolvedFirstBillingDate
+        ? resolvedFirstBillingDate.toISOString().slice(0, 10)
+        : null
+
+      // Build merged installments_json: fresh due-dates merged with
+      // existing payment records (status, valor_override, pago_em, etc.)
+      let installmentsJsonPayload: InstallmentPayment[] | undefined
+      if (installments.length > 0) {
+        const existingPayments = parseInstallmentsJson(client.installments_json)
+        const existingByNumber = new Map<number, InstallmentPayment>(
+          existingPayments
+            .filter((p): p is InstallmentPayment & { number: number } => p.number != null)
+            .map((p) => [p.number, p]),
+        )
+        installmentsJsonPayload = installments.map((inst) => {
+          const existing = existingByNumber.get(inst.numero)
+          return {
+            number: inst.numero,
+            due_date: inst.data_vencimento.toISOString().slice(0, 10),
+            valor: inst.valor,
+            // Preserve payment data from existing record by installment number
+            status: existing?.status ?? 'pendente',
+            paid_at: existing?.paid_at ?? null,
+            receipt_number: existing?.receipt_number ?? null,
+            transaction_number: existing?.transaction_number ?? null,
+            attachment_url: existing?.attachment_url ?? null,
+            confirmed_by: existing?.confirmed_by ?? null,
+            valor_override: existing?.valor_override ?? null,
+          } satisfies InstallmentPayment
+        })
+      }
+
       await patchPortfolioBilling(client.id, {
         ...form,
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
-        first_billing_date: billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca
-          ? billingDatesV2.dataPrimeiraCobranca.toISOString().slice(0, 10)
-          : null,
+        // Persist the resolved first billing date (manual or auto-calculated)
+        first_billing_date: resolvedDateStr,
         recurrence_type: 'monthly',
         expected_last_billing_date: expectedLast,
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+        ...(installmentsJsonPayload !== undefined ? { installments_json: installmentsJsonPayload } : {}),
       })
       onSaved({
         due_day: form.due_day !== '' ? Number(form.due_day) : null,
         reading_day: form.reading_day !== '' ? Number(form.reading_day) : null,
-        first_billing_date: billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca
-          ? billingDatesV2.dataPrimeiraCobranca.toISOString().slice(0, 10)
-          : null,
+        first_billing_date: resolvedDateStr,
         expected_last_billing_date: expectedLast,
         recurrence_type: 'monthly',
         auto_reminder_enabled: form.auto_reminder_enabled,
         is_contratante_titular: form.is_contratante_titular,
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+        ...(installmentsJsonPayload !== undefined ? { installments_json: installmentsJsonPayload } : {}),
       } as Partial<PortfolioClientRow>)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
@@ -2277,10 +2321,10 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       {/* Automatic billing dates (pure module) */}
       <div className="pf-section-card">
         <div className="pf-section-title"><span className="pf-icon">📅</span> Datas de Cobrança</div>
-        {billingDatesV2.status === 'NA' && (
+        {billingDatesV2.status === 'NA' && !resolvedFirstBillingDate && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>N/A</div>
         )}
-        {billingDatesV2.status === 'AGUARDANDO' && (
+        {billingDatesV2.status === 'AGUARDANDO' && !resolvedFirstBillingDate && (
           <div>
             <span
               style={{
@@ -2302,18 +2346,43 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
             )}
           </div>
         )}
-        {billingDatesV2.status === 'OK' && (
+        {(billingDatesV2.status === 'OK' || resolvedFirstBillingDate) && (
           <div style={{ display: 'grid', gap: 6 }}>
             <div className="pf-info-row">
               <span className="pf-info-label">Data da primeira cobrança:</span>
-              <span className="pf-info-value">
-                {billingDatesV2.dataPrimeiraCobranca?.toLocaleDateString('pt-BR')}
-              </span>
+              {editMode ? (
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <input
+                    type="date"
+                    value={form.first_billing_date}
+                    onChange={(e) => setForm((f) => ({ ...f, first_billing_date: e.target.value }))}
+                    style={{ ...inputStyle, width: 'auto', marginTop: 0 }}
+                    title="Edite para sobrepor o cálculo automático. Deixe em branco para usar a data calculada pelo comissionamento."
+                  />
+                  {form.first_billing_date && billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca && (
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                      Automático: {billingDatesV2.dataPrimeiraCobranca.toLocaleDateString('pt-BR')}
+                      {' '}
+                      <button
+                        type="button"
+                        style={{ fontSize: 10, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        onClick={() => setForm((f) => ({ ...f, first_billing_date: '' }))}
+                      >
+                        Usar automático
+                      </button>
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="pf-info-value">
+                  {resolvedFirstBillingDate?.toLocaleDateString('pt-BR') ?? '—'}
+                </span>
+              )}
             </div>
             <div className="pf-info-row">
               <span className="pf-info-label">Vencimento recorrente mensal:</span>
               <span className="pf-info-value">
-                {`Todo dia ${billingDatesV2.vencimentoRecorrenteMensal}`}
+                {form.due_day ? `Todo dia ${form.due_day}` : '—'}
               </span>
             </div>
             <div className="pf-info-row">
@@ -2342,7 +2411,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       {/* Installments with payment management */}
       {(() => {
         const termMonths = Number(client.contractual_term_months ?? client.term_months ?? 0)
-        const hasStartDate = !!(billingDatesV2.dataPrimeiraCobranca || engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
+        const hasStartDate = !!(resolvedFirstBillingDate || billingDatesV2.dataPrimeiraCobranca || engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
           return (
@@ -3748,6 +3817,10 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [sortBy, setSortBy] = useState<'due_date' | 'created_at' | 'name' | 'city'>('due_date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
+  type WalletSortKey = 'client' | 'modalidade' | 'city' | 'consumption' | 'monthly' | 'due' | 'status'
+  type WalletSortDirection = 'asc' | 'desc'
+  const [walletSortState, setWalletSortState] = useState<{ key: WalletSortKey; direction: WalletSortDirection } | null>(null)
+
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const q = e.target.value
@@ -3806,6 +3879,65 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    // Helper: numeric value for wallet consumption sort
+    const toFiniteNum = (v: unknown): number => {
+      if (v === null || v === undefined || v === '') return -Infinity
+      const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+      return Number.isFinite(n) ? n : -Infinity
+    }
+
+    // Severity scores for wallet status sort (lower = worse, sorts first on asc)
+    const wifiSeverity = (c: PortfolioClientRow): number => {
+      const ws = c.wifi_status ?? (c.metadata?.wifi_status as string | null | undefined) ?? null
+      if (ws === 'falha') return 0
+      if (ws === 'desconectado') return 1
+      if (!ws) return 2
+      return 3 // conectado
+    }
+    const paymentSeverity = (s: ClientPaymentStatusV2): number => {
+      if (s === 'ATRASADO') return 0
+      if (s === 'VENCIDO' || s === 'PARCIALMENTE_PAGO') return 1
+      if (s === 'SEM_COBRANCA') return 2
+      return 3 // PAGO
+    }
+
+    // When walletSortState is active, use it; otherwise fall back to toolbar sort
+    if (walletSortState !== null) {
+      const { key, direction } = walletSortState
+      const dir = direction === 'asc' ? 1 : -1
+      return [...clients].sort((a, b) => {
+        let cmp = 0
+        if (key === 'client') {
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR', { sensitivity: 'base' })
+        } else if (key === 'modalidade') {
+          const mLabel = (c: PortfolioClientRow) =>
+            c.contract_type === 'leasing' ? 'Leasing' : c.contract_type ? 'Venda' : ''
+          cmp = mLabel(a).localeCompare(mLabel(b), 'pt-BR')
+        } else if (key === 'city') {
+          const cityA = [a.city, a.state].filter(Boolean).join('/')
+          const cityB = [b.city, b.state].filter(Boolean).join('/')
+          cmp = cityA.localeCompare(cityB, 'pt-BR', { sensitivity: 'base' })
+        } else if (key === 'consumption') {
+          const va = toFiniteNum(a.kwh_mes_contratado ?? a.kwh_contratado ?? a.consumption_kwh_month)
+          const vb = toFiniteNum(b.kwh_mes_contratado ?? b.kwh_contratado ?? b.consumption_kwh_month)
+          cmp = va - vb
+        } else if (key === 'monthly') {
+          const va = getInstallmentProgress(a).value ?? -Infinity
+          const vb = getInstallmentProgress(b).value ?? -Infinity
+          cmp = va - vb
+        } else if (key === 'due') {
+          const da = a.due_day != null ? Number(a.due_day) : Infinity
+          const db = b.due_day != null ? Number(b.due_day) : Infinity
+          cmp = da - db
+        } else if (key === 'status') {
+          const sa = Math.min(wifiSeverity(a), paymentSeverity(getClientPaymentStatusV2(a).status))
+          const sb = Math.min(wifiSeverity(b), paymentSeverity(getClientPaymentStatusV2(b).status))
+          cmp = sa - sb
+        }
+        return cmp * dir
+      })
+    }
+
     const sorted = [...clients].sort((a, b) => {
       let compareResult = 0
       if (sortBy === 'due_date') {
@@ -3849,7 +3981,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       return sortDir === 'asc' ? compareResult : -compareResult
     })
     return sorted
-  }, [clients, sortBy, sortDir])
+  }, [clients, sortBy, sortDir, walletSortState])
 
   const toggleSort = useCallback((field: 'due_date' | 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
@@ -3859,6 +3991,14 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       setSortDir(field === 'created_at' ? 'desc' : 'asc')
     }
   }, [sortBy, sortDir])
+
+  const toggleWalletSort = useCallback((key: WalletSortKey) => {
+    setWalletSortState((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' }
+      if (prev.direction === 'asc') return { key, direction: 'desc' }
+      return null
+    })
+  }, [])
 
   // Compute billing alerts from all clients for the dashboard widget.
   // Skip clients whose Cobrança tab would be disabled (sale/buyout, inactive
@@ -4116,13 +4256,62 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {/* Column headers — aligned to grid columns */}
               <div className="active-wallet-card wallet-col-headers" role="row">
-                <span className="wallet-col-header" role="columnheader">Cliente</span>
-                <span className="wallet-col-header" role="columnheader">Modalidade</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Cidade/UF</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Consumo (kWh/mês)</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Mensalidade (R$)</span>
-                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Vencimento</span>
-                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Status</span>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'client' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Cliente${walletSortState?.key === 'client' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('client')}
+                >Cliente</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'modalidade' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Modalidade${walletSortState?.key === 'modalidade' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('modalidade')}
+                >Modalidade</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'city' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Cidade/UF${walletSortState?.key === 'city' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('city')}
+                >Cidade/UF</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'consumption' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Consumo${walletSortState?.key === 'consumption' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('consumption')}
+                >Consumo (kWh/mês)</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'monthly' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Mensalidade${walletSortState?.key === 'monthly' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('monthly')}
+                >Mensalidade (R$)</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-center wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'due' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Vencimento${walletSortState?.key === 'due' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('due')}
+                >Vencimento</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-center wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'status' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Status${walletSortState?.key === 'status' ? (walletSortState.direction === 'asc' ? ' (crítico→ok)' : ' (ok→crítico)') : ''}`}
+                  onClick={() => toggleWalletSort('status')}
+                >Status</button>
                 <span className="wallet-col-header wallet-col-header-center" role="columnheader">Ações</span>
               </div>
               {sortedClients.map((c) => (

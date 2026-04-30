@@ -11,6 +11,14 @@
  *
  * Two explicit code paths to avoid the broken nested-sql-in-boolean pattern that
  * causes "invalid input syntax for type boolean: {}" on Neon serverless.
+ *
+ * DEDUPLICATION: client_contracts is 1:N (a client may have multiple contracts).
+ * LEFT JOINing it without deduplication causes one row per contract, making
+ * clients appear multiple times in the list (JOIN explosion).
+ * DISTINCT ON (c.id) guarantees exactly one row per client.
+ * ORDER BY c.id, cc.updated_at DESC NULLS LAST, cc.id DESC NULLS LAST ensures
+ * we pick the most recently updated contract; cc.id is the tiebreaker for
+ * deterministic results when two contracts share the same updated_at timestamp.
  */
 export async function listPortfolioClients(sql, { search } = {}) {
   const searchTerm = (typeof search === 'string' && search.trim()) ? search.trim() : null
@@ -65,7 +73,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
       LEFT JOIN public.client_billing_profile bp ON bp.client_id = c.id
       WHERE c.in_portfolio = true
         AND c.deleted_at IS NULL
-      ORDER BY c.id, cc.updated_at DESC NULLS LAST
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST, cc.id DESC NULLS LAST
     `
   } else {
     const like = `%${searchTerm}%`
@@ -123,7 +131,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
           OR c.uc_geradora    ILIKE ${like}
           OR c.uc_beneficiaria ILIKE ${like}
         )
-      ORDER BY c.id, cc.updated_at DESC NULLS LAST
+      ORDER BY c.id, cc.updated_at DESC NULLS LAST, cc.id DESC NULLS LAST
     `
   }
 
@@ -352,7 +360,7 @@ export async function getPortfolioClient(sql, clientId) {
     WHERE c.id = ${clientId}
       AND c.in_portfolio = true
       AND c.deleted_at IS NULL
-    ORDER BY cc.updated_at DESC NULLS LAST
+    ORDER BY cc.updated_at DESC NULLS LAST, cc.id DESC NULLS LAST
     LIMIT 1
   `
 
@@ -485,7 +493,7 @@ export async function getPortfolioClient(sql, clientId) {
     WHERE c.id = ${clientId}
       AND c.in_portfolio = true
       AND c.deleted_at IS NULL
-    ORDER BY cc.updated_at DESC NULLS LAST
+    ORDER BY cc.updated_at DESC NULLS LAST, cc.id DESC NULLS LAST
     LIMIT 1
   `
 
