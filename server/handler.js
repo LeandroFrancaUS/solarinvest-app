@@ -115,7 +115,7 @@ import {
   handleFinancialCategories,
   handleFinancialDashboardFeed,
 } from './financial-management/handler.js'
-import { handleRevenueClients } from './revenue-billing/handler.js'
+import { handleRevenueClients, handleRevenueProjects } from './revenue-billing/handler.js'
 import {
   handleProjectsList,
   handleProjectsSummary,
@@ -1490,6 +1490,14 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleRevenueClients(req, res, { method, sendJson: sj, requestUrl })
+      return
+    }
+
+    // GET /api/revenue-billing/projects
+    if (pathname === '/api/revenue-billing/projects') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleRevenueProjects(req, res, { method, sendJson: sj, requestUrl })
       return
     }
 

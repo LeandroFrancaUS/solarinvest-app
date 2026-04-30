@@ -1,11 +1,11 @@
 // server/revenue-billing/handler.js
-// Handles GET /api/revenue-billing/clients.
+// Handles GET /api/revenue-billing/clients and GET /api/revenue-billing/projects.
 // RBAC: requires page_financial_management permission or role_admin.
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
-import { listRevenueClients } from './repository.js'
+import { listRevenueClients, listRevenueProjects } from './repository.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Access helpers
@@ -86,6 +86,49 @@ export async function handleRevenueClients(req, res, { method, sendJson, request
     const message = err instanceof Error ? err.message : String(err)
     const statusCode = err?.statusCode ?? 500
     console.error('[revenue-billing][clients] error', { message })
+    sendJson(statusCode, { error: { code: 'INTERNAL_ERROR', message } })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/revenue-billing/projects
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns one row per active project whose client is activated.
+ * The query is rooted in the projects table — never in clients — so the
+ * result represents projects, not a client list.
+ *
+ * Query params: same as /api/revenue-billing/clients
+ *   search, contract_type, order_by, order_dir, limit, offset
+ */
+export async function handleRevenueProjects(req, res, { method, sendJson, requestUrl }) {
+  const actor = await resolveActor(req)
+  if (!requireAccess(actor, sendJson)) return
+
+  if (method !== 'GET') {
+    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+    return
+  }
+
+  const qs = requestUrl.searchParams
+  const filters = {
+    search:        qs.get('search')        ?? undefined,
+    contract_type: qs.get('contract_type') ?? undefined,
+    order_by:      qs.get('order_by')      ?? undefined,
+    order_dir:     qs.get('order_dir')     ?? undefined,
+    limit:         qs.get('limit')         ?? undefined,
+    offset:        qs.get('offset')        ?? undefined,
+  }
+
+  try {
+    const scopedSql = await getScopedSql(actor)
+    const result = await listRevenueProjects(scopedSql, filters)
+    sendJson(200, result)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    const statusCode = err?.statusCode ?? 500
+    console.error('[revenue-billing][projects] error', { message })
     sendJson(statusCode, { error: { code: 'INTERNAL_ERROR', message } })
   }
 }
