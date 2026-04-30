@@ -504,11 +504,12 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
   buyout: 'Buy Out',
 }
 
-/** Simplified label for the "Modalidade" column — shows only Leasing or Venda. */
+/** Simplified label for the "Modalidade" column — shows only Leasing or Venda.
+ *  buyout is treated as Venda in this view since it is a purchase variant. */
 const CARD_MODALITY_LABELS: Record<string, string> = {
   leasing: 'Leasing',
   sale: 'Venda',
-  buyout: 'Venda',
+  buyout: 'Venda', // buy-out is a purchase/sale variant — displayed as "Venda"
 }
 
 /**
@@ -663,14 +664,19 @@ const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: str
   PARCIALMENTE_PAGO: { bg: 'transparent',  fg: '#6366f1', icon: '🔵', borderColor: '#4f46e5' },
 }
 
+/** Shared circle SVG used for most payment statuses */
+const _PaymentCircle = () => (
+  <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>
+)
+
 /** Payment icon-only squares — circle dot in status colour */
 const PAYMENT_STATUS_ICON: Record<ClientPaymentStatusV2, React.ReactElement> = {
-  SEM_COBRANCA:      <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>,
-  PENDENTE:          <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>,
+  SEM_COBRANCA:      <_PaymentCircle />,
+  PENDENTE:          <_PaymentCircle />,
   PAGO:              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>,
-  VENCIDO:           <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>,
-  ATRASADO:          <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>,
-  PARCIALMENTE_PAGO: <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>,
+  VENCIDO:           <_PaymentCircle />,
+  ATRASADO:          <_PaymentCircle />,
+  PARCIALMENTE_PAGO: <_PaymentCircle />,
 }
 
 const WIFI_BADGE_MAP: Record<string, { label: string; color: string; borderColor: string }> = {
