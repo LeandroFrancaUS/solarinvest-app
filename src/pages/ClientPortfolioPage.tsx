@@ -2038,12 +2038,15 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   const installments = useMemo(() => {
     if (!termMonths || !form.due_day) return []
 
-    // Determine start date: prefer the engine result, then commissioning date
+    // Determine start date: billingDatesV2 (dataPrimeiraCobranca) is the
+    // authoritative first-billing date shown in the "Datas de Cobrança" block,
+    // so use it first so that installment #1 aligns with that displayed date.
+    // Fall back to the legacy engine result, then the raw commissioning date.
     let inicio: string | Date | null = null
-    if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
-      inicio = engineResult.inicio_da_mensalidade
-    } else if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
+    if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
       inicio = billingDatesV2.dataPrimeiraCobranca
+    } else if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
+      inicio = engineResult.inicio_da_mensalidade
     } else if (form.commissioning_date_billing) {
       inicio = form.commissioning_date_billing
     }
@@ -2273,7 +2276,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       {/* Installments with payment management */}
       {(() => {
         const termMonths = client.contractual_term_months ?? client.term_months ?? 0
-        const hasStartDate = !!(engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
+        const hasStartDate = !!(billingDatesV2.dataPrimeiraCobranca || engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
           return (
