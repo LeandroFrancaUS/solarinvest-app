@@ -202,6 +202,47 @@ export function addMonthsSafe(date: Date, months: number, preferredDay: number):
 // ─────────────────────────────────────────────────────────────────────
 
 /**
+ * Resolve the first billing date for a client.
+ *
+ * Priority:
+ * 1. `manualFirstBillingDate` — when the user has explicitly overridden the
+ *    date, this value is the source of truth.
+ * 2. Automatic calculation from `commissioningDate`, `readingDay` and
+ *    `dueDay` via `calculateBillingDates`.
+ *
+ * Returns `null` when neither the manual date nor the automatic calculation
+ * can produce a valid date.
+ */
+export function resolveFirstBillingDate({
+  manualFirstBillingDate,
+  commissioningDate,
+  readingDay,
+  dueDay,
+  valorMensalidade,
+}: {
+  manualFirstBillingDate: Date | string | null | undefined
+  commissioningDate: Date | string | null | undefined
+  readingDay: number | Date | string | null | undefined
+  dueDay: number | null | undefined
+  valorMensalidade?: number | null
+}): Date | null {
+  const manual = parseDate(
+    manualFirstBillingDate instanceof Date || typeof manualFirstBillingDate === 'string'
+      ? manualFirstBillingDate
+      : null,
+  )
+  if (manual) return manual
+
+  const auto = calculateBillingDates({
+    valorMensalidade: valorMensalidade ?? 1,
+    dataComissionamento: commissioningDate ?? null,
+    diaLeituraDistribuidora: readingDay ?? null,
+    diaVencimentoCliente: dueDay ?? null,
+  })
+  return auto.dataPrimeiraCobranca
+}
+
+/**
  * Compute billing dates for a client. See module header for the full
  * specification.
  *
