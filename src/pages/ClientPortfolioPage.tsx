@@ -53,7 +53,7 @@ import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfol
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { FaturasTab } from '../components/portfolio/FaturasTab'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
@@ -156,16 +156,20 @@ function getNextDueDate(client: PortfolioClientRow): Date | null {
       continue
     }
 
-    // Calculate due date for this installment
-    const month = start.getMonth() + (inst.number - 1)
-    const year = start.getFullYear() + Math.floor(month / 12)
-    const monthNormalized = ((month % 12) + 12) % 12
-
-    // Clamp day to valid range for the month
-    const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
-    const day = Math.min(dueDay, lastDay)
-
-    const dueDate = new Date(year, monthNormalized, day)
+    // Installment #1 → exact firstBillingDate; #2+ → dueDay in successive months
+    let dueDate: Date
+    if (inst.number === 1) {
+      dueDate = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    } else {
+      const targetMonthOffset = inst.number - 1
+      const month = start.getMonth() + targetMonthOffset
+      const year = start.getFullYear() + Math.floor(month / 12)
+      const monthNormalized = ((month % 12) + 12) % 12
+      // Clamp day to valid range for the month
+      const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
+      const day = Math.min(dueDay, lastDay)
+      dueDate = new Date(year, monthNormalized, day)
+    }
     dueDate.setHours(0, 0, 0, 0)
 
     // Track the earliest unpaid due date
@@ -488,8 +492,14 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
  * Resolves installment progress for a portfolio client.
  * Returns { value, current, total } where:
  *   - value = amount for the current installment (BRL)
- *   - current = 1-based installment number (first unpaid, or last if all paid)
+ *   - current = 1-based installment number representing the current billing position
  *   - total = total number of installments
+ *
+ * Priority for "current" installment selection:
+ *   A) Installment whose due_date/vencimento falls in the current calendar month/year.
+ *   B) If no per-installment dates, use the largest-numbered paid/confirmado installment.
+ *   C) If none paid, use the smallest-numbered pending installment.
+ *   D) Fallback: first installment.
  */
 function getInstallmentProgress(client: PortfolioClientRow): {
   value: number | null
@@ -502,8 +512,8 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
-  // Parse installments_json (may be null, array, or JSON string)
-  let installments: InstallmentPayment[] | null = null
+  // --- 1. Parse installments_json (may be null, array, or JSON string) ---
+  let installments: InstallmentPayment[] = []
   if (client.installments_json) {
     if (Array.isArray(client.installments_json)) {
       installments = client.installments_json
@@ -517,64 +527,91 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     }
   }
 
-  // Determine current installment number
-  let current: number | null = null
-  let valueOverride: number | null = null
-  if (installments && installments.length > 0) {
-    const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
-    const unpaid = installments.filter((i) => !isPaid(i.status))
-    if (unpaid.length > 0) {
-      const next = unpaid.reduce((min, i) => (i.number < min.number ? i : min), unpaid[0])
-      current = next.number
-      valueOverride = toNum(next.valor_override)
+  const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
+
+  // --- 2. Identify current installment ---
+  let chosen: InstallmentPayment | null = null
+
+  if (installments.length > 0) {
+    const now = new Date()
+    const nowYear = now.getFullYear()
+    const nowMonth = now.getMonth() // 0-based
+
+    // A) Match by due_date / vencimento in current month+year
+    const matchedByDate = installments.find((i) => {
+      const dateStr = i.due_date ?? i.vencimento
+      if (!dateStr) return false
+      const d = new Date(dateStr)
+      return !isNaN(d.getTime()) && d.getFullYear() === nowYear && d.getMonth() === nowMonth
+    })
+    if (matchedByDate) {
+      chosen = matchedByDate
     } else {
-      // All paid — use the last installment
-      const last = installments.reduce((max, i) => (i.number > max.number ? i : max), installments[0])
-      current = last.number
-      valueOverride = toNum(last.valor_override)
+      // B) Smallest-numbered pending installment (next to be paid — best for operations/billing)
+      const pending = installments.filter((i) => !isPaid(i.status))
+      if (pending.length > 0) {
+        chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
+      } else {
+        // C) Largest-numbered paid/confirmado installment (all paid — show last)
+        const paid = installments.filter((i) => isPaid(i.status))
+        if (paid.length > 0) {
+          chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
+        } else {
+          // D) First installment
+          chosen = installments[0]
+        }
+      }
     }
   }
 
-  // Determine value
-  let value: number | null = valueOverride
+  // --- 3. Derive current number ---
+  const current: number | null = chosen ? (chosen.number ?? 1) : null
+
+  // --- 4. Derive value ---
+  let value: number | null = null
+  if (chosen) {
+    value =
+      toNum(chosen.valor_override) ??
+      toNum(chosen.valor) ??
+      toNum(chosen.amount) ??
+      null
+  }
   if (value === null) {
-    if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
-      value =
-        toNum(client.installment_value) ??
-        toNum(client.valor_parcela) ??
-        toNum(client.valor_prestacao) ??
-        null
-    }
-    if (value === null) {
-      value =
-        toNum(client.mensalidade) ??
-        toNum(client.valor_mensalidade) ??
-        toNum(client.monthly_payment) ??
-        null
-    }
+    value =
+      toNum(client.mensalidade) ??
+      toNum(client.valor_mensalidade) ??
+      toNum(client.monthly_payment) ??
+      toNum(client.installment_value) ??
+      toNum(client.valor_parcela) ??
+      toNum(client.valor_prestacao) ??
+      null
   }
 
-  // Determine total
+  // --- 5. Derive total ---
   let total: number | null = null
-  if (installments && installments.length > 0) {
+  if (installments.length > 0) {
     total = installments.length
-  } else if (client.contract_type === 'sale' || client.contract_type === 'buyout') {
+  }
+  if (total === null) {
     total =
+      toNum(client.contractual_term_months) ??
+      toNum(client.prazo_meses) ??
+      toNum(client.term_months) ??
       toNum(client.number_of_installments) ??
       toNum(client.parcelas) ??
       toNum(client.installments_count) ??
       null
-  } else {
-    total =
-      toNum(client.contractual_term_months) ??
-      toNum(client.term_months) ??
-      toNum(client.prazo_meses) ??
-      null
   }
 
-  // Default current to 1 if we have a total/value but no current
-  if (current === null && (value !== null || total !== null)) {
-    current = 1
+  // --- 6. Dev logging ---
+  if (import.meta.env.DEV) {
+    console.info('[wallet-card][mensalidade]', {
+      clientId: client.id,
+      installmentsCount: installments.length,
+      current,
+      total,
+      value,
+    })
   }
 
   return { value, current, total }
@@ -1993,25 +2030,12 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
-  // "Último Vencimento Previsto" =
-  //   Próxima cobrança recorrente + (Prazo − 1) meses
+  // "Último Vencimento Previsto" = due date of the last generated installment
   const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
   const ultimoVencimentoPrevisto = useMemo(() => {
-    if (
-      billingDatesV2.status !== 'OK' ||
-      !billingDatesV2.proximaCobrancaRecorrente ||
-      !termMonths ||
-      termMonths < 1 ||
-      !billingDatesV2.vencimentoRecorrenteMensal
-    ) {
-      return null
-    }
-    return addMonthsSafeV2(
-      billingDatesV2.proximaCobrancaRecorrente,
-      Math.max(0, termMonths - 1),
-      billingDatesV2.vencimentoRecorrenteMensal,
-    )
-  }, [billingDatesV2, termMonths])
+    if (installments.length === 0) return null
+    return installments[installments.length - 1].data_vencimento
+  }, [installments])
 
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
@@ -2040,6 +2064,13 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
   }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
+
+  // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
+  const proximaCobrancaRecorrenteDate = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return installments.find((inst) => inst.data_vencimento >= today)?.data_vencimento ?? null
+  }, [installments])
 
   // Generate notifications preview
   const notifications = useMemo(() => {
@@ -2219,7 +2250,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
             <div className="pf-info-row">
               <span className="pf-info-label">Próxima cobrança recorrente:</span>
               <span className="pf-info-value">
-                {billingDatesV2.proximaCobrancaRecorrente?.toLocaleDateString('pt-BR')}
+                {proximaCobrancaRecorrenteDate?.toLocaleDateString('pt-BR') ?? '—'}
               </span>
             </div>
             <div className="pf-info-row">

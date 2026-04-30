@@ -1,6 +1,7 @@
 // src/domain/billing/__tests__/monthlyEngine.test.ts
 import { describe, it, expect } from 'vitest'
 import {
+  buildInstallmentDueDate,
   calculateBillingDates,
   generateInstallments,
   getBillingAlert,
@@ -161,6 +162,116 @@ describe('generateInstallments', () => {
     for (const inst of installments) {
       expect(inst.status).toBe('vencida')
     }
+  })
+
+  it('installment #1 uses exact firstBillingDate even when dia_vencimento differs', () => {
+    // firstBillingDate = 22/04/2026, dueDay = 5
+    const start = new Date(2026, 3, 22) // April 22
+    const installments = generateInstallments({
+      inicio_mensalidade: start,
+      prazo: 3,
+      dia_vencimento: 5,
+      valor_mensalidade: 912,
+    })
+    // #1 → 22/04/2026 (exact)
+    expect(installments[0].data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[0].data_vencimento.getMonth()).toBe(3) // April
+    expect(installments[0].data_vencimento.getDate()).toBe(22)
+    // #2 → 05/05/2026
+    expect(installments[1].data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[1].data_vencimento.getMonth()).toBe(4) // May
+    expect(installments[1].data_vencimento.getDate()).toBe(5)
+    // #3 → 05/06/2026
+    expect(installments[2].data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[2].data_vencimento.getMonth()).toBe(5) // June
+    expect(installments[2].data_vencimento.getDate()).toBe(5)
+  })
+
+  it('acceptance: 22/04/2026 + dueDay 5 + 60 parcelas → #1=22/04, #2=05/05, #60=05/03/2031', () => {
+    const start = new Date(2026, 3, 22)
+    const installments = generateInstallments({
+      inicio_mensalidade: start,
+      prazo: 60,
+      dia_vencimento: 5,
+      valor_mensalidade: 912,
+    })
+    expect(installments).toHaveLength(60)
+    // #1
+    const first = installments[0].data_vencimento
+    expect(first.getFullYear()).toBe(2026)
+    expect(first.getMonth()).toBe(3)  // April
+    expect(first.getDate()).toBe(22)
+    // #2
+    const second = installments[1].data_vencimento
+    expect(second.getFullYear()).toBe(2026)
+    expect(second.getMonth()).toBe(4) // May
+    expect(second.getDate()).toBe(5)
+    // #60
+    const last = installments[59].data_vencimento
+    expect(last.getFullYear()).toBe(2031)
+    expect(last.getMonth()).toBe(2)   // March
+    expect(last.getDate()).toBe(5)
+  })
+
+  it('acceptance: 05/04/2026 + dueDay 5 + 60 parcelas → #1=05/04, #2=05/05, #60=05/03/2031', () => {
+    const start = new Date(2026, 3, 5)
+    const installments = generateInstallments({
+      inicio_mensalidade: start,
+      prazo: 60,
+      dia_vencimento: 5,
+      valor_mensalidade: 912,
+    })
+    expect(installments).toHaveLength(60)
+    // #1
+    const first = installments[0].data_vencimento
+    expect(first.getFullYear()).toBe(2026)
+    expect(first.getMonth()).toBe(3)  // April
+    expect(first.getDate()).toBe(5)
+    // #2
+    const second = installments[1].data_vencimento
+    expect(second.getFullYear()).toBe(2026)
+    expect(second.getMonth()).toBe(4) // May
+    expect(second.getDate()).toBe(5)
+    // #60
+    const last = installments[59].data_vencimento
+    expect(last.getFullYear()).toBe(2031)
+    expect(last.getMonth()).toBe(2)   // March
+    expect(last.getDate()).toBe(5)
+  })
+})
+
+describe('buildInstallmentDueDate', () => {
+  it('installment #1 returns exact firstBillingDate', () => {
+    const first = new Date(2026, 3, 22) // 22/04/2026
+    const result = buildInstallmentDueDate({ firstBillingDate: first, dueDay: 5, installmentNumber: 1 })
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(3)
+    expect(result.getDate()).toBe(22)
+  })
+
+  it('installment #2 uses dueDay in the month following firstBillingDate', () => {
+    const first = new Date(2026, 3, 22) // 22/04/2026
+    const result = buildInstallmentDueDate({ firstBillingDate: first, dueDay: 5, installmentNumber: 2 })
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(4) // May
+    expect(result.getDate()).toBe(5)
+  })
+
+  it('installment #60: April 2026 + 59 months = March 2031', () => {
+    const first = new Date(2026, 3, 22) // 22/04/2026
+    const result = buildInstallmentDueDate({ firstBillingDate: first, dueDay: 5, installmentNumber: 60 })
+    expect(result.getFullYear()).toBe(2031)
+    expect(result.getMonth()).toBe(2) // March
+    expect(result.getDate()).toBe(5)
+  })
+
+  it('clamps dueDay to last day of February', () => {
+    const first = new Date(2026, 0, 31) // 31/01/2026
+    const result = buildInstallmentDueDate({ firstBillingDate: first, dueDay: 31, installmentNumber: 2 })
+    // February 2026: 28 days
+    expect(result.getFullYear()).toBe(2026)
+    expect(result.getMonth()).toBe(1)  // February
+    expect(result.getDate()).toBe(28)
   })
 })
 

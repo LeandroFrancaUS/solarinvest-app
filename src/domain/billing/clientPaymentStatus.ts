@@ -68,6 +68,9 @@ function isInstallmentPaid(installment: InstallmentPayment): boolean {
 /**
  * Calculates the due date for a given installment number.
  * Returns null if unable to calculate.
+ *
+ * Installment #1 uses the exact `first_billing_date`.
+ * Installments #2+ use the recurring `due_day` in successive calendar months.
  */
 function calculateInstallmentDueDate(
   client: PortfolioClientRow,
@@ -83,8 +86,14 @@ function calculateInstallmentDueDate(
   const start = new Date(startDate)
   if (isNaN(start.getTime())) return null
 
-  // Calculate the month for this installment (0-indexed, so subtract 1)
-  const month = start.getMonth() + (installmentNumber - 1)
+  // Installment #1 → exact firstBillingDate
+  if (installmentNumber === 1) {
+    return new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  }
+
+  // Installments #2+ → month of firstBillingDate + (N − 1), day = dueDay (clamped)
+  const targetMonthOffset = installmentNumber - 1
+  const month = start.getMonth() + targetMonthOffset
   const year = start.getFullYear() + Math.floor(month / 12)
   const monthNormalized = ((month % 12) + 12) % 12
 

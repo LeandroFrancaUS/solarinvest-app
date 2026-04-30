@@ -243,9 +243,15 @@ export function FaturasTab({ client }: FaturasTabProps) {
           const refMonthNormalized = ((refMonth % 12) + 12) % 12
           const referenceMonthStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-01`
 
-          // Calculate due date
-          const dueDateDay = clampDay(refYear, refMonthNormalized, dueDay)
-          const dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(dueDateDay).padStart(2, '0')}`
+          // Calculate due date:
+          // Invoice #1 (i=0) uses the exact firstBillingDate; subsequent ones use the recurring dueDay
+          let dueDateStr: string
+          if (i === 0) {
+            dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+          } else {
+            const dueDateDay = clampDay(refYear, refMonthNormalized, dueDay)
+            dueDateStr = `${refYear}-${String(refMonthNormalized + 1).padStart(2, '0')}-${String(dueDateDay).padStart(2, '0')}`
+          }
 
           // Check if invoice already exists
           const exists = invoices.some(
