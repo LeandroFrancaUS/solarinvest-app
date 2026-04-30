@@ -87,7 +87,6 @@ export function ActionBar({
                 type="button"
                 className={`proposal-action-btn action-button proposal-action-btn--secondary ${modeClass}`}
                 onClick={onNewProposal}
-                disabled={isDisabled}
                 aria-label="Nova proposta"
                 title="Nova proposta"
               >

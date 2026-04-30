@@ -17418,6 +17418,11 @@ export default function App() {
       }
 
       fieldSyncActions.reset()
+      // Explicitly reset the external stores so that getVendaSnapshot() and
+      // getLeasingSnapshot() return clean initial state when createEmptySnapshot
+      // is called below (inside buildEmptySnapshotForNewProposal).
+      vendaStore.reset()
+      leasingActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
       setOrcamentoSearchTerm('')
@@ -17587,6 +17592,12 @@ export default function App() {
       }
 
       scheduleMarkStateAsSaved()
+
+      // Scroll to top so the user can see the cleared form.
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+
+      // Notify the user that the reset completed successfully.
+      adicionarNotificacao('Nova proposta iniciada.', 'info')
       
       if (import.meta.env.DEV) console.debug('[Nova Proposta] Reset complete')
     } catch (error) {
@@ -17602,6 +17613,7 @@ export default function App() {
     applyTarifasAutomaticas,
     resetRetorno,
     scheduleMarkStateAsSaved,
+    adicionarNotificacao,
     setClientesSalvos,
     setDistribuidoraTarifa,
     setKcKwhMes,
