@@ -722,9 +722,20 @@ function ClientCard({
 
   const formattedDocument = formatCpfCnpj(client.document)
 
+  const paymentTitle =
+    paymentStatus === 'SEM_COBRANCA'
+      ? 'Nenhuma cobrança registrada para este cliente'
+      : paymentStatus === 'VENCIDO'
+      ? 'Pagamento vencido (dentro do período de 5 dias)'
+      : paymentStatus === 'ATRASADO'
+      ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
+      : paymentStatus === 'PARCIALMENTE_PAGO'
+      ? 'Alguns meses pagos, outros em atraso'
+      : paymentStatusResult.label
+
   return (
     <div className="pf-client-card active-wallet-card">
-      {/* Col 1: Client name + document */}
+      {/* Col 1: Cliente — name + document */}
       <div className="client-cell">
         <button
           type="button"
@@ -756,10 +767,10 @@ function ClientCard({
         <span className="info-value">{kwhContratadoLabel}</span>
       </div>
 
-      {/* Col 5: Mensalidade */}
+      {/* Col 5: Mensalidade — visually prominent */}
       <div className="info-cell">
         <span className="info-label">Mensalidade</span>
-        <span className="info-value">{mensalidadeLabel}</span>
+        <span className="info-value info-value-primary">{mensalidadeLabel}</span>
       </div>
 
       {/* Col 6: Vencimento */}
@@ -768,63 +779,27 @@ function ClientCard({
         <span className="info-value">{dueDateLabel}</span>
       </div>
 
-      {/* Col 7: WiFi / monitoring badge */}
-      <span
-        className="wallet-wifi-badge"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 3,
-          padding: '2px 7px',
-          borderRadius: 8,
-          background: 'var(--surface-alt, #f3f4f6)',
-          color: wifiBadge.color,
-          fontSize: 10,
-          fontWeight: 600,
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          alignSelf: 'center',
-        }}
-        title={`Status de monitoramento: ${wifiBadge.label}`}
-      >
-        <span aria-hidden="true">{wifiBadge.icon}</span>
-        <span>{wifiBadge.label}</span>
-      </span>
+      {/* Col 7: Status — WiFi + Pagamento unified */}
+      <div className="status-cell">
+        <span
+          className="wallet-status-badge wallet-wifi-badge"
+          title={`Monitoramento: ${wifiBadge.label}`}
+          style={{ color: wifiBadge.color }}
+        >
+          <span aria-hidden="true">{wifiBadge.icon}</span>
+          <span>{wifiBadge.label}</span>
+        </span>
+        <span
+          className="wallet-status-badge wallet-payment-badge"
+          title={paymentTitle}
+          style={{ background: statusStyle.bg, color: statusStyle.fg }}
+        >
+          <span aria-hidden="true">{statusStyle.icon}</span>
+          <span>{paymentStatusResult.label}</span>
+        </span>
+      </div>
 
-      {/* Col 8: Payment status badge */}
-      <span
-        className="wallet-status-badge"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          padding: '3px 9px',
-          borderRadius: 10,
-          background: statusStyle.bg,
-          color: statusStyle.fg,
-          fontSize: 10,
-          fontWeight: 600,
-          lineHeight: 1.4,
-          whiteSpace: 'nowrap',
-          alignSelf: 'center',
-        }}
-        title={
-          paymentStatus === 'SEM_COBRANCA'
-            ? 'Nenhuma cobrança registrada para este cliente'
-            : paymentStatus === 'VENCIDO'
-            ? 'Pagamento vencido (dentro do período de 5 dias)'
-            : paymentStatus === 'ATRASADO'
-            ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
-            : paymentStatus === 'PARCIALMENTE_PAGO'
-            ? 'Alguns meses pagos, outros em atraso'
-            : paymentStatusResult.label
-        }
-      >
-        <span aria-hidden="true">{statusStyle.icon}</span>
-        <span>{paymentStatusResult.label}</span>
-      </span>
-
-      {/* Col 9: Actions */}
+      {/* Col 8: Ações */}
       <div className="wallet-card-actions">
         <button
           type="button"
@@ -4075,6 +4050,17 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           )}
           {!isLoading && !error && hasClients && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Column headers — aligned to grid columns */}
+              <div className="active-wallet-card wallet-col-headers" role="row">
+                <span className="wallet-col-header" role="columnheader">Cliente</span>
+                <span className="wallet-col-header" role="columnheader">Produto</span>
+                <span className="wallet-col-header" role="columnheader">Cidade/UF</span>
+                <span className="wallet-col-header" role="columnheader">Consumo</span>
+                <span className="wallet-col-header" role="columnheader">Mensalidade</span>
+                <span className="wallet-col-header" role="columnheader">Vencimento</span>
+                <span className="wallet-col-header" role="columnheader">Status</span>
+                <span className="wallet-col-header" role="columnheader">Ações</span>
+              </div>
               {sortedClients.map((c) => (
                 <ClientCard
                   key={c.id}
