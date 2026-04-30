@@ -824,8 +824,8 @@ function ClientCard({
         <span className="info-value">{cityStateLabel}</span>
       </div>
 
-      {/* Col 4: Consumo — number only */}
-      <div className="info-cell">
+      {/* Col 4: Consumo — number only, right aligned */}
+      <div className="info-cell wallet-consumo-cell">
         <span className="info-value">{kwhContratadoLabel}</span>
       </div>
 
@@ -834,8 +834,8 @@ function ClientCard({
         <span className="info-value info-value-primary">{mensalidadeLabel}</span>
       </div>
 
-      {/* Col 6: Vencimento — day only */}
-      <div className="info-cell">
+      {/* Col 6: Vencimento — day only, centered */}
+      <div className="info-cell wallet-vencimento-cell">
         <span className="info-value">{dueDateLabel}</span>
       </div>
 
@@ -4119,11 +4119,11 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
                 <span className="wallet-col-header" role="columnheader">Cliente</span>
                 <span className="wallet-col-header" role="columnheader">Modalidade</span>
                 <span className="wallet-col-header wallet-col-header-right" role="columnheader">Cidade/UF</span>
-                <span className="wallet-col-header" role="columnheader">Consumo (kWh/mês)</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Consumo (kWh/mês)</span>
                 <span className="wallet-col-header wallet-col-header-right" role="columnheader">Mensalidade (R$)</span>
-                <span className="wallet-col-header" role="columnheader">Vencimento</span>
-                <span className="wallet-col-header" role="columnheader">Status</span>
-                <span className="wallet-col-header" role="columnheader">Ações</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Vencimento</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Status</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Ações</span>
               </div>
               {sortedClients.map((c) => (
                 <ClientCard
