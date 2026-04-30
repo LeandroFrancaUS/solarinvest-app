@@ -442,6 +442,9 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .info-value-muted {
@@ -488,10 +491,9 @@
     justify-content: flex-end;
   }
 
-  /* header row: hide last 2 cols that moved to row 2 */
-  .wallet-col-headers > .wallet-col-header:nth-child(5),
-  .wallet-col-headers > .wallet-col-header:nth-child(6) {
-    visibility: hidden;
+  /* Header row: layout changes at this breakpoint so hide rather than misalign */
+  .wallet-col-headers {
+    display: none;
   }
 }
 
