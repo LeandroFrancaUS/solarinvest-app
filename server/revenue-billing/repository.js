@@ -136,12 +136,11 @@ export async function listRevenueClients(sql, filters = {}) {
 
   // Build the IN-list for active contract statuses as numbered params.
   // These come first so search/contract_type params follow them.
-  const activeStatusParams = [...ACTIVE_CONTRACT_STATUSES]
-  const activeStatusPlaceholders = activeStatusParams.map((_, i) => `$${i + 1}`).join(', ')
+  const activeStatusPlaceholders = ACTIVE_CONTRACT_STATUSES.map((_, i) => `$${i + 1}`).join(', ')
 
   // Shift the filter params to account for the status params prepended above.
   const shiftedConditions = []
-  const shiftedParams = [...activeStatusParams]
+  const shiftedParams = [...ACTIVE_CONTRACT_STATUSES]
 
   if (filters.search) {
     shiftedParams.push(`%${filters.search}%`)
@@ -214,7 +213,7 @@ export async function listRevenueClients(sql, filters = {}) {
             'client-id-' || c.id::text
           )
           ORDER BY
-            CASE WHEN c.in_portfolio = true THEN 0 ELSE 1 END,
+            CASE WHEN c.in_portfolio THEN 0 ELSE 1 END,
             c.portfolio_exported_at DESC NULLS LAST,
             c.updated_at            DESC NULLS LAST,
             c.created_at            DESC NULLS LAST,
