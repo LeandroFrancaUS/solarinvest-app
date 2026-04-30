@@ -2357,7 +2357,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                     style={{ ...inputStyle, width: 'auto', marginTop: 0 }}
                     title="Edite para sobrepor o cálculo automático. Deixe em branco para usar a data calculada pelo comissionamento."
                   />
-                  {form.first_billing_date && billingDatesV2.dataPrimeiraCobranca && (
+                  {form.first_billing_date && billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca && (
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                       Automático: {billingDatesV2.dataPrimeiraCobranca.toLocaleDateString('pt-BR')}
                       {' '}
@@ -2383,9 +2383,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
             <div className="pf-info-row">
               <span className="pf-info-label">Vencimento recorrente mensal:</span>
               <span className="pf-info-value">
-                {billingDatesV2.vencimentoRecorrenteMensal
-                  ? `Todo dia ${billingDatesV2.vencimentoRecorrenteMensal}`
-                  : form.due_day ? `Todo dia ${form.due_day}` : '—'}
+                {form.due_day ? `Todo dia ${form.due_day}` : '—'}
               </span>
             </div>
             <div className="pf-info-row">

@@ -227,11 +227,9 @@ export function resolveFirstBillingDate({
   valorMensalidade?: number | null
 }): Date | null {
   const manual = parseDate(
-    manualFirstBillingDate instanceof Date
+    manualFirstBillingDate instanceof Date || typeof manualFirstBillingDate === 'string'
       ? manualFirstBillingDate
-      : typeof manualFirstBillingDate === 'string'
-        ? manualFirstBillingDate
-        : null,
+      : null,
   )
   if (manual) return manual
 
