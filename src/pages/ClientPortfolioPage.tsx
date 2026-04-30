@@ -513,6 +513,9 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   }
 
   // --- 1. Parse installments_json (may be null, array, or JSON string) ---
+  // Primary source: installments_json persisted in client_billing_profile.
+  // The Cobrança tab is the operational source of truth; this card reads the
+  // saved state from the API response.
   let installments: InstallmentPayment[] = []
   if (client.installments_json) {
     if (Array.isArray(client.installments_json)) {
@@ -530,14 +533,15 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   const isPaid = (s: string) => s === 'pago' || s === 'confirmado'
 
   // --- 2. Identify current installment ---
+  // Rule: largest confirmed/paid first (shows current billing state);
+  // if none are confirmed yet, smallest pending (next installment to be paid).
   let chosen: InstallmentPayment | null = null
 
   if (installments.length > 0) {
+    // A) Match by due_date / vencimento in current month+year (only when due_date is persisted)
     const now = new Date()
     const nowYear = now.getFullYear()
     const nowMonth = now.getMonth() // 0-based
-
-    // A) Match by due_date / vencimento in current month+year
     const matchedByDate = installments.find((i) => {
       const dateStr = i.due_date ?? i.vencimento
       if (!dateStr) return false
@@ -547,17 +551,17 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     if (matchedByDate) {
       chosen = matchedByDate
     } else {
-      // B) Smallest-numbered pending installment (next to be paid — best for operations/billing)
-      const pending = installments.filter((i) => !isPaid(i.status))
-      if (pending.length > 0) {
-        chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
+      // B) Largest-numbered paid/confirmado installment — reflects the current billing cycle
+      const paid = installments.filter((i) => isPaid(i.status))
+      if (paid.length > 0) {
+        chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
       } else {
-        // C) Largest-numbered paid/confirmado installment (all paid — show last)
-        const paid = installments.filter((i) => isPaid(i.status))
-        if (paid.length > 0) {
-          chosen = paid.reduce((max, i) => (i.number > max.number ? i : max), paid[0])
+        // C) Smallest-numbered pending installment (no payments recorded yet — first upcoming)
+        const pending = installments.filter((i) => !isPaid(i.status))
+        if (pending.length > 0) {
+          chosen = pending.reduce((min, i) => (i.number < min.number ? i : min), pending[0])
         } else {
-          // D) First installment
+          // D) First installment as last resort
           chosen = installments[0]
         }
       }
@@ -568,6 +572,8 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   const current: number | null = chosen ? (chosen.number ?? 1) : null
 
   // --- 4. Derive value ---
+  // Per-installment valor_override takes precedence (explicitly set in Cobrança tab).
+  // Falls back to global valor_mensalidade from client_billing_profile.
   let value: number | null = null
   if (chosen) {
     value =
@@ -588,26 +594,26 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   }
 
   // --- 5. Derive total ---
-  let total: number | null = null
-  if (installments.length > 0) {
-    total = installments.length
-  }
-  if (total === null) {
-    total =
-      toNum(client.contractual_term_months) ??
-      toNum(client.prazo_meses) ??
-      toNum(client.term_months) ??
-      toNum(client.number_of_installments) ??
-      toNum(client.parcelas) ??
-      toNum(client.installments_count) ??
-      null
-  }
+  // Total must reflect the full contract term, not just the count of payment
+  // records stored in installments_json (which only grows as payments are registered).
+  const total: number | null =
+    toNum(client.contractual_term_months) ??
+    toNum(client.prazo_meses) ??
+    toNum(client.term_months) ??
+    toNum(client.number_of_installments) ??
+    toNum(client.parcelas) ??
+    toNum(client.installments_count) ??
+    (installments.length > 0 ? installments.length : null)
 
   // --- 6. Dev logging ---
   if (import.meta.env.DEV) {
-    console.info('[wallet-card][mensalidade]', {
+    console.info('[wallet-card][billing-source]', {
       clientId: client.id,
+      hasInstallmentsJson: Boolean(client.installments_json),
+      installmentsJsonType: typeof client.installments_json,
       installmentsCount: installments.length,
+      firstInstallment: installments[0] ?? null,
+      chosenInstallment: chosen,
       current,
       total,
       value,
@@ -2357,7 +2363,12 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                                   const newValor = parseFloat(num.toFixed(2))
                                   setSavingValorInstallment(inst.numero)
                                   void patchPortfolioBilling(client.id, {
-                                    installment_valor: { number: inst.numero, valor_override: newValor },
+                                    installment_valor: {
+                                      number: inst.numero,
+                                      valor_override: newValor,
+                                      // Persist due_date so the card's date-based installment selection can match it
+                                      due_date: inst.data_vencimento.toISOString().slice(0, 10),
+                                    },
                                   }).then((updatedInstallments) => {
                                     setValorOverrides((prev) => ({ ...prev, [inst.numero]: newValor }))
                                     setEditingValorInstallment(null)
@@ -2500,6 +2511,8 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                       paid_at: paidAt,
                       receipt_number: receiptNum,
                       transaction_number: paymentProof.transaction_number.trim() || null,
+                      // Persist due_date so the card's date-based installment selection can match it
+                      due_date: new Date(paymentModal.vencimento).toISOString().slice(0, 10),
                     },
                   }).then((updatedInstallments) => {
                     // Instant UI update via local state
