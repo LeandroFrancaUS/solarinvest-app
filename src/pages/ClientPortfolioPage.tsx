@@ -131,17 +131,27 @@ function sanitizeBeneficiaryUCs(values: string[]): string[] {
     .filter((value) => value.length > 0)
 }
 
+/** Parse installments_json which may be null, an array, or a JSON string. */
+function parseInstallmentsJson(value: unknown): InstallmentPayment[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value as InstallmentPayment[]
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed as InstallmentPayment[]
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return []
+}
+
 /**
  * Calculates the next due date for a client based on unpaid installments.
  * Returns the due date of the earliest unpaid installment, or null if unable to calculate.
  */
 function getNextDueDate(client: PortfolioClientRow): Date | null {
-  const rawInstallments = client.installments_json
-  const installments: InstallmentPayment[] = Array.isArray(rawInstallments)
-    ? rawInstallments
-    : typeof rawInstallments === 'string'
-    ? (() => { try { const p = JSON.parse(rawInstallments); return Array.isArray(p) ? p : [] } catch { return [] } })()
-    : []
+  const installments = parseInstallmentsJson(client.installments_json)
   if (installments.length === 0) return null
 
   const dueDay = client.due_day
@@ -163,10 +173,11 @@ function getNextDueDate(client: PortfolioClientRow): Date | null {
 
     // Installment #1 → exact firstBillingDate; #2+ → dueDay in successive months
     let dueDate: Date
-    if (inst.number === 1) {
+    const instNum = inst.number ?? 1
+    if (instNum === 1) {
       dueDate = new Date(start.getFullYear(), start.getMonth(), start.getDate())
     } else {
-      const targetMonthOffset = inst.number - 1
+      const targetMonthOffset = instNum - 1
       const month = start.getMonth() + targetMonthOffset
       const year = start.getFullYear() + Math.floor(month / 12)
       const monthNormalized = ((month % 12) + 12) % 12
@@ -522,20 +533,6 @@ function getInstallmentProgress(client: PortfolioClientRow): {
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
-  const parseInstallments = (value: unknown): InstallmentPayment[] => {
-    if (!value) return []
-    if (Array.isArray(value)) return value as InstallmentPayment[]
-    if (typeof value === 'string') {
-      try {
-        const parsed = JSON.parse(value)
-        if (Array.isArray(parsed)) return parsed as InstallmentPayment[]
-      } catch {
-        // ignore malformed JSON
-      }
-    }
-    return []
-  }
-
   const getInstallmentNumber = (inst: InstallmentPayment, fallbackIndex: number): number => {
     const n = inst.number
     if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
@@ -559,32 +556,30 @@ function getInstallmentProgress(client: PortfolioClientRow): {
   }
 
   // ── 1. Parse installments_json ────────────────────────────────────────────
-  const installments = parseInstallments(client.installments_json)
+  const installments = parseInstallmentsJson(client.installments_json)
 
   // ── 2. Identify current installment ──────────────────────────────────────
   let chosenInstallment: InstallmentPayment | null = null
 
   if (installments.length > 0) {
     // A) Largest-numbered paid/confirmed installment
-    const paidInstallments = installments.filter((i, idx) =>
-      isPaidStatus(i.status ?? null) && getInstallmentNumber(i, idx) > 0
-    )
+    const paidInstallments = installments.filter((i) => isPaidStatus(i.status ?? null))
     if (paidInstallments.length > 0) {
-      chosenInstallment = paidInstallments.reduce((max, i, idx) => {
+      chosenInstallment = paidInstallments.reduce<InstallmentPayment>((max, i, idx) => {
         const maxIdx = installments.indexOf(max)
         return getInstallmentNumber(i, idx) > getInstallmentNumber(max, maxIdx) ? i : max
-      }, paidInstallments[0])
+      }, paidInstallments[0]!)
     } else {
       // B) Smallest-numbered pending installment
       const pendingInstallments = installments.filter((i) => !isPaidStatus(i.status ?? null))
       if (pendingInstallments.length > 0) {
-        chosenInstallment = pendingInstallments.reduce((min, i, idx) => {
+        chosenInstallment = pendingInstallments.reduce<InstallmentPayment>((min, i, idx) => {
           const minIdx = installments.indexOf(min)
           return getInstallmentNumber(i, idx) < getInstallmentNumber(min, minIdx) ? i : min
-        }, pendingInstallments[0])
+        }, pendingInstallments[0]!)
       } else {
         // C) First installment
-        chosenInstallment = installments[0]
+        chosenInstallment = installments[0] ?? null
       }
     }
   }
@@ -1938,12 +1933,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // Handles both 'confirmado' (canonical) and 'pago' (legacy alias) statuses.
   const buildConfirmedMap = (rawInstallments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
-    const list: InstallmentPayment[] = Array.isArray(rawInstallments)
-      ? rawInstallments
-      : typeof rawInstallments === 'string'
-      ? (() => { try { const p = JSON.parse(rawInstallments); return Array.isArray(p) ? p : [] } catch { return [] } })()
-      : []
-    for (const p of list) {
+    for (const p of parseInstallmentsJson(rawInstallments)) {
       const num = p.number
       if (num == null) continue
       if (p.status === 'confirmado' || p.status === 'pago') {
@@ -1956,12 +1946,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // Build a map of per-installment valor overrides from installments_json
   const buildValorOverrideMap = (rawInstallments: typeof client.installments_json) => {
     const map: Record<number, number> = {}
-    const list: InstallmentPayment[] = Array.isArray(rawInstallments)
-      ? rawInstallments
-      : typeof rawInstallments === 'string'
-      ? (() => { try { const p = JSON.parse(rawInstallments); return Array.isArray(p) ? p : [] } catch { return [] } })()
-      : []
-    for (const p of list) {
+    for (const p of parseInstallmentsJson(rawInstallments)) {
       const num = p.number
       if (num == null) continue
       if (p.valor_override != null) {
@@ -2076,7 +2061,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // Uses the engine-computed start date when all billing fields are available.
   // Falls back to commissioning_date_billing so that the table is visible
   // even when reading_day / commissioning_date are not yet set.
-  const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
+  const termMonths = Number(client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0)
   const installments = useMemo(() => {
     if (!termMonths || !form.due_day) return []
 
@@ -2317,7 +2302,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 
       {/* Installments with payment management */}
       {(() => {
-        const termMonths = client.contractual_term_months ?? client.term_months ?? 0
+        const termMonths = Number(client.contractual_term_months ?? client.term_months ?? 0)
         const hasStartDate = !!(billingDatesV2.dataPrimeiraCobranca || engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
@@ -3851,15 +3836,15 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
         data_comissionamento: c.commissioning_date,
         dia_leitura: readingDay,
         dia_vencimento: c.due_day,
-        valor_mensalidade: c.valor_mensalidade,
+        valor_mensalidade: Number(c.valor_mensalidade),
       })
       if (engine.status_calculo === 'erro_entrada') continue
-      const termMonths = c.contractual_term_months ?? c.term_months ?? 12
+      const termMonths = Number(c.contractual_term_months ?? c.term_months ?? 12)
       const insts = generateInstallments({
         inicio_mensalidade: engine.inicio_da_mensalidade,
         prazo: termMonths,
         dia_vencimento: c.due_day,
-        valor_mensalidade: c.valor_mensalidade,
+        valor_mensalidade: Number(c.valor_mensalidade),
       })
       for (const inst of insts) {
         const alert = getBillingAlert(inst.data_vencimento, inst.status === 'paga')
