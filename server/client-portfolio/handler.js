@@ -20,6 +20,8 @@ import {
   getClientNotes,
   addClientNote,
   getPortfolioSummary,
+  createClientProject,
+  listClientProjects,
 } from './repository.js'
 import { upsertClientEnergyProfile } from '../clients/repository.js'
 
@@ -767,4 +769,109 @@ export async function handleDashboardPortfolioSummary(req, res, { method, sendJs
     console.error('[portfolio] dashboard summary error', err)
     sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao buscar resumo da carteira.' } })
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET|POST /api/client-portfolio/:clientId/projects
+// GET  → list active projects for client
+// POST → create a new project for an existing portfolio client
+// ─────────────────────────────────────────────────────────────────────────────
+export async function handlePortfolioClientProjectsRequest(
+  req, res, { method, clientId, readJsonBody, sendJson },
+) {
+  const actor = await resolveActor(req)
+  if (!requireReadAccess(actor, sendJson)) return
+
+  // ── GET ────────────────────────────────────────────────────────────────────
+  if (method === 'GET') {
+    try {
+      const sql = await getScopedSql(actor)
+      const projects = await listClientProjects(sql, clientId)
+      sendJson(200, { data: projects })
+    } catch (err) {
+      console.error('[portfolio][projects] list error', err)
+      sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao listar projetos.' } })
+    }
+    return
+  }
+
+  // ── POST ───────────────────────────────────────────────────────────────────
+  if (method === 'POST') {
+    if (!requireWriteAccess(actor, sendJson)) return
+
+    let body
+    try {
+      body = await readJsonBody(req)
+    } catch {
+      sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+      return
+    }
+
+    const projectType = body?.project_type
+    if (!['leasing', 'venda', 'buyout'].includes(projectType)) {
+      sendJson(400, {
+        error: { code: 'VALIDATION_ERROR', message: 'project_type deve ser "leasing", "venda" ou "buyout".' },
+      })
+      return
+    }
+
+    // Verify client exists in portfolio.
+    try {
+      const sql = await getScopedSql(actor)
+      const client = await getPortfolioClient(sql, clientId)
+      if (!client) {
+        sendJson(404, { error: { code: 'NOT_FOUND', message: 'Cliente não encontrado na carteira.' } })
+        return
+      }
+
+      const ucRaw = typeof body.uc_geradora === 'string' ? body.uc_geradora.replace(/\D/g, '') : null
+      if (ucRaw && ucRaw.length !== 15) {
+        sendJson(400, {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'UC Geradora deve ter exatamente 15 dígitos quando informada.',
+          },
+        })
+        return
+      }
+
+      const project = await createClientProject(sql, {
+        clientId,
+        projectType,
+        projectName: body.project_name ?? null,
+        ucGeradora: ucRaw || null,
+        distribuidora: body.distribuidora ?? null,
+        consumptionKwhMonth: body.consumption_kwh_month ?? null,
+        termMonths: body.term_months ?? null,
+        systemKwp: body.system_kwp ?? null,
+        isPrimary: false,
+        origin: 'portfolio',
+      })
+
+      console.info('[portfolio][projects] created', {
+        clientId,
+        projectId: project?.id ?? null,
+        projectType,
+        actorUserId: actor.userId,
+      })
+
+      sendJson(201, { data: project })
+    } catch (err) {
+      // Unique constraint on (client_id, uc_geradora) — friendly message.
+      if (err?.code === '23505' && String(err?.constraint ?? '').includes('uc')) {
+        sendJson(409, {
+          error: {
+            code: 'DUPLICATE_UC',
+            message: 'Já existe um projeto ativo com esta UC Geradora para este cliente.',
+          },
+        })
+        return
+      }
+      console.error('[portfolio][projects] create error', err)
+      sendJson(500, { error: { code: 'DB_ERROR', message: 'Erro ao criar projeto.' } })
+    }
+    return
+  }
+
+  sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
 }

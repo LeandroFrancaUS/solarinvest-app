@@ -3,13 +3,17 @@
 // by design so that repeated requests (retries, duplicate clicks, backfill
 // re-runs) NEVER duplicate a project.
 
+import crypto from 'node:crypto'
 import {
   findProjectByPlanId,
   insertProject,
   getPlanSnapshotFromContract,
   seedPvDataFromClient,
 } from './repository.js'
-import { buildNewProjectFields } from './planMapper.js'
+import { buildNewProjectFields, isProjectType } from './planMapper.js'
+
+/** Prefix used for plan_id on standalone projects (no contract required). */
+export const STANDALONE_PLAN_PREFIX = 'standalone:'
 
 /**
  * Creates a project for the given plan snapshot, or returns the existing
@@ -68,4 +72,78 @@ export async function createOrReuseProjectFromContractId(sql, contractId, option
     throw err
   }
   return createOrReuseProjectFromPlan(sql, snapshot, options)
+}
+
+/**
+ * Creates a standalone project for an existing client — no contract required.
+ * Each call generates a new unique plan_id (`standalone:<uuid>`) so multiple
+ * standalone projects can coexist for the same client.
+ *
+ * @param {Object} sql — user-scoped sql function (from createUserScopedSql)
+ * @param {Object} params
+ * @param {number} params.clientId — existing client id (must exist in DB)
+ * @param {string} params.projectType — 'leasing' | 'venda'
+ * @param {Object} [options]
+ * @param {string|null} [options.userId] — actor userId for audit columns
+ * @returns {Promise<{ project: Object, created: boolean }>}
+ */
+export async function createStandaloneProject(sql, { clientId, projectType }, options = {}) {
+  const userId = options.userId ?? null
+
+  if (!Number.isFinite(Number(clientId)) || Number(clientId) <= 0) {
+    const err = new Error('clientId inválido.')
+    err.code = 'INVALID_CLIENT_ID'
+    throw err
+  }
+  if (!isProjectType(projectType)) {
+    const err = new Error('projectType deve ser "leasing" ou "venda".')
+    err.code = 'INVALID_PROJECT_TYPE'
+    throw err
+  }
+
+  // Verify the client exists and is not deleted.
+  const clientRows = await sql`
+    SELECT
+      id,
+      client_name,
+      client_document AS cpf_cnpj,
+      client_city     AS city,
+      client_state    AS state
+    FROM clients
+    WHERE id = ${Number(clientId)}
+      AND deleted_at IS NULL
+    LIMIT 1
+  `
+  const clientRow = clientRows[0]
+  if (!clientRow) {
+    const err = new Error(`Cliente ${clientId} não encontrado ou inativo.`)
+    err.code = 'CLIENT_NOT_FOUND'
+    throw err
+  }
+
+  const planId = `${STANDALONE_PLAN_PREFIX}${crypto.randomUUID()}`
+
+  const textOrNull = (v) => {
+    if (v == null) return null
+    const t = String(v).trim()
+    return t.length ? t : null
+  }
+
+  const fields = {
+    client_id: Number(clientId),
+    plan_id: planId,
+    contract_id: null,
+    proposal_id: null,
+    project_type: projectType,
+    status: 'Aguardando',
+    client_name_snapshot: textOrNull(clientRow.client_name),
+    cpf_cnpj_snapshot: textOrNull(clientRow.cpf_cnpj),
+    city_snapshot: textOrNull(clientRow.city),
+    state_snapshot: textOrNull(clientRow.state),
+  }
+
+  const project = await insertProject(sql, fields, userId)
+  // Seed PV data from client's existing energy profile (no-op if nothing exists).
+  await seedPvDataFromClient(sql, project.id, project.client_id)
+  return { project, created: true }
 }

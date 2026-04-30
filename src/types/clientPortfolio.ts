@@ -191,6 +191,37 @@ export interface PortfolioClientRow {
 
   // ── WiFi / monitoring ──
   wifi_status?: 'conectado' | 'desconectado' | 'falha' | null
+
+  // ── Multi-project support (migration 0065) ──
+  /** Stable row key for list rendering: 'client:{id}' for now; may become 'project:{id}' later. */
+  portfolio_row_id?: string | null
+  /** Explicit client_id for use when id may be ambiguous in future project-based rows. */
+  client_id?: number | string | null
+  /** Number of active projects for this client (filled by aggregated queries). */
+  projects_count?: number | null
+  /** All active projects for this client — populated only by getPortfolioClient detail queries. */
+  projects?: PortfolioProject[] | null
+}
+
+/**
+ * A single solar project linked to a client in the Carteira Ativa.
+ * Sourced from public.client_projects (migration 0065).
+ */
+export interface PortfolioProject {
+  id: number | string
+  client_id: number | string
+  project_name?: string | null
+  project_type: 'leasing' | 'venda' | 'buyout'
+  uc_geradora?: string | null
+  distribuidora?: string | null
+  consumption_kwh_month?: number | null
+  term_months?: number | null
+  system_kwp?: number | null
+  status?: string | null
+  is_primary?: boolean
+  origin?: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client

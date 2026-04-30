@@ -303,6 +303,46 @@ export async function listClients(filters: ClientListFilters = {}): Promise<Clie
   return apiFetch<ClientListResult>(qs)
 }
 
+/** Minimal client record returned for the existing-client picker dropdown. */
+export interface ClientPickerRow {
+  id: number
+  name: string
+  document: string | null
+  phone: string | null
+  email: string | null
+  city: string | null
+  state: string | null
+  address: string | null
+  cep: string | null
+  distribuidora: string | null
+  uc: string | null
+  consumption_kwh_month: number | null
+}
+
+/**
+ * Searches clients by name or document for the "Selecionar cliente existente"
+ * picker in the "Adicionar Cliente" form.
+ * Returns up to 30 results ordered by name.
+ */
+export async function searchClientsForPicker(query: string): Promise<ClientPickerRow[]> {
+  const params = new URLSearchParams({ search: query, limit: '30' })
+  const result = await apiFetch<ClientListResult>(`?${params.toString()}`)
+  return result.data.map((row) => ({
+    id: Number(row.id),
+    name: row.client_name ?? row.name ?? '',
+    document: row.client_document ?? row.document ?? null,
+    phone: row.client_phone ?? row.phone ?? null,
+    email: row.client_email ?? row.email ?? null,
+    city: row.client_city ?? row.city ?? null,
+    state: row.client_state ?? row.state ?? null,
+    address: row.client_address ?? row.address ?? null,
+    cep: row.client_cep ?? row.cep ?? null,
+    distribuidora: row.distribuidora ?? null,
+    uc: row.uc ?? null,
+    consumption_kwh_month: row.consumption_kwh_month ?? row.consumptionKwhMonth ?? null,
+  }))
+}
+
 export interface ConsultantEntry {
   id: string
   name: string

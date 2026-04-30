@@ -106,6 +106,7 @@ import {
   handlePortfolioNotesRequest,
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
+  handlePortfolioClientProjectsRequest,
 } from './client-portfolio/handler.js'
 import {
   handleFinancialSummary,
@@ -123,6 +124,7 @@ import {
   handleProjectStatus,
   handleProjectPvData,
   handleProjectFromPlan,
+  handleProjectStandalone,
 } from './projects/handler.js'
 import { handleProjectFinance } from './project-finance/handler.js'
 import {
@@ -1350,6 +1352,16 @@ export default async function handler(req, res) {
       return
     }
 
+    // GET|POST /api/client-portfolio/:clientId/projects — multi-project support (migration 0065)
+    const portfolioClientProjectsMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/projects$/)
+    if (portfolioClientProjectsMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioClientProjectsMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioClientProjectsRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
+      return
+    }
+
     // ── Invoice Management routes ─────────────────────────────────────────────
 
     // GET /api/invoices?client_id=:id — list invoices for a client
@@ -1554,6 +1566,14 @@ export default async function handler(req, res) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
       await handleProjectsSummary(req, res, { method, sendJson: sj })
+      return
+    }
+
+    // POST /api/projects/standalone
+    if (pathname === '/api/projects/standalone') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleProjectStandalone(req, res, { method, readJsonBody, sendJson: sj })
       return
     }
 

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { currency } from '../../utils/formatters'
 import { formatPercentBR, fmt } from '../../lib/locale/br-number'
 import { CRM_PIPELINE_STAGES, CRM_INSTALACAO_STATUS } from './crmConstants'
@@ -10,8 +10,13 @@ import type {
   CrmLeadFormState,
   CrmLeadRecord,
 } from './crmTypes'
+import { TipoProjetoModal } from '../../components/projects/TipoProjetoModal'
+import type { ProjectType } from '../../domain/projects/types'
 
-export type CrmPageProps = UseCrmState
+export type CrmPageProps = UseCrmState & {
+  /** Optional: called when the user wants to create a new project from a lead. */
+  onAdicionarNovoProjeto?: (lead: CrmLeadRecord, projectType: ProjectType) => void | Promise<void>
+}
 
 export function CrmPage(props: CrmPageProps): React.JSX.Element {
   const {
@@ -51,7 +56,12 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
     handleSalvarContratoCrm,
     handleAdicionarManutencaoCrm,
     handleConcluirManutencaoCrm,
+    onAdicionarNovoProjeto,
   } = props
+
+  // Local state for "Adicionar novo projeto" modal
+  const [projetoModalLead, setProjetoModalLead] = useState<CrmLeadRecord | null>(null)
+  const [projetoModalLoading, setProjetoModalLoading] = useState(false)
   return (
     <div className="crm-page">
       <div className="crm-main">
@@ -289,6 +299,16 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
                             >
                               ▶
                             </button>
+                            {onAdicionarNovoProjeto ? (
+                              <button
+                                type="button"
+                                aria-label="Adicionar novo projeto"
+                                title="Adicionar novo projeto"
+                                onClick={() => setProjetoModalLead(lead)}
+                              >
+                                ＋
+                              </button>
+                            ) : null}
                             <button type="button" className="danger" onClick={() => handleRemoverLead(lead.id)}>
                               Remover
                             </button>
@@ -955,6 +975,23 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
           </div>
         </section>
       </div>
+
+      {/* Modal: escolha de tipo de projeto para leads */}
+      <TipoProjetoModal
+        open={projetoModalLead !== null}
+        onClose={() => { setProjetoModalLead(null) }}
+        clientName={projetoModalLead?.nome}
+        loading={projetoModalLoading}
+        onConfirm={(projectType) => {
+          if (!projetoModalLead || !onAdicionarNovoProjeto) return
+          setProjetoModalLoading(true)
+          void Promise.resolve(onAdicionarNovoProjeto(projetoModalLead, projectType))
+            .finally(() => {
+              setProjetoModalLoading(false)
+              setProjetoModalLead(null)
+            })
+        }}
+      />
     </div>
   )
 }
