@@ -878,11 +878,13 @@ function FaturasAPagarTab() {
 
   const sortedInvoices = useMemo(() => {
     if (!sortState) return relevantInvoices
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
     return [...relevantInvoices].sort((a, b) => {
       let aVal: unknown
       let bVal: unknown
-      const aDiff = Math.floor((new Date(a.dueDate).setHours(0,0,0,0) - today.getTime()) / 86400000)
-      const bDiff = Math.floor((new Date(b.dueDate).setHours(0,0,0,0) - today.getTime()) / 86400000)
+      const aDiff = Math.floor((new Date(a.dueDate).setHours(0,0,0,0) - now.getTime()) / 86400000)
+      const bDiff = Math.floor((new Date(b.dueDate).setHours(0,0,0,0) - now.getTime()) / 86400000)
       if (sortState.key === 'client') { aVal = a.clientName; bVal = b.clientName }
       else if (sortState.key === 'installment') { aVal = a.installmentNumber; bVal = b.installmentNumber }
       else if (sortState.key === 'due') { aVal = a.dueDate.getTime(); bVal = b.dueDate.getTime() }
@@ -892,7 +894,6 @@ function FaturasAPagarTab() {
       const cmp = sortCompare(aVal, bVal)
       return sortState.direction === 'asc' ? cmp : -cmp
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relevantInvoices, sortState])
 
   if (loading) {
