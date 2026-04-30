@@ -4051,15 +4051,15 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           {!isLoading && !error && hasClients && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {/* Column headers — aligned to grid columns */}
-              <div className="active-wallet-card wallet-col-headers" aria-hidden="true">
-                <span className="wallet-col-header">Cliente</span>
-                <span className="wallet-col-header">Produto</span>
-                <span className="wallet-col-header">Cidade/UF</span>
-                <span className="wallet-col-header">Consumo</span>
-                <span className="wallet-col-header">Mensalidade</span>
-                <span className="wallet-col-header">Vencimento</span>
-                <span className="wallet-col-header">Status</span>
-                <span className="wallet-col-header">Ações</span>
+              <div className="active-wallet-card wallet-col-headers" role="row">
+                <span className="wallet-col-header" role="columnheader">Cliente</span>
+                <span className="wallet-col-header" role="columnheader">Produto</span>
+                <span className="wallet-col-header" role="columnheader">Cidade/UF</span>
+                <span className="wallet-col-header" role="columnheader">Consumo</span>
+                <span className="wallet-col-header" role="columnheader">Mensalidade</span>
+                <span className="wallet-col-header" role="columnheader">Vencimento</span>
+                <span className="wallet-col-header" role="columnheader">Status</span>
+                <span className="wallet-col-header" role="columnheader">Ações</span>
               </div>
               {sortedClients.map((c) => (
                 <ClientCard

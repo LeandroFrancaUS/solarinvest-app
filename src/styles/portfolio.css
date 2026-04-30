@@ -411,8 +411,6 @@
   line-height: 1.5;
   white-space: nowrap;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Payment badge overrides background via inline style; keep base transparent here */
