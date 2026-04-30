@@ -2376,15 +2376,6 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
               ) : (
                 <span className="pf-info-value">
                   {resolvedFirstBillingDate?.toLocaleDateString('pt-BR') ?? '—'}
-                  {form.first_billing_date && (
-                    <span
-                      style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 6 }}
-                      aria-label="Editado manualmente"
-                      title="Editado manualmente"
-                    >
-                      ✏️ manual
-                    </span>
-                  )}
                 </span>
               )}
             </div>
