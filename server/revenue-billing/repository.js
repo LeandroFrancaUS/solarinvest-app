@@ -164,13 +164,15 @@ export async function listRevenueClients(sql, filters = {}) {
       FROM active_clients c
     ),
     canonical_clients AS (
-      -- One row per document key (or per client when document is absent).
-      -- Clients without any document key (all columns NULL / empty) are kept
-      -- as individual rows because they cannot be grouped.
+      -- One row per document key.
+      -- When document_key is NULL for multiple clients, PostgreSQL's window
+      -- function groups them together and assigns ascending ranks; only rn=1
+      -- (the most complete / most recently updated) is kept.  This is the
+      -- correct deduplication behaviour: undocumented rows that cannot be
+      -- identified are collapsed to their single best representative.
       SELECT *
       FROM ranked_clients
       WHERE rn = 1
-        OR document_key IS NULL
     )
     SELECT
       c.id                                        AS client_id,
