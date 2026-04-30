@@ -1111,7 +1111,7 @@ function EditarTab({
           </label>
           <label className="pf-label" style={labelStyle}>
             Documento (CPF/CNPJ)
-            <input type="text" value={form.client_document} onChange={(e) => setForm((f) => ({ ...f, client_document: e.target.value }))} disabled={!editMode} style={inputStyle} />
+            <input type="text" value={!editMode ? formatCpfCnpj(form.client_document) : form.client_document} onChange={(e) => setForm((f) => ({ ...f, client_document: e.target.value }))} disabled={!editMode} style={inputStyle} />
           </label>
           <div style={gridStyle}>
             <label className="pf-label" style={labelStyle}>
@@ -3748,6 +3748,10 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [sortBy, setSortBy] = useState<'due_date' | 'created_at' | 'name' | 'city'>('due_date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
+  type WalletSortKey = 'client' | 'modalidade' | 'city' | 'consumption' | 'monthly' | 'due' | 'status'
+  type WalletSortDirection = 'asc' | 'desc'
+  const [walletSortState, setWalletSortState] = useState<{ key: WalletSortKey; direction: WalletSortDirection } | null>(null)
+
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const q = e.target.value
@@ -3806,6 +3810,65 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
+    // Helper: numeric value for wallet consumption sort
+    const toFiniteNum = (v: unknown): number => {
+      if (v === null || v === undefined || v === '') return -Infinity
+      const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+      return Number.isFinite(n) ? n : -Infinity
+    }
+
+    // Severity scores for wallet status sort (lower = worse, sorts first on asc)
+    const wifiSeverity = (c: PortfolioClientRow): number => {
+      const ws = c.wifi_status ?? (c.metadata?.wifi_status as string | null | undefined) ?? null
+      if (ws === 'falha') return 0
+      if (ws === 'desconectado') return 1
+      if (!ws) return 2
+      return 3 // conectado
+    }
+    const paymentSeverity = (s: ClientPaymentStatusV2): number => {
+      if (s === 'ATRASADO') return 0
+      if (s === 'VENCIDO' || s === 'PARCIALMENTE_PAGO') return 1
+      if (s === 'SEM_COBRANCA') return 2
+      return 3 // PAGO
+    }
+
+    // When walletSortState is active, use it; otherwise fall back to toolbar sort
+    if (walletSortState !== null) {
+      const { key, direction } = walletSortState
+      const dir = direction === 'asc' ? 1 : -1
+      return [...clients].sort((a, b) => {
+        let cmp = 0
+        if (key === 'client') {
+          cmp = (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR', { sensitivity: 'base' })
+        } else if (key === 'modalidade') {
+          const mLabel = (c: PortfolioClientRow) =>
+            c.contract_type === 'leasing' ? 'Leasing' : c.contract_type ? 'Venda' : ''
+          cmp = mLabel(a).localeCompare(mLabel(b), 'pt-BR')
+        } else if (key === 'city') {
+          const cityA = [a.city, a.state].filter(Boolean).join('/')
+          const cityB = [b.city, b.state].filter(Boolean).join('/')
+          cmp = cityA.localeCompare(cityB, 'pt-BR', { sensitivity: 'base' })
+        } else if (key === 'consumption') {
+          const va = toFiniteNum(a.kwh_mes_contratado ?? a.kwh_contratado ?? a.consumption_kwh_month)
+          const vb = toFiniteNum(b.kwh_mes_contratado ?? b.kwh_contratado ?? b.consumption_kwh_month)
+          cmp = va - vb
+        } else if (key === 'monthly') {
+          const va = getInstallmentProgress(a).value ?? -Infinity
+          const vb = getInstallmentProgress(b).value ?? -Infinity
+          cmp = va - vb
+        } else if (key === 'due') {
+          const da = a.due_day != null ? Number(a.due_day) : Infinity
+          const db = b.due_day != null ? Number(b.due_day) : Infinity
+          cmp = da - db
+        } else if (key === 'status') {
+          const sa = Math.min(wifiSeverity(a), paymentSeverity(getClientPaymentStatusV2(a).status))
+          const sb = Math.min(wifiSeverity(b), paymentSeverity(getClientPaymentStatusV2(b).status))
+          cmp = sa - sb
+        }
+        return cmp * dir
+      })
+    }
+
     const sorted = [...clients].sort((a, b) => {
       let compareResult = 0
       if (sortBy === 'due_date') {
@@ -3849,7 +3912,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       return sortDir === 'asc' ? compareResult : -compareResult
     })
     return sorted
-  }, [clients, sortBy, sortDir])
+  }, [clients, sortBy, sortDir, walletSortState])
 
   const toggleSort = useCallback((field: 'due_date' | 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
@@ -3859,6 +3922,14 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
       setSortDir(field === 'created_at' ? 'desc' : 'asc')
     }
   }, [sortBy, sortDir])
+
+  const toggleWalletSort = useCallback((key: WalletSortKey) => {
+    setWalletSortState((prev) => {
+      if (!prev || prev.key !== key) return { key, direction: 'asc' }
+      if (prev.direction === 'asc') return { key, direction: 'desc' }
+      return null
+    })
+  }, [])
 
   // Compute billing alerts from all clients for the dashboard widget.
   // Skip clients whose Cobrança tab would be disabled (sale/buyout, inactive
@@ -4116,13 +4187,62 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {/* Column headers — aligned to grid columns */}
               <div className="active-wallet-card wallet-col-headers" role="row">
-                <span className="wallet-col-header" role="columnheader">Cliente</span>
-                <span className="wallet-col-header" role="columnheader">Modalidade</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Cidade/UF</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Consumo (kWh/mês)</span>
-                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Mensalidade (R$)</span>
-                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Vencimento</span>
-                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Status</span>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'client' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Cliente${walletSortState?.key === 'client' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('client')}
+                >Cliente</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'modalidade' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Modalidade${walletSortState?.key === 'modalidade' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('modalidade')}
+                >Modalidade</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'city' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Cidade/UF${walletSortState?.key === 'city' ? (walletSortState.direction === 'asc' ? ' (A→Z)' : ' (Z→A)') : ''}`}
+                  onClick={() => toggleWalletSort('city')}
+                >Cidade/UF</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'consumption' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Consumo${walletSortState?.key === 'consumption' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('consumption')}
+                >Consumo (kWh/mês)</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-right wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'monthly' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Mensalidade${walletSortState?.key === 'monthly' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('monthly')}
+                >Mensalidade (R$)</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-center wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'due' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Vencimento${walletSortState?.key === 'due' ? (walletSortState.direction === 'asc' ? ' (menor→maior)' : ' (maior→menor)') : ''}`}
+                  onClick={() => toggleWalletSort('due')}
+                >Vencimento</button>
+                <button
+                  type="button"
+                  className="wallet-col-header wallet-col-header-center wallet-sort-header"
+                  role="columnheader"
+                  aria-sort={walletSortState?.key === 'status' ? (walletSortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  title={`Ordenar por Status${walletSortState?.key === 'status' ? (walletSortState.direction === 'asc' ? ' (crítico→ok)' : ' (ok→crítico)') : ''}`}
+                  onClick={() => toggleWalletSort('status')}
+                >Status</button>
                 <span className="wallet-col-header wallet-col-header-center" role="columnheader">Ações</span>
               </div>
               {sortedClients.map((c) => (
