@@ -53,7 +53,7 @@ import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfol
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { FaturasTab } from '../components/portfolio/FaturasTab'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2, parseDate as parseBillingDate, resolveFirstBillingDate } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2, resolveFirstBillingDate } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
@@ -2108,21 +2108,22 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 
   // Resolved first billing date: manual override (form.first_billing_date) takes
   // precedence; falls back to the automatic calculation from commissioning/reading/due data.
+  // Uses the resolveFirstBillingDate helper for the manual → billingDates resolution,
+  // then falls back to the legacy engine result as a last resort.
   const resolvedFirstBillingDate = useMemo(() => {
-    if (form.first_billing_date) {
-      return parseBillingDate(form.first_billing_date)
-    }
-    if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
-      return billingDatesV2.dataPrimeiraCobranca
-    }
+    const fromHelper = resolveFirstBillingDate({
+      manualFirstBillingDate: form.first_billing_date || null,
+      commissioningDate: form.commissioning_date_billing || null,
+      readingDay: form.reading_day !== '' ? Number(form.reading_day) : null,
+      dueDay: form.due_day !== '' ? Number(form.due_day) : null,
+      valorMensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
+    })
+    if (fromHelper) return fromHelper
     if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
       return engineResult.inicio_da_mensalidade
     }
-    if (form.commissioning_date_billing) {
-      return parseBillingDate(form.commissioning_date_billing)
-    }
     return null
-  }, [form.first_billing_date, billingDatesV2, engineResult, form.commissioning_date_billing])
+  }, [form.first_billing_date, form.commissioning_date_billing, form.reading_day, form.due_day, form.valor_mensalidade, engineResult])
 
   const installments = useMemo(() => {
     if (!termMonths || !form.due_day || !resolvedFirstBillingDate) return []
@@ -2175,10 +2176,11 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       let installmentsJsonPayload: InstallmentPayment[] | undefined
       if (installments.length > 0) {
         const existingPayments = parseInstallmentsJson(client.installments_json)
-        const existingByNumber = new Map<number, InstallmentPayment>()
-        for (const p of existingPayments) {
-          if (p.number != null) existingByNumber.set(p.number, p)
-        }
+        const existingByNumber = new Map<number, InstallmentPayment>(
+          existingPayments
+            .filter((p): p is InstallmentPayment & { number: number } => p.number != null)
+            .map((p) => [p.number, p]),
+        )
         installmentsJsonPayload = installments.map((inst) => {
           const existing = existingByNumber.get(inst.numero)
           return {
@@ -2375,7 +2377,13 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
                 <span className="pf-info-value">
                   {resolvedFirstBillingDate?.toLocaleDateString('pt-BR') ?? '—'}
                   {form.first_billing_date && (
-                    <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 6 }}>✏️ manual</span>
+                    <span
+                      style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 6 }}
+                      aria-label="Editado manualmente"
+                      title="Editado manualmente"
+                    >
+                      ✏️ manual
+                    </span>
                   )}
                 </span>
               )}
