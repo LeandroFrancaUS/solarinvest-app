@@ -341,11 +341,13 @@ import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { FinancialManagementPage } from './pages/FinancialManagementPage'
+import { RevenueAndBillingPage } from './pages/RevenueAndBillingPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
+import { setRevenueBillingTokenProvider } from './services/revenueBillingApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
 import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
@@ -4225,6 +4227,7 @@ export default function App() {
     setAdminUsersTokenProvider(getAccessToken)
     setPortfolioTokenProvider(getAccessToken)
     setFinancialManagementTokenProvider(getAccessToken)
+    setRevenueBillingTokenProvider(getAccessToken)
     setProjectsTokenProvider(getAccessToken)
     setProjectFinanceTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
@@ -20286,7 +20289,7 @@ export default function App() {
             : null
         ) : activePage === 'financial-management' ? (
           canSeeFinancialManagementEffective
-            ? <FinancialManagementPage
+            ? <RevenueAndBillingPage
                 onBack={() => setActivePage(lastPrimaryPageRef.current)}
                 initialProjectId={pendingFinancialProjectId}
               />

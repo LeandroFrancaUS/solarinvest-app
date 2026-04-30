@@ -34,6 +34,16 @@ interface Props {
   onBack: () => void
   /** Called when the user wants to open a specific project from another page. */
   initialProjectId?: string | null
+  /**
+   * Optional: if provided, the page starts on this tab instead of 'overview'.
+   * Used by RevenueAndBillingPage to delegate non-projects tabs here.
+   */
+  initialTab?: Tab
+  /**
+   * Optional: if provided, this node replaces the default RealProjectsTab content.
+   * Used by RevenueAndBillingPage to inject the deduplicated canonical-client view.
+   */
+  projectsTabOverride?: React.ReactNode
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1014,8 +1024,8 @@ function FaturasAPagarTab() {
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+export function FinancialManagementPage({ onBack, initialProjectId, initialTab, projectsTabOverride }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -1214,7 +1224,7 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
         ) : (
           <>
             {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
-            {activeTab === 'projects' && <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />}
+            {activeTab === 'projects' && (projectsTabOverride ?? <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />)}
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
             {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
             {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
