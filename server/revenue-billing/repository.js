@@ -61,18 +61,16 @@
 
 /**
  * @typedef {Object} RevenueProjectRow
- * @property {string}      project_id          — UUID string
- * @property {number}      client_id
+ * @property {number}      client_id           — portfolio client id (unique key)
  * @property {string|null} client_name
  * @property {string|null} document_key        — normalised digits (no formatting)
  * @property {string|null} document_type       — 'cpf' | 'cnpj' | null
  * @property {string|null} city
  * @property {string|null} state
- * @property {string|null} project_type        — 'leasing' | 'venda'
- * @property {string|null} project_status      — 'Aguardando' | 'Em andamento' | 'Concluído'
+ * @property {string|null} project_status      — from client_project_status (pending|engineering|installation|homologation|commissioned|active|issue)
  * @property {string|null} contract_id
- * @property {string|null} contract_type
- * @property {string|null} contract_status
+ * @property {string|null} contract_type       — 'leasing' | 'sale' | 'buyout' | null
+ * @property {string|null} contract_status     — 'draft' | 'active' | 'suspended' | 'completed' | 'cancelled' | null
  * @property {string|null} contract_start_date — ISO date string
  * @property {string|null} updated_at          — ISO datetime string
  */
@@ -323,25 +321,21 @@ export async function listRevenueClients(sql, filters = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns one row per active/closed project whose client is activated
- * (in_portfolio, portfolio_exported_at, or at least one active contract).
+ * Returns one row per client in the active portfolio (clients.in_portfolio = true).
  *
- * The query starts from public.projects — never from public.clients — so the
- * result is semantically "one project per row" and duplicated client rows in
- * the clients table cannot inflate the count.
+ * This mirrors the Carteira Ativa list exactly:
+ *   • Source: public.clients WHERE in_portfolio = true AND deleted_at IS NULL
+ *   • Deduplication: one row per client.id (no CPF/CNPJ collapsing)
+ *   • Contract: LATERAL join picks the single most-relevant contract per client
+ *     (active-like statuses first, then most recently updated, then largest id)
+ *   • Project status: LEFT JOIN client_project_status (one row per client in
+ *     the portfolio; may be absent for clients not yet through onboarding)
  *
- * A client with two distinct closed projects will appear twice, one row per
- * project. CPF/CNPJ deduplication across client rows is NOT applied here;
- * each project.id is already unique.
- *
- * The LATERAL contract join picks the single most-relevant contract for the
- * project's client (active-like statuses preferred, then most-recent update).
- *
- * Accepts the following optional filters (same interface as listRevenueClients):
+ * Accepts the following optional filters:
  *   search        — ILIKE match on name, document, city, state
  *   contract_type — exact match on contract.contract_type
- *   order_by      — one of: client | document | city | state | project_type |
- *                   project_status | updated_at
+ *   order_by      — one of: client | document | city | state |
+ *                   contract_type | project_status | updated_at
  *   order_dir     — 'asc' | 'desc'
  *   limit         — max rows (default 200, max 500)
  *   offset        — pagination offset (default 0)
@@ -355,19 +349,19 @@ export async function listRevenueProjects(sql, filters = {}) {
   const offset = Math.max(Number(filters.offset) || 0, 0)
 
   const ORDER_MAP = Object.freeze({
-    client:         'client_name',
+    client:         'c.client_name',
     document:       'document_key',
-    city:           'city',
-    state:          'state',
-    project_type:   'p.project_type',
-    project_status: 'p.status',
-    updated_at:     'p.updated_at',
+    city:           'c.client_city',
+    state:          'c.client_state',
+    contract_type:  'contract_type',
+    project_status: 'cp.project_status',
+    updated_at:     'c.updated_at',
   })
-  const orderCol = ORDER_MAP[filters.order_by] ?? 'p.updated_at'
+  const orderCol = ORDER_MAP[filters.order_by] ?? 'c.updated_at'
   const orderDir = filters.order_dir === 'asc' ? 'ASC' : 'DESC'
 
   // Active-like contract statuses — prepended as $1..$5 so the same list is
-  // reused in both the EXISTS subquery and the LATERAL ORDER BY CASE.
+  // reused in both the EXISTS CTE (if any) and the LATERAL ORDER BY CASE.
   const activeStatusPlaceholders = ACTIVE_CONTRACT_STATUSES.map((_, i) => `$${i + 1}`).join(', ')
 
   const params = [...ACTIVE_CONTRACT_STATUSES]
@@ -378,7 +372,7 @@ export async function listRevenueProjects(sql, filters = {}) {
     params.push(`%${filters.search}%`)
     const idx = params.length
     filterConditions.push(
-      `(client_name ILIKE $${idx} OR document_key ILIKE $${idx} OR city ILIKE $${idx} OR state ILIKE $${idx})`,
+      `(c.client_name ILIKE $${idx} OR document_key ILIKE $${idx} OR c.client_city ILIKE $${idx} OR c.client_state ILIKE $${idx})`,
     )
   }
 
@@ -395,72 +389,45 @@ export async function listRevenueProjects(sql, filters = {}) {
   const offsetIdx = params.length
 
   const queryText = `
-    WITH active_closed_clients AS (
-      -- Clients that are activated / in active portfolio.
-      -- Excludes soft-deleted and merged records.
-      SELECT id, client_name, document_type, client_city, client_state,
-             cpf_normalized, cnpj_normalized, client_document
-      FROM public.clients
-      WHERE deleted_at IS NULL
-        AND merged_into_client_id IS NULL
-        AND (
-          in_portfolio = true
-          OR portfolio_exported_at IS NOT NULL
-          OR EXISTS (
-            SELECT 1
-            FROM public.client_contracts cc
-            WHERE cc.client_id = public.clients.id
-              AND lower(COALESCE(cc.contract_status, '')) IN (${activeStatusPlaceholders})
-          )
-        )
-    ),
-    project_rows AS (
+    WITH portfolio_clients AS (
+      -- Source of truth: clients.in_portfolio = true, same as Carteira Ativa.
+      -- Excludes soft-deleted rows.
       SELECT
-        p.id::text                                         AS project_id,
-        p.client_id,
-        p.project_type,
-        p.status,
-        p.updated_at,
-        -- Client name: prefer the live client record, fall back to snapshot
-        COALESCE(c.client_name, p.client_name_snapshot)   AS client_name,
-        -- Normalised document key (raw digits only, no formatting)
+        c.id,
+        c.client_name,
+        c.document_type,
+        c.client_city,
+        c.client_state,
+        c.updated_at,
+        -- Normalised document key (raw digits, no formatting)
         NULLIF(
           COALESCE(
-            NULLIF(c.cpf_normalized, ''),
+            NULLIF(c.cpf_normalized,  ''),
             NULLIF(c.cnpj_normalized, ''),
-            NULLIF(regexp_replace(COALESCE(c.client_document, ''), '\\D', '', 'g'), ''),
-            NULLIF(regexp_replace(COALESCE(p.cpf_cnpj_snapshot, ''), '\\D', '', 'g'), '')
+            NULLIF(regexp_replace(COALESCE(c.client_document, ''), '\\D', '', 'g'), '')
           ),
           ''
-        )                                                  AS document_key,
-        c.document_type,
-        -- Location: prefer snapshot (captured at project creation)
-        COALESCE(p.city_snapshot,  c.client_city)          AS city,
-        COALESCE(p.state_snapshot, c.client_state)         AS state
-      FROM public.projects p
-      JOIN active_closed_clients c ON c.id = p.client_id
-      WHERE p.deleted_at IS NULL
+        ) AS document_key
+      FROM public.clients c
+      WHERE c.in_portfolio = true
+        AND c.deleted_at IS NULL
     )
     SELECT
-      pr.project_id,
-      pr.client_id,
-      pr.client_name,
-      pr.document_key,
-      pr.document_type,
-      pr.city,
-      pr.state,
-      pr.project_type,
-      pr.status                              AS project_status,
-      pr.updated_at,
-      contract.id::text                      AS contract_id,
+      c.id                               AS client_id,
+      c.client_name,
+      c.document_key,
+      c.document_type,
+      c.client_city                      AS city,
+      c.client_state                     AS state,
+      c.updated_at,
+      cp.project_status,
+      contract.id::text                  AS contract_id,
       contract.contract_type,
       contract.contract_status,
-      contract.contract_start_date::text     AS contract_start_date,
-      COUNT(*) OVER()                        AS total_count
-    FROM project_rows pr
-    -- LATERAL: pick the single most-relevant contract for this client.
-    -- Priority: active-like statuses first, then most recently updated, then
-    -- largest id as deterministic tiebreaker.
+      contract.contract_start_date::text AS contract_start_date,
+      COUNT(*) OVER()                    AS total_count
+    FROM portfolio_clients c
+    -- LATERAL: pick the single most-relevant contract per portfolio client.
     LEFT JOIN LATERAL (
       SELECT
         cc.id,
@@ -468,7 +435,7 @@ export async function listRevenueProjects(sql, filters = {}) {
         cc.contract_status,
         cc.contract_start_date
       FROM public.client_contracts cc
-      WHERE cc.client_id = pr.client_id
+      WHERE cc.client_id = c.id
       ORDER BY
         CASE
           WHEN lower(COALESCE(cc.contract_status, '')) IN (${activeStatusPlaceholders}) THEN 0
@@ -479,6 +446,8 @@ export async function listRevenueProjects(sql, filters = {}) {
         cc.id         DESC
       LIMIT 1
     ) contract ON TRUE
+    -- LEFT JOIN: project status from Carteira Ativa tracking table
+    LEFT JOIN public.client_project_status cp ON cp.client_id = c.id
     ${whereClause}
     ORDER BY ${orderCol} ${orderDir} NULLS LAST
     LIMIT  $${limitIdx}
@@ -500,14 +469,12 @@ export async function listRevenueProjects(sql, filters = {}) {
 
   return {
     data: rows.map((r) => ({
-      project_id:          String(r.project_id),
       client_id:           Number(r.client_id),
       client_name:         r.client_name ?? null,
       document_key:        r.document_key ?? null,
       document_type:       r.document_type ?? null,
       city:                r.city ?? null,
       state:               r.state ?? null,
-      project_type:        r.project_type ?? null,
       project_status:      r.project_status ?? null,
       contract_id:         r.contract_id ?? null,
       contract_type:       r.contract_type ?? null,

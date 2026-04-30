@@ -44,7 +44,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface RevenueProjectRow {
-  project_id: string
+  /** Unique portfolio client id. Used as the row key. */
   client_id: number
   client_name: string | null
   /** Raw normalised digits (no formatting). Format in the UI with formatCpfCnpj(). */
@@ -52,7 +52,11 @@ export interface RevenueProjectRow {
   document_type: 'cpf' | 'cnpj' | null
   city: string | null
   state: string | null
-  project_type: string | null
+  /**
+   * Project status from client_project_status
+   * (pending | engineering | installation | homologation | commissioned | active | issue).
+   * May be null when the client has no client_project_status row yet.
+   */
   project_status: string | null
   contract_id: string | null
   contract_type: string | null

@@ -95,9 +95,9 @@ export async function handleRevenueClients(req, res, { method, sendJson, request
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns one row per active project whose client is activated.
- * The query is rooted in the projects table — never in clients — so the
- * result represents projects, not a client list.
+ * Returns one row per portfolio client (clients.in_portfolio = true).
+ * Mirrors the Carteira Ativa list: source is the clients table with
+ * in_portfolio = true AND deleted_at IS NULL. One row per client.id.
  *
  * Query params: same as /api/revenue-billing/clients
  *   search, contract_type, order_by, order_dir, limit, offset

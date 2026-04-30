@@ -1,18 +1,17 @@
 // src/pages/RevenueAndBillingPage.tsx
 // Receita e Cobrança — wraps FinancialManagementPage with a "Projetos" tab
-// backed by /api/revenue-billing/projects (one row per active project).
+// backed by /api/revenue-billing/projects.
 //
 // SEMANTICS
 // ─────────
-// The Projetos tab lists PROJECTS (not clients). Each row corresponds to one
-// project record in the `projects` table whose linked client is activated
-// (in_portfolio = true, portfolio_exported_at IS NOT NULL, or has at least one
-// active contract). The query is rooted in `projects`, so duplicated client
-// rows in the `clients` table cannot inflate the count.
+// The Projetos tab lists the portfolio clients from the Carteira Ativa —
+// one row per client where clients.in_portfolio = true (same filter as
+// Carteira Ativa). The query is backed by the clients table, not by the
+// public.projects operational-project table.
 //
-// A client with two distinct closed projects may appear twice — once per
-// project. CPF/CNPJ deduplication across client rows is NOT applied here;
-// dedup by document is only meaningful when listing clients, not projects.
+// Deduplication: one row per client.id (no CPF/CNPJ collapsing).
+// Project status: sourced from client_project_status (Carteira tracking table).
+// Contract type/status: LATERAL join picks the most relevant contract per client.
 //
 // All other tabs (Visão Geral, Fluxo de Caixa, Leasing, Vendas, Faturas)
 // are delegated to FinancialManagementPage unchanged.
@@ -35,7 +34,7 @@ interface Props {
   initialProjectId?: string | null
 }
 
-type SortKey = 'client' | 'document' | 'location' | 'project_type' | 'project_status' | 'updated_at'
+type SortKey = 'client' | 'document' | 'location' | 'contract_type' | 'project_status' | 'updated_at'
 
 interface SortState {
   key: SortKey
@@ -46,15 +45,31 @@ interface SortState {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PROJECT_TYPE_LABELS: Record<string, string> = {
+const CONTRACT_TYPE_LABELS: Record<string, string> = {
   leasing: 'Leasing',
-  venda:   'Venda',
+  sale:    'Venda',
+  buyout:  'Buyout',
+}
+
+/** Status labels for client_project_status.project_status values */
+const PROJECT_STATUS_LABELS: Record<string, string> = {
+  pending:       'Pendente',
+  engineering:   'Engenharia',
+  installation:  'Instalação',
+  homologation:  'Homologação',
+  commissioned:  'Comissionado',
+  active:        'Ativo',
+  issue:         'Problema',
 }
 
 const PROJECT_STATUS_CLASS: Record<string, string> = {
-  'Concluído':    'fm-badge fm-badge--project-status-concluido',
-  'Em andamento': 'fm-badge fm-badge--project-status-andamento',
-  'Aguardando':   'fm-badge',
+  active:       'fm-badge fm-badge--project-status-concluido',
+  commissioned: 'fm-badge fm-badge--project-status-concluido',
+  installation: 'fm-badge fm-badge--project-status-andamento',
+  homologation: 'fm-badge fm-badge--project-status-andamento',
+  engineering:  'fm-badge fm-badge--project-status-andamento',
+  pending:      'fm-badge',
+  issue:        'fm-badge fm-badge--danger',
 }
 
 const thStyle: React.CSSProperties = { cursor: 'pointer', userSelect: 'none' }
@@ -76,11 +91,8 @@ function sortCompare(a: unknown, b: unknown): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Renders one row per active project from the server endpoint
- * /api/revenue-billing/projects.
- *
- * The server guarantees that the list is rooted in the projects table, so
- * each row is a real project — not a client. Deduplication is by project.id.
+ * Renders one row per portfolio client (clients.in_portfolio = true) from
+ * /api/revenue-billing/projects. Same data set as the Carteira Ativa.
  */
 function ProjectsTab() {
   const [rows, setRows]           = useState<RevenueProjectRow[]>([])
@@ -156,8 +168,8 @@ function ProjectsTab() {
           aVal = [a.city, a.state].filter(Boolean).join(' / ')
           bVal = [b.city, b.state].filter(Boolean).join(' / ')
           break
-        case 'project_type':
-          aVal = a.project_type; bVal = b.project_type; break
+        case 'contract_type':
+          aVal = a.contract_type; bVal = b.contract_type; break
         case 'project_status':
           aVal = a.project_status; bVal = b.project_status; break
         default:
@@ -206,7 +218,8 @@ function ProjectsTab() {
           >
             <option value="">Todos os tipos</option>
             <option value="leasing">Leasing</option>
-            <option value="venda">Venda</option>
+            <option value="sale">Venda</option>
+            <option value="buyout">Buyout</option>
           </select>
         </div>
         <span className="fm-real-projects-meta">
@@ -230,11 +243,11 @@ function ProjectsTab() {
                 <th style={thStyle} onClick={() => toggleSort('location')}>
                   Cidade / UF{sortIcon('location')}
                 </th>
-                <th style={thStyle} onClick={() => toggleSort('project_type')}>
-                  Tipo{sortIcon('project_type')}
+                <th style={thStyle} onClick={() => toggleSort('contract_type')}>
+                  Tipo{sortIcon('contract_type')}
                 </th>
                 <th style={thStyle} onClick={() => toggleSort('project_status')}>
-                  Status{sortIcon('project_status')}
+                  Status do Projeto{sortIcon('project_status')}
                 </th>
                 <th style={thStyle} onClick={() => toggleSort('updated_at')}>
                   Atualizado em{sortIcon('updated_at')}
@@ -252,21 +265,21 @@ function ProjectsTab() {
                 const statusClass =
                   (row.project_status ? PROJECT_STATUS_CLASS[row.project_status] : null) ?? 'fm-badge'
                 return (
-                  <tr key={row.project_id}>
+                  <tr key={row.client_id}>
                     <td>{row.client_name ?? '—'}</td>
                     <td>{formatCpfCnpj(row.document_key)}</td>
                     <td>{location}</td>
                     <td>
-                      {row.project_type ? (
-                        <span className={`fm-badge fm-badge--${row.project_type}`}>
-                          {PROJECT_TYPE_LABELS[row.project_type] ?? row.project_type}
+                      {row.contract_type ? (
+                        <span className={`fm-badge fm-badge--${row.contract_type}`}>
+                          {CONTRACT_TYPE_LABELS[row.contract_type] ?? row.contract_type}
                         </span>
                       ) : '—'}
                     </td>
                     <td>
                       {row.project_status ? (
                         <span className={statusClass}>
-                          {row.project_status}
+                          {PROJECT_STATUS_LABELS[row.project_status] ?? row.project_status}
                         </span>
                       ) : '—'}
                     </td>
@@ -290,8 +303,8 @@ function ProjectsTab() {
  * Receita e Cobrança page.
  *
  * Delegates entirely to FinancialManagementPage but overrides the "Projetos"
- * tab with ProjectsTab, which calls /api/revenue-billing/projects and returns
- * one row per active project (not per client).
+ * tab with ProjectsTab, which shows the same portfolio clients as Carteira
+ * Ativa (clients.in_portfolio = true), one row per client.
  */
 export function RevenueAndBillingPage({ onBack, initialProjectId }: Props) {
   return (
