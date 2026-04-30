@@ -304,7 +304,7 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
                                 type="button"
                                 aria-label="Adicionar novo projeto"
                                 title="Adicionar novo projeto"
-                                onClick={() => { setProjetoModalLead(lead) }}
+                                onClick={() => setProjetoModalLead(lead)}
                               >
                                 ＋
                               </button>

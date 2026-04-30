@@ -20505,7 +20505,7 @@ export default function App() {
                                     name="tipoProjeto"
                                     value={tipo}
                                     checked={tipoProjeto === tipo}
-                                    onChange={() => { setTipoProjeto(tipo) }}
+                                    onChange={() => setTipoProjeto(tipo)}
                                   />
                                   {tipo === 'leasing' ? 'Leasing' : 'Venda'}
                                 </label>
