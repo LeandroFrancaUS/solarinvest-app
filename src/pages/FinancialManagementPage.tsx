@@ -16,6 +16,7 @@ import {
 } from '../services/financialManagementApi'
 import { fetchPortfolioClients } from '../services/clientPortfolioApi'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { formatCpfCnpj } from '../lib/format/document'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { ProjectDetailPage } from './ProjectDetailPage'
 import type { ProjectType, ProjectStatus } from '../domain/projects/types'
@@ -33,6 +34,16 @@ interface Props {
   onBack: () => void
   /** Called when the user wants to open a specific project from another page. */
   initialProjectId?: string | null
+  /**
+   * Optional: if provided, the page starts on this tab instead of 'overview'.
+   * Used by RevenueAndBillingPage to delegate non-projects tabs here.
+   */
+  initialTab?: Tab
+  /**
+   * Optional: if provided, this node replaces the default RealProjectsTab content.
+   * Used by RevenueAndBillingPage to inject the deduplicated canonical-client view.
+   */
+  projectsTabOverride?: React.ReactNode
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,6 +59,40 @@ function formatMonths(value: number | null | undefined): string {
   if (value == null) return '—'
   return `${value.toFixed(1)} meses`
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sort helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+type SortDirection = 'asc' | 'desc'
+
+interface SortState<T extends string> {
+  key: T
+  direction: SortDirection
+}
+
+function toggleSort<T extends string>(
+  key: T,
+  current: SortState<T> | null,
+  setState: React.Dispatch<React.SetStateAction<SortState<T> | null>>,
+): void {
+  setState((prev) => {
+    if (prev?.key === key) {
+      return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+    }
+    return { key, direction: 'asc' }
+  })
+}
+
+function sortCompare(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0
+  if (a == null) return 1
+  if (b == null) return -1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' })
+}
+
+const thSortStyle: React.CSSProperties = { cursor: 'pointer', userSelect: 'none' }
 
 const TAB_LABELS: Record<Tab, string> = {
   overview: 'Visão Geral',
@@ -188,6 +233,7 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<ProjectType | ''>('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('')
+  const [sortState, setSortState] = useState<SortState<'client' | 'cpf_cnpj' | 'location' | 'type' | 'status' | 'updated_at'> | null>(null)
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value)
@@ -219,6 +265,25 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
   useEffect(() => {
     void loadProjects({ order_by: 'updated_at', order_dir: 'desc', limit: 100 })
   }, [loadProjects])
+
+  const sortedList = useMemo(() => {
+    if (!sortState) return list
+    return [...list].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (sortState.key === 'client') { aVal = a.client_name_snapshot; bVal = b.client_name_snapshot }
+      else if (sortState.key === 'cpf_cnpj') { aVal = a.cpf_cnpj_snapshot; bVal = b.cpf_cnpj_snapshot }
+      else if (sortState.key === 'location') {
+        aVal = [a.city_snapshot, a.state_snapshot].filter(Boolean).join(' / ')
+        bVal = [b.city_snapshot, b.state_snapshot].filter(Boolean).join(' / ')
+      }
+      else if (sortState.key === 'type') { aVal = a.project_type; bVal = b.project_type }
+      else if (sortState.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = a.updated_at; bVal = b.updated_at }
+      const cmp = sortCompare(aVal, bVal)
+      return sortState.direction === 'asc' ? cmp : -cmp
+    })
+  }, [list, sortState])
 
   if (isLoading && list.length === 0) {
     return (
@@ -269,23 +334,23 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
           {listTotal > 0 ? `${listTotal} projeto${listTotal !== 1 ? 's' : ''}` : null}
         </span>
       </div>
-      {list.length === 0 ? (
+      {sortedList.length === 0 ? (
         <div className="fm-empty">Nenhum projeto encontrado com os filtros aplicados.</div>
       ) : (
         <div className="fm-table-wrapper">
           <table className="fm-table">
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>CPF / CNPJ</th>
-                <th>Cidade / UF</th>
-                <th>Tipo</th>
-                <th>Status</th>
-                <th>Atualizado em</th>
+                <th style={thSortStyle} onClick={() => toggleSort('client', sortState, setSortState)}>Cliente</th>
+                <th style={thSortStyle} onClick={() => toggleSort('cpf_cnpj', sortState, setSortState)}>CPF / CNPJ</th>
+                <th style={thSortStyle} onClick={() => toggleSort('location', sortState, setSortState)}>Cidade / UF</th>
+                <th style={thSortStyle} onClick={() => toggleSort('type', sortState, setSortState)}>Tipo</th>
+                <th style={thSortStyle} onClick={() => toggleSort('status', sortState, setSortState)}>Status</th>
+                <th style={thSortStyle} onClick={() => toggleSort('updated_at', sortState, setSortState)}>Atualizado em</th>
               </tr>
             </thead>
             <tbody>
-              {list.map((p) => {
+              {sortedList.map((p) => {
                 const locationLabel =
                   p.city_snapshot && p.state_snapshot
                     ? `${p.city_snapshot} / ${p.state_snapshot}`
@@ -300,7 +365,7 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
                         {p.client_name_snapshot ?? '—'}
                       </button>
                     </td>
-                    <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                    <td>{formatCpfCnpj(p.cpf_cnpj_snapshot)}</td>
                     <td>{locationLabel}</td>
                     <td>
                       <span className={`fm-badge fm-badge--${p.project_type}`}>
@@ -329,25 +394,42 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CashflowTab({ cashflow, error, onRetry }: { cashflow: CashflowPeriod[]; error: string | null; onRetry: () => void }) {
+  const [sortState, setSortState] = useState<SortState<'period' | 'income' | 'expense' | 'net' | 'cumulative'> | null>(null)
+
+  const sortedCashflow = useMemo(() => {
+    if (!sortState) return cashflow
+    return [...cashflow].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (sortState.key === 'period') { aVal = a.period_label; bVal = b.period_label }
+      else if (sortState.key === 'income') { aVal = a.total_income; bVal = b.total_income }
+      else if (sortState.key === 'expense') { aVal = a.total_expense; bVal = b.total_expense }
+      else if (sortState.key === 'net') { aVal = a.net; bVal = b.net }
+      else { aVal = a.cumulative; bVal = b.cumulative }
+      const cmp = sortCompare(aVal, bVal)
+      return sortState.direction === 'asc' ? cmp : -cmp
+    })
+  }, [cashflow, sortState])
+
   if (error) return <SectionError message={error} onRetry={onRetry} />
   return (
     <div className="fm-cashflow">
-      {cashflow.length === 0 ? (
+      {sortedCashflow.length === 0 ? (
         <div className="fm-empty">Sem dados de fluxo de caixa para exibir.</div>
       ) : (
         <div className="fm-table-wrapper">
           <table className="fm-table">
             <thead>
               <tr>
-                <th>Período</th>
-                <th>Entradas</th>
-                <th>Saídas</th>
-                <th>Saldo Líquido</th>
-                <th>Saldo Acumulado</th>
+                <th style={thSortStyle} onClick={() => toggleSort('period', sortState, setSortState)}>Período</th>
+                <th style={thSortStyle} onClick={() => toggleSort('income', sortState, setSortState)}>Entradas</th>
+                <th style={thSortStyle} onClick={() => toggleSort('expense', sortState, setSortState)}>Saídas</th>
+                <th style={thSortStyle} onClick={() => toggleSort('net', sortState, setSortState)}>Saldo Líquido</th>
+                <th style={thSortStyle} onClick={() => toggleSort('cumulative', sortState, setSortState)}>Saldo Acumulado</th>
               </tr>
             </thead>
             <tbody>
-              {cashflow.map((row, idx) => (
+              {sortedCashflow.map((row, idx) => (
                 <tr key={idx}>
                   <td>{row.period_label}</td>
                   <td className="fm-value--positive">{formatCurrencyBRL(row.total_income)}</td>
@@ -377,6 +459,11 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
   const loadProjects = useProjectsStore((s) => s.loadProjects)
   const realProjects = useProjectsStore((s) => s.list)
 
+  type FallbackKey = 'client' | 'cpf_cnpj' | 'location' | 'status' | 'updated_at'
+  type MainKey = 'client' | 'mrr' | 'revenue' | 'capex' | 'roi' | 'payback' | 'default' | 'status' | 'uf'
+  const [fallbackSort, setFallbackSort] = useState<SortState<FallbackKey> | null>(null)
+  const [mainSort, setMainSort] = useState<SortState<MainKey> | null>(null)
+
   useEffect(() => {
     if (projects.length === 0 && !error) {
       void loadProjects({ project_type: 'leasing', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
@@ -386,6 +473,43 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const leasingProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'leasing')), [projects, error])
   const realLeasingProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'leasing'), [realProjects])
+
+  const sortedFallback = useMemo(() => {
+    if (!fallbackSort) return realLeasingProjects
+    return [...realLeasingProjects].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (fallbackSort.key === 'client') { aVal = a.client_name_snapshot; bVal = b.client_name_snapshot }
+      else if (fallbackSort.key === 'cpf_cnpj') { aVal = a.cpf_cnpj_snapshot; bVal = b.cpf_cnpj_snapshot }
+      else if (fallbackSort.key === 'location') {
+        aVal = [a.city_snapshot, a.state_snapshot].filter(Boolean).join(' / ')
+        bVal = [b.city_snapshot, b.state_snapshot].filter(Boolean).join(' / ')
+      }
+      else if (fallbackSort.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = a.updated_at; bVal = b.updated_at }
+      const cmp = sortCompare(aVal, bVal)
+      return fallbackSort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [realLeasingProjects, fallbackSort])
+
+  const sortedMain = useMemo(() => {
+    if (!mainSort) return leasingProjects
+    return [...leasingProjects].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (mainSort.key === 'client') { aVal = a.client_name; bVal = b.client_name }
+      else if (mainSort.key === 'mrr') { aVal = a.monthly_revenue; bVal = b.monthly_revenue }
+      else if (mainSort.key === 'revenue') { aVal = a.projected_revenue; bVal = b.projected_revenue }
+      else if (mainSort.key === 'capex') { aVal = a.capex_total; bVal = b.capex_total }
+      else if (mainSort.key === 'roi') { aVal = a.roi_percent; bVal = b.roi_percent }
+      else if (mainSort.key === 'payback') { aVal = a.payback_months; bVal = b.payback_months }
+      else if (mainSort.key === 'default') { aVal = a.default_rate_percent; bVal = b.default_rate_percent }
+      else if (mainSort.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = a.uf; bVal = b.uf }
+      const cmp = sortCompare(aVal, bVal)
+      return mainSort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [leasingProjects, mainSort])
 
   const totals = useMemo(() => {
     const totalMrr = leasingProjects.reduce((sum, p) => sum + (p.monthly_revenue ?? 0), 0)
@@ -419,18 +543,18 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
           <table className="fm-table">
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>CPF / CNPJ</th>
-                <th>Cidade / UF</th>
-                <th>Status</th>
-                <th>Atualizado em</th>
+                <th style={thSortStyle} onClick={() => toggleSort('client', fallbackSort, setFallbackSort)}>Cliente</th>
+                <th style={thSortStyle} onClick={() => toggleSort('cpf_cnpj', fallbackSort, setFallbackSort)}>CPF / CNPJ</th>
+                <th style={thSortStyle} onClick={() => toggleSort('location', fallbackSort, setFallbackSort)}>Cidade / UF</th>
+                <th style={thSortStyle} onClick={() => toggleSort('status', fallbackSort, setFallbackSort)}>Status</th>
+                <th style={thSortStyle} onClick={() => toggleSort('updated_at', fallbackSort, setFallbackSort)}>Atualizado em</th>
               </tr>
             </thead>
             <tbody>
-              {realLeasingProjects.map((p) => (
+              {sortedFallback.map((p) => (
                 <tr key={p.id}>
                   <td>{p.client_name_snapshot ?? '—'}</td>
-                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>{formatCpfCnpj(p.cpf_cnpj_snapshot)}</td>
                   <td>
                     {p.city_snapshot && p.state_snapshot
                       ? `${p.city_snapshot} / ${p.state_snapshot}`
@@ -463,19 +587,19 @@ function LeasingTab({ projects, error, onRetry }: { projects: FinancialProject[]
         <table className="fm-table">
           <thead>
             <tr>
-              <th>Cliente</th>
-              <th>Mensalidade</th>
-              <th>Receita Proj.</th>
-              <th>CAPEX</th>
-              <th>ROI</th>
-              <th>Payback</th>
-              <th>Inadimpl.</th>
-              <th>Status</th>
-              <th>UF</th>
+              <th style={thSortStyle} onClick={() => toggleSort('client', mainSort, setMainSort)}>Cliente</th>
+              <th style={thSortStyle} onClick={() => toggleSort('mrr', mainSort, setMainSort)}>Mensalidade</th>
+              <th style={thSortStyle} onClick={() => toggleSort('revenue', mainSort, setMainSort)}>Receita Proj.</th>
+              <th style={thSortStyle} onClick={() => toggleSort('capex', mainSort, setMainSort)}>CAPEX</th>
+              <th style={thSortStyle} onClick={() => toggleSort('roi', mainSort, setMainSort)}>ROI</th>
+              <th style={thSortStyle} onClick={() => toggleSort('payback', mainSort, setMainSort)}>Payback</th>
+              <th style={thSortStyle} onClick={() => toggleSort('default', mainSort, setMainSort)}>Inadimpl.</th>
+              <th style={thSortStyle} onClick={() => toggleSort('status', mainSort, setMainSort)}>Status</th>
+              <th style={thSortStyle} onClick={() => toggleSort('uf', mainSort, setMainSort)}>UF</th>
             </tr>
           </thead>
           <tbody>
-            {leasingProjects.map((p) => (
+            {sortedMain.map((p) => (
               <tr key={p.id}>
                 <td>{p.client_name ?? '—'}</td>
                 <td>{formatCurrencyBRL(p.monthly_revenue)}</td>
@@ -504,6 +628,11 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
   const loadProjects = useProjectsStore((s) => s.loadProjects)
   const realProjects = useProjectsStore((s) => s.list)
 
+  type FallbackKey = 'client' | 'cpf_cnpj' | 'location' | 'status' | 'updated_at'
+  type MainKey = 'client' | 'type' | 'revenue' | 'capex' | 'profit' | 'margin' | 'commission' | 'status' | 'uf'
+  const [fallbackSort, setFallbackSort] = useState<SortState<FallbackKey> | null>(null)
+  const [mainSort, setMainSort] = useState<SortState<MainKey> | null>(null)
+
   useEffect(() => {
     if (projects.length === 0 && !error) {
       void loadProjects({ project_type: 'venda', order_by: 'updated_at', order_dir: 'desc', limit: 100 })
@@ -513,6 +642,43 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
   // useMemo must be called before any conditional return to satisfy Rules of Hooks.
   const saleProjects = useMemo(() => (error ? [] : projects.filter((p) => p.project_kind === 'sale' || p.project_kind === 'buyout')), [projects, error])
   const realVendaProjects = useMemo(() => realProjects.filter((p) => p.project_type === 'venda'), [realProjects])
+
+  const sortedFallback = useMemo(() => {
+    if (!fallbackSort) return realVendaProjects
+    return [...realVendaProjects].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (fallbackSort.key === 'client') { aVal = a.client_name_snapshot; bVal = b.client_name_snapshot }
+      else if (fallbackSort.key === 'cpf_cnpj') { aVal = a.cpf_cnpj_snapshot; bVal = b.cpf_cnpj_snapshot }
+      else if (fallbackSort.key === 'location') {
+        aVal = [a.city_snapshot, a.state_snapshot].filter(Boolean).join(' / ')
+        bVal = [b.city_snapshot, b.state_snapshot].filter(Boolean).join(' / ')
+      }
+      else if (fallbackSort.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = a.updated_at; bVal = b.updated_at }
+      const cmp = sortCompare(aVal, bVal)
+      return fallbackSort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [realVendaProjects, fallbackSort])
+
+  const sortedMain = useMemo(() => {
+    if (!mainSort) return saleProjects
+    return [...saleProjects].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      if (mainSort.key === 'client') { aVal = a.client_name; bVal = b.client_name }
+      else if (mainSort.key === 'type') { aVal = a.project_kind; bVal = b.project_kind }
+      else if (mainSort.key === 'revenue') { aVal = a.realized_revenue ?? a.projected_revenue; bVal = b.realized_revenue ?? b.projected_revenue }
+      else if (mainSort.key === 'capex') { aVal = a.capex_total; bVal = b.capex_total }
+      else if (mainSort.key === 'profit') { aVal = a.projected_profit; bVal = b.projected_profit }
+      else if (mainSort.key === 'margin') { aVal = a.roi_percent; bVal = b.roi_percent }
+      else if (mainSort.key === 'commission') { aVal = a.commission_amount; bVal = b.commission_amount }
+      else if (mainSort.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = a.uf; bVal = b.uf }
+      const cmp = sortCompare(aVal, bVal)
+      return mainSort.direction === 'asc' ? cmp : -cmp
+    })
+  }, [saleProjects, mainSort])
 
   const totals = useMemo(() => {
     const totalRevenue = saleProjects.reduce((sum, p) => sum + (p.realized_revenue ?? p.projected_revenue ?? 0), 0)
@@ -544,18 +710,18 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
           <table className="fm-table">
             <thead>
               <tr>
-                <th>Cliente</th>
-                <th>CPF / CNPJ</th>
-                <th>Cidade / UF</th>
-                <th>Status</th>
-                <th>Atualizado em</th>
+                <th style={thSortStyle} onClick={() => toggleSort('client', fallbackSort, setFallbackSort)}>Cliente</th>
+                <th style={thSortStyle} onClick={() => toggleSort('cpf_cnpj', fallbackSort, setFallbackSort)}>CPF / CNPJ</th>
+                <th style={thSortStyle} onClick={() => toggleSort('location', fallbackSort, setFallbackSort)}>Cidade / UF</th>
+                <th style={thSortStyle} onClick={() => toggleSort('status', fallbackSort, setFallbackSort)}>Status</th>
+                <th style={thSortStyle} onClick={() => toggleSort('updated_at', fallbackSort, setFallbackSort)}>Atualizado em</th>
               </tr>
             </thead>
             <tbody>
-              {realVendaProjects.map((p) => (
+              {sortedFallback.map((p) => (
                 <tr key={p.id}>
                   <td>{p.client_name_snapshot ?? '—'}</td>
-                  <td>{p.cpf_cnpj_snapshot ?? '—'}</td>
+                  <td>{formatCpfCnpj(p.cpf_cnpj_snapshot)}</td>
                   <td>
                     {p.city_snapshot && p.state_snapshot
                       ? `${p.city_snapshot} / ${p.state_snapshot}`
@@ -588,19 +754,19 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
         <table className="fm-table">
           <thead>
             <tr>
-              <th>Cliente</th>
-              <th>Tipo</th>
-              <th>Receita</th>
-              <th>CAPEX</th>
-              <th>Lucro Est.</th>
-              <th>Margem</th>
-              <th>Comissão</th>
-              <th>Status</th>
-              <th>UF</th>
+              <th style={thSortStyle} onClick={() => toggleSort('client', mainSort, setMainSort)}>Cliente</th>
+              <th style={thSortStyle} onClick={() => toggleSort('type', mainSort, setMainSort)}>Tipo</th>
+              <th style={thSortStyle} onClick={() => toggleSort('revenue', mainSort, setMainSort)}>Receita</th>
+              <th style={thSortStyle} onClick={() => toggleSort('capex', mainSort, setMainSort)}>CAPEX</th>
+              <th style={thSortStyle} onClick={() => toggleSort('profit', mainSort, setMainSort)}>Lucro Est.</th>
+              <th style={thSortStyle} onClick={() => toggleSort('margin', mainSort, setMainSort)}>Margem</th>
+              <th style={thSortStyle} onClick={() => toggleSort('commission', mainSort, setMainSort)}>Comissão</th>
+              <th style={thSortStyle} onClick={() => toggleSort('status', mainSort, setMainSort)}>Status</th>
+              <th style={thSortStyle} onClick={() => toggleSort('uf', mainSort, setMainSort)}>UF</th>
             </tr>
           </thead>
           <tbody>
-            {saleProjects.map((p) => (
+            {sortedMain.map((p) => (
               <tr key={p.id}>
                 <td>{p.client_name ?? '—'}</td>
                 <td>
@@ -631,6 +797,7 @@ function FaturasAPagarTab() {
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sortState, setSortState] = useState<SortState<'client' | 'installment' | 'due' | 'amount' | 'status' | 'days'> | null>(null)
 
   // Load all clients with is_contratante_titular = false
   useEffect(() => {
@@ -719,6 +886,26 @@ function FaturasAPagarTab() {
     return !inv.isPaid && due >= today && due < nextMonth
   })
 
+  const sortedInvoices = useMemo(() => {
+    if (!sortState) return relevantInvoices
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    return [...relevantInvoices].sort((a, b) => {
+      let aVal: unknown
+      let bVal: unknown
+      const aDiff = Math.floor((new Date(a.dueDate).setHours(0,0,0,0) - now.getTime()) / 86400000)
+      const bDiff = Math.floor((new Date(b.dueDate).setHours(0,0,0,0) - now.getTime()) / 86400000)
+      if (sortState.key === 'client') { aVal = a.clientName; bVal = b.clientName }
+      else if (sortState.key === 'installment') { aVal = a.installmentNumber; bVal = b.installmentNumber }
+      else if (sortState.key === 'due') { aVal = a.dueDate.getTime(); bVal = b.dueDate.getTime() }
+      else if (sortState.key === 'amount') { aVal = a.amount; bVal = b.amount }
+      else if (sortState.key === 'status') { aVal = a.status; bVal = b.status }
+      else { aVal = aDiff; bVal = bDiff }
+      const cmp = sortCompare(aVal, bVal)
+      return sortState.direction === 'asc' ? cmp : -cmp
+    })
+  }, [relevantInvoices, sortState])
+
   if (loading) {
     return <div className="fm-empty">Carregando faturas a pagar...</div>
   }
@@ -771,23 +958,23 @@ function FaturasAPagarTab() {
         <table className="fm-table">
           <thead>
             <tr>
-              <th>Cliente</th>
-              <th>Parcela</th>
-              <th>Vencimento</th>
-              <th className="right">Valor</th>
-              <th className="center">Status</th>
-              <th className="center">Dias</th>
+              <th style={thSortStyle} onClick={() => toggleSort('client', sortState, setSortState)}>Cliente</th>
+              <th style={thSortStyle} onClick={() => toggleSort('installment', sortState, setSortState)}>Parcela</th>
+              <th style={thSortStyle} onClick={() => toggleSort('due', sortState, setSortState)}>Vencimento</th>
+              <th className="right" style={thSortStyle} onClick={() => toggleSort('amount', sortState, setSortState)}>Valor</th>
+              <th className="center" style={thSortStyle} onClick={() => toggleSort('status', sortState, setSortState)}>Status</th>
+              <th className="center" style={thSortStyle} onClick={() => toggleSort('days', sortState, setSortState)}>Dias</th>
             </tr>
           </thead>
           <tbody>
-            {relevantInvoices.length === 0 ? (
+            {sortedInvoices.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                   Nenhuma fatura pendente
                 </td>
               </tr>
             ) : (
-              relevantInvoices.map((inv, idx) => {
+              sortedInvoices.map((inv) => {
                 const due = new Date(inv.dueDate)
                 due.setHours(0, 0, 0, 0)
                 const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -837,8 +1024,8 @@ function FaturasAPagarTab() {
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+export function FinancialManagementPage({ onBack, initialProjectId, initialTab, projectsTabOverride }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? 'overview')
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('year')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -1037,7 +1224,7 @@ export function FinancialManagementPage({ onBack, initialProjectId }: Props) {
         ) : (
           <>
             {activeTab === 'overview' && <OverviewTab summary={summary} error={summaryError} onRetry={() => void loadData()} />}
-            {activeTab === 'projects' && <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />}
+            {activeTab === 'projects' && (projectsTabOverride ?? <RealProjectsTab onOpenProject={(id) => setDetailProjectId(id)} />)}
             {activeTab === 'cashflow' && <CashflowTab cashflow={cashflow} error={cashflowError} onRetry={() => void loadData()} />}
             {activeTab === 'leasing' && <LeasingTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}
             {activeTab === 'sales' && <SalesTab projects={projects} error={projectsError} onRetry={() => void loadData()} />}

@@ -115,6 +115,7 @@ import {
   handleFinancialCategories,
   handleFinancialDashboardFeed,
 } from './financial-management/handler.js'
+import { handleRevenueClients } from './revenue-billing/handler.js'
 import {
   handleProjectsList,
   handleProjectsSummary,
@@ -1479,6 +1480,16 @@ export default async function handler(req, res) {
       } else {
         sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
       }
+      return
+    }
+
+    // ── Revenue Billing routes ────────────────────────────────────────────────
+
+    // GET /api/revenue-billing/clients
+    if (pathname === '/api/revenue-billing/clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleRevenueClients(req, res, { method, sendJson: sj, requestUrl })
       return
     }
 
