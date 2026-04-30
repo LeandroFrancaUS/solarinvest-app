@@ -31,6 +31,8 @@ export async function listPortfolioClients(sql, { search } = {}) {
     rows = await sql`
       SELECT DISTINCT ON (c.id)
         c.id,
+        'client:' || c.id::text                AS portfolio_row_id,
+        c.id                                   AS client_id,
         c.client_name                          AS name,
         c.client_email                         AS email,
         c.client_phone                         AS phone,
@@ -80,6 +82,8 @@ export async function listPortfolioClients(sql, { search } = {}) {
     rows = await sql`
       SELECT DISTINCT ON (c.id)
         c.id,
+        'client:' || c.id::text                AS portfolio_row_id,
+        c.id                                   AS client_id,
         c.client_name                          AS name,
         c.client_email                         AS email,
         c.client_phone                         AS phone,
@@ -500,7 +504,9 @@ export async function getPortfolioClient(sql, clientId) {
   try {
     const rows = await fullQuery
     const row = rows[0] ?? null
-    return enrichPortfolioClientRow(row)
+    const enriched = enrichPortfolioClientRow(row)
+    if (enriched) enriched.projects = await listClientProjects(sql, clientId)
+    return enriched
   } catch (err) {
     // Trigger the reduced query for known-optional column/table errors:
     //   - client_energy_profile unavailable (42P01 / 42703 on ep.* columns)
@@ -517,7 +523,9 @@ export async function getPortfolioClient(sql, clientId) {
       try {
         const rows = await withoutEnergyProfileQuery
         const row = rows[0] ?? null
-        return enrichPortfolioClientRow(row)
+        const enriched = enrichPortfolioClientRow(row)
+        if (enriched) enriched.projects = await listClientProjects(sql, clientId)
+        return enriched
       } catch (retryErr) {
         if (!isCompatibilityError(retryErr)) throw retryErr
 
@@ -570,7 +578,11 @@ export async function getPortfolioClient(sql, clientId) {
       LIMIT 1
     `
     const row = rows[0] ?? null
-    return enrichPortfolioClientRow(row)
+    const enriched = enrichPortfolioClientRow(row)
+    if (enriched) {
+      enriched.projects = await listClientProjects(sql, clientId)
+    }
+    return enriched
   }
 }
 
@@ -1361,6 +1373,102 @@ export async function addClientNote(sql, clientId, { entry_type, title, content,
       `
       return rows[0]
     }
+    throw err
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// client_projects helpers (migration 0065)
+// All functions degrade gracefully if the table does not yet exist (42P01).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Insert a new project row into client_projects.
+ * Returns the created row, or null if the table does not exist yet.
+ *
+ * Callers are responsible for verifying clientId and project_type validity.
+ */
+export async function createClientProject(sql, {
+  clientId,
+  projectType,
+  projectName = null,
+  ucGeradora = null,
+  distribuidora = null,
+  consumptionKwhMonth = null,
+  termMonths = null,
+  systemKwp = null,
+  isPrimary = false,
+  origin = 'portfolio',
+}) {
+  const normalizedUc = ucGeradora ? String(ucGeradora).replace(/\D/g, '').slice(0, 15) || null : null
+  try {
+    const rows = await sql`
+      INSERT INTO public.client_projects (
+        client_id,
+        project_type,
+        project_name,
+        uc_geradora,
+        distribuidora,
+        consumption_kwh_month,
+        term_months,
+        system_kwp,
+        is_primary,
+        origin
+      ) VALUES (
+        ${Number(clientId)},
+        ${projectType},
+        ${projectName},
+        ${normalizedUc},
+        ${distribuidora},
+        ${consumptionKwhMonth != null ? Number(consumptionKwhMonth) : null},
+        ${termMonths != null ? Math.trunc(Number(termMonths)) : null},
+        ${systemKwp != null ? Number(systemKwp) : null},
+        ${Boolean(isPrimary)},
+        ${origin}
+      )
+      RETURNING *
+    `
+    return rows[0] ?? null
+  } catch (err) {
+    // Table not yet created (migration 0065 pending) — degrade silently.
+    if (err?.code === '42P01') {
+      console.warn('[client_projects][create] table absent — skipping', { clientId, projectType })
+      return null
+    }
+    throw err
+  }
+}
+
+/**
+ * List active projects for a single client, ordered by is_primary DESC, created_at ASC.
+ * Returns an empty array if the table does not exist yet.
+ */
+export async function listClientProjects(sql, clientId) {
+  try {
+    const rows = await sql`
+      SELECT
+        id,
+        client_id,
+        project_name,
+        project_type,
+        uc_geradora,
+        distribuidora,
+        consumption_kwh_month,
+        term_months,
+        system_kwp,
+        status,
+        is_primary,
+        origin,
+        created_at,
+        updated_at
+      FROM public.client_projects
+      WHERE client_id  = ${Number(clientId)}
+        AND deleted_at IS NULL
+      ORDER BY is_primary DESC, created_at ASC
+    `
+    return rows
+  } catch (err) {
+    if (err?.code === '42P01') return []
     throw err
   }
 }

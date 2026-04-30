@@ -106,6 +106,7 @@ import {
   handlePortfolioNotesRequest,
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
+  handlePortfolioClientProjectsRequest,
 } from './client-portfolio/handler.js'
 import {
   handleFinancialSummary,
@@ -1348,6 +1349,16 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioNotesMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
+      return
+    }
+
+    // GET|POST /api/client-portfolio/:clientId/projects — multi-project support (migration 0065)
+    const portfolioClientProjectsMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/projects$/)
+    if (portfolioClientProjectsMatch) {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      const clientId = Number(portfolioClientProjectsMatch[1])
+      const sj = (s, b) => sendJson(res, s, b)
+      await handlePortfolioClientProjectsRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
       return
     }
 

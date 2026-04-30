@@ -35,6 +35,7 @@ import {
   fetchPortfolioNotes,
   addPortfolioNote,
   exportClientToPortfolio,
+  createPortfolioProject,
 } from '../services/clientPortfolioApi'
 import { patchProjectPvData, fetchProjectByClientId, createProjectFromContract, createStandaloneProject } from '../services/projectsApi'
 import { upsertClientByDocument, updateClientById, type ClientPickerRow } from '../lib/api/clientsApi'
@@ -3120,16 +3121,17 @@ function AddClientModal({
   onCreated: () => void
   onToast: (msg: string, type: 'success' | 'error') => void
 }) {
+  // ── Mode selector ─────────────────────────────────────────────────────────
+  const [mode, setMode] = useState<'novo_cliente' | 'projeto_existente'>('novo_cliente')
+
+  // ── Shared state ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
-  const [errors, setErrors] = useState<ClientFormErrors>({})
   const [globalError, setGlobalError] = useState<string | null>(null)
+
+  // ── Mode A: Novo cliente ──────────────────────────────────────────────────
+  const [errors, setErrors] = useState<ClientFormErrors>({})
   const [cepLoading, setCepLoading] = useState(false)
   const [cepError, setCepError] = useState<string | null>(null)
-  // Tracks the server ID of a client selected from the existing-client picker.
-  // null = user is creating a brand-new client.
-  const [selectedExistingClientId, setSelectedExistingClientId] = useState<number | null>(null)
-  // tipoProjeto is required when an existing client is picked so we know what
-  // kind of project to create. For new clients it is also asked.
   const [tipoProjeto, setTipoProjeto] = useState<'leasing' | 'venda' | null>(null)
   const [form, setForm] = useState<AddClientFormData>({
     name: '',
@@ -3146,18 +3148,38 @@ function AddClientModal({
     term_months: '60',
   })
 
+  // ── Mode B: Projeto para cliente existente ────────────────────────────────
+  const [selectedExistingClient, setSelectedExistingClient] = useState<ClientPickerRow | null>(null)
+  const [projectType, setProjectType] = useState<'leasing' | 'venda' | 'buyout' | null>(null)
+  const [projectForm, setProjectForm] = useState({
+    project_name: '',
+    distribuidora: '',
+    uc: '',
+    consumption_kwh_month: '',
+    term_months: '',
+    system_kwp: '',
+  })
+  const [projectErrors, setProjectErrors] = useState<Record<string, string>>({})
+
   const distribuidorasData = useMemo(() => getDistribuidorasFallback(), [])
   const distribuidorasList = useMemo(() => {
-    if (form.state && distribuidorasData.distribuidorasPorUf[form.state]) {
-      return distribuidorasData.distribuidorasPorUf[form.state]
+    const state = mode === 'novo_cliente' ? form.state : (selectedExistingClient?.state ?? '')
+    if (state && distribuidorasData.distribuidorasPorUf[state]) {
+      return distribuidorasData.distribuidorasPorUf[state]
     }
     const all = Object.values(distribuidorasData.distribuidorasPorUf).flat()
     return [...new Set(all)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [form.state, distribuidorasData])
+  }, [form.state, selectedExistingClient?.state, mode, distribuidorasData])
 
   const set = (field: keyof AddClientFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [field]: e.target.value }))
     setErrors((prev) => ({ ...prev, [field]: undefined }))
+    setGlobalError(null)
+  }
+
+  const setProject = (field: keyof typeof projectForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setProjectForm((f) => ({ ...f, [field]: e.target.value }))
+    setProjectErrors((prev) => { const next = { ...prev }; delete next[field]; return next })
     setGlobalError(null)
   }
 
@@ -3197,7 +3219,8 @@ function AddClientModal({
     }
   }
 
-  async function handleSave() {
+  // ── Save: Mode A — new client ─────────────────────────────────────────────
+  async function handleSaveNewClient() {
     const errs = validateClientForm(form)
     if (!tipoProjeto) {
       errs.tipoProjeto = 'Selecione o tipo de projeto'
@@ -3210,56 +3233,34 @@ function AddClientModal({
     setSaving(true)
     setGlobalError(null)
     try {
-      let clientId: number
-
-      if (selectedExistingClientId !== null) {
-        // ── Existing client path ─────────────────────────────────────────────
-        // Update client data with any changes made in the form, then ensure the
-        // client is in the portfolio and create a new standalone project.
-        await updateClientById(String(selectedExistingClientId), {
-          name: form.name.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          cep: form.cep.trim(),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          address: form.address.trim(),
-          distribuidora: form.distribuidora.trim(),
-          ...(form.uc.trim() ? { uc: form.uc.trim() } : {}),
-          consumption_kwh_month: !Number.isNaN(Number(form.consumption_kwh_month)) ? Number(form.consumption_kwh_month) : null,
-          term_months: !Number.isNaN(Number(form.term_months)) && Number(form.term_months) > 0 ? Number(form.term_months) : null,
-        })
-        clientId = selectedExistingClientId
-        console.log('[clients][update-existing] success', { clientId, name: form.name })
-      } else {
-        // ── New client path ──────────────────────────────────────────────────
-        const created = await upsertClientByDocument({
-          name: form.name.trim(),
-          document: form.document.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          cep: form.cep.trim(),
-          city: form.city.trim(),
-          state: form.state.trim(),
-          address: form.address.trim(),
-          distribuidora: form.distribuidora.trim(),
-          ...(form.uc.trim() && { uc: form.uc.trim() }),
-          consumption_kwh_month: Number(form.consumption_kwh_month),
-          term_months: Number(form.term_months),
-        })
-        clientId = Number(created.id)
-        console.log('[clients][create] success', { clientId, name: form.name })
-      }
-
+      const created = await upsertClientByDocument({
+        name: form.name.trim(),
+        document: form.document.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        cep: form.cep.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        address: form.address.trim(),
+        distribuidora: form.distribuidora.trim(),
+        ...(form.uc.trim() && { uc: form.uc.trim() }),
+        consumption_kwh_month: Number(form.consumption_kwh_month),
+        term_months: Number(form.term_months),
+      })
+      const clientId = Number(created.id)
       await exportClientToPortfolio(clientId)
 
       if (tipoProjeto) {
         try {
-          const { project } = await createStandaloneProject(clientId, tipoProjeto)
-          console.log('[clients][project-created] success', { projectId: project.id, clientId, tipoProjeto })
+          await createPortfolioProject(clientId, {
+            project_type: tipoProjeto,
+            distribuidora: form.distribuidora.trim() || null,
+            uc_geradora: form.uc.trim() || null,
+            consumption_kwh_month: !Number.isNaN(Number(form.consumption_kwh_month)) ? Number(form.consumption_kwh_month) : null,
+            term_months: Number(form.term_months) > 0 ? Number(form.term_months) : null,
+          })
         } catch (projectErr) {
-          console.warn('[clients][project-created] failed (non-fatal)', projectErr)
-          // Project creation failure is non-fatal — the client was saved successfully.
+          console.warn('[clients][create-project] failed (non-fatal)', projectErr)
         }
       }
 
@@ -3268,7 +3269,59 @@ function AddClientModal({
       onClose()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao salvar cliente.'
-      console.error('[clients][create] error', msg)
+      setGlobalError(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Save: Mode B — new project for existing client ────────────────────────
+  async function handleSaveNewProject() {
+    const errs: Record<string, string> = {}
+    if (!selectedExistingClient) errs.selectedClient = 'Selecione um cliente existente.'
+    if (!projectType) errs.project_type = 'Selecione o tipo de projeto.'
+    if (!projectForm.distribuidora.trim()) errs.distribuidora = 'Distribuidora é obrigatória.'
+    const kwh = Number(projectForm.consumption_kwh_month)
+    if (!projectForm.consumption_kwh_month || Number.isNaN(kwh) || kwh <= 0) {
+      errs.consumption_kwh_month = 'Informe o consumo em kWh/mês.'
+    }
+    const months = Number(projectForm.term_months)
+    if (!projectForm.term_months || Number.isNaN(months) || months <= 0) {
+      errs.term_months = 'Informe o prazo em meses.'
+    }
+    const ucDigits = projectForm.uc.replace(/\D/g, '')
+    if (projectForm.uc.trim() && ucDigits.length !== 15) {
+      errs.uc = 'UC deve ter 15 dígitos.'
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setProjectErrors(errs)
+      setGlobalError('Corrija os erros antes de salvar.')
+      return
+    }
+
+    setSaving(true)
+    setGlobalError(null)
+    try {
+      const clientId = selectedExistingClient!.id
+      // Ensure client is in portfolio (idempotent)
+      await exportClientToPortfolio(clientId)
+
+      await createPortfolioProject(clientId, {
+        project_type: projectType!,
+        project_name: projectForm.project_name.trim() || null,
+        distribuidora: projectForm.distribuidora.trim() || null,
+        uc_geradora: ucDigits || null,
+        consumption_kwh_month: kwh,
+        term_months: months,
+        system_kwp: projectForm.system_kwp ? Number(projectForm.system_kwp) : null,
+      })
+
+      onToast('Novo projeto adicionado ao cliente.', 'success')
+      onCreated()
+      onClose()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao criar projeto.'
       setGlobalError(msg)
     } finally {
       setSaving(false)
@@ -3307,195 +3360,294 @@ function AddClientModal({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>➕ Adicionar Cliente</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>➕ Adicionar</h2>
           <button type="button" onClick={onClose}
             style={{ background: 'none', border: 'none', color: 'var(--text-muted, #94a3b8)', fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>
             ×
           </button>
         </div>
 
-        {/* Existing-client picker ─────────────────────────────────────────── */}
+        {/* Mode selector ──────────────────────────────────────────────────── */}
         <div className="pf-section-card" style={{ marginBottom: 14 }}>
-          <div className="pf-section-title"><span className="pf-icon">🔍</span> Cliente existente</div>
-          <p style={{ fontSize: 13, color: 'var(--text-muted, #94a3b8)', marginBottom: 12, marginTop: 0 }}>
-            Selecione um cliente já cadastrado para importar seus dados ou deixe em branco para cadastrar um novo.
-          </p>
-          <ExistingClientPicker
-            onSelect={(picked: ClientPickerRow | null) => {
-              if (picked) {
-                setSelectedExistingClientId(picked.id)
-                setForm((f) => ({
-                  ...f,
-                  name: picked.name ?? f.name,
-                  document: picked.document ?? f.document,
-                  phone: picked.phone ?? f.phone,
-                  email: picked.email ?? f.email,
-                  cep: picked.cep ?? f.cep,
-                  city: picked.city ?? f.city,
-                  state: picked.state ?? f.state,
-                  address: picked.address ?? f.address,
-                  distribuidora: picked.distribuidora ?? f.distribuidora,
-                  uc: picked.uc ?? f.uc,
-                  consumption_kwh_month: picked.consumption_kwh_month != null
-                    ? String(picked.consumption_kwh_month)
-                    : f.consumption_kwh_month,
-                }))
-                // Clear field-level validation errors after auto-fill.
-                setErrors({})
-                setGlobalError(null)
-              } else {
-                setSelectedExistingClientId(null)
-              }
-            }}
-          />
-          {selectedExistingClientId !== null && (
-            <p style={{ fontSize: 12, color: 'var(--ds-success, #22c55e)', marginTop: 6, marginBottom: 0 }}>
-              ✅ Cliente existente selecionado (ID {selectedExistingClientId}). Os dados foram importados — edite se necessário.
-            </p>
-          )}
-        </div>
-
-        <div className="pf-section-card" style={{ marginBottom: 14 }}>
-          <div className="pf-section-title"><span className="pf-icon">📇</span> Identificação</div>
-          <label className="pf-label" style={labelStyle}>
-            Nome / Razão Social *
-            <input type="text" value={form.name} onChange={set('name')} placeholder="Nome completo ou Razão Social" style={{ ...inputStyle, borderColor: errors.name ? 'var(--ds-danger)' : undefined }} />
-            {errors.name && <span style={errStyle}>{errors.name}</span>}
-          </label>
-          <label className="pf-label" style={labelStyle}>
-            CPF / CNPJ *
-            <input type="text" value={form.document} onChange={set('document')} placeholder="000.000.000-00 ou 00.000.000/0000-00" style={{ ...inputStyle, borderColor: errors.document ? 'var(--ds-danger)' : undefined }} />
-            {errors.document && <span style={errStyle}>{errors.document}</span>}
-          </label>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              Telefone *
-              <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? 'var(--ds-danger)' : undefined }} />
-              {errors.phone && <span style={errStyle}>{errors.phone}</span>}
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              E-mail *
-              <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? 'var(--ds-danger)' : undefined }} />
-              {errors.email && <span style={errStyle}>{errors.email}</span>}
-            </label>
-          </div>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              CEP *
-              <input
-                type="text"
-                value={form.cep}
-                onChange={(e) => { void handleCepChange(e) }}
-                placeholder="XXXXX-XXX"
-                maxLength={9}
-                style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }}
-              />
-              {cepLoading && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Buscando CEP…</span>}
-              {cepError && !cepLoading && <span style={errStyle}>{cepError}</span>}
-              {errors.cep && !cepLoading && <span style={errStyle}>{errors.cep}</span>}
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              Estado (UF) *
-              <select
-                value={form.state}
-                onChange={(e) => {
-                  setForm((f) => ({ ...f, state: e.target.value, distribuidora: '' }))
-                  setErrors((prev) => ({ ...prev, state: undefined, distribuidora: undefined }))
+          <div className="pf-section-title"><span className="pf-icon">📋</span> Tipo de cadastro</div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
+            {([
+              { value: 'novo_cliente', label: '➕ Novo cliente' },
+              { value: 'projeto_existente', label: '📁 Projeto para cliente existente' },
+            ] as const).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setMode(value)
                   setGlobalError(null)
+                  setErrors({})
+                  setProjectErrors({})
                 }}
-                style={{ ...inputStyle, borderColor: errors.state ? 'var(--ds-danger)' : undefined }}
-              >
-                <option value="">Selecione o estado…</option>
-                {BR_STATES.map((uf) => (
-                  <option key={uf} value={uf}>{uf}</option>
-                ))}
-              </select>
-              {errors.state && <span style={errStyle}>{errors.state}</span>}
-            </label>
-          </div>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              Cidade *
-              <input type="text" value={form.city} onChange={set('city')} placeholder="Cidade" style={{ ...inputStyle, borderColor: errors.city ? 'var(--ds-danger)' : undefined }} />
-              {errors.city && <span style={errStyle}>{errors.city}</span>}
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              Endereço *
-              <input type="text" value={form.address} onChange={set('address')} placeholder="Rua, número, bairro" style={{ ...inputStyle, borderColor: errors.address ? 'var(--ds-danger)' : undefined }} />
-              {errors.address && <span style={errStyle}>{errors.address}</span>}
-            </label>
-          </div>
-        </div>
-
-        <div className="pf-section-card" style={{ marginBottom: 14 }}>
-          <div className="pf-section-title"><span className="pf-icon">⚡</span> Energia</div>
-          <label className="pf-label" style={labelStyle}>
-            Distribuidora *
-            <select
-              value={form.distribuidora}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, distribuidora: e.target.value }))
-                setErrors((prev) => ({ ...prev, distribuidora: undefined }))
-                setGlobalError(null)
-              }}
-              style={{ ...inputStyle, borderColor: errors.distribuidora ? 'var(--ds-danger)' : undefined }}
-            >
-              <option value="">Selecione a distribuidora…</option>
-              {distribuidorasList.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-            {errors.distribuidora && <span style={errStyle}>{errors.distribuidora}</span>}
-          </label>
-          <label className="pf-label" style={labelStyle}>
-            UC Geradora
-            <input type="text" value={form.uc} onChange={set('uc')} placeholder="000000000000000 (15 dígitos)" style={{ ...inputStyle, borderColor: errors.uc ? 'var(--ds-danger)' : undefined }} />
-            {errors.uc && <span style={errStyle}>{errors.uc}</span>}
-          </label>
-          <div style={gridStyle}>
-            <label className="pf-label" style={labelStyle}>
-              Consumo (kWh/mês) *
-              <input type="number" value={form.consumption_kwh_month} onChange={set('consumption_kwh_month')} placeholder="0" min={0} style={{ ...inputStyle, borderColor: errors.consumption_kwh_month ? 'var(--ds-danger)' : undefined }} />
-              {errors.consumption_kwh_month && <span style={errStyle}>{errors.consumption_kwh_month}</span>}
-            </label>
-            <label className="pf-label" style={labelStyle}>
-              Prazo Contratual (meses) *
-              <input type="number" value={form.term_months} onChange={set('term_months')} placeholder="60" min={1} style={{ ...inputStyle, borderColor: errors.term_months ? 'var(--ds-danger)' : undefined }} />
-              {errors.term_months && <span style={errStyle}>{errors.term_months}</span>}
-            </label>
-          </div>
-        </div>
-
-        {/* Tipo de Projeto ─────────────────────────────────────────────────── */}
-        <div className="pf-section-card" style={{ marginBottom: 14 }}>
-          <div className="pf-section-title"><span className="pf-icon">📁</span> Tipo de Projeto *</div>
-          <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
-            {(['leasing', 'venda'] as const).map((tipo) => (
-              <label
-                key={tipo}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  cursor: 'pointer', fontSize: 14,
-                  fontWeight: tipoProjeto === tipo ? 700 : 400,
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: mode === value ? '2px solid var(--accent, #f97316)' : '1px solid var(--border, #334155)',
+                  background: mode === value ? 'var(--accent-bg, rgba(249,115,22,0.1))' : 'transparent',
+                  color: mode === value ? 'var(--accent, #f97316)' : 'var(--text-base)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  fontWeight: mode === value ? 700 : 400,
+                  textAlign: 'center',
                 }}
               >
-                <input
-                  type="radio"
-                  name="addclient-tipoProjeto"
-                  value={tipo}
-                  checked={tipoProjeto === tipo}
-                  onChange={() => {
-                    setTipoProjeto(tipo)
-                    setErrors(({ tipoProjeto: _t, ...rest }) => rest)
-                    setGlobalError(null)
-                  }}
-                />
-                {tipo === 'leasing' ? 'Leasing' : 'Venda Direta'}
-              </label>
+                {label}
+              </button>
             ))}
           </div>
-          {errors.tipoProjeto && <span style={{ ...{ color: 'var(--ds-danger)', fontSize: 11, marginTop: 4, display: 'block' } }}>{errors.tipoProjeto}</span>}
         </div>
+
+        {/* ── Mode B: Projeto para cliente existente ──────────────────────── */}
+        {mode === 'projeto_existente' && (
+          <>
+            <div className="pf-section-card" style={{ marginBottom: 14 }}>
+              <div className="pf-section-title"><span className="pf-icon">🔍</span> Cliente existente *</div>
+              <ExistingClientPicker
+                onSelect={(picked: ClientPickerRow | null) => {
+                  setSelectedExistingClient(picked)
+                  setProjectErrors((prev) => { const next = { ...prev }; delete next.selectedClient; return next })
+                  setGlobalError(null)
+                }}
+              />
+              {projectErrors.selectedClient && (
+                <span style={errStyle}>{projectErrors.selectedClient}</span>
+              )}
+              {selectedExistingClient && (
+                <p style={{ fontSize: 12, color: 'var(--ds-success, #22c55e)', marginTop: 4, marginBottom: 0 }}>
+                  ✅ {selectedExistingClient.name}{selectedExistingClient.document ? ` — ${selectedExistingClient.document}` : ''}
+                </p>
+              )}
+            </div>
+
+            <div className="pf-section-card" style={{ marginBottom: 14 }}>
+              <div className="pf-section-title"><span className="pf-icon">📁</span> Dados do Projeto</div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Tipo de Projeto *</div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  {(['leasing', 'venda', 'buyout'] as const).map((t) => (
+                    <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: projectType === t ? 700 : 400 }}>
+                      <input
+                        type="radio"
+                        name="proj-type"
+                        value={t}
+                        checked={projectType === t}
+                        onChange={() => {
+                          setProjectType(t)
+                          setProjectErrors((prev) => { const next = { ...prev }; delete next.project_type; return next })
+                          setGlobalError(null)
+                        }}
+                      />
+                      {t === 'leasing' ? 'Leasing' : t === 'venda' ? 'Venda Direta' : 'Buy Out'}
+                    </label>
+                  ))}
+                </div>
+                {projectErrors.project_type && <span style={errStyle}>{projectErrors.project_type}</span>}
+              </div>
+
+              <label className="pf-label" style={labelStyle}>
+                Nome do Projeto (opcional)
+                <input type="text" value={projectForm.project_name} onChange={setProject('project_name')} placeholder="Ex: Usina Residencial 1" style={inputStyle} />
+              </label>
+
+              <label className="pf-label" style={labelStyle}>
+                Distribuidora *
+                <select
+                  value={projectForm.distribuidora}
+                  onChange={(e) => {
+                    setProjectForm((f) => ({ ...f, distribuidora: e.target.value }))
+                    setProjectErrors((prev) => { const next = { ...prev }; delete next.distribuidora; return next })
+                    setGlobalError(null)
+                  }}
+                  style={{ ...inputStyle, borderColor: projectErrors.distribuidora ? 'var(--ds-danger)' : undefined }}
+                >
+                  <option value="">Selecione a distribuidora…</option>
+                  {distribuidorasList.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                {projectErrors.distribuidora && <span style={errStyle}>{projectErrors.distribuidora}</span>}
+              </label>
+
+              <label className="pf-label" style={labelStyle}>
+                UC Geradora (opcional — 15 dígitos)
+                <input type="text" value={projectForm.uc} onChange={setProject('uc')} placeholder="000000000000000" style={{ ...inputStyle, borderColor: projectErrors.uc ? 'var(--ds-danger)' : undefined }} />
+                {projectErrors.uc && <span style={errStyle}>{projectErrors.uc}</span>}
+              </label>
+
+              <div style={gridStyle}>
+                <label className="pf-label" style={labelStyle}>
+                  Consumo (kWh/mês) *
+                  <input type="number" value={projectForm.consumption_kwh_month} onChange={setProject('consumption_kwh_month')} placeholder="0" min={1} style={{ ...inputStyle, borderColor: projectErrors.consumption_kwh_month ? 'var(--ds-danger)' : undefined }} />
+                  {projectErrors.consumption_kwh_month && <span style={errStyle}>{projectErrors.consumption_kwh_month}</span>}
+                </label>
+                <label className="pf-label" style={labelStyle}>
+                  Prazo (meses) *
+                  <input type="number" value={projectForm.term_months} onChange={setProject('term_months')} placeholder="60" min={1} style={{ ...inputStyle, borderColor: projectErrors.term_months ? 'var(--ds-danger)' : undefined }} />
+                  {projectErrors.term_months && <span style={errStyle}>{projectErrors.term_months}</span>}
+                </label>
+              </div>
+
+              <label className="pf-label" style={labelStyle}>
+                kWp do sistema (opcional)
+                <input type="number" value={projectForm.system_kwp} onChange={setProject('system_kwp')} placeholder="0.00" min={0} step={0.01} style={inputStyle} />
+              </label>
+            </div>
+          </>
+        )}
+
+        {/* ── Mode A: Novo cliente ─────────────────────────────────────────── */}
+        {mode === 'novo_cliente' && (
+          <>
+            <div className="pf-section-card" style={{ marginBottom: 14 }}>
+              <div className="pf-section-title"><span className="pf-icon">📇</span> Identificação</div>
+              <label className="pf-label" style={labelStyle}>
+                Nome / Razão Social *
+                <input type="text" value={form.name} onChange={set('name')} placeholder="Nome completo ou Razão Social" style={{ ...inputStyle, borderColor: errors.name ? 'var(--ds-danger)' : undefined }} />
+                {errors.name && <span style={errStyle}>{errors.name}</span>}
+              </label>
+              <label className="pf-label" style={labelStyle}>
+                CPF / CNPJ *
+                <input type="text" value={form.document} onChange={set('document')} placeholder="000.000.000-00 ou 00.000.000/0000-00" style={{ ...inputStyle, borderColor: errors.document ? 'var(--ds-danger)' : undefined }} />
+                {errors.document && <span style={errStyle}>{errors.document}</span>}
+              </label>
+              <div style={gridStyle}>
+                <label className="pf-label" style={labelStyle}>
+                  Telefone *
+                  <input type="tel" value={form.phone} onChange={set('phone')} placeholder="(XX) 9XXXX-XXXX" style={{ ...inputStyle, borderColor: errors.phone ? 'var(--ds-danger)' : undefined }} />
+                  {errors.phone && <span style={errStyle}>{errors.phone}</span>}
+                </label>
+                <label className="pf-label" style={labelStyle}>
+                  E-mail *
+                  <input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" style={{ ...inputStyle, borderColor: errors.email ? 'var(--ds-danger)' : undefined }} />
+                  {errors.email && <span style={errStyle}>{errors.email}</span>}
+                </label>
+              </div>
+              <div style={gridStyle}>
+                <label className="pf-label" style={labelStyle}>
+                  CEP *
+                  <input
+                    type="text"
+                    value={form.cep}
+                    onChange={(e) => { void handleCepChange(e) }}
+                    placeholder="XXXXX-XXX"
+                    maxLength={9}
+                    style={{ ...inputStyle, borderColor: errors.cep ? 'var(--ds-danger)' : undefined }}
+                  />
+                  {cepLoading && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Buscando CEP…</span>}
+                  {cepError && !cepLoading && <span style={errStyle}>{cepError}</span>}
+                  {errors.cep && !cepLoading && <span style={errStyle}>{errors.cep}</span>}
+                </label>
+                <label className="pf-label" style={labelStyle}>
+                  Estado (UF) *
+                  <select
+                    value={form.state}
+                    onChange={(e) => {
+                      setForm((f) => ({ ...f, state: e.target.value, distribuidora: '' }))
+                      setErrors((prev) => ({ ...prev, state: undefined, distribuidora: undefined }))
+                      setGlobalError(null)
+                    }}
+                    style={{ ...inputStyle, borderColor: errors.state ? 'var(--ds-danger)' : undefined }}
+                  >
+                    <option value="">Selecione o estado…</option>
+                    {BR_STATES.map((uf) => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                  {errors.state && <span style={errStyle}>{errors.state}</span>}
+                </label>
+              </div>
+              <div style={gridStyle}>
+                <label className="pf-label" style={labelStyle}>
+                  Cidade *
+                  <input type="text" value={form.city} onChange={set('city')} placeholder="Cidade" style={{ ...inputStyle, borderColor: errors.city ? 'var(--ds-danger)' : undefined }} />
+                  {errors.city && <span style={errStyle}>{errors.city}</span>}
+                </label>
+                <label className="pf-label" style={labelStyle}>
+                  Endereço *
+                  <input type="text" value={form.address} onChange={set('address')} placeholder="Rua, número, bairro" style={{ ...inputStyle, borderColor: errors.address ? 'var(--ds-danger)' : undefined }} />
+                  {errors.address && <span style={errStyle}>{errors.address}</span>}
+                </label>
+              </div>
+            </div>
+
+            <div className="pf-section-card" style={{ marginBottom: 14 }}>
+              <div className="pf-section-title"><span className="pf-icon">⚡</span> Energia</div>
+              <label className="pf-label" style={labelStyle}>
+                Distribuidora *
+                <select
+                  value={form.distribuidora}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, distribuidora: e.target.value }))
+                    setErrors((prev) => ({ ...prev, distribuidora: undefined }))
+                    setGlobalError(null)
+                  }}
+                  style={{ ...inputStyle, borderColor: errors.distribuidora ? 'var(--ds-danger)' : undefined }}
+                >
+                  <option value="">Selecione a distribuidora…</option>
+                  {distribuidorasList.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                {errors.distribuidora && <span style={errStyle}>{errors.distribuidora}</span>}
+              </label>
+              <label className="pf-label" style={labelStyle}>
+                UC Geradora
+                <input type="text" value={form.uc} onChange={set('uc')} placeholder="000000000000000 (15 dígitos)" style={{ ...inputStyle, borderColor: errors.uc ? 'var(--ds-danger)' : undefined }} />
+                {errors.uc && <span style={errStyle}>{errors.uc}</span>}
+              </label>
+              <div style={gridStyle}>
+                <label className="pf-label" style={labelStyle}>
+                  Consumo (kWh/mês) *
+                  <input type="number" value={form.consumption_kwh_month} onChange={set('consumption_kwh_month')} placeholder="0" min={0} style={{ ...inputStyle, borderColor: errors.consumption_kwh_month ? 'var(--ds-danger)' : undefined }} />
+                  {errors.consumption_kwh_month && <span style={errStyle}>{errors.consumption_kwh_month}</span>}
+                </label>
+                <label className="pf-label" style={labelStyle}>
+                  Prazo Contratual (meses) *
+                  <input type="number" value={form.term_months} onChange={set('term_months')} placeholder="60" min={1} style={{ ...inputStyle, borderColor: errors.term_months ? 'var(--ds-danger)' : undefined }} />
+                  {errors.term_months && <span style={errStyle}>{errors.term_months}</span>}
+                </label>
+              </div>
+            </div>
+
+            {/* Tipo de Projeto ─────────────────────────────────────────────── */}
+            <div className="pf-section-card" style={{ marginBottom: 14 }}>
+              <div className="pf-section-title"><span className="pf-icon">📁</span> Tipo de Projeto *</div>
+              <div style={{ display: 'flex', gap: 24, marginTop: 8 }}>
+                {(['leasing', 'venda'] as const).map((tipo) => (
+                  <label
+                    key={tipo}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      cursor: 'pointer', fontSize: 14,
+                      fontWeight: tipoProjeto === tipo ? 700 : 400,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="addclient-tipoProjeto"
+                      value={tipo}
+                      checked={tipoProjeto === tipo}
+                      onChange={() => {
+                        setTipoProjeto(tipo)
+                        setErrors(({ tipoProjeto: _t, ...rest }) => rest)
+                        setGlobalError(null)
+                      }}
+                    />
+                    {tipo === 'leasing' ? 'Leasing' : 'Venda Direta'}
+                  </label>
+                ))}
+              </div>
+              {errors.tipoProjeto && <span style={{ ...{ color: 'var(--ds-danger)', fontSize: 11, marginTop: 4, display: 'block' } }}>{errors.tipoProjeto}</span>}
+            </div>
+          </>
+        )}
 
         {globalError && (
           <div className="pf-error-banner" style={{ marginBottom: 14 }}>
@@ -3508,10 +3660,14 @@ function AddClientModal({
             style={{ padding: '9px 20px', borderRadius: 7, border: '1px solid var(--border, #334155)', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 14 }}>
             Cancelar
           </button>
-          <button type="button" onClick={() => void handleSave()} disabled={saving}
+          <button
+            type="button"
+            onClick={() => { void (mode === 'novo_cliente' ? handleSaveNewClient() : handleSaveNewProject()) }}
+            disabled={saving}
             className="pf-btn-add-client"
-            style={{ opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Salvando…' : '💾 Salvar Cliente'}
+            style={{ opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}
+          >
+            {saving ? 'Salvando…' : mode === 'novo_cliente' ? '💾 Salvar Cliente' : '💾 Salvar Projeto'}
           </button>
         </div>
       </div>
@@ -4464,7 +4620,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               </div>
               {sortedClients.map((c) => (
                 <ClientCard
-                  key={c.id}
+                  key={c.portfolio_row_id ?? `client-${c.id}`}
                   client={c}
                   onEdit={() => setSelectedClientId(c.id)}
                   onDelete={() => setConfirmDeleteId(c.id)}

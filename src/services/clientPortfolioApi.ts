@@ -9,6 +9,7 @@
 import { resolveApiUrl } from '../utils/apiUrl'
 import type {
   PortfolioClientRow,
+  PortfolioProject,
   ClientNote,
   PortfolioSummary,
   InstallmentPayment,
@@ -216,4 +217,36 @@ export async function fetchDashboardPortfolioSummary(): Promise<PortfolioSummary
     resolveApiUrl('/api/dashboard/portfolio/summary'),
   )
   return res.data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-project support (migration 0065)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CreatePortfolioProjectPayload {
+  project_type: 'leasing' | 'venda' | 'buyout'
+  project_name?: string | null
+  uc_geradora?: string | null
+  distribuidora?: string | null
+  consumption_kwh_month?: number | null
+  term_months?: number | null
+  system_kwp?: number | null
+}
+
+export async function createPortfolioProject(
+  clientId: number,
+  payload: CreatePortfolioProjectPayload,
+): Promise<PortfolioProject> {
+  const res = await apiFetch<{ data: PortfolioProject }>(
+    resolveApiUrl(`/api/client-portfolio/${clientId}/projects`),
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+  return res.data
+}
+
+export async function getPortfolioProjects(clientId: number): Promise<PortfolioProject[]> {
+  const res = await apiFetch<{ data: PortfolioProject[] }>(
+    resolveApiUrl(`/api/client-portfolio/${clientId}/projects`),
+  )
+  return res.data ?? []
 }
