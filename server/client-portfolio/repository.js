@@ -56,6 +56,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
         bp.due_day,
         bp.first_billing_date,
         bp.commissioning_date                                   AS commissioning_date_billing,
+        bp.valor_mensalidade,
         bp.installments_json
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
@@ -104,6 +105,7 @@ export async function listPortfolioClients(sql, { search } = {}) {
         bp.due_day,
         bp.first_billing_date,
         bp.commissioning_date                                   AS commissioning_date_billing,
+        bp.valor_mensalidade,
         bp.installments_json
       FROM public.clients c
       LEFT JOIN public.client_contracts cc ON cc.client_id = c.id
