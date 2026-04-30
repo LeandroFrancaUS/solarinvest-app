@@ -18,6 +18,7 @@ import {
 import {
   createOrReuseProjectFromContractId,
   createOrReuseProjectFromPlan,
+  createStandaloneProject,
 } from './service.js'
 import { isProjectStatus, isProjectType } from './planMapper.js'
 
@@ -345,5 +346,56 @@ export async function handleProjectFromPlan(req, res, { method, planId, readJson
     }
     logError('from-plan', err, { planId })
     sendError(sendJson, 500, 'DB_ERROR', 'Erro ao criar projeto a partir do plano.')
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/projects/standalone
+// Creates a standalone project for an existing client — no contract required.
+// Body: { client_id: number, project_type: 'leasing' | 'venda' }
+// ─────────────────────────────────────────────────────────────────────────────
+export async function handleProjectStandalone(req, res, { method, readJsonBody, sendJson }) {
+  const actor = await resolveActor(req)
+  if (!requireWrite(actor, sendJson)) return
+  if (method !== 'POST') {
+    sendError(sendJson, 405, 'METHOD_NOT_ALLOWED', 'Método não permitido.')
+    return
+  }
+
+  let body
+  try {
+    body = await readJsonBody(req)
+  } catch {
+    sendError(sendJson, 400, 'INVALID_JSON', 'JSON inválido na requisição.')
+    return
+  }
+
+  const clientIdRaw = body?.client_id
+  const projectType = body?.project_type
+
+  if (!clientIdRaw || !Number.isFinite(Number(clientIdRaw))) {
+    sendError(sendJson, 400, 'INVALID_CLIENT_ID', 'client_id deve ser um número inteiro válido.')
+    return
+  }
+  if (projectType !== 'leasing' && projectType !== 'venda') {
+    sendError(sendJson, 400, 'INVALID_PROJECT_TYPE', 'project_type deve ser "leasing" ou "venda".')
+    return
+  }
+
+  try {
+    const sql = await getScopedSql(actor)
+    const result = await createStandaloneProject(
+      sql,
+      { clientId: Number(clientIdRaw), projectType },
+      { userId: actor?.userId ?? null },
+    )
+    sendJson(201, { data: result.project, meta: { created: result.created } })
+  } catch (err) {
+    if (err?.code === 'CLIENT_NOT_FOUND') {
+      sendError(sendJson, 404, 'CLIENT_NOT_FOUND', err.message)
+      return
+    }
+    logError('standalone', err, { clientId: clientIdRaw, projectType })
+    sendError(sendJson, 500, 'DB_ERROR', 'Erro ao criar projeto standalone.')
   }
 }

@@ -318,6 +318,7 @@ import {
   type UpdateClientInput,
   bulkImport,
   type BulkImportRowInput,
+  type ClientPickerRow,
 } from './lib/api/clientsApi'
 import {
   analyzeImportRows,
@@ -375,6 +376,8 @@ import { ComposicaoUfvSection } from './components/ComposicaoUfvSection'
 import { VendaConfiguracaoSection } from './components/VendaConfiguracaoSection'
 import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
 import { ClienteDadosSection } from './components/ClienteDadosSection'
+import { ExistingClientPicker } from './components/clients/ExistingClientPicker'
+import { createStandaloneProject } from './services/projectsApi'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
@@ -5328,6 +5331,11 @@ export default function App() {
   const [formConsultores, setFormConsultores] = useState<ConsultantPickerEntry[]>([])
   const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
   const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
+  // Existing-client picker: when set, a new project will be linked to this
+  // server client id instead of creating a new client record.
+  const [selectedExistingClientId, setSelectedExistingClientId] = useState<number | null>(null)
+  // tipoProjeto: the user must explicitly choose before saving a standalone project.
+  const [tipoProjeto, setTipoProjeto] = useState<'leasing' | 'venda' | null>(null)
   const lastSavedClienteRef = useRef<ClienteDados | null>(null)
   const [originalClientData, setOriginalClientData] = useState<ClienteDados>(() =>
     cloneClienteDados(CLIENTE_INICIAL),
@@ -13486,6 +13494,41 @@ export default function App() {
     const resolvedSystemKwp = resolveSystemKwpFromSnapshot(snapshotClonado)
     const resolvedTermMonths = resolveTermMonthsFromSnapshot(snapshotClonado)
 
+    // ── Standalone-project fast path ─────────────────────────────────────────
+    // When the user picked an existing client from the picker, skip creating a
+    // new client record and just create a standalone project for that client.
+    if (selectedExistingClientId !== null && !estaEditando) {
+      if (!online) {
+        if (!options?.silent) {
+          adicionarNotificacao('Você está offline. Conecte-se para criar um projeto.', 'error')
+        }
+        return false
+      }
+      const resolvedProjectType = tipoProjeto ?? (snapshotClonado.activeTab === 'vendas' ? 'venda' : 'leasing')
+      try {
+        setClientLastSaveStatus('saving')
+        const { project } = await createStandaloneProject(selectedExistingClientId, resolvedProjectType)
+        setClientLastSaveStatus('success')
+        adicionarNotificacao(
+          `Projeto ${resolvedProjectType === 'leasing' ? 'Leasing' : 'Venda'} criado com sucesso.`,
+          'success',
+        )
+        console.info('[client-save] standalone project created', { projectId: project.id, clientId: selectedExistingClientId })
+        // Reset the picker so next save goes through normal flow.
+        setSelectedExistingClientId(null)
+        setTipoProjeto(null)
+      } catch (err) {
+        setClientLastSaveStatus('error')
+        console.error('[client-save] standalone project failed', err)
+        if (!options?.silent) {
+          adicionarNotificacao('Falha ao criar projeto. Tente novamente.', 'error')
+        }
+        return false
+      }
+      return true
+    }
+    // ── End standalone-project fast path ─────────────────────────────────────
+
     // Build Neon payload from dadosClonados before state update.
     // Neon DB is the primary store; localStorage is only a fallback/cache.
 
@@ -13897,6 +13940,8 @@ export default function App() {
     validateClienteParaSalvar,
     clienteTemDadosNaoSalvos,
     getActiveBudgetId,
+    selectedExistingClientId,
+    tipoProjeto,
   ])
 
   useEffect(() => {
@@ -17395,6 +17440,49 @@ export default function App() {
     })
   }, [runWithUnsavedChangesGuard, setActivePage])
 
+  const handleAdicionarNovoProjeto = useCallback(
+    async (lead: import('./features/crm/crmTypes').CrmLeadRecord, projectType: import('./domain/projects/types').ProjectType) => {
+      // Step 1 — ensure the lead's client exists in the server by doing an upsert.
+      // CrmLeadRecord has no CPF/CNPJ, but the server only requires a name.
+      let serverClientId: number | null = null
+      if (isConnectivityOnline()) {
+        try {
+          const serverRow = await upsertClientByDocument({
+            name: lead.nome,
+            phone: lead.telefone,
+            email: lead.email,
+            city: lead.cidade,
+          })
+          serverClientId = serverRow.id ? Number(serverRow.id) : null
+          console.info('[crm-add-project] client upserted', { serverClientId })
+        } catch (err) {
+          console.error('[crm-add-project] client upsert failed', err)
+          adicionarNotificacao('Falha ao criar/buscar cliente. Tente novamente.', 'error')
+          return
+        }
+      }
+
+      if (!serverClientId) {
+        adicionarNotificacao('Você está offline ou falha ao obter ID do cliente.', 'error')
+        return
+      }
+
+      // Step 2 — create the standalone project.
+      try {
+        const { project } = await createStandaloneProject(serverClientId, projectType)
+        adicionarNotificacao(
+          `Projeto ${projectType === 'leasing' ? 'Leasing' : 'Venda'} criado para ${lead.nome}.`,
+          'success',
+        )
+        console.info('[crm-add-project] project created', { projectId: project.id })
+      } catch (err) {
+        console.error('[crm-add-project] project creation failed', err)
+        adicionarNotificacao('Falha ao criar projeto. Tente novamente.', 'error')
+      }
+    },
+    [adicionarNotificacao],
+  )
+
   const iniciarNovaProposta = useCallback(async () => {
     if (novaPropostaEmAndamentoRef.current) {
       console.warn('[Nova Proposta] Ignored (already running)')
@@ -17558,6 +17646,8 @@ export default function App() {
       clienteEmEdicaoIdRef.current = null
       lastSavedClienteRef.current = null
       setClienteEmEdicaoId(null)
+      setSelectedExistingClientId(null)
+      setTipoProjeto(null)
       setActivePage('app')
       setNotificacoes([])
       const novoBudgetId = createDraftBudgetId()
@@ -20127,7 +20217,8 @@ export default function App() {
         {activePage === 'dashboard' ? (
           <DashboardPage />
         ) : activePage === 'crm' ? (
-          <CrmPage {...crmState} />
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises
+          <CrmPage {...crmState} onAdicionarNovoProjeto={handleAdicionarNovoProjeto} />
         ) : activePage === 'consultar' ? (
           <BudgetSearchPage
             registros={orcamentosSalvos}
@@ -20369,6 +20460,60 @@ export default function App() {
                         </button>
                       ) : null}
                     </div>
+                    ) : null}
+                    {/* Existing-client picker — only shown when no client is currently being edited */}
+                    {!clienteEmEdicaoId ? (
+                      <>
+                        <ExistingClientPicker
+                          onSelect={(pickedClient) => {
+                            if (pickedClient) {
+                              setSelectedExistingClientId(pickedClient.id)
+                              updateClienteSync({
+                                nome: pickedClient.name,
+                                documento: pickedClient.document ?? '',
+                                telefone: pickedClient.phone ?? '',
+                                email: pickedClient.email ?? '',
+                                cep: pickedClient.cep ?? '',
+                                uf: pickedClient.state ?? '',
+                                cidade: pickedClient.city ?? '',
+                                endereco: pickedClient.address ?? '',
+                              })
+                            } else {
+                              setSelectedExistingClientId(null)
+                            }
+                          }}
+                        />
+                        {selectedExistingClientId !== null ? (
+                          <div style={{ marginBottom: '1rem' }}>
+                            <label style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem' }}>
+                              Tipo de projeto <span style={{ color: 'var(--color-danger, #ef4444)' }}>*</span>
+                            </label>
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                              {(['leasing', 'venda'] as const).map((tipo) => (
+                                <label
+                                  key={tipo}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.4rem',
+                                    cursor: 'pointer',
+                                    fontWeight: tipoProjeto === tipo ? 700 : 400,
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="tipoProjeto"
+                                    value={tipo}
+                                    checked={tipoProjeto === tipo}
+                                    onChange={() => { setTipoProjeto(tipo) }}
+                                  />
+                                  {tipo === 'leasing' ? 'Leasing' : 'Venda'}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </>
                     ) : null}
                     <ClienteDadosSection
                       cliente={cliente}

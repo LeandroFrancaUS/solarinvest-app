@@ -153,3 +153,20 @@ export async function createProjectFromContract(
   })
   return { project: res.data, created: res.meta.created }
 }
+
+/**
+ * Creates a standalone project for an existing client.
+ * No contract is required. Each call generates a new project with a unique plan_id.
+ * Uses POST /api/projects/standalone.
+ */
+export async function createStandaloneProject(
+  clientId: number,
+  projectType: 'leasing' | 'venda',
+): Promise<{ project: ProjectRow; created: boolean }> {
+  const url = buildUrl('/api/projects/standalone')
+  const res = await apiFetch<{ data: ProjectRow; meta: { created: boolean } }>(url, {
+    method: 'POST',
+    body: JSON.stringify({ client_id: clientId, project_type: projectType }),
+  })
+  return { project: res.data, created: res.meta.created }
+}
