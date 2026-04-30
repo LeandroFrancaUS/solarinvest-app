@@ -645,24 +645,24 @@ function getInstallmentProgress(client: PortfolioClientRow): {
 
 /**
  * Central map of visual styles for each ClientPaymentStatusV2 value.
- * Single source of truth for badge bg/fg/icon in the portfolio card.
+ * chipClass is applied to the badge element; bg/fg are kept for tooltip context only.
  */
-const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
-  SEM_COBRANCA:    { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
-  PENDENTE:        { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
-  PAGO:            { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
-  VENCIDO:         { bg: '#ffedd5', fg: '#9a3412', icon: '🟠' },
-  ATRASADO:        { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
-  PARCIALMENTE_PAGO: { bg: '#ede9fe', fg: '#5b21b6', icon: '🔵' },
+const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { chipClass: string; chipLabel: string }> = {
+  SEM_COBRANCA:      { chipClass: 'pay-sem-cobranca', chipLabel: 'Sem cobrança' },
+  PENDENTE:          { chipClass: 'pay-pendente',     chipLabel: 'Pendente'     },
+  PAGO:              { chipClass: 'pay-pago',         chipLabel: 'Pago'         },
+  VENCIDO:           { chipClass: 'pay-vencido',      chipLabel: 'Vencido'      },
+  ATRASADO:          { chipClass: 'pay-atrasado',     chipLabel: 'Atrasado'     },
+  PARCIALMENTE_PAGO: { chipClass: 'pay-parcial',      chipLabel: 'Parcial'      },
 }
 
-const WIFI_BADGE_MAP: Record<string, { icon: string; label: string; color: string }> = {
-  conectado:    { icon: '🟢', label: 'Online',       color: '#166534' },
-  desconectado: { icon: '🟡', label: 'Desconectado', color: '#854d0e' },
-  falha:        { icon: '🔴', label: 'Falha',        color: '#991b1b' },
+const WIFI_BADGE_MAP: Record<string, { icon: string; label: string; chipClass: string }> = {
+  conectado:    { icon: '📶', label: 'Online',  chipClass: 'wifi-online'  },
+  desconectado: { icon: '📵', label: 'Offline', chipClass: 'wifi-offline' },
+  falha:        { icon: '⚠️', label: 'Falha',   chipClass: 'wifi-falha'   },
 }
 
-const WIFI_BADGE_DEFAULT = { icon: '⚪', label: 'Sem monitoramento', color: '#6b7280' }
+const WIFI_BADGE_DEFAULT = { icon: '—', label: 'Sem monit.', chipClass: 'wifi-none' }
 
 function ClientCard({
   client,
@@ -680,6 +680,7 @@ function ClientCard({
   const paymentStatusResult = getClientPaymentStatusV2(client)
   const paymentStatus = paymentStatusResult.status
   const statusStyle = PAYMENT_STATUS_STYLES[paymentStatus]
+
 
   // Helper: coerce PostgreSQL numeric strings or JS numbers to finite number or null
   const toFiniteNumber = (value: unknown): number | null => {
@@ -782,20 +783,17 @@ function ClientCard({
       {/* Col 7: Status — WiFi + Pagamento unified */}
       <div className="status-cell">
         <span
-          className="wallet-status-badge wallet-wifi-badge"
+          className={`wallet-status-badge wallet-wifi-badge ${wifiBadge.chipClass}`}
           title={`Monitoramento: ${wifiBadge.label}`}
-          style={{ color: wifiBadge.color }}
         >
           <span aria-hidden="true">{wifiBadge.icon}</span>
           <span>{wifiBadge.label}</span>
         </span>
         <span
-          className="wallet-status-badge wallet-payment-badge"
+          className={`wallet-status-badge wallet-payment-badge ${statusStyle.chipClass}`}
           title={paymentTitle}
-          style={{ background: statusStyle.bg, color: statusStyle.fg }}
         >
-          <span aria-hidden="true">{statusStyle.icon}</span>
-          <span>{paymentStatusResult.label}</span>
+          {statusStyle.chipLabel}
         </span>
       </div>
 
@@ -805,15 +803,19 @@ function ClientCard({
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit() }}
           className="pf-row-btn pf-row-btn-edit"
+          title="Editar"
+          aria-label="Editar cliente"
         >
-          ✏️ Editar
+          ✏️
         </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onDelete() }}
           className="pf-row-btn pf-row-btn-delete"
+          title="Excluir"
+          aria-label="Excluir cliente"
         >
-          🗑️ Excluir
+          🗑️
         </button>
       </div>
     </div>

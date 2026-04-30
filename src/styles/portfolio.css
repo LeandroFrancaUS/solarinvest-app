@@ -333,12 +333,12 @@
  *   4. info-cell     140px  — Consumo
  *   5. info-cell     180px  — Mensalidade (visually prominent)
  *   6. info-cell     120px  — Vencimento
- *   7. status-cell   220px  — Status (WiFi + Pagamento)
- *   8. actions       160px  — Ações
+ *   7. status-cell   150px  — Status (WiFi + Pagamento — compact chips)
+ *   8. actions        92px  — Ações (icon-only buttons)
  */
 .active-wallet-card {
   display: grid;
-  grid-template-columns: 280px 120px 140px 140px 180px 120px 220px 160px;
+  grid-template-columns: 280px 120px 140px 140px 180px 120px 150px 92px;
   align-items: center;
   gap: 0 16px;
   padding: 12px 18px;
@@ -389,33 +389,99 @@
   overflow: hidden;
 }
 
-/* ── Status cell: stacks WiFi + Pagamento badges vertically ─────── */
+/* ── Status cell: stacks WiFi + Pagamento chips vertically ─────── */
 .status-cell {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 5px;
+  align-items: flex-start;
+  gap: 4px;
   min-width: 0;
 }
 
-/* Shared badge style — WiFi and Payment badges */
+/* Compact chip — shared by WiFi and Payment badges */
 .wallet-status-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: var(--surface-alt, #f3f4f6);
-  font-size: 10px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1;
   white-space: nowrap;
-  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 120px;
 }
 
-/* Payment badge overrides background via inline style; keep base transparent here */
+/* ── WiFi chip colours ──────────────────────────────────────────── */
+.wifi-online {
+  background: rgba(22, 101, 52, 0.18);
+  border-color: #16a34a;
+  color: #4ade80;
+}
+
+.wifi-offline {
+  background: rgba(120, 53, 15, 0.18);
+  border-color: #d97706;
+  color: #fbbf24;
+}
+
+.wifi-falha {
+  background: rgba(127, 29, 29, 0.18);
+  border-color: #dc2626;
+  color: #fca5a5;
+}
+
+.wifi-none {
+  background: rgba(71, 85, 105, 0.15);
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+/* ── Payment chip colours ───────────────────────────────────────── */
+.pay-pago {
+  background: rgba(22, 101, 52, 0.18);
+  border-color: #16a34a;
+  color: #4ade80;
+}
+
+.pay-parcial {
+  background: rgba(67, 56, 202, 0.18);
+  border-color: #6366f1;
+  color: #a5b4fc;
+}
+
+.pay-atrasado {
+  background: rgba(127, 29, 29, 0.18);
+  border-color: #dc2626;
+  color: #fca5a5;
+}
+
+.pay-pendente {
+  background: rgba(120, 53, 15, 0.18);
+  border-color: #d97706;
+  color: #fbbf24;
+}
+
+.pay-vencido {
+  background: rgba(154, 52, 18, 0.18);
+  border-color: #ea580c;
+  color: #fb923c;
+}
+
+.pay-sem-cobranca {
+  background: rgba(71, 85, 105, 0.15);
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+/* Payment badge overrides (kept for specificity) */
 .wallet-payment-badge {
-  /* background and color set inline from PAYMENT_STATUS_STYLES */
+  /* colours applied via .pay-* classes */
 }
 
 .info-label {
@@ -456,6 +522,7 @@
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -722,13 +789,18 @@
   margin-top: 6px;
 }
 .pf-row-btn {
-  padding: 6px 14px;
-  border-radius: 8px;
-  font-size: 12.5px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .pf-row-btn-edit {
