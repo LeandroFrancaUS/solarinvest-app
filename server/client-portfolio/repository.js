@@ -709,11 +709,43 @@ export async function updateClientLifecycle(sql, clientId, fields) {
 }
 
 /**
+ * Merges the attachment list from `incoming` into `existing`, deduplicating by
+ * `storageKey` (preferred) or `id`. Returns a new array; never mutates inputs.
+ * The base array is itself deduplicated so pre-existing duplicates are removed.
+ */
+function mergeAttachments(existing, incoming) {
+  const base = Array.isArray(existing) ? existing : []
+  const extra = Array.isArray(incoming) ? incoming : []
+  // Deduplicate base first, then append unique extras.
+  const seen = new Set()
+  const merged = []
+  for (const att of [...base, ...extra]) {
+    const key = att?.storageKey ?? att?.id
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    merged.push(att)
+  }
+  return merged
+}
+
+/**
  * Upsert client_contracts (only one active contract per client is tracked here).
+ *
+ * Idempotency for INSERT path:
+ *   Before creating a new row, we check whether an active contract with the
+ *   same (client_id, contract_type, contract_signed_at) already exists.
+ *   If it does, we merge attachments and update mutable file/consultant fields
+ *   instead of inserting a duplicate row.
+ *   The DB-level partial unique index
+ *   ux_client_contracts_active_signature is a last-resort guard that also
+ *   causes a unique_violation (23505) which we catch and recover from.
  */
 export async function upsertClientContract(sql, clientId, fields) {
   const now = new Date().toISOString()
   // Serialise contract_attachments_json to a JSON string for the query.
+  // Note: the input field is `contract_attachments` (array from the request body);
+  // the DB column is `contract_attachments_json` (jsonb). This mapping is intentional
+  // so callers can pass a plain JS array and the function handles serialisation.
   // null means "not provided → preserve existing value".
   const attachmentsJsonStr = Array.isArray(fields.contract_attachments)
     ? JSON.stringify(fields.contract_attachments)
@@ -782,7 +814,92 @@ export async function upsertClientContract(sql, clientId, fields) {
     return rows[0] ?? null
   }
 
-  const rows = await (async () => {
+  // ── Idempotency guard for INSERT ──────────────────────────────────────────
+  // Before inserting, check whether an active contract with the same
+  // (client_id, contract_type, contract_signed_at) already exists.
+  // If it does, merge attachments and update mutable file/consultant fields
+  // instead of creating a duplicate row.
+  // IS NOT DISTINCT FROM handles NULL contract_signed_at safely.
+  const incomingStatus   = fields.contract_status   ?? 'draft'
+  const incomingType     = fields.contract_type     ?? 'leasing'
+  const incomingSignedAt = fields.contract_signed_at ?? null
+
+  if (incomingStatus === 'active' && incomingSignedAt != null) {
+    const existing = await (async () => {
+      try {
+        const r = await sql`
+          SELECT *
+          FROM public.client_contracts
+          WHERE client_id          = ${clientId}
+            AND contract_type      = ${incomingType}
+            AND contract_status    = 'active'
+            AND contract_signed_at IS NOT DISTINCT FROM ${incomingSignedAt}
+          ORDER BY updated_at DESC NULLS LAST, id DESC
+          LIMIT 1
+        `
+        return r[0] ?? null
+      } catch (lookupErr) {
+        // If the query fails (e.g. schema mismatch) just proceed to INSERT.
+        console.warn('[portfolio][contract] idempotency lookup failed — proceeding to INSERT', {
+          clientId,
+          contractType: incomingType,
+          message: lookupErr instanceof Error ? lookupErr.message : String(lookupErr),
+        })
+        return null
+      }
+    })()
+
+    if (existing) {
+      console.info('[portfolio][contract] duplicate active contract detected — merging instead of inserting', {
+        clientId,
+        existingId: existing.id,
+        contractType: incomingType,
+        contractSignedAt: incomingSignedAt,
+      })
+
+      // Merge attachments so no file references are lost.
+      const existingAttachments = Array.isArray(existing.contract_attachments_json)
+        ? existing.contract_attachments_json
+        : []
+      const incomingAttachments = Array.isArray(fields.contract_attachments)
+        ? fields.contract_attachments
+        : []
+      const mergedAttachments = mergeAttachments(existingAttachments, incomingAttachments)
+      const mergedAttachmentsStr = JSON.stringify(mergedAttachments)
+
+      const updated = await (async () => {
+        try {
+          const r = await sql`
+            UPDATE public.client_contracts
+            SET
+              contract_file_name        = COALESCE(${fields.contract_file_name ?? null}, contract_file_name),
+              contract_file_url         = COALESCE(${fields.contract_file_url ?? null}, contract_file_url),
+              contract_file_type        = COALESCE(${fields.contract_file_type ?? null}, contract_file_type),
+              contract_attachments_json = ${mergedAttachmentsStr}::jsonb,
+              consultant_id             = COALESCE(${fields.consultant_id ?? null}, consultant_id),
+              consultant_name           = COALESCE(${fields.consultant_name ?? null}, consultant_name),
+              updated_at                = ${now}
+            WHERE id = ${existing.id}
+              AND client_id = ${clientId}
+            RETURNING *
+          `
+          return r[0] ?? existing
+        } catch (updateErr) {
+          console.warn('[portfolio][contract] merge UPDATE failed — returning pre-update row', {
+            clientId,
+            existingId: existing.id,
+            message: updateErr instanceof Error ? updateErr.message : String(updateErr),
+          })
+          return existing
+        }
+      })()
+
+      return updated
+    }
+  }
+  // ── End idempotency guard ─────────────────────────────────────────────────
+
+  const doInsert = async () => {
     try {
       return await sql`
         INSERT INTO public.client_contracts (
@@ -797,9 +914,9 @@ export async function upsertClientContract(sql, clientId, fields) {
         ) VALUES (
           ${clientId},
           ${fields.source_proposal_id ?? null},
-          ${fields.contract_type ?? 'leasing'},
-          ${fields.contract_status ?? 'draft'},
-          ${fields.contract_signed_at ?? null},
+          ${incomingType},
+          ${incomingStatus},
+          ${incomingSignedAt},
           ${fields.contract_start_date ?? null},
           ${fields.billing_start_date ?? null},
           ${fields.expected_billing_end_date ?? null},
@@ -836,9 +953,9 @@ export async function upsertClientContract(sql, clientId, fields) {
         ) VALUES (
           ${clientId},
           ${fields.source_proposal_id ?? null},
-          ${fields.contract_type ?? 'leasing'},
-          ${fields.contract_status ?? 'draft'},
-          ${fields.contract_signed_at ?? null},
+          ${incomingType},
+          ${incomingStatus},
+          ${incomingSignedAt},
           ${fields.contract_start_date ?? null},
           ${fields.billing_start_date ?? null},
           ${fields.expected_billing_end_date ?? null},
@@ -854,7 +971,34 @@ export async function upsertClientContract(sql, clientId, fields) {
         RETURNING *
       `
     }
-  })()
+  }
+
+  // Attempt INSERT; if a concurrent request races us past the check above and
+  // triggers the unique index violation, fall back to fetching the winner row.
+  let rows
+  try {
+    rows = await doInsert()
+  } catch (err) {
+    if (err?.code === '23505') {
+      console.warn('[portfolio][contract] unique_violation on INSERT — fetching existing row', {
+        clientId,
+        contractType: incomingType,
+        contractSignedAt: incomingSignedAt,
+      })
+      const r = await sql`
+        SELECT *
+        FROM public.client_contracts
+        WHERE client_id          = ${clientId}
+          AND contract_type      = ${incomingType}
+          AND contract_status    = 'active'
+          AND contract_signed_at IS NOT DISTINCT FROM ${incomingSignedAt}
+        ORDER BY updated_at DESC NULLS LAST, id DESC
+        LIMIT 1
+      `
+      return r[0] ?? null
+    }
+    throw err
+  }
   return rows[0] ?? null
 }
 
