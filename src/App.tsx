@@ -17325,7 +17325,6 @@ export default function App() {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
       const registros = await carregarOrcamentosPrioritarios()
       setOrcamentosSalvos(registros)
-      setOrcamentoSearchTerm('')
       setActivePage('consultar')
     })
 
@@ -17425,7 +17424,6 @@ export default function App() {
       leasingActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
-      setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
       setBudgetStructuredItems([])
       setKitBudget(createEmptyKitBudget())
