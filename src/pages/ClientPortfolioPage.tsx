@@ -3289,7 +3289,7 @@ function AddClientModal({
     if (!projectForm.term_months || Number.isNaN(months) || months <= 0) {
       errs.term_months = 'Informe o prazo em meses.'
     }
-    const ucDigits = projectForm.uc.replace(/\D/g, '')
+    const ucDigits = projectForm.uc.trim().replace(/\D/g, '')
     if (projectForm.uc.trim() && ucDigits.length !== 15) {
       errs.uc = 'UC deve ter 15 dígitos.'
     }
@@ -3636,7 +3636,7 @@ function AddClientModal({
                       checked={tipoProjeto === tipo}
                       onChange={() => {
                         setTipoProjeto(tipo)
-                        setErrors(({ tipoProjeto: _t, ...rest }) => rest)
+                        setErrors((prev) => { const next = { ...prev }; delete next.tipoProjeto; return next })
                         setGlobalError(null)
                       }}
                     />
