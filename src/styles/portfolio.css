@@ -290,9 +290,27 @@
   font-size: 11.5px;
 }
 
+.pf-status-overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ef4444;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.pf-status-overdue-severe {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
 /* ── 10. CLIENT CARD ──────────────────────────────────────────── */
 .pf-client-card {
-  padding: 16px;
+  padding: 9px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -306,7 +324,344 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
-/* Card body: info left, actions right */
+/* ── 10a. ACTIVE WALLET CARD — fixed 8-column grid ───────────────
+ *
+ * Columns (desktop ≥ 1360px):
+ *   1. client-cell   300px  — Cliente (name + document)
+ *   2. info-cell     120px  — Modalidade
+ *   3. info-cell     150px  — Cidade/UF  (right-aligned)
+ *   4. info-cell     150px  — Consumo (kWh/mês)
+ *   5. info-cell     190px  — Mensalidade (R$)  (right-aligned)
+ *   6. info-cell     110px  — Vencimento
+ *   7. status-cell   130px  — Status (WiFi + Pagamento icons)
+ *   8. actions       110px  — Ações
+ */
+.active-wallet-card {
+  display: grid;
+  grid-template-columns: 300px 120px 150px 150px 190px 110px 130px 110px;
+  align-items: center;
+  gap: 0 16px;
+  padding: 12px 18px;
+  min-height: unset;
+}
+
+/* ── Column header row (reuses active-wallet-card grid) ─────────── */
+.wallet-col-headers {
+  padding: 6px 18px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 2px;
+}
+
+.wallet-col-headers:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.wallet-col-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.client-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.info-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Status cell: side-by-side icon squares ─────────────────────── */
+.status-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Compact icon-only status square */
+.wallet-status-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  background: transparent;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+/* ── Right-aligned city/UF column ──────────────────────────────── */
+.wallet-city-cell {
+  text-align: right;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+/* ── Right-aligned mensalidade column ──────────────────────────── */
+.wallet-monthly-cell {
+  text-align: right;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+/* ── Right-aligned column header ───────────────────────────────── */
+.wallet-col-header-right {
+  text-align: right;
+  justify-self: end;
+}
+
+/* ── Center-aligned column header ──────────────────────────────── */
+.wallet-col-header-center {
+  text-align: center;
+  justify-self: center;
+}
+
+/* ── Right-aligned consumo column ──────────────────────────────── */
+.wallet-consumo-cell {
+  text-align: right;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+/* ── Center-aligned vencimento column ──────────────────────────── */
+.wallet-vencimento-cell {
+  text-align: center;
+  justify-self: center;
+  align-items: center;
+}
+
+.info-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.info-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Prominent value — used for Mensalidade */
+.info-value-primary {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.info-value-muted {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wallet-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Icon-only action buttons */
+.wallet-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: filter 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.wallet-action-btn-edit {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wallet-action-btn-edit:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.wallet-action-btn-delete {
+  border: 1px solid var(--color-error-border);
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+
+.wallet-action-btn-delete:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 2px var(--color-error-bg);
+}
+
+/* ── BREAKPOINT: 1360px — collapse to fluid columns ──────────────
+ * Drop fixed px columns and switch to proportional fractions so the
+ * card still fits in narrower viewports when the detail panel is open.
+ */
+@media (max-width: 1360px) {
+  .active-wallet-card {
+    grid-template-columns:
+      minmax(200px, 1.6fr)
+      repeat(4, minmax(80px, 1fr))
+      minmax(170px, 1.3fr)
+      auto;
+    gap: 0 12px;
+  }
+
+  /* Push Mensalidade + Vencimento (5th–6th info-cell) to row 2 */
+  .active-wallet-card > .info-cell:nth-child(5),
+  .active-wallet-card > .info-cell:nth-child(6) {
+    grid-row: 2;
+  }
+
+  .status-cell {
+    grid-row: 1;
+    grid-column: 6;
+    align-self: center;
+  }
+
+  .wallet-card-actions {
+    grid-row: 1;
+    grid-column: 7;
+    justify-content: flex-end;
+  }
+
+  /* Header row: layout changes at this breakpoint so hide rather than misalign */
+  .wallet-col-headers {
+    display: none;
+  }
+}
+
+/* ── BREAKPOINT: 900px — 3-column compact ────────────────────────
+ * Row 1: client | status | actions
+ * Row 2+: info-cells (auto flow, 3 per row)
+ */
+@media (max-width: 900px) {
+  .active-wallet-card {
+    grid-template-columns:
+      minmax(150px, 1.4fr)
+      auto
+      auto;
+    row-gap: 10px;
+    column-gap: 10px;
+  }
+
+  /* Reset nth-child overrides from 1360 breakpoint */
+  .active-wallet-card > .info-cell:nth-child(5),
+  .active-wallet-card > .info-cell:nth-child(6) {
+    grid-row: unset;
+  }
+
+  .info-cell {
+    grid-row: 2;
+  }
+
+  .status-cell {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .wallet-card-actions {
+    grid-row: 1;
+    grid-column: 3;
+    justify-content: flex-end;
+  }
+
+  .wallet-col-headers {
+    display: none;
+  }
+}
+
+/* ── BREAKPOINT: 640px — mobile / portrait ───────────────────────
+ * Row 1: client (col 1) | status (col 2, right-aligned)
+ * Row 2: actions (full width)
+ * Row 3+: info-cells in pairs
+ */
+@media (max-width: 640px) {
+  .active-wallet-card {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 8px;
+    column-gap: 8px;
+    padding: 12px 12px;
+  }
+
+  .client-cell {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .info-cell {
+    grid-row: 3;
+  }
+
+  /* Reset 1360/900 overrides */
+  .active-wallet-card > .info-cell:nth-child(5),
+  .active-wallet-card > .info-cell:nth-child(6) {
+    grid-row: unset;
+  }
+
+  .status-cell {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    align-self: start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wallet-card-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .wallet-col-headers {
+    display: none;
+  }
+}
+
+/* Card body: info left, actions right (legacy, kept for non-active-wallet cards) */
 .pf-card-body {
   display: flex;
   align-items: center;
@@ -318,7 +673,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .pf-card-name {
@@ -338,6 +693,9 @@
   text-align: left;
   cursor: pointer;
   min-width: 0;
+  display: block;
+  width: 100%;
+  overflow: hidden;
 }
 
 .pf-card-name-button:focus-visible .pf-card-name {
@@ -416,7 +774,23 @@
   flex-shrink: 0;
 }
 
-/* ── 10b. ROW BUTTONS (shared) ────────────────────────────────── */
+/* ── 10e. CARD NAME ROW (name + status badge) ─────────────────── */
+.pf-card-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ── 10f. CARD ATTRIBUTES (metadata grid below meta row) ─────── */
+.pf-card-attributes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  margin-top: 6px;
+}
 .pf-row-btn {
   padding: 6px 14px;
   border-radius: 8px;

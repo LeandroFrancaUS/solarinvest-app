@@ -2,17 +2,19 @@
 // Operational dashboard for monitoring billing, payments, deliveries, installations, and support.
 // NO financial analytics, ROI, or investment indicators.
 
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { formatMoneyBR } from '../lib/locale/br-number.js'
 import { listOperationalTasks } from '../lib/api/operationalDashboardApi.js'
 import { listInvoices } from '../services/invoicesApi.js'
 import { computeAlerts, sortAlertsBySeverity } from '../lib/dashboard/alerts.js'
+import { fetchPortfolioClients } from '../services/clientPortfolioApi.js'
 import type {
   DashboardInvoice,
   DashboardOperationalTask,
   DashboardAlert,
   DashboardKPIs,
 } from '../types/operationalDashboard.js'
+import type { PortfolioClientRow } from '../types/clientPortfolio.js'
 
 type LoadingState = 'idle' | 'loading' | 'loaded' | 'error'
 
@@ -20,6 +22,7 @@ export function OperationalDashboardPage() {
   const [invoices, setInvoices] = useState<DashboardInvoice[]>([])
   const [tasks, setTasks] = useState<DashboardOperationalTask[]>([])
   const [alerts, setAlerts] = useState<DashboardAlert[]>([])
+  const [portfolio, setPortfolio] = useState<PortfolioClientRow[]>([])
   const [loadState, setLoadState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -27,13 +30,18 @@ export function OperationalDashboardPage() {
     setLoadState('loading')
     setError(null)
     try {
-      const [invoicesRes, tasksRes] = await Promise.all([
+      const [invoicesRes, tasksRes, portfolioRes] = await Promise.allSettled([
         listInvoices({ limit: 1000 }).catch(() => ({ data: [] })),
         listOperationalTasks({ limit: 1000 }).catch(() => ({ data: [] })),
+        fetchPortfolioClients(),
       ])
 
+      const invoicesData = invoicesRes.status === 'fulfilled' ? invoicesRes.value : { data: [] }
+      const tasksData = tasksRes.status === 'fulfilled' ? tasksRes.value : { data: [] }
+      const portfolioData = portfolioRes.status === 'fulfilled' ? portfolioRes.value : []
+
       // Map invoices to dashboard format
-      const mappedInvoices: DashboardInvoice[] = (invoicesRes.data || []).map((inv: any) => ({
+      const mappedInvoices: DashboardInvoice[] = (invoicesData.data || []).map((inv: any) => ({
         id: String(inv.id),
         clientId: inv.client_id ? String(inv.client_id) : undefined,
         clientName: inv.client_name || 'Cliente sem nome',
@@ -47,7 +55,7 @@ export function OperationalDashboardPage() {
       }))
 
       // Map tasks to dashboard format
-      const mappedTasks: DashboardOperationalTask[] = (tasksRes.data || []).map((task: any) => ({
+      const mappedTasks: DashboardOperationalTask[] = (tasksData.data || []).map((task: any) => ({
         id: String(task.id),
         type: task.type,
         title: task.title,
@@ -66,6 +74,7 @@ export function OperationalDashboardPage() {
 
       setInvoices(mappedInvoices)
       setTasks(mappedTasks)
+      setPortfolio(portfolioData)
 
       // Compute alerts
       const computedAlerts = computeAlerts(mappedInvoices, mappedTasks)
@@ -98,6 +107,13 @@ export function OperationalDashboardPage() {
     pendingSupport: tasks.filter((t) => t.type === 'TECH_SUPPORT' && !['DONE', 'CANCELLED'].includes(t.status))
       .length,
     criticalPendencies: alerts.filter((a) => a.severity === 'CRITICAL').length,
+  }
+
+  const wifiKpis = {
+    conectado: portfolio.filter((c) => c.wifi_status === 'conectado').length,
+    desconectado: portfolio.filter((c) => c.wifi_status === 'desconectado').length,
+    falha: portfolio.filter((c) => c.wifi_status === 'falha').length,
+    naoInformado: portfolio.filter((c) => !c.wifi_status).length,
   }
 
   if (loadState === 'idle' || loadState === 'loading') {
@@ -145,8 +161,22 @@ export function OperationalDashboardPage() {
         <KpiCard title="Pendências críticas" value={kpis.criticalPendencies} severity="critical" />
       </div>
 
+      {/* WiFi KPI Cards */}
+      <div>
+        <h2 className="mb-3 text-base font-semibold text-ds-text-primary">📡 WiFi das Usinas</h2>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <KpiCard title="🟢 WiFi conectado" value={wifiKpis.conectado} severity="success" />
+          <KpiCard title="🟡 WiFi desconectado" value={wifiKpis.desconectado} severity="warning" />
+          <KpiCard title="🔴 WiFi com falha" value={wifiKpis.falha} severity="error" />
+          <KpiCard title="⚪ WiFi não informado" value={wifiKpis.naoInformado} severity="info" />
+        </div>
+      </div>
+
       {/* Alerts Section */}
       <AlertsSection alerts={alerts} />
+
+      {/* WiFi Monitoring Section */}
+      <WifiMonitoringSection portfolio={portfolio} />
 
       {/* Invoices Section */}
       <InvoicesSection invoices={invoices} />
@@ -448,6 +478,88 @@ function getTaskTypeLabel(type: string): string {
     OTHER: 'Outro',
   }
   return labels[type] || type
+}
+
+function hasWifiIssue(c: PortfolioClientRow): boolean {
+  return c.wifi_status === 'desconectado' || c.wifi_status === 'falha' || !c.wifi_status
+}
+
+function WifiMonitoringSection({ portfolio }: { portfolio: PortfolioClientRow[] }) {
+  const alerts = portfolio.filter(hasWifiIssue)
+
+  if (alerts.length === 0) {
+    return (
+      <div className="rounded-lg border border-ds-border bg-ds-panel p-6">
+        <h2 className="mb-2 text-lg font-semibold text-ds-text-primary">Monitoramento de Usinas</h2>
+        <p className="text-sm text-ds-text-muted">Todas as usinas com WiFi informado estão conectadas</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-ds-border bg-ds-panel p-6">
+      <h2 className="mb-4 text-lg font-semibold text-ds-text-primary">
+        Monitoramento de Usinas ({alerts.length})
+      </h2>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-ds-border">
+            <tr className="text-left text-xs text-ds-text-muted">
+              <th className="pb-2">Cliente</th>
+              <th className="pb-2">Cidade / UF</th>
+              <th className="pb-2">Potência</th>
+              <th className="pb-2">Status WiFi</th>
+              <th className="pb-2">Ação sugerida</th>
+            </tr>
+          </thead>
+          <tbody>
+            {alerts.map((c) => (
+              <WifiAlertRow key={c.id} client={c} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function WifiAlertRow({ client }: { client: PortfolioClientRow }) {
+  const kwp = client.system_kwp ?? client.potencia_kwp
+  const location = [client.city, client.state].filter(Boolean).join(' / ') || '—'
+
+  const { badge, action } = wifiStatusMeta(client.wifi_status ?? null)
+
+  return (
+    <tr className="border-b border-ds-border/50">
+      <td className="py-2 font-medium text-ds-text-primary">{client.name ?? '—'}</td>
+      <td className="py-2 text-ds-text-secondary">{location}</td>
+      <td className="py-2 text-ds-text-secondary">{kwp != null ? `${kwp} kWp` : '—'}</td>
+      <td className="py-2">{badge}</td>
+      <td className="py-2 text-xs text-ds-text-muted">{action}</td>
+    </tr>
+  )
+}
+
+function wifiStatusMeta(status: 'conectado' | 'desconectado' | 'falha' | null): {
+  badge: React.ReactNode
+  action: string
+} {
+  if (status === 'falha') {
+    return {
+      badge: <span className="rounded px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">🔴 Falha</span>,
+      action: 'Verificar inversor e módulos — intervenção técnica recomendada',
+    }
+  }
+  if (status === 'desconectado') {
+    return {
+      badge: <span className="rounded px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">🟡 Desconectado</span>,
+      action: 'Verificar conectividade WiFi do inversor',
+    }
+  }
+  return {
+    badge: <span className="rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">⚪ Não informado</span>,
+    action: 'Atualizar status WiFi na aba Usina do cliente',
+  }
 }
 
 function formatDateBR(isoDate: string): string {

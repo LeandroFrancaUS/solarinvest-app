@@ -168,19 +168,59 @@ export interface Installment {
 }
 
 export interface GenerateInstallmentsInput {
-  /** Start date of the first installment (ISO string or Date). */
+  /** Start date of the first installment (ISO string or Date). Installment #1 uses this date exactly. */
   inicio_mensalidade: string | Date
   /** Total number of installments (contract term in months). */
   prazo: number
-  /** Day of the month when installments are due. */
+  /**
+   * Recurring due day (1–31) for installments #2 onwards.
+   * Installment #1 always uses the exact `inicio_mensalidade` date regardless of this value.
+   * If the target month does not have this day (e.g. 31 in February), the last day of the month is used.
+   */
   dia_vencimento: number
   /** Fixed monthly amount in BRL. */
   valor_mensalidade: number
 }
 
 /**
+ * Compute the due date for a single installment.
+ *
+ * Rules:
+ * - Installment #1 → exact `firstBillingDate`.
+ * - Installment #N (N ≥ 2) → month of `firstBillingDate` + (N − 1), day = `dueDay` (clamped to
+ *   the last day of the destination month when `dueDay` exceeds it).
+ *
+ * Examples (firstBillingDate = 22/04/2026, dueDay = 5):
+ *   #1  → 22/04/2026
+ *   #2  → 05/05/2026
+ *   #60 → 05/03/2031
+ */
+export function buildInstallmentDueDate({
+  firstBillingDate,
+  dueDay,
+  installmentNumber,
+}: {
+  firstBillingDate: Date
+  dueDay: number
+  installmentNumber: number
+}): Date {
+  if (installmentNumber === 1) {
+    return new Date(firstBillingDate.getFullYear(), firstBillingDate.getMonth(), firstBillingDate.getDate())
+  }
+  const targetMonthOffset = installmentNumber - 1
+  const baseMonth = firstBillingDate.getMonth() + targetMonthOffset
+  const year = firstBillingDate.getFullYear() + Math.floor(baseMonth / 12)
+  const month = ((baseMonth % 12) + 12) % 12
+  const day = clampDay(year, month, dueDay)
+  return new Date(year, month, day)
+}
+
+/**
  * Generate a list of installments based on the billing start date,
  * contract term, due day, and monthly amount.
+ *
+ * Installment #1 gets the exact `inicio_mensalidade` date.
+ * Installments #2+ are placed in successive calendar months using `dia_vencimento`.
  */
 export function generateInstallments(input: GenerateInstallmentsInput): Installment[] {
   const { inicio_mensalidade, prazo, dia_vencimento, valor_mensalidade } = input
@@ -209,12 +249,11 @@ export function generateInstallments(input: GenerateInstallmentsInput): Installm
   const installments: Installment[] = []
 
   for (let i = 0; i < prazo; i++) {
-    const month = startDate.getMonth() + i
-    const year = startDate.getFullYear() + Math.floor(month / 12)
-    const monthNormalized = ((month % 12) + 12) % 12
-
-    const day = clampDay(year, monthNormalized, dia_vencimento)
-    const dueDate = new Date(year, monthNormalized, day)
+    const dueDate = buildInstallmentDueDate({
+      firstBillingDate: startDate,
+      dueDay: dia_vencimento,
+      installmentNumber: i + 1,
+    })
 
     let status: Installment['status'] = 'pendente'
     if (dueDate < today) {

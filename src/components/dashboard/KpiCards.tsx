@@ -17,80 +17,54 @@ function formatPercent(value: number): string {
   return (value * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%'
 }
 
-type CardDef = {
-  label: string
-  value: string
-  icon: string
-  borderClass: string
-  valueClass: string
-}
-
 export function KpiCards({ kpis }: Props) {
-  const cards: CardDef[] = [
+  const cards = [
     {
       label: 'Contratos Fechados',
       value: formatNumber(kpis.closedContracts),
       icon: '📄',
-      borderClass: 'border-ds-success/30',
-      valueClass: 'text-ds-success',
     },
     {
       label: 'Clientes Ativos',
       value: formatNumber(kpis.activeClients),
       icon: '👥',
-      borderClass: 'border-ds-primary/30',
-      valueClass: 'text-ds-primary',
     },
     {
-      label: 'Valor Total Contratado',
+      label: 'Valor Contratado (Vendas)',
       value: formatCurrency(kpis.totalContractValue),
       icon: '💰',
-      borderClass: 'border-ds-warning/30',
-      valueClass: 'text-ds-warning',
     },
     {
-      label: 'Ticket Médio',
+      label: 'Receita Mensal (Leasing)',
+      value: formatCurrency(kpis.leasingMonthlyContracted),
+      icon: '🔁',
+    },
+    {
+      label: 'Ticket Médio (Vendas)',
       value: formatCurrency(kpis.averageTicket),
       icon: '🎫',
-      borderClass: 'border-ds-primary/30',
-      valueClass: 'text-ds-primary',
     },
     {
       label: 'Consumo Total (kWh)',
       value: formatNumber(kpis.totalConsumption),
       icon: '⚡',
-      borderClass: 'border-ds-warning/30',
-      valueClass: 'text-ds-warning',
-    },
-    {
-      label: 'Consumo Médio (kWh)',
-      value: formatNumber(kpis.averageConsumption, 1),
-      icon: '📊',
-      borderClass: 'border-ds-primary/30',
-      valueClass: 'text-ds-primary',
     },
     {
       label: 'Taxa de Conversão',
       value: formatPercent(kpis.conversionRate),
       icon: '📈',
-      borderClass: 'border-ds-success/30',
-      valueClass: 'text-ds-success',
     },
   ]
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
       {cards.map((c) => (
-        <div
-          key={c.label}
-          className={`rounded-xl border bg-ds-surface p-4 shadow-sm transition-colors hover:bg-ds-surface-hover ${c.borderClass}`}
-        >
+        <div key={c.label} className="rounded-xl border bg-ds-surface p-4 shadow-sm">
           <div className="mb-1 text-lg">{c.icon}</div>
-          <div className={`text-2xl font-bold ${c.valueClass}`}>{c.value}</div>
+          <div className="text-2xl font-bold">{c.value}</div>
           <div className="mt-1 text-xs font-medium text-ds-text-muted">{c.label}</div>
         </div>
       ))}
     </div>
   )
 }
-

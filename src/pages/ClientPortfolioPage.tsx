@@ -2,15 +2,16 @@
 // "Carteira de Clientes" — professional operational management hub.
 // Access: admin | office | financeiro only.
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import '../styles/portfolio.css'
+import { useStackRbac } from '../lib/auth/rbac'
 import {
   useClientPortfolio,
   usePortfolioClient,
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, InstallmentPayment } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
@@ -45,16 +46,18 @@ import {
   isValidUc,
 } from '../lib/validation/clientReadiness'
 import { formatCurrencyBRL } from '../utils/formatters'
+import { formatNumberBR, formatMoneyBR } from '../lib/locale/br-number'
 import { getDistribuidorasFallback } from '../utils/distribuidorasAneel'
 import { lookupCep } from '../shared/cepLookup'
 import { ClientPortfolioEditorShell, type ViewMode } from '../components/portfolio/ClientPortfolioEditorShell'
 import { UfConfigurationFields, type UfConfigData } from '../components/portfolio/UfConfigurationFields'
 import { FaturasTab } from '../components/portfolio/FaturasTab'
 import { calculateBillingDates, generateInstallments, getBillingAlert, BILLING_ALERT_LABELS, MAX_DASHBOARD_ALERTS } from '../domain/billing/monthlyEngine'
-import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addMonthsSafeV2 } from '../domain/billing/billingDates'
+import { calculateBillingDates as calculateBillingDatesV2 } from '../domain/billing/billingDates'
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
+import { getClientPaymentStatusV2, type ClientPaymentStatusV2 } from '../domain/payments/clientPaymentStatusV2'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
@@ -63,6 +66,7 @@ import { ProposalOriginField } from '../components/carteira/contrato/ProposalOri
 import { ProposalOriginSearchDialog } from '../components/carteira/contrato/ProposalOriginSearchDialog'
 import { createProposalOriginLink, validateProposalOriginLink } from '../lib/proposals/proposalOriginLink'
 import { findSavedProposalByExactCode, getSavedProposalRecord, openSavedProposalPreview } from '../services/proposalRecordsService'
+import { formatCpfCnpj } from '../lib/format/document'
 
 interface Props {
   onBack: () => void
@@ -125,6 +129,72 @@ function sanitizeBeneficiaryUCs(values: string[]): string[] {
   return values
     .map((value) => value.trim())
     .filter((value) => value.length > 0)
+}
+
+/** Parse installments_json which may be null, an array, or a JSON string. */
+function parseInstallmentsJson(value: unknown): InstallmentPayment[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value as InstallmentPayment[]
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return parsed as InstallmentPayment[]
+    } catch {
+      // ignore malformed JSON
+    }
+  }
+  return []
+}
+
+/**
+ * Calculates the next due date for a client based on unpaid installments.
+ * Returns the due date of the earliest unpaid installment, or null if unable to calculate.
+ */
+function getNextDueDate(client: PortfolioClientRow): Date | null {
+  const installments = parseInstallmentsJson(client.installments_json)
+  if (installments.length === 0) return null
+
+  const dueDay = client.due_day
+  if (!dueDay || dueDay < 1 || dueDay > 31) return null
+
+  const startDate = client.first_billing_date ?? client.inicio_da_mensalidade ?? client.commissioning_date_billing
+  if (!startDate) return null
+
+  const start = new Date(startDate)
+  if (isNaN(start.getTime())) return null
+
+  let nextDue: Date | null = null
+
+  for (const inst of installments) {
+    // Skip paid installments
+    if (inst.status === 'pago' || inst.status === 'confirmado') {
+      continue
+    }
+
+    // Installment #1 → exact firstBillingDate; #2+ → dueDay in successive months
+    let dueDate: Date
+    const instNum = inst.number ?? 1
+    if (instNum === 1) {
+      dueDate = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    } else {
+      const targetMonthOffset = instNum - 1
+      const month = start.getMonth() + targetMonthOffset
+      const year = start.getFullYear() + Math.floor(month / 12)
+      const monthNormalized = ((month % 12) + 12) % 12
+      // Clamp day to valid range for the month
+      const lastDay = new Date(year, monthNormalized + 1, 0).getDate()
+      const day = Math.min(dueDay, lastDay)
+      dueDate = new Date(year, monthNormalized, day)
+    }
+    dueDate.setHours(0, 0, 0, 0)
+
+    // Track the earliest unpaid due date
+    if (!nextDue || dueDate < nextDue) {
+      nextDue = dueDate
+    }
+  }
+
+  return nextDue
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -265,7 +335,7 @@ function ConfirmDialog({ title, message, confirmLabel = 'Confirmar', variant = '
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
+        position: 'fixed', inset: 0, zIndex: 1100,
         background: 'var(--backdrop, rgba(0,0,0,0.65))',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
@@ -434,6 +504,218 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
   buyout: 'Buy Out',
 }
 
+/** Simplified label for the "Modalidade" column — shows only Leasing or Venda.
+ *  buyout is treated as Venda in this view since it is a purchase variant. */
+const CARD_MODALITY_LABELS: Record<string, string> = {
+  leasing: 'Leasing',
+  sale: 'Venda',
+  buyout: 'Venda', // buy-out is a purchase/sale variant — displayed as "Venda"
+}
+
+/**
+ * Resolves installment progress for a portfolio client.
+ * Returns { value, current, total } where:
+ *   - value = amount for the chosen installment (BRL)
+ *   - current = 1-based installment number representing the current billing position
+ *   - total = total number of installments per contract term
+ *
+ * Priority for "current" installment selection:
+ *   A) If there are paid/confirmado/paid/confirmed installments → choose the one with the largest number.
+ *   B) If none paid → choose the pending installment with the smallest number.
+ *   C) If no pending → choose the first installment.
+ *   D) If no installments_json → use valor_mensalidade / mensalidade / monthly_payment.
+ *
+ * Priority for total:
+ *   contractual_term_months → prazo_meses → term_months → number_of_installments → parcelas → installments_count → installments.length
+ */
+function getInstallmentProgress(client: PortfolioClientRow): {
+  value: number | null
+  current: number | null
+  total: number | null
+} {
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  const toFiniteNumber = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null
+    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+
+  const getInstallmentNumber = (inst: InstallmentPayment, fallbackIndex: number): number => {
+    const n = inst.number
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n
+    return fallbackIndex + 1
+  }
+
+  const getInstallmentValue = (inst: InstallmentPayment): number | null => {
+    return (
+      toFiniteNumber(inst.valor_override) ??
+      toFiniteNumber(inst.valor) ??
+      toFiniteNumber(inst.amount) ??
+      toFiniteNumber(inst.value) ??
+      null
+    )
+  }
+
+  const isPaidStatus = (status: string | null | undefined): boolean => {
+    if (!status) return false
+    const s = status.toLowerCase()
+    return s === 'pago' || s === 'confirmado' || s === 'paid' || s === 'confirmed'
+  }
+
+  // ── 1. Parse installments_json ────────────────────────────────────────────
+  const installments = parseInstallmentsJson(client.installments_json)
+
+  // ── 2. Identify current installment ──────────────────────────────────────
+  let chosenInstallment: InstallmentPayment | null = null
+
+  if (installments.length > 0) {
+    // A) Largest-numbered paid/confirmed installment
+    const paidInstallments = installments.filter((i) => isPaidStatus(i.status ?? null))
+    if (paidInstallments.length > 0) {
+      chosenInstallment = paidInstallments.reduce<InstallmentPayment>((max, i, idx) => {
+        const maxIdx = installments.indexOf(max)
+        return getInstallmentNumber(i, idx) > getInstallmentNumber(max, maxIdx) ? i : max
+      }, paidInstallments[0]!)
+    } else {
+      // B) Smallest-numbered pending installment
+      const pendingInstallments = installments.filter((i) => !isPaidStatus(i.status ?? null))
+      if (pendingInstallments.length > 0) {
+        chosenInstallment = pendingInstallments.reduce<InstallmentPayment>((min, i, idx) => {
+          const minIdx = installments.indexOf(min)
+          return getInstallmentNumber(i, idx) < getInstallmentNumber(min, minIdx) ? i : min
+        }, pendingInstallments[0]!)
+      } else {
+        // C) First installment
+        chosenInstallment = installments[0] ?? null
+      }
+    }
+  }
+
+  // ── 3. Derive current number ──────────────────────────────────────────────
+  const current: number | null = chosenInstallment != null
+    ? getInstallmentNumber(chosenInstallment, installments.indexOf(chosenInstallment))
+    : null
+
+  // ── 4. Derive value ───────────────────────────────────────────────────────
+  let value: number | null = null
+  if (chosenInstallment != null) {
+    value = getInstallmentValue(chosenInstallment)
+  }
+  if (value === null) {
+    value =
+      toFiniteNumber(client.valor_mensalidade) ??
+      toFiniteNumber(client.mensalidade) ??
+      toFiniteNumber(client.monthly_payment) ??
+      toFiniteNumber(client.installment_value) ??
+      toFiniteNumber(client.valor_parcela) ??
+      toFiniteNumber(client.valor_prestacao) ??
+      null
+  }
+
+  // ── 5. Derive total ───────────────────────────────────────────────────────
+  // Contractual term takes priority over installments array length
+  const total: number | null =
+    toFiniteNumber(client.contractual_term_months) ??
+    toFiniteNumber(client.prazo_meses) ??
+    toFiniteNumber(client.term_months) ??
+    toFiniteNumber(client.number_of_installments) ??
+    toFiniteNumber(client.parcelas) ??
+    toFiniteNumber(client.installments_count) ??
+    (installments.length > 0 ? installments.length : null)
+
+  // ── 6. Dev debug logging ──────────────────────────────────────────────────
+  const mensalidadeLabelPreview = (() => {
+    if (value === null && current === null && total === null) return '—'
+    const valorStr = value != null ? `R$ ${value.toFixed(2)}` : null
+    if (valorStr && current != null && total != null) return `${valorStr} (${current}/${total})`
+    if (valorStr) return valorStr
+    return '—'
+  })()
+
+  if (import.meta.env.DEV) {
+    console.info('[wallet-card][billing-source]', {
+      clientId: client.id,
+      hasInstallmentsJson: Boolean(client.installments_json),
+      installmentsJsonType: typeof client.installments_json,
+      installmentsCount: installments.length,
+      firstInstallment: installments[0],
+      chosenInstallment,
+      value,
+      current,
+      total,
+      mensalidadeLabelPreview,
+    })
+  }
+
+  return { value, current, total }
+}
+
+/**
+ * Central map of visual styles for each ClientPaymentStatusV2 value.
+ * Single source of truth for badge bg/fg/icon in the portfolio card.
+ */
+const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string; borderColor: string }> = {
+  SEM_COBRANCA:      { bg: 'transparent',  fg: '#64748b', icon: '⚪', borderColor: '#475569' },
+  PENDENTE:          { bg: 'transparent',  fg: '#d97706', icon: '⏳', borderColor: '#92400e' },
+  PAGO:              { bg: 'transparent',  fg: '#22c55e', icon: '✅', borderColor: '#16a34a' },
+  VENCIDO:           { bg: 'transparent',  fg: '#f97316', icon: '🟠', borderColor: '#ea580c' },
+  ATRASADO:          { bg: 'transparent',  fg: '#ef4444', icon: '🔴', borderColor: '#dc2626' },
+  PARCIALMENTE_PAGO: { bg: 'transparent',  fg: '#6366f1', icon: '🔵', borderColor: '#4f46e5' },
+}
+
+/** Shared circle SVG used for most payment statuses */
+const _PaymentCircle = () => (
+  <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>
+)
+
+/** Payment icon-only squares — circle dot in status colour */
+const PAYMENT_STATUS_ICON: Record<ClientPaymentStatusV2, React.ReactElement> = {
+  SEM_COBRANCA:      <_PaymentCircle />,
+  PENDENTE:          <_PaymentCircle />,
+  PAGO:              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>,
+  VENCIDO:           <_PaymentCircle />,
+  ATRASADO:          <_PaymentCircle />,
+  PARCIALMENTE_PAGO: <_PaymentCircle />,
+}
+
+const WIFI_BADGE_MAP: Record<string, { label: string; color: string; borderColor: string }> = {
+  conectado:    { label: 'Online',           color: '#22c55e', borderColor: '#16a34a' },
+  desconectado: { label: 'Desconectado',     color: '#f59e0b', borderColor: '#d97706' },
+  falha:        { label: 'Falha',            color: '#ef4444', borderColor: '#dc2626' },
+}
+
+const WIFI_BADGE_DEFAULT = { label: 'Sem monitoramento', color: '#64748b', borderColor: '#475569' }
+
+/** WiFi SVG icon */
+const WifiIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" aria-hidden="true">
+    <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+    <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+    <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
+  </svg>
+)
+
+/** Pencil SVG icon */
+const PencilIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+)
+
+/** Trash SVG icon */
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6"/>
+    <path d="M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+)
+
 function ClientCard({
   client,
   onEdit,
@@ -443,51 +725,160 @@ function ClientCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const contractLabel = client.contract_type ? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type) : '—'
-  const remainingMonths = calcRemainingMonths(
-    client.contractual_term_months ?? client.term_months,
-    client.contract_start_date,
-    client.client_created_at,
-  )
-  const remainingLabel = remainingMonths !== null ? `${remainingMonths} meses` : '—'
+  const modalityLabel = client.contract_type
+    ? (CARD_MODALITY_LABELS[client.contract_type] ?? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type))
+    : '—'
   const clientName = client.name?.trim() || '—'
 
+  // Get payment status for this client
+  const paymentStatusResult = getClientPaymentStatusV2(client)
+  const paymentStatus = paymentStatusResult.status
+  const statusStyle = PAYMENT_STATUS_STYLES[paymentStatus]
+
+  // Helper: coerce PostgreSQL numeric strings or JS numbers to finite number or null
+  const toFiniteNumber = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null
+    const parsed = typeof value === 'number'
+      ? value
+      : Number(String(value).replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  // Consumo — prefer kwh_mes_contratado / kwh_contratado, fall back to raw consumption
+  const consumo = toFiniteNumber(client.kwh_mes_contratado ?? client.kwh_contratado ?? client.consumption_kwh_month)
+  // Show number only (no unit)
+  const kwhContratadoLabel = consumo != null ? formatNumberBR(consumo) : '—'
+
+  const cityState = [client.city, client.state].filter(Boolean).join('/')
+  const cityStateLabel = cityState || '—'
+
+  // Mensalidade / installment progress — no currency symbol in value
+  const installmentProgress = getInstallmentProgress(client)
+  const mensalidadeLabel = (() => {
+    const { value, current, total } = installmentProgress
+    if (value === null && current === null && total === null) return '—'
+    // Format using pt-BR locale but strip the leading "R$ " prefix
+    const valorStr = value != null ? formatMoneyBR(value).replace(/^R\$\s*/, '') : null
+    if (valorStr && current != null && total != null) return `${valorStr} (${current}/${total})`
+    if (valorStr) return valorStr
+    return '—'
+  })()
+
+  // Vencimento — show only the day number
+  const nextDueDate = getNextDueDate(client)
+  const dueDateLabel = (() => {
+    if (nextDueDate) {
+      // nextDueDate is a Date — extract the day
+      return String(nextDueDate.getDate()).padStart(2, '0')
+    }
+    if (client.due_day) {
+      // due_day may be a number or a string like "Todo dia 15" or "25/05"
+      const raw = String(client.due_day).trim()
+      // "Todo dia 15" → "15"
+      const todoDia = raw.match(/\d+/)
+      if (todoDia) return todoDia[0].padStart(2, '0')
+    }
+    return '—'
+  })()
+
+  // WiFi / monitoring badge
+  const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
+  const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
+
+  const formattedDocument = formatCpfCnpj(client.document)
+
+  const paymentTitle =
+    paymentStatus === 'SEM_COBRANCA'
+      ? 'Nenhuma cobrança registrada para este cliente'
+      : paymentStatus === 'VENCIDO'
+      ? 'Pagamento vencido (dentro do período de 5 dias)'
+      : paymentStatus === 'ATRASADO'
+      ? 'Pagamento atrasado (mais de 5 dias após vencimento)'
+      : paymentStatus === 'PARCIALMENTE_PAGO'
+      ? 'Alguns meses pagos, outros em atraso'
+      : paymentStatusResult.label
+
   return (
-    <div className="pf-client-card">
-      <div className="pf-card-body">
-        <div className="pf-card-info">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="pf-card-name-button"
-            aria-label={`Abrir cliente ${clientName}`}
-            title={`Abrir cliente ${clientName}`}
-          >
-            <span className="pf-card-name">{clientName}</span>
-          </button>
-          <div className="pf-card-doc">{client.document ?? '—'}</div>
-          <div className="pf-card-meta">
-            <span className="pf-card-contract">{contractLabel}</span>
-            <span className="pf-card-meta-sep">·</span>
-            <span className="pf-card-remaining">{remainingLabel}</span>
-          </div>
-        </div>
-        <div className="pf-card-actions">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onEdit() }}
-            className="pf-row-btn pf-row-btn-edit"
-          >
-            ✏️ Editar
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="pf-row-btn pf-row-btn-delete"
-          >
-            🗑️ Excluir
-          </button>
-        </div>
+    <div className="pf-client-card active-wallet-card">
+      {/* Col 1: Cliente — name + document */}
+      <div className="client-cell">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="pf-card-name-button"
+          aria-label={`Abrir cliente ${clientName}`}
+          title={`Abrir cliente ${clientName}`}
+        >
+          <span className="pf-card-name">{clientName}</span>
+        </button>
+        <span className="pf-card-doc">{formattedDocument}</span>
+      </div>
+
+      {/* Col 2: Modalidade */}
+      <div className="info-cell">
+        <span className="info-value">{modalityLabel}</span>
+      </div>
+
+      {/* Col 3: Cidade/UF — right aligned */}
+      <div className="info-cell wallet-city-cell">
+        <span className="info-value">{cityStateLabel}</span>
+      </div>
+
+      {/* Col 4: Consumo — number only, right aligned */}
+      <div className="info-cell wallet-consumo-cell">
+        <span className="info-value">{kwhContratadoLabel}</span>
+      </div>
+
+      {/* Col 5: Mensalidade — number + parcela, no currency symbol, right aligned */}
+      <div className="info-cell wallet-monthly-cell">
+        <span className="info-value info-value-primary">{mensalidadeLabel}</span>
+      </div>
+
+      {/* Col 6: Vencimento — day only, centered */}
+      <div className="info-cell wallet-vencimento-cell">
+        <span className="info-value">{dueDateLabel}</span>
+      </div>
+
+      {/* Col 7: Status — icon-only squares (WiFi + Pagamento) */}
+      <div className="status-cell">
+        <span
+          className="wallet-status-icon"
+          title={`Monitoramento: ${wifiBadge.label}`}
+          aria-label={`Monitoramento: ${wifiBadge.label}`}
+          style={{ color: wifiBadge.color, borderColor: wifiBadge.borderColor }}
+        >
+          <WifiIcon />
+        </span>
+        <span
+          className="wallet-status-icon"
+          title={paymentTitle}
+          aria-label={paymentTitle}
+          style={{ color: statusStyle.fg, borderColor: statusStyle.borderColor }}
+        >
+          {PAYMENT_STATUS_ICON[paymentStatus]}
+        </span>
+      </div>
+
+      {/* Col 8: Ações — icon-only buttons */}
+      <div className="wallet-card-actions">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit() }}
+          className="wallet-action-btn wallet-action-btn-edit"
+          title="Editar"
+          aria-label="Editar cliente"
+        >
+          <PencilIcon />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="wallet-action-btn wallet-action-btn-delete"
+          title="Excluir"
+          aria-label="Excluir cliente"
+        >
+          <TrashIcon />
+        </button>
       </div>
     </div>
   )
@@ -595,15 +986,16 @@ function EditarTab({
   client,
   onSaved,
   onToast,
+  editMode,
+  onRegisterSave,
 }: {
   client: PortfolioClientRow
   onSaved: (updated: PortfolioClientRow) => void
   onToast: (msg: string, type: 'success' | 'error') => void
+  editMode: boolean
+  onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
   const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
@@ -683,13 +1075,21 @@ function EditarTab({
         system_kwp: form.system_kwp !== '' ? Number(form.system_kwp) : client.system_kwp,
         term_months: form.term_months !== '' ? Number(form.term_months) : client.term_months,
       })
-      setEditMode(false)
     } catch {
       onToast('Não foi possível salvar as alterações do cliente.', 'error')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block',
@@ -832,50 +1232,6 @@ function EditarTab({
         </div>
       </div>
 
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => {
-            setEditMode(false)
-            setShowUcBeneficiariaField(hasUcBeneficiaria)
-            resetForm()
-          }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Cliente"
-          message="Deseja realmente editar os dados do cliente?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Cliente"
-          message="Deseja realmente salvar as alterações dos dados do cliente?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -890,12 +1246,9 @@ function buildBuyoutEligibleDefault(contractType: string, persisted: boolean | n
   return contractType === 'leasing' || contractType === 'buyout'
 }
 
-function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [consultants, setConsultants] = useState<Consultant[]>([])
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [showProposalSearchDialog, setShowProposalSearchDialog] = useState(false)
@@ -997,6 +1350,7 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_attachments: contractAttachments,
       })
       onSaved({
+        contract_id: savedContractId,
         contract_type: form.contract_type,
         contract_status: form.contract_status,
         source_proposal_id: form.source_proposal_record_id || form.source_proposal_id || null,
@@ -1017,7 +1371,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         contract_file_name: form.contract_file_name || null,
         contract_attachments: contractAttachments,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
       // Auto-create a project in Gestão Financeira when contract becomes active
       if (form.contract_status === 'active' && client.contract_status !== 'active') {
         createProjectFromContract(savedContractId).catch((err) => {
@@ -1030,6 +1383,15 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const code = (form.source_proposal_code || form.source_proposal_id || '').trim()
@@ -1270,46 +1632,6 @@ function ContratoTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       </div>
 
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Contrato"
-          message="Deseja realmente editar os dados do contrato?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Contrato"
-          message="Deseja realmente salvar as alterações dos dados do contrato?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
       <ProposalOriginSearchDialog
         open={showProposalSearchDialog}
         onClose={() => setShowProposalSearchDialog(false)}
@@ -1387,16 +1709,17 @@ function ProjetoTab({
   client,
   onSaved,
   onOpenFinancialProject,
+  editMode,
+  onRegisterSave,
 }: {
   client: PortfolioClientRow
   onSaved: (patch: Partial<PortfolioClientRow>) => void
   onOpenFinancialProject?: (projectId: string) => void
+  editMode: boolean
+  onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   // Financial project linked to this client in Gestão Financeira
   const [financialProjectId, setFinancialProjectId] = useState<string | null>(null)
@@ -1444,13 +1767,21 @@ function ProjetoTab({
         art_status: form.art_status || null,
         project_notes: (payload.notes as string | null) ?? null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -1613,46 +1944,6 @@ function ProjetoTab({
           </button>
         </div>
       )}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Projeto"
-          message="Deseja realmente editar os dados do projeto?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Projeto"
-          message="Deseja realmente salvar as alterações dos dados do projeto?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -1660,25 +1951,46 @@ function ProjetoTab({
 // ─────────────────────────────────────────────────────────────────────────────
 // Billing Tab
 // ─────────────────────────────────────────────────────────────────────────────
-function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
+  const { isAdmin, isOffice, isFinanceiro } = useStackRbac()
+  const canManageBilling = isAdmin || isOffice || isFinanceiro
+
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
   const [proofError, setProofError] = useState<string | null>(null)
+  const [removePaymentModal, setRemovePaymentModal] = useState<{ installmentNumber: number } | null>(null)
+  const [removingPayment, setRemovingPayment] = useState(false)
+  const [removePaymentError, setRemovePaymentError] = useState<string | null>(null)
+  // Per-installment valor editing: tracks which installment is being edited and its current input value
+  const [editingValorInstallment, setEditingValorInstallment] = useState<number | null>(null)
+  const [editingValorValue, setEditingValorValue] = useState('')
+  const [savingValorInstallment, setSavingValorInstallment] = useState<number | null>(null)
 
   // Build the confirmed-payments map from an installments array.
   // Handles both 'confirmado' (canonical) and 'pago' (legacy alias) statuses.
-  const buildConfirmedMap = (installments: typeof client.installments_json) => {
+  const buildConfirmedMap = (rawInstallments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
-    if (installments) {
-      for (const p of installments) {
-        if (p.status === 'confirmado' || p.status === 'pago') {
-          map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
-        }
+    for (const p of parseInstallmentsJson(rawInstallments)) {
+      const num = p.number
+      if (num == null) continue
+      if (p.status === 'confirmado' || p.status === 'pago') {
+        map[num] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
+      }
+    }
+    return map
+  }
+
+  // Build a map of per-installment valor overrides from installments_json
+  const buildValorOverrideMap = (rawInstallments: typeof client.installments_json) => {
+    const map: Record<number, number> = {}
+    for (const p of parseInstallmentsJson(rawInstallments)) {
+      const num = p.number
+      if (num == null) continue
+      if (p.valor_override != null) {
+        const v = typeof p.valor_override === 'number' ? p.valor_override : Number(p.valor_override)
+        if (Number.isFinite(v)) map[num] = v
       }
     }
     return map
@@ -1690,10 +2002,16 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     buildConfirmedMap(client.installments_json),
   )
 
-  // Keep confirmedPayments in sync when client.installments_json is updated
+  // Local valor-override map for instant UI feedback
+  const [valorOverrides, setValorOverrides] = useState<Record<number, number>>(() =>
+    buildValorOverrideMap(client.installments_json),
+  )
+
+  // Keep confirmedPayments and valorOverrides in sync when client.installments_json is updated
   // by the parent (e.g. after onSaved merges the server response).
   useEffect(() => {
     setConfirmedPayments(buildConfirmedMap(client.installments_json))
+    setValorOverrides(buildValorOverrideMap(client.installments_json))
    
   }, [client.installments_json])
   const [form, setForm] = useState({
@@ -1778,39 +2096,23 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
-  // "Último Vencimento Previsto" =
-  //   Próxima cobrança recorrente + (Prazo − 1) meses
-  const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
-  const ultimoVencimentoPrevisto = useMemo(() => {
-    if (
-      billingDatesV2.status !== 'OK' ||
-      !billingDatesV2.proximaCobrancaRecorrente ||
-      !termMonths ||
-      termMonths < 1 ||
-      !billingDatesV2.vencimentoRecorrenteMensal
-    ) {
-      return null
-    }
-    return addMonthsSafeV2(
-      billingDatesV2.proximaCobrancaRecorrente,
-      Math.max(0, termMonths - 1),
-      billingDatesV2.vencimentoRecorrenteMensal,
-    )
-  }, [billingDatesV2, termMonths])
-
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
   // Falls back to commissioning_date_billing so that the table is visible
   // even when reading_day / commissioning_date are not yet set.
+  const termMonths = Number(client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0)
   const installments = useMemo(() => {
     if (!termMonths || !form.due_day) return []
 
-    // Determine start date: prefer the engine result, then commissioning date
+    // Determine start date: billingDatesV2 (dataPrimeiraCobranca) is the
+    // authoritative first-billing date shown in the "Datas de Cobrança" block,
+    // so use it first so that installment #1 aligns with that displayed date.
+    // Fall back to the legacy engine result, then the raw commissioning date.
     let inicio: string | Date | null = null
-    if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
-      inicio = engineResult.inicio_da_mensalidade
-    } else if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
+    if (billingDatesV2.status === 'OK' && billingDatesV2.dataPrimeiraCobranca) {
       inicio = billingDatesV2.dataPrimeiraCobranca
+    } else if (engineResult && engineResult.status_calculo !== 'erro_entrada') {
+      inicio = engineResult.inicio_da_mensalidade
     } else if (form.commissioning_date_billing) {
       inicio = form.commissioning_date_billing
     }
@@ -1825,6 +2127,19 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
   }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
+
+  // "Último Vencimento Previsto" = due date of the last generated installment
+  const ultimoVencimentoPrevisto = useMemo(() => {
+    if (installments.length === 0) return null
+    return installments[installments.length - 1].data_vencimento
+  }, [installments])
+
+  // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
+  const proximaCobrancaRecorrenteDate = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return installments.find((inst) => inst.data_vencimento >= today)?.data_vencimento ?? null
+  }, [installments])
 
   // Generate notifications preview
   const notifications = useMemo(() => {
@@ -1864,13 +2179,21 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         commissioning_date_billing: form.commissioning_date_billing || null,
         valor_mensalidade: form.valor_mensalidade !== '' ? Number(form.valor_mensalidade) : null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -1996,7 +2319,7 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
             <div className="pf-info-row">
               <span className="pf-info-label">Próxima cobrança recorrente:</span>
               <span className="pf-info-value">
-                {billingDatesV2.proximaCobrancaRecorrente?.toLocaleDateString('pt-BR')}
+                {proximaCobrancaRecorrenteDate?.toLocaleDateString('pt-BR') ?? '—'}
               </span>
             </div>
             <div className="pf-info-row">
@@ -2018,8 +2341,8 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 
       {/* Installments with payment management */}
       {(() => {
-        const termMonths = client.contractual_term_months ?? client.term_months ?? 0
-        const hasStartDate = !!(engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
+        const termMonths = Number(client.contractual_term_months ?? client.term_months ?? 0)
+        const hasStartDate = !!(billingDatesV2.dataPrimeiraCobranca || engineResult?.inicio_da_mensalidade || form.commissioning_date_billing)
         // Show a hint when term is known but we can't produce rows yet
         if (termMonths > 0 && !hasStartDate) {
           return (
@@ -2054,18 +2377,90 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                   {installments.map((inst) => {
                     const confirmed = confirmedPayments[inst.numero]
                     const isConfirmed = !!confirmed
+                    const displayValor = valorOverrides[inst.numero] ?? inst.valor
+                    const isEditingValor = editMode && canManageBilling && editingValorInstallment === inst.numero
+
+                    // Calculate payment status based on due date
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const dueDate = new Date(inst.data_vencimento)
+                    dueDate.setHours(0, 0, 0, 0)
+                    const diffMs = dueDate.getTime() - today.getTime()
+                    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+                    // Determine display status
+                    let statusLabel = '⏳ Pendente'
+                    let statusClass = 'pf-status-pending'
+
+                    if (isConfirmed) {
+                      statusLabel = '✅ Confirmado'
+                      statusClass = 'pf-status-confirmed'
+                    } else if (diffDays < -30) {
+                      // More than 30 days overdue
+                      statusLabel = '🔴 Em Atraso'
+                      statusClass = 'pf-status-overdue-severe'
+                    } else if (diffDays < 0) {
+                      // Overdue but less than 30 days
+                      statusLabel = `⚠️ Vencido (${Math.abs(diffDays)}d)`
+                      statusClass = 'pf-status-overdue'
+                    }
+
                     return (
                       <tr key={inst.numero}>
                         <td>{inst.numero}</td>
                         <td>{inst.data_vencimento.toLocaleDateString('pt-BR')}</td>
                         <td className="right">
-                          {inst.valor > 0 ? `R$ ${inst.valor.toFixed(2).replace('.', ',')}` : '—'}
+                          {isEditingValor ? (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={editingValorValue}
+                              onChange={(e) => setEditingValorValue(e.target.value)}
+                              onBlur={() => {
+                                const num = parseFloat(editingValorValue)
+                                if (!isNaN(num) && num >= 0) {
+                                  const newValor = parseFloat(num.toFixed(2))
+                                  setSavingValorInstallment(inst.numero)
+                                  void patchPortfolioBilling(client.id, {
+                                    installment_valor: { number: inst.numero, valor_override: newValor },
+                                  }).then((updatedInstallments) => {
+                                    setValorOverrides((prev) => ({ ...prev, [inst.numero]: newValor }))
+                                    setEditingValorInstallment(null)
+                                    onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
+                                  }).catch((err: unknown) => {
+                                    setSaveError(err instanceof Error ? err.message : `Falha ao atualizar o valor da parcela #${inst.numero}. Tente novamente.`)
+                                  }).finally(() => setSavingValorInstallment(null))
+                                } else {
+                                  setEditingValorInstallment(null)
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                if (e.key === 'Escape') setEditingValorInstallment(null)
+                              }}
+                              style={{ width: 90, fontSize: 12, textAlign: 'right', padding: '2px 4px', borderRadius: 4, border: '1px solid var(--accent)', background: 'var(--surface)', color: 'var(--text-base)' }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              title={editMode && canManageBilling ? 'Clique para editar o valor desta parcela' : undefined}
+                              style={editMode && canManageBilling ? { cursor: 'pointer', textDecoration: 'underline dotted', textUnderlineOffset: 3 } : undefined}
+                              onClick={editMode && canManageBilling ? () => {
+                                setEditingValorInstallment(inst.numero)
+                                setEditingValorValue(displayValor > 0 ? displayValor.toFixed(2) : '')
+                              } : undefined}
+                            >
+                              {savingValorInstallment === inst.numero
+                                ? '…'
+                                : displayValor > 0
+                                  ? `R$ ${displayValor.toFixed(2).replace('.', ',')}${valorOverrides[inst.numero] != null ? ' ✏️' : ''}`
+                                  : '—'}
+                            </span>
+                          )}
                         </td>
                         <td className="center">
-                          {isConfirmed
-                            ? <span className="pf-status-confirmed">✅ Confirmado</span>
-                            : <span className="pf-status-pending">⏳ Pendente</span>
-                          }
+                          <span className={statusClass}>{statusLabel}</span>
                         </td>
                         <td className="mono" style={{ color: isConfirmed ? 'var(--text-base)' : 'var(--text-muted)' }}>
                           {confirmed?.receipt_number ? confirmed.receipt_number : '—'}
@@ -2076,20 +2471,29 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
                             : '—'}
                         </td>
                         <td className="center">
-                          {editMode && !isConfirmed && (
+                          {editMode && canManageBilling && !isConfirmed && (
                             <button
                               type="button"
                               onClick={() => {
                                 setProofError(null)
                                 setPaymentProof({ receipt_number: '', transaction_number: '' })
-                                setPaymentModal({ installmentNumber: inst.numero, valor: inst.valor, vencimento: inst.data_vencimento.toISOString() })
+                                setPaymentModal({ installmentNumber: inst.numero, valor: displayValor, vencimento: inst.data_vencimento.toISOString() })
                               }}
                               style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--color-success-border)', background: 'var(--color-success-bg)', color: 'var(--color-success-fg)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
                             >
                               Pagar
                             </button>
                           )}
-                          {isConfirmed && (
+                          {editMode && canManageBilling && isConfirmed && (
+                            <button
+                              type="button"
+                              onClick={() => { setRemovePaymentError(null); setRemovePaymentModal({ installmentNumber: inst.numero }) }}
+                              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--ds-danger, #ef4444)', background: 'rgba(239,68,68,0.08)', color: 'var(--ds-danger, #ef4444)', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' }}
+                            >
+                              Remover
+                            </button>
+                          )}
+                          {!editMode && isConfirmed && (
                             <span style={{ fontSize: 13, color: 'var(--color-success-fg)' }}>✓</span>
                           )}
                         </td>
@@ -2193,6 +2597,63 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
         </div>
       )}
 
+      {/* Remove payment confirmation modal */}
+      {removePaymentModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--surface, #122040)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, maxWidth: 400, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8, color: 'var(--text-strong)' }}>
+              🗑️ Remover Pagamento — Parcela #{removePaymentModal.installmentNumber}
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px' }}>
+              Tem certeza que deseja remover o registro de pagamento desta parcela? O status voltará para <strong>Pendente</strong>.
+            </p>
+            {removePaymentError && <p style={{ color: 'var(--ds-danger)', fontSize: 12, marginBottom: 8 }}>{removePaymentError}</p>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                disabled={removingPayment}
+                onClick={() => {
+                  setRemovingPayment(true)
+                  setRemovePaymentError(null)
+                  void patchPortfolioBilling(client.id, {
+                    installment_payment: {
+                      number: removePaymentModal.installmentNumber,
+                      status: 'pendente',
+                      paid_at: null,
+                      receipt_number: null,
+                      transaction_number: null,
+                      attachment_url: null,
+                      confirmed_by: null,
+                    },
+                  }).then((updatedInstallments) => {
+                    setConfirmedPayments((prev) => {
+                      const next = { ...prev }
+                      delete next[removePaymentModal.installmentNumber]
+                      return next
+                    })
+                    setRemovePaymentModal(null)
+                    onSaved(updatedInstallments != null ? { installments_json: updatedInstallments } : {})
+                  }).catch((err: unknown) => {
+                    setRemovePaymentError(err instanceof Error ? err.message : `Falha ao remover o pagamento da parcela #${removePaymentModal.installmentNumber}. Tente novamente.`)
+                  }).finally(() => setRemovingPayment(false))
+                }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 7, border: 'none', background: 'var(--ds-danger, #ef4444)', color: '#fff', fontWeight: 700, cursor: removingPayment ? 'not-allowed' : 'pointer', fontSize: 13, opacity: removingPayment ? 0.7 : 1 }}
+              >
+                {removingPayment ? 'Removendo…' : '🗑️ Remover Pagamento'}
+              </button>
+              <button
+                type="button"
+                disabled={removingPayment}
+                onClick={() => { setRemovePaymentModal(null); setRemovePaymentError(null) }}
+                className="pf-btn pf-btn-cancel"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Notification preview */}
       {pendingNotifCount > 0 && (
         <div className="pf-section-card">
@@ -2217,46 +2678,6 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
       )}
 
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Cobrança"
-          message="Deseja realmente editar os dados de cobrança?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Cobrança"
-          message="Deseja realmente salvar as alterações dos dados de cobrança?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -2264,11 +2685,8 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
-function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2280,6 +2698,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
+    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
   })
 
   const resetUfData = () => setUfData({
@@ -2292,6 +2711,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
+    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
@@ -2310,6 +2730,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+        wifi_status: ufData.wifi_status || null,
         // Persist tipo_rede via energy profile upsert
         energyProfile: {
           tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
@@ -2326,8 +2747,8 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
         tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+        wifi_status: ufData.wifi_status || null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
       // Best-effort sync: if a financial project exists for this client, also
       // write the usina data to project_pv_data so both views stay in sync.
       void fetchProjectByClientId(client.id).then((proj) => {
@@ -2352,49 +2773,18 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
     }
   }
 
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} />
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetUfData() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Usina"
-          message="Deseja realmente editar os dados da usina?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Usina"
-          message="Deseja realmente salvar as alterações dos dados da usina?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
+      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} installationStatus={client.installation_status} />
     </div>
   )
 }
@@ -2407,12 +2797,9 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
 // NEVER use latest_proposal_profile as a source for these fields.
 // If energy_profile is null, the UI must show empty — not fallback to proposal.
 // ─────────────────────────────────────────────────────────────────────────────
-function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
+function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [showEditPrompt, setShowEditPrompt] = useState(false)
-  const [showSavePrompt, setShowSavePrompt] = useState(false)
   const prazoUnificado = client.contractual_term_months ?? client.prazo_meses ?? null
 
   // Note: potencia_kwp, tipo_rede, marca_inversor, indicacao removed from this form.
@@ -2456,13 +2843,21 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         prazo_meses: form.prazo_meses ? Number(form.prazo_meses) : null,
         contractual_term_months: form.prazo_meses ? Number(form.prazo_meses) : null,
       } as Partial<PortfolioClientRow>)
-      setEditMode(false)
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : 'Erro ao salvar plano.')
     } finally {
       setSaving(false)
     }
   }
+
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+
+  useEffect(() => {
+    onRegisterSave?.(() => handleSaveRef.current())
+    return () => { onRegisterSave?.(null) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const inputStyle: React.CSSProperties = {
     display: 'block', width: '100%', marginTop: 4, boxSizing: 'border-box' as const,
@@ -2508,46 +2903,6 @@ function PlanoLeasingTab({ client, onSaved }: { client: PortfolioClientRow; onSa
         </div>
       </div>
       {saveError && <p style={{ color: 'var(--ds-danger)', fontSize: 12 }}>{saveError}</p>}
-      <div className="pf-footer-actions">
-        {!editMode && (
-          <button type="button" onClick={() => setShowEditPrompt(true)}
-            className="pf-btn pf-btn-edit">
-            ✏️ Editar
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => setShowSavePrompt(true)} disabled={saving}
-            className="pf-btn pf-btn-save">
-            {saving ? 'Salvando…' : '💾 Salvar Alterações'}
-          </button>
-        )}
-        {editMode && (
-          <button type="button" onClick={() => { setEditMode(false); resetForm() }}
-            className="pf-btn pf-btn-cancel">
-            Cancelar
-          </button>
-        )}
-      </div>
-      {showEditPrompt && (
-        <ConfirmDialog
-          title="Editar Plano"
-          message="Deseja realmente editar os dados do plano?"
-          confirmLabel="Editar"
-          variant="primary"
-          onConfirm={() => { setShowEditPrompt(false); setEditMode(true) }}
-          onCancel={() => setShowEditPrompt(false)}
-        />
-      )}
-      {showSavePrompt && (
-        <ConfirmDialog
-          title="Salvar Plano"
-          message="Deseja realmente salvar as alterações dos dados do plano?"
-          confirmLabel="Salvar"
-          variant="success"
-          onConfirm={() => { setShowSavePrompt(false); void handleSave() }}
-          onCancel={() => setShowSavePrompt(false)}
-        />
-      )}
     </div>
   )
 }
@@ -2988,6 +3343,16 @@ function ClientDetailPanel({
   // Counter to force tab remount after a silent reload completes, so forms
   // re-initialise from the fresh server data instead of stale props.
   const [refreshKey, setRefreshKey] = useState(0)
+  const [editMode, setEditMode] = useState(false)
+  const [showGlobalSavePrompt, setShowGlobalSavePrompt] = useState(false)
+  const [savingAll, setSavingAll] = useState(false)
+  const tabSaveFnsRef = useRef<Map<string, () => Promise<void>>>(new Map())
+  const savingAllRef = useRef(false)
+
+  const registerTabSave = useCallback((tabId: string, fn: (() => Promise<void>) | null) => {
+    if (fn === null) tabSaveFnsRef.current.delete(tabId)
+    else tabSaveFnsRef.current.set(tabId, fn)
+  }, [])
 
   useEffect(() => {
     if (client) setLocalClient(client)
@@ -3008,16 +3373,57 @@ function ClientDetailPanel({
    * 4. Refresh the clients list in the background.
    */
   const handleTabSaved = useCallback((patch: Partial<PortfolioClientRow>) => {
-    // Step 1 — optimistic merge
     setLocalClient((prev) => prev ? { ...prev, ...patch } : prev)
     setHookClient((prev) => prev ? { ...prev, ...patch } : prev)
-
-    // Step 2+3 — silent refetch, then bump key to re-init forms
-    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
-
-    // Step 4 — refresh the sidebar list
+    // During a global save, handleGlobalSave handles the single reload/refresh
+    // cycle after all tabs finish. Individual tab callbacks still run to keep
+    // localClient optimistically up-to-date, but we skip the per-tab reload.
+    if (savingAllRef.current) return
+    const keys = Object.keys(patch)
+    const isInstallmentsOnly = keys.length > 0 && keys.every((k) => k === 'installments_json')
+    if (!isInstallmentsOnly) {
+      void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+    }
     onClientUpdated()
   }, [reloadSilent, setHookClient, onClientUpdated])
+
+  async function handleGlobalSave() {
+    setShowGlobalSavePrompt(false)
+    setSavingAll(true)
+    savingAllRef.current = true
+    const errors: string[] = []
+    const tabLabels: Record<string, string> = {
+      editar: 'Dados', usina: 'Usina', contrato: 'Contrato',
+      plano: 'Plano', projeto: 'Projeto', cobranca: 'Cobrança',
+    }
+    try {
+      for (const [tabId, saveFn] of tabSaveFnsRef.current.entries()) {
+        try { await saveFn() } catch (err) {
+          const label = tabLabels[tabId] ?? tabId
+          const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+          errors.push(`${label}: ${msg}`)
+        }
+      }
+      await reloadSilent()
+      setRefreshKey((k) => k + 1)
+      onClientUpdated()
+      if (errors.length > 0) {
+        onToast(`Algumas abas não puderam ser salvas: ${errors.join('; ')}`, 'error')
+      } else {
+        setEditMode(false)
+      }
+    } finally {
+      setSavingAll(false)
+      savingAllRef.current = false
+    }
+  }
+
+  function handleGlobalCancel() {
+    setEditMode(false)
+    tabSaveFnsRef.current.clear()
+    // Reload from server to ensure forms remount with authoritative server data.
+    void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+  }
 
   async function handleRemoveFromPortfolio() {
     setConfirmRemove(false)
@@ -3114,26 +3520,84 @@ function ClientDetailPanel({
           cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
           cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
         />
-        {activeTab === 'editar' && (
-          <EditarTab
-            key={`editar-${refreshKey}`}
-            client={displayClient}
-            onSaved={(updated) => {
-              setLocalClient(updated)
-              setHookClient(updated)
-              void reloadSilent().then(() => setRefreshKey((k) => k + 1))
-              onClientUpdated()
-            }}
-            onToast={onToast}
-          />
+
+        {/* Global edit controls */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {!editMode && (
+            <button type="button" className="pf-btn pf-btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button>
+          )}
+          {editMode && (
+            <>
+              <button type="button" className="pf-btn pf-btn-save" disabled={savingAll} onClick={() => setShowGlobalSavePrompt(true)}>
+                {savingAll ? 'Salvando…' : '💾 Salvar Alterações'}
+              </button>
+              <button type="button" className="pf-btn pf-btn-cancel" onClick={handleGlobalCancel}>Cancelar</button>
+            </>
+          )}
+        </div>
+
+        {editMode ? (
+          <>
+            <div style={{ display: activeTab === 'editar' ? undefined : 'none' }}>
+              <EditarTab
+                client={displayClient}
+                editMode={editMode}
+                onRegisterSave={(fn) => registerTabSave('editar', fn)}
+                onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
+                onToast={onToast}
+              />
+            </div>
+            <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
+              <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
+            </div>
+            <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
+              <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
+            </div>
+            {displayClient.contract_type === 'leasing' && (
+              <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
+                <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
+              </div>
+            )}
+            <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
+              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+            </div>
+            {resolveCobrancaGating(displayClient).enabled && (
+              <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
+                <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
+              </div>
+            )}
+            {displayClient.is_contratante_titular === false && (
+              <div style={{ display: activeTab === 'faturas' ? undefined : 'none' }}>
+                <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />
+              </div>
+            )}
+            {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
+          </>
+        ) : (
+          <>
+            {activeTab === 'editar' && (
+              <EditarTab
+                key={`editar-${refreshKey}`}
+                client={displayClient}
+                onSaved={(updated) => {
+                  setLocalClient(updated)
+                  setHookClient(updated)
+                  void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+                  onClientUpdated()
+                }}
+                onToast={onToast}
+                editMode={false}
+              />
+            )}
+            {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+            {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+            {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
+          </>
         )}
-        {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-        {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-        {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
       </div>
 
       {/* Confirm dialogs */}
@@ -3157,6 +3621,16 @@ function ClientDetailPanel({
           onCancel={() => setConfirmDelete(false)}
         />
       )}
+      {showGlobalSavePrompt && (
+        <ConfirmDialog
+          title="Salvar Alterações"
+          message="Deseja realmente salvar todas as alterações feitas?"
+          confirmLabel="Salvar"
+          variant="success"
+          onConfirm={() => void handleGlobalSave()}
+          onCancel={() => setShowGlobalSavePrompt(false)}
+        />
+      )}
 
       {/* Full-screen editor shell */}
       {viewMode === 'expanded' && (
@@ -3175,26 +3649,84 @@ function ClientDetailPanel({
               cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
               cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
             />
-            {activeTab === 'editar' && (
-              <EditarTab
-                key={`fs-editar-${refreshKey}`}
-                client={displayClient}
-                onSaved={(updated) => {
-                  setLocalClient(updated)
-                  setHookClient(updated)
-                  void reloadSilent().then(() => setRefreshKey((k) => k + 1))
-                  onClientUpdated()
-                }}
-                onToast={onToast}
-              />
+
+            {/* Global edit controls */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {!editMode && (
+                <button type="button" className="pf-btn pf-btn-edit" onClick={() => setEditMode(true)}>✏️ Editar</button>
+              )}
+              {editMode && (
+                <>
+                  <button type="button" className="pf-btn pf-btn-save" disabled={savingAll} onClick={() => setShowGlobalSavePrompt(true)}>
+                    {savingAll ? 'Salvando…' : '💾 Salvar Alterações'}
+                  </button>
+                  <button type="button" className="pf-btn pf-btn-cancel" onClick={handleGlobalCancel}>Cancelar</button>
+                </>
+              )}
+            </div>
+
+            {editMode ? (
+              <>
+                <div style={{ display: activeTab === 'editar' ? undefined : 'none' }}>
+                  <EditarTab
+                    client={displayClient}
+                    editMode={editMode}
+                    onRegisterSave={(fn) => registerTabSave('editar', fn)}
+                    onSaved={(updated) => { setLocalClient(updated); setHookClient(updated) }}
+                    onToast={onToast}
+                  />
+                </div>
+                <div style={{ display: activeTab === 'usina' ? undefined : 'none' }}>
+                  <UsinaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('usina', fn)} onSaved={handleTabSaved} />
+                </div>
+                <div style={{ display: activeTab === 'contrato' ? undefined : 'none' }}>
+                  <ContratoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('contrato', fn)} onSaved={handleTabSaved} />
+                </div>
+                {displayClient.contract_type === 'leasing' && (
+                  <div style={{ display: activeTab === 'plano' ? undefined : 'none' }}>
+                    <PlanoLeasingTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('plano', fn)} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
+                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+                </div>
+                {resolveCobrancaGating(displayClient).enabled && (
+                  <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
+                    <CobrancaTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('cobranca', fn)} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                {displayClient.is_contratante_titular === false && (
+                  <div style={{ display: activeTab === 'faturas' ? undefined : 'none' }}>
+                    <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />
+                  </div>
+                )}
+                {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
+              </>
+            ) : (
+              <>
+                {activeTab === 'editar' && (
+                  <EditarTab
+                    key={`fs-editar-${refreshKey}`}
+                    client={displayClient}
+                    onSaved={(updated) => {
+                      setLocalClient(updated)
+                      setHookClient(updated)
+                      void reloadSilent().then(() => setRefreshKey((k) => k + 1))
+                      onClientUpdated()
+                    }}
+                    onToast={onToast}
+                    editMode={false}
+                  />
+                )}
+                {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+                {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
+                {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
+                {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
+              </>
             )}
-            {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />}
-            {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
-            {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
           </div>
         </ClientPortfolioEditorShell>
       )}
@@ -3213,8 +3745,8 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [showAddClient, setShowAddClient] = useState(false)
-  const [sortBy, setSortBy] = useState<'created_at' | 'name' | 'city'>('created_at')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [sortBy, setSortBy] = useState<'due_date' | 'created_at' | 'name' | 'city'>('due_date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3271,9 +3803,37 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
 
   // Sort clients based on selected criteria
   const sortedClients = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
     const sorted = [...clients].sort((a, b) => {
       let compareResult = 0
-      if (sortBy === 'name') {
+      if (sortBy === 'due_date') {
+        const dueDateA = getNextDueDate(a)
+        const dueDateB = getNextDueDate(b)
+
+        // Handle null dates (put at end)
+        if (!dueDateA && !dueDateB) return 0
+        if (!dueDateA) return 1
+        if (!dueDateB) return -1
+
+        // Special logic: upcoming dates (>= today) have precedence over overdue dates (< today)
+        const isUpcomingA = dueDateA >= today
+        const isUpcomingB = dueDateB >= today
+
+        if (isUpcomingA && !isUpcomingB) {
+          // A is upcoming, B is overdue → A comes first
+          return -1
+        } else if (!isUpcomingA && isUpcomingB) {
+          // B is upcoming, A is overdue → B comes first
+          return 1
+        } else {
+          // Both upcoming or both overdue → sort by proximity to today
+          const diffA = Math.abs(dueDateA.getTime() - today.getTime())
+          const diffB = Math.abs(dueDateB.getTime() - today.getTime())
+          compareResult = diffA - diffB
+        }
+      } else if (sortBy === 'name') {
         const nameA = (a.name ?? '').toLowerCase()
         const nameB = (b.name ?? '').toLowerCase()
         compareResult = nameA.localeCompare(nameB, 'pt-BR')
@@ -3291,7 +3851,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     return sorted
   }, [clients, sortBy, sortDir])
 
-  const toggleSort = useCallback((field: 'created_at' | 'name' | 'city') => {
+  const toggleSort = useCallback((field: 'due_date' | 'created_at' | 'name' | 'city') => {
     if (sortBy === field) {
       setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     } else {
@@ -3315,15 +3875,15 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
         data_comissionamento: c.commissioning_date,
         dia_leitura: readingDay,
         dia_vencimento: c.due_day,
-        valor_mensalidade: c.valor_mensalidade,
+        valor_mensalidade: Number(c.valor_mensalidade),
       })
       if (engine.status_calculo === 'erro_entrada') continue
-      const termMonths = c.contractual_term_months ?? c.term_months ?? 12
+      const termMonths = Number(c.contractual_term_months ?? c.term_months ?? 12)
       const insts = generateInstallments({
         inicio_mensalidade: engine.inicio_da_mensalidade,
         prazo: termMonths,
         dia_vencimento: c.due_day,
-        valor_mensalidade: c.valor_mensalidade,
+        valor_mensalidade: Number(c.valor_mensalidade),
       })
       for (const inst of insts) {
         const alert = getBillingAlert(inst.data_vencimento, inst.status === 'paga')
@@ -3554,6 +4114,17 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
           )}
           {!isLoading && !error && hasClients && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Column headers — aligned to grid columns */}
+              <div className="active-wallet-card wallet-col-headers" role="row">
+                <span className="wallet-col-header" role="columnheader">Cliente</span>
+                <span className="wallet-col-header" role="columnheader">Modalidade</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Cidade/UF</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Consumo (kWh/mês)</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Mensalidade (R$)</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Vencimento</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Status</span>
+                <span className="wallet-col-header wallet-col-header-center" role="columnheader">Ações</span>
+              </div>
               {sortedClients.map((c) => (
                 <ClientCard
                   key={c.id}
