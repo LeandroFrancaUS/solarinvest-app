@@ -2030,17 +2030,11 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     })
   }, [form.commissioning_date_billing, form.due_day, form.reading_day, form.valor_mensalidade])
 
-  // "Último Vencimento Previsto" = due date of the last generated installment
-  const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
-  const ultimoVencimentoPrevisto = useMemo(() => {
-    if (installments.length === 0) return null
-    return installments[installments.length - 1].data_vencimento
-  }, [installments])
-
   // Generate installments.
   // Uses the engine-computed start date when all billing fields are available.
   // Falls back to commissioning_date_billing so that the table is visible
   // even when reading_day / commissioning_date are not yet set.
+  const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
   const installments = useMemo(() => {
     if (!termMonths || !form.due_day) return []
 
@@ -2064,6 +2058,12 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
       valor_mensalidade: form.valor_mensalidade ? Number(form.valor_mensalidade) : 0,
     })
   }, [engineResult, billingDatesV2, termMonths, form.due_day, form.valor_mensalidade, form.commissioning_date_billing])
+
+  // "Último Vencimento Previsto" = due date of the last generated installment
+  const ultimoVencimentoPrevisto = useMemo(() => {
+    if (installments.length === 0) return null
+    return installments[installments.length - 1].data_vencimento
+  }, [installments])
 
   // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
   const proximaCobrancaRecorrenteDate = useMemo(() => {
