@@ -763,6 +763,26 @@
   text-overflow: ellipsis;
 }
 
+.pf-card-phone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-card-phone-link {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.pf-card-phone-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pf-card-phone-empty {
+  color: var(--text-muted);
+}
+
 .pf-card-meta {
   display: flex;
   align-items: center;
