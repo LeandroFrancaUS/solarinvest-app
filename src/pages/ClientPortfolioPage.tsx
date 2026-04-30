@@ -504,6 +504,14 @@ const CARD_CONTRACT_LABELS: Record<string, string> = {
   buyout: 'Buy Out',
 }
 
+/** Simplified label for the "Modalidade" column — shows only Leasing or Venda.
+ *  buyout is treated as Venda in this view since it is a purchase variant. */
+const CARD_MODALITY_LABELS: Record<string, string> = {
+  leasing: 'Leasing',
+  sale: 'Venda',
+  buyout: 'Venda', // buy-out is a purchase/sale variant — displayed as "Venda"
+}
+
 /**
  * Resolves installment progress for a portfolio client.
  * Returns { value, current, total } where:
@@ -647,22 +655,66 @@ function getInstallmentProgress(client: PortfolioClientRow): {
  * Central map of visual styles for each ClientPaymentStatusV2 value.
  * Single source of truth for badge bg/fg/icon in the portfolio card.
  */
-const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string }> = {
-  SEM_COBRANCA:    { bg: '#e5e7eb', fg: '#6b7280', icon: '⚪' },
-  PENDENTE:        { bg: '#fef3c7', fg: '#92400e', icon: '⏳' },
-  PAGO:            { bg: '#d1fae5', fg: '#065f46', icon: '✅' },
-  VENCIDO:         { bg: '#ffedd5', fg: '#9a3412', icon: '🟠' },
-  ATRASADO:        { bg: '#fecaca', fg: '#7f1d1d', icon: '🔴' },
-  PARCIALMENTE_PAGO: { bg: '#ede9fe', fg: '#5b21b6', icon: '🔵' },
+const PAYMENT_STATUS_STYLES: Record<ClientPaymentStatusV2, { bg: string; fg: string; icon: string; borderColor: string }> = {
+  SEM_COBRANCA:      { bg: 'transparent',  fg: '#64748b', icon: '⚪', borderColor: '#475569' },
+  PENDENTE:          { bg: 'transparent',  fg: '#d97706', icon: '⏳', borderColor: '#92400e' },
+  PAGO:              { bg: 'transparent',  fg: '#22c55e', icon: '✅', borderColor: '#16a34a' },
+  VENCIDO:           { bg: 'transparent',  fg: '#f97316', icon: '🟠', borderColor: '#ea580c' },
+  ATRASADO:          { bg: 'transparent',  fg: '#ef4444', icon: '🔴', borderColor: '#dc2626' },
+  PARCIALMENTE_PAGO: { bg: 'transparent',  fg: '#6366f1', icon: '🔵', borderColor: '#4f46e5' },
 }
 
-const WIFI_BADGE_MAP: Record<string, { icon: string; label: string; color: string }> = {
-  conectado:    { icon: '🟢', label: 'Online',       color: '#166534' },
-  desconectado: { icon: '🟡', label: 'Desconectado', color: '#854d0e' },
-  falha:        { icon: '🔴', label: 'Falha',        color: '#991b1b' },
+/** Shared circle SVG used for most payment statuses */
+const _PaymentCircle = () => (
+  <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><circle cx="10" cy="10" r="8"/></svg>
+)
+
+/** Payment icon-only squares — circle dot in status colour */
+const PAYMENT_STATUS_ICON: Record<ClientPaymentStatusV2, React.ReactElement> = {
+  SEM_COBRANCA:      <_PaymentCircle />,
+  PENDENTE:          <_PaymentCircle />,
+  PAGO:              <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>,
+  VENCIDO:           <_PaymentCircle />,
+  ATRASADO:          <_PaymentCircle />,
+  PARCIALMENTE_PAGO: <_PaymentCircle />,
 }
 
-const WIFI_BADGE_DEFAULT = { icon: '⚪', label: 'Sem monitoramento', color: '#6b7280' }
+const WIFI_BADGE_MAP: Record<string, { label: string; color: string; borderColor: string }> = {
+  conectado:    { label: 'Online',           color: '#22c55e', borderColor: '#16a34a' },
+  desconectado: { label: 'Desconectado',     color: '#f59e0b', borderColor: '#d97706' },
+  falha:        { label: 'Falha',            color: '#ef4444', borderColor: '#dc2626' },
+}
+
+const WIFI_BADGE_DEFAULT = { label: 'Sem monitoramento', color: '#64748b', borderColor: '#475569' }
+
+/** WiFi SVG icon */
+const WifiIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18" aria-hidden="true">
+    <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+    <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+    <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
+  </svg>
+)
+
+/** Pencil SVG icon */
+const PencilIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+)
+
+/** Trash SVG icon */
+const TrashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6"/>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+    <path d="M10 11v6"/>
+    <path d="M14 11v6"/>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+  </svg>
+)
 
 function ClientCard({
   client,
@@ -673,7 +725,9 @@ function ClientCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const contractLabel = client.contract_type ? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type) : '—'
+  const modalityLabel = client.contract_type
+    ? (CARD_MODALITY_LABELS[client.contract_type] ?? (CARD_CONTRACT_LABELS[client.contract_type] ?? client.contract_type))
+    : '—'
   const clientName = client.name?.trim() || '—'
 
   // Get payment status for this client
@@ -692,29 +746,40 @@ function ClientCard({
 
   // Consumo — prefer kwh_mes_contratado / kwh_contratado, fall back to raw consumption
   const consumo = toFiniteNumber(client.kwh_mes_contratado ?? client.kwh_contratado ?? client.consumption_kwh_month)
-  const kwhContratadoLabel = consumo != null ? `${formatNumberBR(consumo)} kWh/mês` : '—'
+  // Show number only (no unit)
+  const kwhContratadoLabel = consumo != null ? formatNumberBR(consumo) : '—'
 
   const cityState = [client.city, client.state].filter(Boolean).join('/')
   const cityStateLabel = cityState || '—'
 
-  // Mensalidade / installment progress
+  // Mensalidade / installment progress — no currency symbol in value
   const installmentProgress = getInstallmentProgress(client)
   const mensalidadeLabel = (() => {
     const { value, current, total } = installmentProgress
     if (value === null && current === null && total === null) return '—'
-    const valorStr = value != null ? formatMoneyBR(value) : null
+    // Format using pt-BR locale but strip the leading "R$ " prefix
+    const valorStr = value != null ? formatMoneyBR(value).replace(/^R\$\s*/, '') : null
     if (valorStr && current != null && total != null) return `${valorStr} (${current}/${total})`
     if (valorStr) return valorStr
     return '—'
   })()
 
-  // Vencimento — use next unpaid installment date when available, fall back to due_day
+  // Vencimento — show only the day number
   const nextDueDate = getNextDueDate(client)
-  const dueDateLabel = nextDueDate
-    ? nextDueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-    : client.due_day
-    ? `Todo dia ${client.due_day}`
-    : '—'
+  const dueDateLabel = (() => {
+    if (nextDueDate) {
+      // nextDueDate is a Date — extract the day
+      return String(nextDueDate.getDate()).padStart(2, '0')
+    }
+    if (client.due_day) {
+      // due_day may be a number or a string like "Todo dia 15" or "25/05"
+      const raw = String(client.due_day).trim()
+      // "Todo dia 15" → "15"
+      const todoDia = raw.match(/\d+/)
+      if (todoDia) return todoDia[0].padStart(2, '0')
+    }
+    return '—'
+  })()
 
   // WiFi / monitoring badge
   const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
@@ -749,71 +814,70 @@ function ClientCard({
         <span className="pf-card-doc">{formattedDocument}</span>
       </div>
 
-      {/* Col 2: Produto/Plano */}
+      {/* Col 2: Modalidade */}
       <div className="info-cell">
-        <span className="info-label">Produto</span>
-        <span className="info-value">{contractLabel}</span>
+        <span className="info-value">{modalityLabel}</span>
       </div>
 
-      {/* Col 3: Cidade/UF */}
-      <div className="info-cell">
-        <span className="info-label">Cidade/UF</span>
+      {/* Col 3: Cidade/UF — right aligned */}
+      <div className="info-cell wallet-city-cell">
         <span className="info-value">{cityStateLabel}</span>
       </div>
 
-      {/* Col 4: Consumo */}
+      {/* Col 4: Consumo — number only */}
       <div className="info-cell">
-        <span className="info-label">Consumo</span>
         <span className="info-value">{kwhContratadoLabel}</span>
       </div>
 
-      {/* Col 5: Mensalidade — visually prominent */}
-      <div className="info-cell">
-        <span className="info-label">Mensalidade</span>
+      {/* Col 5: Mensalidade — number + parcela, no currency symbol, right aligned */}
+      <div className="info-cell wallet-monthly-cell">
         <span className="info-value info-value-primary">{mensalidadeLabel}</span>
       </div>
 
-      {/* Col 6: Vencimento */}
+      {/* Col 6: Vencimento — day only */}
       <div className="info-cell">
-        <span className="info-label">Vencimento</span>
         <span className="info-value">{dueDateLabel}</span>
       </div>
 
-      {/* Col 7: Status — WiFi + Pagamento unified */}
+      {/* Col 7: Status — icon-only squares (WiFi + Pagamento) */}
       <div className="status-cell">
         <span
-          className="wallet-status-badge wallet-wifi-badge"
+          className="wallet-status-icon"
           title={`Monitoramento: ${wifiBadge.label}`}
-          style={{ color: wifiBadge.color }}
+          aria-label={`Monitoramento: ${wifiBadge.label}`}
+          style={{ color: wifiBadge.color, borderColor: wifiBadge.borderColor }}
         >
-          <span aria-hidden="true">{wifiBadge.icon}</span>
-          <span>{wifiBadge.label}</span>
+          <WifiIcon />
         </span>
         <span
-          className="wallet-status-badge wallet-payment-badge"
+          className="wallet-status-icon"
           title={paymentTitle}
-          style={{ background: statusStyle.bg, color: statusStyle.fg }}
+          aria-label={paymentTitle}
+          style={{ color: statusStyle.fg, borderColor: statusStyle.borderColor }}
         >
-          <span aria-hidden="true">{statusStyle.icon}</span>
-          <span>{paymentStatusResult.label}</span>
+          {PAYMENT_STATUS_ICON[paymentStatus]}
         </span>
       </div>
 
-      {/* Col 8: Ações */}
+      {/* Col 8: Ações — icon-only buttons */}
       <div className="wallet-card-actions">
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit() }}
-          className="pf-row-btn pf-row-btn-edit"
+          className="wallet-action-btn wallet-action-btn-edit"
+          title="Editar"
+          aria-label="Editar cliente"
         >
-          ✏️ Editar
+          <PencilIcon />
         </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="pf-row-btn pf-row-btn-delete"
+          className="wallet-action-btn wallet-action-btn-delete"
+          title="Excluir"
+          aria-label="Excluir cliente"
         >
-          🗑️ Excluir
+          <TrashIcon />
         </button>
       </div>
     </div>
@@ -4053,10 +4117,10 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               {/* Column headers — aligned to grid columns */}
               <div className="active-wallet-card wallet-col-headers" role="row">
                 <span className="wallet-col-header" role="columnheader">Cliente</span>
-                <span className="wallet-col-header" role="columnheader">Produto</span>
-                <span className="wallet-col-header" role="columnheader">Cidade/UF</span>
-                <span className="wallet-col-header" role="columnheader">Consumo</span>
-                <span className="wallet-col-header" role="columnheader">Mensalidade</span>
+                <span className="wallet-col-header" role="columnheader">Modalidade</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Cidade/UF</span>
+                <span className="wallet-col-header" role="columnheader">Consumo (kWh/mês)</span>
+                <span className="wallet-col-header wallet-col-header-right" role="columnheader">Mensalidade (R$)</span>
                 <span className="wallet-col-header" role="columnheader">Vencimento</span>
                 <span className="wallet-col-header" role="columnheader">Status</span>
                 <span className="wallet-col-header" role="columnheader">Ações</span>

@@ -327,18 +327,18 @@
 /* ── 10a. ACTIVE WALLET CARD — fixed 8-column grid ───────────────
  *
  * Columns (desktop ≥ 1360px):
- *   1. client-cell   280px  — Cliente (name + document)
- *   2. info-cell     120px  — Produto
- *   3. info-cell     140px  — Cidade/UF
- *   4. info-cell     140px  — Consumo
- *   5. info-cell     180px  — Mensalidade (visually prominent)
- *   6. info-cell     120px  — Vencimento
- *   7. status-cell   220px  — Status (WiFi + Pagamento)
- *   8. actions       160px  — Ações
+ *   1. client-cell   300px  — Cliente (name + document)
+ *   2. info-cell     120px  — Modalidade
+ *   3. info-cell     150px  — Cidade/UF  (right-aligned)
+ *   4. info-cell     150px  — Consumo (kWh/mês)
+ *   5. info-cell     190px  — Mensalidade (R$)  (right-aligned)
+ *   6. info-cell     110px  — Vencimento
+ *   7. status-cell   130px  — Status (WiFi + Pagamento icons)
+ *   8. actions       110px  — Ações
  */
 .active-wallet-card {
   display: grid;
-  grid-template-columns: 280px 120px 140px 140px 180px 120px 220px 160px;
+  grid-template-columns: 300px 120px 150px 150px 190px 110px 130px 110px;
   align-items: center;
   gap: 0 16px;
   padding: 12px 18px;
@@ -389,33 +389,48 @@
   overflow: hidden;
 }
 
-/* ── Status cell: stacks WiFi + Pagamento badges vertically ─────── */
+/* ── Status cell: side-by-side icon squares ─────────────────────── */
 .status-cell {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
   min-width: 0;
 }
 
-/* Shared badge style — WiFi and Payment badges */
-.wallet-status-badge {
+/* Compact icon-only status square */
+.wallet-status-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 8px;
-  background: var(--surface-alt, #f3f4f6);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
-  max-width: 100%;
+  justify-content: center;
+  border: 1px solid currentColor;
+  background: transparent;
+  flex-shrink: 0;
+  opacity: 0.9;
 }
 
-/* Payment badge overrides background via inline style; keep base transparent here */
-.wallet-payment-badge {
-  /* background and color set inline from PAYMENT_STATUS_STYLES */
+/* ── Right-aligned city/UF column ──────────────────────────────── */
+.wallet-city-cell {
+  text-align: right;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+/* ── Right-aligned mensalidade column ──────────────────────────── */
+.wallet-monthly-cell {
+  text-align: right;
+  justify-self: end;
+  align-items: flex-end;
+}
+
+/* ── Right-aligned column header ───────────────────────────────── */
+.wallet-col-header-right {
+  text-align: right;
+  justify-self: end;
 }
 
 .info-label {
@@ -454,9 +469,44 @@
 
 .wallet-card-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
   flex-shrink: 0;
+}
+
+/* Icon-only action buttons */
+.wallet-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: filter 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+
+.wallet-action-btn-edit {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wallet-action-btn-edit:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.wallet-action-btn-delete {
+  border: 1px solid var(--color-error-border);
+  background: var(--color-error-bg);
+  color: var(--color-error-fg);
+}
+
+.wallet-action-btn-delete:hover {
+  filter: brightness(1.2);
+  box-shadow: 0 0 0 2px var(--color-error-bg);
 }
 
 /* ── BREAKPOINT: 1360px — collapse to fluid columns ──────────────
