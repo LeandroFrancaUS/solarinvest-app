@@ -1,4 +1,5 @@
 import type React from 'react'
+import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 
 type ActiveRoot = {
@@ -41,8 +42,9 @@ export const render = (ui: React.ReactElement): RenderResult => {
   const root = createRoot(container)
   const entry: ActiveRoot = { container, root }
   activeRoots.add(entry)
-  root.render(ui)
-
+  flushSync(() => {
+    root.render(ui)
+  })
   return {
     container,
     unmount: () => {
@@ -55,7 +57,9 @@ export const render = (ui: React.ReactElement): RenderResult => {
       }
     },
     rerender: (nextUi) => {
-      root.render(nextUi)
+      flushSync(() => {
+        root.render(nextUi)
+      })
     },
   }
 }

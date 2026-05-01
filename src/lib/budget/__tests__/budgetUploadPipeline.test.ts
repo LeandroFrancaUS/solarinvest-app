@@ -17,12 +17,31 @@ class TestFile extends Blob {
   public readonly name: string
   public readonly type: string
   public readonly lastModified: number
+  private readonly _chunks: BlobPart[]
 
   constructor(chunks: BlobPart[], name: string, options?: FilePropertyBag) {
     super(chunks, options)
+    this._chunks = chunks
     this.name = name
     this.type = options?.type ?? ''
     this.lastModified = options?.lastModified ?? Date.now()
+  }
+
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    const parts = this._chunks.map((chunk) => {
+      if (chunk instanceof Uint8Array) return chunk
+      if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk)
+      if (typeof chunk === 'string') return new TextEncoder().encode(chunk)
+      return new Uint8Array(0)
+    })
+    const totalLength = parts.reduce((sum, p) => sum + p.length, 0)
+    const buf = new Uint8Array(totalLength)
+    let offset = 0
+    for (const part of parts) {
+      buf.set(part, offset)
+      offset += part.length
+    }
+    return buf.buffer
   }
 }
 
@@ -39,9 +58,7 @@ class TestImageData {
 }
 
 beforeAll(() => {
-  if (typeof (globalThis as { File?: unknown }).File === 'undefined') {
-    ;(globalThis as { File: typeof TestFile }).File = TestFile
-  }
+  ;(globalThis as { File: typeof TestFile }).File = TestFile
   if (typeof (globalThis as { ImageData?: unknown }).ImageData === 'undefined') {
     ;(globalThis as { ImageData: typeof TestImageData }).ImageData = TestImageData as unknown as typeof ImageData
   }

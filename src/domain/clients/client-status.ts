@@ -38,8 +38,8 @@ export type StatusCliente = (typeof STATUS_CLIENTE_VALUES)[number]
 // ─── Minimal client shape required by status helpers ─────────────────────────
 
 export interface ClientForStatusDomain {
-  status_comercial?: StatusComercial | string | null
-  status_cliente?: StatusCliente | string | null
+  status_comercial?: StatusComercial | (string & Record<never, never>) | null
+  status_cliente?: StatusCliente | (string & Record<never, never>) | null
 }
 
 // ─── Type guards ──────────────────────────────────────────────────────────────

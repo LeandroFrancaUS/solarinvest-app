@@ -88,6 +88,8 @@ function extractQuantityFromParts(parts: string[]): {
   return { remaining: parts, quantity: null, unit: null }
 }
 
+const POWER_UNIT_STRINGS = new Set(['W', 'KW', 'KWP'])
+
 function extractQuantity(line: string, columns: string[]): {
   remaining: string[]
   quantity: number | null
@@ -105,12 +107,15 @@ function extractQuantity(line: string, columns: string[]): {
     if (words.length > 1) {
       const fallback = extractQuantityFromParts(words)
       if (fallback.quantity !== null) {
-        return {
-          remaining: fallback.remaining.length
-            ? [fallback.remaining.join(' ')]
-            : [],
-          quantity: fallback.quantity,
-          unit: fallback.unit,
+        const unitUpper = (fallback.unit ?? '').toUpperCase()
+        if (!POWER_UNIT_STRINGS.has(unitUpper)) {
+          return {
+            remaining: fallback.remaining.length
+              ? [fallback.remaining.join(' ')]
+              : [],
+            quantity: fallback.quantity,
+            unit: fallback.unit,
+          }
         }
       }
     }
@@ -163,6 +168,10 @@ function isIgnorableLine(line: string): boolean {
   return false
 }
 
+function isLabelValueLine(text: string): boolean {
+  return /^[^\d][^:]*:\s*\S/.test(text)
+}
+
 export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
   const rows: CanonicalRow[] = []
   let ignoredByNoise = 0
@@ -170,10 +179,7 @@ export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
 
   const normalizedLines = lines.map((line) => cleanCell(line))
 
-  let startIndex = normalizedLines.findIndex((line) => isHeaderLike(line))
-  if (startIndex === -1) {
-    startIndex = 0
-  }
+  const startIndex = normalizedLines.findIndex((line) => isHeaderLike(line))
 
   let endIndex = normalizedLines.findIndex((line, index) => index > startIndex && isFooterTrigger(line))
   if (endIndex === -1) {
@@ -182,6 +188,7 @@ export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
 
   const section = lines.slice(startIndex + 1, endIndex)
   let current: CanonicalRow | null = null
+  let pending: string | null = null
 
   for (const rawLine of section) {
     const sanitized = cleanCell(rawLine)
@@ -199,22 +206,27 @@ export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
     const columns = splitColumns(sanitized)
     const { remaining, quantity, unit } = extractQuantity(sanitized, columns)
     if (quantity === null) {
+      const candidate = cleanCell(remaining.join(' '))
       if (current) {
-        if (hasNoise(sanitized)) {
-          ignoredByNoise += 1
-          continue
-        }
-        const extra = cleanCell(remaining.join(' '))
-        if (extra) {
-          const nextDescricao = current.descricao ? `${current.descricao} ${extra}` : extra
+        if (!isLabelValueLine(sanitized) && candidate && isValidProductText(candidate)) {
+          pending = candidate
+          current = null
+        } else if (candidate) {
+          const nextDescricao = current.descricao ? `${current.descricao} ${candidate}` : candidate
           current.descricao = truncateDescription(nextDescricao)
           current.raw.push(rawLine)
         }
+      } else if (candidate && isValidProductText(candidate) && !isLabelValueLine(sanitized) && pending === null) {
+        pending = candidate
       }
       continue
     }
 
-    const { produto, descricao } = resolveProductAndDescription(remaining)
+    let { produto, descricao } = resolveProductAndDescription(remaining)
+    if (!isValidProductText(produto) && pending !== null) {
+      produto = pending
+    }
+    pending = null
     if (!isValidProductText(produto)) {
       ignoredByValidation += 1
       current = null
@@ -235,6 +247,16 @@ export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
     }
     rows.push(row)
     current = row
+  }
+
+  if (pending !== null) {
+    rows.push({
+      produto: pending,
+      descricao: null,
+      quantidade: 1,
+      unidade: null,
+      raw: [],
+    })
   }
 
   return { rows, ignoredByNoise, ignoredByValidation }

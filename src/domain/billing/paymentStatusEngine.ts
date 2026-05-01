@@ -31,7 +31,7 @@ export interface MonthlyChargeLike {
   payment_status?: string | null
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
+const _DAY_MS = 24 * 60 * 60 * 1000
 
 function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -49,8 +49,8 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
 }
 
-function normalizeText(value: unknown): string {
-  return String(value ?? '')
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? '')
     .trim()
     .toLowerCase()
     .normalize('NFD')
