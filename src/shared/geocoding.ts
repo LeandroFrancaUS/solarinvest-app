@@ -84,7 +84,7 @@ export async function geocodeCity(
   const url = `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=br`
   try {
     const response = await fetch(url, {
-      signal,
+      ...(signal !== undefined ? { signal } : {}),
       headers: {
         'Accept-Language': 'pt-BR',
         'User-Agent': 'SolarInvest/1.0 (app.solarinvest.info)',
@@ -93,7 +93,7 @@ export async function geocodeCity(
     if (!response.ok) return null
     const data = (await response.json() as unknown) as NominatimResult[]
     if (!data || data.length === 0) return null
-    return { lat: Number(data[0].lat), lng: Number(data[0].lon) }
+    return { lat: Number(data[0]!.lat), lng: Number(data[0]!.lon) }
   } catch {
     return null
   }
@@ -133,8 +133,8 @@ export async function resolveDestinationInput(
         'Formato inválido. Use "Cidade/UF" (ex: Brasília/DF) ou CEP (ex: 75100-000).',
       )
     }
-    cidade = match[1].trim()
-    uf = match[2].toUpperCase()
+    cidade = match[1]!.trim()
+    uf = match[2]!.toUpperCase()
   }
 
   const coords = await geocodeCity(cidade, uf, signal)

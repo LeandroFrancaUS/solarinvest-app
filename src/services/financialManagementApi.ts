@@ -173,6 +173,7 @@ export interface FinancialCategory {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface PeriodParams {
+  [key: string]: string | undefined
   from?: string
   to?: string
 }

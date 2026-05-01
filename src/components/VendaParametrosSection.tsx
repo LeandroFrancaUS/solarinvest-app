@@ -52,7 +52,7 @@ export interface VendaParametrosSectionProps {
   // ── Callbacks: parâmetros principais ─────────────────────────────────────
   onSetNumeroModulosManual: (value: number | '') => void
   onSetKcKwhMes: (value: number, origin: 'auto' | 'user') => void
-  onApplyVendaUpdates: (updates: Partial<VendaForm>) => void
+  onApplyVendaUpdates: (updates: { [K in keyof VendaForm]?: VendaForm[K] | undefined }) => void
   onSetInflacaoAa: (value: number) => void
   onHandleParametrosUfChange: (value: string) => void
   onHandleParametrosDistribuidoraChange: (value: string) => void
