@@ -1,16 +1,19 @@
 -- 0063_dedupe_client_contracts_and_unique_active_contracts.sql
 --
--- Removes known duplicate active contracts and prevents future duplicates.
+-- Resolves known duplicate active contracts and prevents future duplicates.
 --
 -- Known duplicates:
---   client_id 5933: keep id=21, remove id=36
---   client_id 5936: keep id=33, remove id=37
+--   client_id 5933: keep id=21, retire id=36
+--   client_id 5936: keep id=33, retire id=37
 --
 -- Steps:
 --   1. Merge contract_attachments_json from duplicate into kept row (no data loss).
 --   2. Reassign projects that point to the duplicate contract id.
 --   3. Soft-delete duplicate projects created by the removed contracts.
---   4. Delete duplicate contract rows.
+--   4. Soft-cancel duplicate contract rows (contract_status = 'cancelled').
+--        NOTE: No hard DELETE — data is preserved for audit purposes.
+--        The partial unique index in step 5 covers only contract_status = 'active',
+--        so cancelled rows are automatically excluded from uniqueness enforcement.
 --   5. Add partial unique index to prevent future active duplicates.
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -95,10 +98,16 @@ WHERE id IN (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Step 4: Delete duplicate contract rows
+-- Step 4: Soft-cancel duplicate contract rows
+--         (contract_status → 'cancelled' preserves rows for audit trail)
+--         Idempotent: WHERE clause is a no-op if already cancelled.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-DELETE FROM public.client_contracts WHERE id IN (36, 37);
+UPDATE public.client_contracts
+SET    contract_status = 'cancelled',
+       updated_at      = now()
+WHERE  id IN (36, 37)
+  AND  contract_status <> 'cancelled';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Step 5: Partial unique index — one active+signed contract per
