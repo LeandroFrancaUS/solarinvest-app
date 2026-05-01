@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import type { PrintableProposalProps } from '../components/print/PrintableProposal'
+import type { PrintableProposalProps } from '../types/printableProposal'
 import type { PrintableBuyoutTableProps } from '../components/print/PrintableBuyoutTable'
 import { shouldUseBentoGrid } from './pdfVariant'
 import { renderBentoLeasingToHtml } from './renderBentoLeasing'

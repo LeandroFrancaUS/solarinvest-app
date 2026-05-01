@@ -15,6 +15,7 @@ import {
   type CashflowPeriod,
 } from '../services/financialManagementApi'
 import { fetchPortfolioClients } from '../services/clientPortfolioApi'
+import type { PortfolioClientRow, InstallmentPayment } from '../types/clientPortfolio'
 import { formatCurrencyBRL } from '../utils/formatters'
 import { useProjectsStore } from '../store/useProjectsStore'
 import { ProjectDetailPage } from './ProjectDetailPage'
@@ -630,7 +631,7 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 // Faturas a Pagar Tab — Consolidated invoice tracking for all SolarInvest-owned accounts
 // ─────────────────────────────────────────────────────────────────────────────
 function FaturasAPagarTab() {
-  const [clients, setClients] = useState<any[]>([])
+  const [clients, setClients] = useState<PortfolioClientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -667,24 +668,26 @@ function FaturasAPagarTab() {
     }> = []
 
     clients.forEach((client) => {
-      if (!client.installments_json) return
-      client.installments_json.forEach((inst: any) => {
+      const installments = Array.isArray(client.installments_json) ? client.installments_json : null
+      if (!installments) return
+      installments.forEach((inst: InstallmentPayment) => {
         // Calculate due date based on installment number and billing start
         const termMonths = client.contractual_term_months ?? client.term_months ?? 0
         if (termMonths === 0) return
 
         // Estimate due date (simplified - should use billing dates engine in production)
-        const startDate = client.commissioning_date_billing || client.commissioning_date
+        const startDate = client.billing_start_date ?? client.commissioning_date
         if (!startDate) return
 
         const dueDay = client.due_day ?? 5
+        const instNumber = inst.number ?? inst.numero ?? 0
         const start = new Date(startDate)
-        const dueDate = new Date(start.getFullYear(), start.getMonth() + inst.number, dueDay)
+        const dueDate = new Date(start.getFullYear(), start.getMonth() + instNumber, dueDay)
 
         invoices.push({
           clientId: client.id,
           clientName: client.name ?? `Cliente #${client.id}`,
-          installmentNumber: inst.number,
+          installmentNumber: instNumber,
           dueDate,
           amount: client.valor_mensalidade ?? 0,
           status: inst.status ?? 'pendente',
@@ -789,7 +792,7 @@ function FaturasAPagarTab() {
                 </td>
               </tr>
             ) : (
-              relevantInvoices.map((inv, idx) => {
+              relevantInvoices.map((inv, _idx) => {
                 const due = new Date(inv.dueDate)
                 due.setHours(0, 0, 0, 0)
                 const diffDays = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))

@@ -12,9 +12,40 @@ import type {
   DashboardOperationalTask,
   DashboardAlert,
   DashboardKPIs,
+  InvoiceStatus,
 } from '../types/operationalDashboard.js'
 
 type LoadingState = 'idle' | 'loading' | 'loaded' | 'error'
+
+interface RawInvoiceRow {
+  id: string | number
+  client_id?: string | number | null
+  client_name?: string | null
+  amount?: number | null
+  paid_amount?: number | null
+  due_date?: string | null
+  paid_at?: string | null
+  payment_status?: string | null
+  notes?: string | null
+  updated_at?: string | null
+}
+
+interface RawTaskRow {
+  id: string | number
+  type?: string | null
+  title?: string | null
+  client_id?: string | number | null
+  client_name?: string | null
+  proposal_id?: string | number | null
+  status?: string | null
+  scheduled_for?: string | null
+  completed_at?: string | null
+  blocked_reason?: string | null
+  responsible_user_id?: string | null
+  priority?: string | null
+  notes?: string | null
+  updated_at?: string | null
+}
 
 export function OperationalDashboardPage() {
   const [invoices, setInvoices] = useState<DashboardInvoice[]>([])
@@ -33,35 +64,35 @@ export function OperationalDashboardPage() {
       ])
 
       // Map invoices to dashboard format
-      const mappedInvoices: DashboardInvoice[] = (invoicesRes.data || []).map((inv: any) => ({
+      const mappedInvoices: DashboardInvoice[] = (invoicesRes.data as RawInvoiceRow[] || []).map((inv) => ({
         id: String(inv.id),
-        clientId: inv.client_id ? String(inv.client_id) : undefined,
-        clientName: inv.client_name || 'Cliente sem nome',
+        clientId: inv.client_id != null ? String(inv.client_id) : undefined,
+        clientName: inv.client_name ?? 'Cliente sem nome',
         amount: Number(inv.amount) || 0,
-        paidAmount: inv.paid_amount ? Number(inv.paid_amount) : undefined,
-        dueDate: inv.due_date,
+        paidAmount: inv.paid_amount != null ? Number(inv.paid_amount) : undefined,
+        dueDate: inv.due_date ?? '',
         paidAt: inv.paid_at,
-        status: mapInvoiceStatus(inv.payment_status),
-        notes: inv.notes,
-        updatedAt: inv.updated_at,
+        status: mapInvoiceStatus(inv.payment_status ?? ''),
+        notes: inv.notes ?? undefined,
+        updatedAt: inv.updated_at ?? '',
       }))
 
       // Map tasks to dashboard format
-      const mappedTasks: DashboardOperationalTask[] = (tasksRes.data || []).map((task: any) => ({
+      const mappedTasks: DashboardOperationalTask[] = (tasksRes.data as RawTaskRow[] || []).map((task) => ({
         id: String(task.id),
-        type: task.type,
-        title: task.title,
-        clientId: task.client_id ? String(task.client_id) : undefined,
-        clientName: task.client_name || 'Cliente sem nome',
-        proposalId: task.proposal_id,
-        status: task.status,
+        type: task.type ?? '',
+        title: task.title ?? '',
+        clientId: task.client_id != null ? String(task.client_id) : undefined,
+        clientName: task.client_name ?? 'Cliente sem nome',
+        proposalId: task.proposal_id != null ? String(task.proposal_id) : undefined,
+        status: task.status ?? '',
         scheduledFor: task.scheduled_for,
         completedAt: task.completed_at,
         blockedReason: task.blocked_reason,
-        responsibleUserId: task.responsible_user_id,
-        priority: task.priority,
-        notes: task.notes,
-        updatedAt: task.updated_at,
+        responsibleUserId: task.responsible_user_id ?? undefined,
+        priority: task.priority ?? '',
+        notes: task.notes ?? undefined,
+        updatedAt: task.updated_at ?? '',
       }))
 
       setInvoices(mappedInvoices)
@@ -157,8 +188,7 @@ export function OperationalDashboardPage() {
   )
 }
 
-function mapInvoiceStatus(dbStatus: string): any {
-  const now = new Date()
+function mapInvoiceStatus(dbStatus: string): InvoiceStatus {
   // This is simplified - real implementation should check due dates
   switch (dbStatus) {
     case 'pago':

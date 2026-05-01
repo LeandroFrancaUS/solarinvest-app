@@ -27,7 +27,7 @@ class TestFile extends Blob {
     this.lastModified = options?.lastModified ?? Date.now()
   }
 
-  async arrayBuffer(): Promise<ArrayBuffer> {
+  arrayBuffer(): Promise<ArrayBuffer> {
     const parts = this._chunks.map((chunk) => {
       if (chunk instanceof Uint8Array) return chunk
       if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk)
@@ -41,7 +41,7 @@ class TestFile extends Blob {
       buf.set(part, offset)
       offset += part.length
     }
-    return buf.buffer
+    return Promise.resolve(buf.buffer)
   }
 }
 

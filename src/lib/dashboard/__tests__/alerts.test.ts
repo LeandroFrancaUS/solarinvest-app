@@ -141,7 +141,7 @@ describe('computeAlerts', () => {
     ]
 
     // Filter: only critical
-    const alerts = computeAlerts(invoices, tasks, { criticalOnly: true } as any)
+    const alerts = computeAlerts(invoices, tasks, { criticalOnly: true, visualEnabled: false, soundEnabled: false, pushEnabled: false, overdueInvoices: false, dueSoonInvoices: false, kitDeliveryUpdates: false, installationUpdates: false, supportUpdates: false })
 
     expect(alerts).toHaveLength(1)
     expect(alerts[0].severity).toBe('CRITICAL')

@@ -5,7 +5,7 @@ export interface SavedFinancialAnalysis {
   client_id?: string | null
   analysis_name: string
   mode: FinancialAnalysisMode
-  payload_json: any
+  payload_json: unknown
   created_by_user_id?: string | null
   created_at: string
 }
@@ -14,13 +14,13 @@ export interface SaveFinancialAnalysisInput {
   client_id?: string | null
   analysis_name: string
   mode: FinancialAnalysisMode
-  payload: any
+  payload: unknown
 }
 
 export async function listFinancialAnalyses(): Promise<SavedFinancialAnalysis[]> {
   const res = await fetch('/api/financial-analyses')
   if (!res.ok) throw new Error('Falha ao carregar análises salvas')
-  const json = await res.json()
+  const json = (await res.json()) as { data?: SavedFinancialAnalysis[] }
   return Array.isArray(json.data) ? json.data : []
 }
 
@@ -34,6 +34,6 @@ export async function saveFinancialAnalysis(input: SaveFinancialAnalysisInput): 
     const text = await res.text().catch(() => '')
     throw new Error(text || 'Falha ao salvar análise financeira')
   }
-  const json = await res.json()
+  const json = (await res.json()) as { data: SavedFinancialAnalysis }
   return json.data
 }

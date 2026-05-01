@@ -73,7 +73,7 @@ export function DashboardPage({
   onNavigateToCobrancasInadimplencia,
   onNavigateToOperacaoChamados,
   onNavigateToOperacaoManutencoes,
-  onNavigateToComercialLeads,
+  onNavigateToComercialLeads: _onNavigateToComercialLeads,
   onNavigateToComercialContratos,
   onNavigateToComercialPropostas,
 }: DashboardPageProps) {

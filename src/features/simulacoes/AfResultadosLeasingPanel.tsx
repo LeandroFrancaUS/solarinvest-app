@@ -21,7 +21,7 @@ export function AfResultadosLeasingPanel({
   afImpostosLeasing,
   afInadimplencia,
   afCustoOperacional,
-  afMesesProjecao,
+  afMesesProjecao: _afMesesProjecao,
   analiseFinanceiraResult,
   indicadorEficienciaProjeto,
 }: AfResultadosLeasingPanelProps) {

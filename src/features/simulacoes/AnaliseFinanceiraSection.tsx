@@ -16,8 +16,7 @@
 //   Os campos serão populados a partir dos dados salvos do projeto no banco (fora do escopo atual).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Field } from '../../components/ui/Field'
-import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
+import { useBRNumberField } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 import { useVendasConfigStore, vendasConfigSelectors } from '../../store/useVendasConfigStore'
@@ -216,7 +215,6 @@ export function AnaliseFinanceiraSection({
   // Component is only rendered when simulacoesSection === 'analise', so mount = first visit.
   // Intentional stale closure: we seed from initial prop values once and never re-run,
   // so that manual overrides the user sets are not reset if proposal values later change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!afBaseInitializedRef.current) {
       afBaseInitializedRef.current = true
@@ -294,7 +292,6 @@ export function AnaliseFinanceiraSection({
 
   // When an initialInputsSnapshot is provided in embedded mode, populate the
   // AF store from it on the first mount (one-shot, does not re-run on prop changes).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!isEmbedded || embeddedSnapshotInitializedRef.current) return
     embeddedSnapshotInitializedRef.current = true
