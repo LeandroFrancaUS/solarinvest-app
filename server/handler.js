@@ -132,6 +132,8 @@ import {
   handleProjectChargesGenerate,
   handleChargeUpdate,
 } from './project-charges/handler.js'
+import { handleRevenueClients } from './revenue-billing/handler.js'
+import { handleFinancialAnalyses } from './financial-analyses/handler.js'
 import {
   handleFinancialImportParse,
   handleFinancialImportConfirm,
@@ -1697,6 +1699,25 @@ export default async function handler(req, res) {
     }
 
     // ── Financial Management routes ───────────────────────────────────────────
+
+    // GET /api/revenue-billing/clients
+    if (pathname === '/api/revenue-billing/clients') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      const sj = (s, b) => sendJson(res, s, b)
+      await handleRevenueClients(req, res, { method, sendJson: sj, requestUrl })
+      return
+    }
+
+    // GET|POST /api/financial-analyses
+    if (pathname === '/api/financial-analyses') {
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
+      await handleFinancialAnalyses(req, res, {
+        method,
+        readJsonBody,
+        sendJson: (status, payload) => sendJson(res, status, payload),
+      })
+      return
+    }
 
     // GET /api/financial-management/summary
     if (pathname === '/api/financial-management/summary') {

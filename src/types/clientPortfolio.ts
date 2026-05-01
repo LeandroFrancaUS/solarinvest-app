@@ -136,7 +136,7 @@ export interface PortfolioClientRow {
   auto_reminder_enabled?: boolean | null
 
   // ── Installment-level payment tracking ──
-  installments_json?: InstallmentPayment[] | null
+  installments_json?: InstallmentPayment[] | string | null
 
   // ── Usina fotovoltaica (UF configuration) ──
   potencia_modulo_wp?: number | null
@@ -179,6 +179,9 @@ export interface PortfolioClientRow {
   inicio_mensalidade_fixa?: string | null
   /** Whether the contractor is the holder (true) or SolarInvest is the holder (false) */
   is_contratante_titular?: boolean | null
+
+  // ── WiFi / monitoring ──
+  wifi_status?: 'conectado' | 'desconectado' | 'falha' | null
 }
 
 // LifecycleStatus includes 'lead' for backward compatibility when a client
@@ -210,13 +213,22 @@ export type BillingPaymentStatus = 'pending' | 'current' | 'overdue' | 'written_
 
 /** Per-installment payment record stored in client_billing_profile.installments_json */
 export interface InstallmentPayment {
-  number: number
-  status: 'pendente' | 'pago' | 'confirmado'
-  paid_at: string | null
-  receipt_number: string | null
-  transaction_number: string | null
-  attachment_url: string | null
-  confirmed_by: string | null
+  number?: number | null
+  numero?: number | null
+  status?: string | null
+  payment_status?: string | null
+  paid_at?: string | null
+  paidAt?: string | null
+  paidDate?: string | null
+  payment_date?: string | null
+  receipt_number?: string | null
+  transaction_number?: string | null
+  attachment_url?: string | null
+  confirmed_by?: string | null
+  /** Per-installment value override in BRL. When set, overrides the global valor_mensalidade for this installment. */
+  valor_override?: number | string | null
+  /** Per-installment value in BRL (fallback after valor_override). */
+  valor?: number | string | null
 }
 
 /** Single contract attachment record stored inside contract_attachments_json */

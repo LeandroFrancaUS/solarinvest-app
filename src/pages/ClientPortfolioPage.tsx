@@ -56,6 +56,8 @@ import { calculateBillingDates as calculateBillingDatesV2, addMonthsSafe as addM
 import { calculateMensalidade } from '../domain/billing/mensalidadeEngine'
 import { generateNotificationsForClient } from '../domain/billing/BillingNotificationService'
 import { BillingAlertsWidget, type BillingAlertItem } from '../components/portfolio/BillingAlertsWidget'
+import { getClientPaymentStatusV2 } from '../domain/payments/clientPaymentStatusV2'
+import { getWifiStatusMeta } from '../domain/wifi/wifiStatus'
 import type { Consultant, Engineer, Installer } from '../types/personnel'
 import { fetchConsultants, fetchEngineers, fetchInstallers, consultorDisplayName, formatConsultantOptionLabel } from '../services/personnelApi'
 import { ImportarContratoButton } from '../components/carteira/contrato/ImportarContratoButton'
@@ -456,6 +458,9 @@ function ClientCard({
   const clientName = client.name?.trim() || '—'
   const statusCliente = resolveStatusCliente(client)
   const statusColor = STATUS_CLIENTE_COLORS[statusCliente]
+  const paymentResult = getClientPaymentStatusV2(client)
+  const wifiRaw = (client.wifi_status ?? (client.metadata as Record<string,unknown> | undefined)?.wifi_status) as string | null | undefined
+  const wifiMeta = getWifiStatusMeta(wifiRaw as 'conectado' | 'desconectado' | 'falha' | null)
 
   return (
     <div className="pf-client-card">
@@ -491,6 +496,25 @@ function ClientCard({
             <span className="pf-card-contract">{contractLabel}</span>
             <span className="pf-card-meta-sep">·</span>
             <span className="pf-card-remaining">{remainingLabel}</span>
+            {paymentResult.status !== 'SEM_COBRANCA' && (
+              <>
+                <span className="pf-card-meta-sep">·</span>
+                <span
+                  title={paymentResult.label}
+                  style={{ fontSize: 11, fontWeight: 600, color: paymentResult.status === 'ATRASADO' || paymentResult.status === 'VENCIDO' ? '#dc2626' : '#64748b' }}
+                >
+                  {paymentResult.label}
+                </span>
+              </>
+            )}
+            {wifiMeta && (
+              <>
+                <span className="pf-card-meta-sep">·</span>
+                <span title={`WiFi: ${wifiMeta.label}`} style={{ fontSize: 11 }}>
+                  {wifiMeta.icon} {wifiMeta.label}
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="pf-card-actions">
@@ -1753,8 +1777,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const buildConfirmedMap = (installments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
     if (installments) {
-      for (const p of installments) {
-        if (p.status === 'confirmado' || p.status === 'pago') {
+      const parsed: Array<{ status?: string | null; number?: number | null; receipt_number?: string | null; paid_at?: string | null }> =
+        typeof installments === 'string'
+          ? (() => { try { return JSON.parse(installments) as typeof parsed } catch { return [] } })()
+          : installments
+      for (const p of parsed) {
+        if ((p.status === 'confirmado' || p.status === 'pago') && p.number != null) {
           map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
         }
       }
@@ -2342,35 +2370,32 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
+function buildUfData(client: PortfolioClientRow): UfConfigData {
+  const raw: UfConfigData = {
+    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
+    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
+    modelo_modulo: client.modelo_modulo ?? '',
+    modelo_inversor: client.modelo_inversor ?? '',
+    tipo_instalacao: client.tipo_instalacao ?? '',
+    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
+    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
+    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
+    tipo_rede: client.tipo_rede ?? '',
+  }
+  const ws = (client.wifi_status ?? (client.metadata as Record<string, unknown> | undefined)?.wifi_status) as UfConfigData['wifi_status']
+  if (ws != null) raw.wifi_status = ws
+  return raw
+}
+
 function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
 
-  const [ufData, setUfData] = useState<UfConfigData>({
-    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
-    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
-    modelo_modulo: client.modelo_modulo ?? '',
-    modelo_inversor: client.modelo_inversor ?? '',
-    tipo_instalacao: client.tipo_instalacao ?? '',
-    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
-    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
-    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
-    tipo_rede: client.tipo_rede ?? '',
-  })
+  const [ufData, setUfData] = useState<UfConfigData>(() => buildUfData(client))
 
-  const resetUfData = () => setUfData({
-    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
-    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
-    modelo_modulo: client.modelo_modulo ?? '',
-    modelo_inversor: client.modelo_inversor ?? '',
-    tipo_instalacao: client.tipo_instalacao ?? '',
-    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
-    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
-    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
-    tipo_rede: client.tipo_rede ?? '',
-  })
+  const resetUfData = () => setUfData(buildUfData(client))
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
     setUfData((prev) => ({ ...prev, [field]: value }))
@@ -2388,6 +2413,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         area_instalacao_m2: ufData.area_instalacao_m2 ? Number(ufData.area_instalacao_m2) : null,
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
+        wifi_status: ufData.wifi_status || null,
         // Persist tipo_rede via energy profile upsert
         energyProfile: {
           tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
@@ -2404,6 +2430,7 @@ function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (p
         geracao_estimada_kwh: ufData.geracao_estimada_kwh ? Number(ufData.geracao_estimada_kwh) : null,
         system_kwp: ufData.potencia_kwp ? Number(ufData.potencia_kwp) : null,
         tipo_rede: ufData.tipo_rede && ufData.tipo_rede !== 'nenhum' ? ufData.tipo_rede : null,
+        wifi_status: ufData.wifi_status || null,
       } as Partial<PortfolioClientRow>)
       setEditMode(false)
       // Best-effort sync: if a financial project exists for this client, also
