@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import { type SimulationState, selectMensalidades, selectMensalidadesPorAno } from '../../selectors'
 import { calcularTaxaMinima } from '../../utils/calcs'
 import { calcPotenciaSistemaKwp } from '../../lib/pricing/pricingPorKwp'
-import { DEFAULT_TUSD_ANO_REFERENCIA } from '../../lib/finance/tusd'
+import { DEFAULT_TUSD_ANO_REFERENCIA, type TipoClienteTUSD } from '../../lib/finance/tusd'
+import type { TipoRede } from '../../shared/rede'
 import {
   calcularAnaliseFinanceira,
   resolveCustoProjetoPorFaixa,
@@ -56,10 +57,10 @@ export interface TarifaContexto {
   taxaMinima: number
   taxaMinimaInputEmpty: boolean
 
-  tipoRede: string
+  tipoRede: TipoRede
 
   tusdPercent: number
-  tusdTipoCliente: string
+  tusdTipoCliente: TipoClienteTUSD
   tusdSubtipo: string
   tusdSimultaneidade: number
   tusdTarifaRkwh: number
@@ -389,8 +390,8 @@ export function useAnaliseFinanceiraResult(ctx: TarifaContexto): {
         custo_fixo_rateado_percent: vendasConfig.af_custo_fixo_rateado_percent,
         lucro_minimo_percent: vendasConfig.af_lucro_minimo_percent,
         comissao_minima_percent: afComissaoMinimaPercent,
-        margem_liquida_alvo_percent: afModo === 'venda' ? margemAlvo : undefined,
-        margem_liquida_minima_percent: afModo === 'venda' ? afMargemLiquidaMinima : undefined,
+        ...(afModo === 'venda' ? { margem_liquida_alvo_percent: margemAlvo } : {}),
+        ...(afModo === 'venda' ? { margem_liquida_minima_percent: afMargemLiquidaMinima } : {}),
         inadimplencia_percent: afInadimplencia,
         custo_operacional_percent: afCustoOperacional,
         meses_projecao: mensalidadesFinal.length,

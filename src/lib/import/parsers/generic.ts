@@ -64,7 +64,7 @@ function extractQuantityFromParts(parts: string[]): {
 } {
   const remaining = [...parts]
   for (let index = remaining.length - 1; index >= 0; index -= 1) {
-    const token = remaining[index]
+    const token = remaining[index]!
     const parsed = parseQuantityToken(token)
     if (!parsed) {
       continue
@@ -72,7 +72,7 @@ function extractQuantityFromParts(parts: string[]): {
     let { unit } = parsed
     remaining.splice(index, 1)
     if (!unit && index < parts.length - 1) {
-      const nextToken = parts[index + 1]
+      const nextToken = parts[index + 1]!
       const resolved = normalizeUnit(nextToken)
       if (resolved) {
         unit = resolved
@@ -100,7 +100,7 @@ function extractQuantity(line: string, columns: string[]): {
     return attempt
   }
   if (columns.length === 1) {
-    const words = columns[0]
+    const words = columns[0]!
       .split(/\s+/)
       .map((value) => cleanCell(value))
       .filter(Boolean)
@@ -137,15 +137,15 @@ function resolveProductAndDescription(columns: string[]): {
     return { produto: '', descricao: null }
   }
   if (textual.length === 1) {
-    return { produto: textual[0], descricao: null }
+    return { produto: textual[0]!, descricao: null }
   }
   let longestIndex = 0
   for (let index = 1; index < textual.length; index += 1) {
-    if (textual[index].length > textual[longestIndex].length) {
+    if (textual[index]!.length > textual[longestIndex]!.length) {
       longestIndex = index
     }
   }
-  const produto = textual[longestIndex]
+  const produto = textual[longestIndex]!
   const descricaoParts = textual.filter((_, index) => index !== longestIndex)
   const descricao = descricaoParts.join(' | ')
   return {

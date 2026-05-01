@@ -4,7 +4,7 @@ import { Field, FieldError } from './ui/Field'
 import { labelWithTooltip } from './InfoTooltip'
 import { formatCep, formatCpfCnpj, formatUcGeradoraTitularEndereco } from '../utils/formatters'
 
-type UcGeradoraTitularDraftPatch = Partial<LeasingUcGeradoraTitular> & {
+type UcGeradoraTitularDraftPatch = Omit<Partial<LeasingUcGeradoraTitular>, 'endereco'> & {
   endereco?: Partial<LeasingEndereco>
 }
 

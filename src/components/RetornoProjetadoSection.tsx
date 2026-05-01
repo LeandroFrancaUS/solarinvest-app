@@ -87,9 +87,9 @@ export function RetornoProjetadoSection({
       const monthIndex = Math.min(year * 12 - 1, cumulativeSavings.length - 1)
       const value =
         monthIndex >= 0
-          ? cumulativeSavings[monthIndex]
+          ? cumulativeSavings[monthIndex]!
           : cumulativeSavings.length > 0
-          ? cumulativeSavings[cumulativeSavings.length - 1]
+          ? cumulativeSavings[cumulativeSavings.length - 1]!
           : saldoAcumuladoVista
       return { year, value }
     })
