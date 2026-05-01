@@ -362,7 +362,7 @@ async function rasterizePage(page: PdfPage, dpi: number): Promise<ImageData> {
 
 function normalizeExtractedText(text: string): string {
   return text
-    .normalize('NFKC')
+    .normalize('NFC')
     .replace(/\r\n?/g, '\n')
     .replace(/\u00a0/g, ' ')
     .split('\n')

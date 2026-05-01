@@ -58,13 +58,13 @@ const NOISE_PATTERNS = [
 ]
 
 export function hasNoise(text: string): boolean {
-  const normalized = text.normalize('NFKC')
+  const normalized = text.normalize('NFC')
   return NOISE_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
 export function sanitizeNoiseText(text: string): string {
   return text
-    .normalize('NFKC')
+    .normalize('NFC')
     .replace(/\u00a0/g, ' ')
     .replace(/[•·●▪︎◦]/g, ' ')
     .replace(/\s+/g, ' ')

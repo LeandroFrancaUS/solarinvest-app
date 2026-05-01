@@ -135,12 +135,14 @@ const splitEstruturaColumnsFlexible = (line: string): string[] => {
   }
 
   const fallbackPattern = new RegExp(
-    `^(?<col0>.+?)\\s+(?<col1>.+?)\\s+(?<col2>${NUMERIC_VALUE_PATTERN})\\s+(?<col3>${NUMERIC_VALUE_PATTERN})\\s+(?<col4>.+)$`,
+    `^(?<col0>.+)\\s+(?<col1>${NUMERIC_VALUE_PATTERN})\\s+(?<col2>${NUMERIC_VALUE_PATTERN})\\s+(?<col3>.+)$`,
     'i',
   )
   const match = sanitized.match(fallbackPattern)
   if (match?.groups) {
-    return ESTRUTURA_EXPECTED_COLUMNS.map((_, index) => match.groups?.[`col${index}`]?.trim() ?? '')
+    return ['col0', 'col1', 'col2', 'col3']
+      .map((key) => match.groups?.[key]?.trim() ?? '')
+      .filter((s) => s.length > 0)
   }
 
   return columns
