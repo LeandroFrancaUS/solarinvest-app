@@ -10,8 +10,15 @@ import { fetchProjects } from '../services/projectsApi.js'
 import { fetchFinancialDashboardFeed } from '../services/financialManagementApi.js'
 import { listInvoices } from '../services/invoicesApi.js'
 import { listOperationalTasks } from '../lib/api/operationalDashboardApi.js'
+import { fetchPortfolioClients } from '../services/clientPortfolioApi.js'
+import { computeDashboardFinanceKPIs } from '../domain/dashboard/dashboardFinance.js'
+import { FinancialKpiCards } from '../components/dashboard/FinancialKpiCards.js'
+import { WifiStatusCards } from '../components/dashboard/WifiStatusCards.js'
+import { WifiOperationalAlerts } from '../components/dashboard/WifiOperationalAlerts.js'
 import { formatMoneyBR } from '../lib/locale/br-number.js'
 import { useAppAuth } from '../auth/guards/RequireAuthorizedUser.js'
+import type { PortfolioClientRow } from '../types/clientPortfolio.js'
+import type { DashboardFinanceKPIs } from '../domain/dashboard/dashboardFinance.js'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +78,8 @@ export function DashboardPage({
   onNavigateToComercialPropostas,
 }: DashboardPageProps) {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [portfolioClients, setPortfolioClients] = useState<PortfolioClientRow[]>([])
+  const [financeKPIs, setFinanceKPIs] = useState<DashboardFinanceKPIs | null>(null)
   const [loadState, setLoadState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -85,7 +94,7 @@ export function DashboardPage({
       const today = todayISO()
       const monthPrefix = currentMonthPrefix()
 
-      const [clientsRes, proposalsRes, projectsRes, financialRes, invoicesRes, tasksRes] =
+      const [clientsRes, proposalsRes, projectsRes, financialRes, invoicesRes, tasksRes, portfolioRes] =
         await Promise.allSettled([
           listClients({ limit: 500 }),
           listProposals({ status: 'sent', limit: 200 }),
@@ -93,6 +102,7 @@ export function DashboardPage({
           fetchFinancialDashboardFeed(),
           listInvoices({ limit: 500 }),
           listOperationalTasks({ limit: 200 }),
+          fetchPortfolioClients(),
         ])
 
       // ── Clientes ativos (in_portfolio = true) ────────────────────────────
@@ -171,6 +181,14 @@ export function DashboardPage({
         contratosAguardandoAssinatura,
         propostasEmNegociacao,
       })
+
+      // ── Portfolio-based financial KPIs ────────────────────────────────────
+      if (portfolioRes.status === 'fulfilled') {
+        const clients = portfolioRes.value
+        setPortfolioClients(clients)
+        setFinanceKPIs(computeDashboardFinanceKPIs(clients))
+      }
+
       setLoadState('loaded')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados')
@@ -223,6 +241,19 @@ export function DashboardPage({
       {error && (
         <div className="rounded-lg border border-ds-warning/30 bg-ds-warning/10 px-4 py-2 text-sm text-ds-warning">
           {error} — exibindo dados parciais.
+        </div>
+      )}
+
+      {/* Financial KPI cards from portfolio data */}
+      {financeKPIs && (
+        <FinancialKpiCards finance={financeKPIs} />
+      )}
+
+      {/* WiFi operational summary */}
+      {portfolioClients.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <WifiStatusCards clients={portfolioClients} />
+          <WifiOperationalAlerts clients={portfolioClients} />
         </div>
       )}
 

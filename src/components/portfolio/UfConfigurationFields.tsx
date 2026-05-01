@@ -14,12 +14,14 @@ export interface UfConfigData {
   geracao_estimada_kwh: string
   potencia_kwp: string
   tipo_rede: string
+  wifi_status?: 'conectado' | 'desconectado' | 'falha' | '' | null
 }
 
 interface UfConfigurationFieldsProps {
   data: UfConfigData
   onChange: (field: keyof UfConfigData, value: string) => void
   readOnly?: boolean
+  installationStatus?: string | null
 }
 
 const TIPO_INSTALACAO_OPTIONS = [
@@ -56,7 +58,21 @@ const gridStyle: React.CSSProperties = {
   gap: 12,
 }
 
-export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurationFieldsProps) {
+const WIFI_STATUS_OPTIONS = [
+  { value: '', label: 'Selecione…' },
+  { value: 'conectado', label: '🟢 Conectado' },
+  { value: 'desconectado', label: '🟡 Desconectado' },
+  { value: 'falha', label: '🔴 Falha' },
+]
+
+function isConcluido(status?: string | null): boolean {
+  const normalized = String(status ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return normalized === 'concluido'
+}
+
+export function UfConfigurationFields({ data, onChange, readOnly, installationStatus }: UfConfigurationFieldsProps) {
+  const hasInstallationStatus = installationStatus !== undefined && installationStatus !== null && String(installationStatus).trim() !== ''
+  const wifiEnabled = !readOnly && (!hasInstallationStatus || isConcluido(installationStatus))
   return (
     <div className="pf-section-card">
       <div className="pf-section-title">
@@ -182,6 +198,25 @@ export function UfConfigurationFields({ data, onChange, readOnly }: UfConfigurat
             />
           </label>
         </div>
+
+        <label className="pf-label" style={labelStyle}>
+          Status WiFi / Monitoramento
+          <select
+            value={data.wifi_status ?? ''}
+            onChange={(e) => onChange('wifi_status', e.target.value)}
+            disabled={!wifiEnabled}
+            style={inputStyle}
+          >
+            {WIFI_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {!wifiEnabled && (
+            <small style={{ display: 'block', marginTop: 4, color: 'var(--text-muted)' }}>
+              Disponível após status de instalação em Projeto ficar Concluído.
+            </small>
+          )}
+        </label>
       </div>
     </div>
   )
