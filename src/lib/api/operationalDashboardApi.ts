@@ -51,7 +51,7 @@ export async function listOperationalTasks(params?: ListTasksParams): Promise<{
   if (!response.ok) {
     throw new Error(`Failed to list operational tasks: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardOperationalTask[] }
 }
 
 export async function createOperationalTask(
@@ -71,7 +71,7 @@ export async function createOperationalTask(
   if (!response.ok) {
     throw new Error(`Failed to create operational task: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardOperationalTask }
 }
 
 export async function updateOperationalTask(
@@ -92,7 +92,7 @@ export async function updateOperationalTask(
   if (!response.ok) {
     throw new Error(`Failed to update operational task: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardOperationalTask }
 }
 
 export async function deleteOperationalTask(taskId: string | number): Promise<{ data: { success: boolean } }> {
@@ -106,7 +106,7 @@ export async function deleteOperationalTask(taskId: string | number): Promise<{ 
   if (!response.ok) {
     throw new Error(`Failed to delete operational task: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: { success: boolean } }
 }
 
 export async function getTaskHistory(
@@ -120,7 +120,7 @@ export async function getTaskHistory(
   if (!response.ok) {
     throw new Error(`Failed to get task history: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardActivityEvent[] }
 }
 
 export async function getNotificationPreferences(): Promise<{ data: DashboardNotificationPreference }> {
@@ -130,7 +130,7 @@ export async function getNotificationPreferences(): Promise<{ data: DashboardNot
   if (!response.ok) {
     throw new Error(`Failed to get notification preferences: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardNotificationPreference }
 }
 
 export async function updateNotificationPreferences(
@@ -150,5 +150,5 @@ export async function updateNotificationPreferences(
   if (!response.ok) {
     throw new Error(`Failed to update notification preferences: ${response.statusText}`)
   }
-  return response.json()
+  return (await response.json()) as { data: DashboardNotificationPreference }
 }

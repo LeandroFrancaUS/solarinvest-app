@@ -183,7 +183,7 @@ const gzipStringToBase64 = async (value: string): Promise<string | null> => {
   try {
     const stream = new CompressionStream('gzip')
     const writer = stream.writable.getWriter()
-    writer.write(new TextEncoder().encode(value))
+    await writer.write(new TextEncoder().encode(value))
     await writer.close()
 
     const compressedBuffer = await new Response(stream.readable).arrayBuffer()

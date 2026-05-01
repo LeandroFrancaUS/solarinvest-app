@@ -89,7 +89,7 @@ export function convertAnaliseToProjeto({
   }
 
   if (hasConsultor) {
-    const nomeTrimmed = (consultorNome as string).trim()
+    const nomeTrimmed = consultorNome.trim()
     projeto.consultor = {
       nome: nomeTrimmed,
       ...(consultorId ? { id: consultorId } : {}),

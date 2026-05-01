@@ -41,7 +41,7 @@ describe('proposal origin link', () => {
   })
 
   it('resolve proposalOriginId legado para recordId quando encontra proposta salva', async () => {
-    const findByCode = vi.fn(async () => records[0])
+    const findByCode = vi.fn(() => Promise.resolve(records[0]))
     const resolved = await resolveLegacyProposalOrigin({ source_proposal_id: 'SLRINVST-LSE-42906319' }, findByCode)
 
     expect(findByCode).toHaveBeenCalledWith('SLRINVST-LSE-42906319')

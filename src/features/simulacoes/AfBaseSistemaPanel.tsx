@@ -37,7 +37,7 @@ export function AfBaseSistemaPanel({
   afPROverride,
   setAfPROverride,
   afDiasOverride,
-  setAfDiasOverride,
+  setAfDiasOverride: _setAfDiasOverride,
   potenciaModulo,
   baseIrradiacao,
   eficienciaNormalizada,

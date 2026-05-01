@@ -7,7 +7,7 @@ import {
   createCleaningJob,
   type CleaningFilters,
 } from './operationsApi'
-import type { CleaningJob, CreateCleaningJobPayload, CleaningStatus } from './operationTypes'
+import type { CleaningJob, CreateCleaningJobPayload } from './operationTypes'
 import { CLEANING_STATUSES } from './operationTypes'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -176,7 +176,7 @@ export function LimpezasPage() {
                 <tr key={c.id}>
                   <td>{c.periodicity ?? '—'}</td>
                   <td>
-                    <span className={`operacao-badge operacao-badge-${c.status as CleaningStatus}`}>
+                    <span className={`operacao-badge operacao-badge-${c.status}`}>
                       {c.status}
                     </span>
                   </td>

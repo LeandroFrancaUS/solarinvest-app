@@ -72,8 +72,8 @@ function normalizeInstallments(raw: unknown): InstallmentPayment[] {
   if (Array.isArray(raw)) return raw as InstallmentPayment[]
   if (typeof raw !== 'string') return []
   try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as InstallmentPayment[]) : []
   } catch {
     return []
   }

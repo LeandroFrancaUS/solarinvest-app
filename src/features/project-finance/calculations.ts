@@ -436,7 +436,7 @@ export function deriveProjectFinanceCosts(
     seguro_faixa_alta_percent = SEGURO_FAIXA_ALTA_PERCENT,
     seguro_piso_rs = SEGURO_PISO_RS,
     impostos_leasing_percent = 4,
-    impostos_venda_percent = 6,
+    impostos_venda_percent: _impostos_venda_percent = 6,
     comissao_minima_percent = 5,
   } = params
 

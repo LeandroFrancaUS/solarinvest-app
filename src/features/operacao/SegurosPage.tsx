@@ -7,7 +7,7 @@ import {
   createInsurancePolicy,
   type InsuranceFilters,
 } from './operationsApi'
-import type { InsurancePolicy, CreateInsurancePolicyPayload, InsuranceStatus } from './operationTypes'
+import type { InsurancePolicy, CreateInsurancePolicyPayload } from './operationTypes'
 import { INSURANCE_STATUSES } from './operationTypes'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -187,7 +187,7 @@ export function SegurosPage() {
                   <td>{p.insurer ?? '—'}</td>
                   <td>{p.policy_number ?? '—'}</td>
                   <td>
-                    <span className={`operacao-badge operacao-badge-${p.status as InsuranceStatus}`}>
+                    <span className={`operacao-badge operacao-badge-${p.status}`}>
                       {p.status}
                     </span>
                   </td>
