@@ -85,14 +85,14 @@ function buildCharges(row: PortfolioClientRow): Array<MonthlyChargeLike & { valu
 
   if (installments.length > 0) {
     return installments.map((inst, index) => {
-      const number = Number(inst.number || index + 1)
+      const number = Number(inst.number ?? index + 1)
       return {
         number,
         dueDate: dueDateForInstallment(row, number),
-        status: inst.status,
-        paid_at: inst.paid_at,
-        paidAt: inst.paid_at,
-        value: toNumber(inst.valor_override ?? monthlyValue),
+        status: inst.status ?? null,
+        paid_at: inst.paid_at ?? null,
+        paidAt: inst.paid_at ?? null,
+        value: toNumber((inst as { valor_override?: unknown }).valor_override ?? monthlyValue),
       }
     })
   }

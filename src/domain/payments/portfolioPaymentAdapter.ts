@@ -80,13 +80,16 @@ function calculateReferenceMonth(
  * @returns Array of MonthlyPayment objects
  */
 export function convertToMonthlyPayments(client: PortfolioClientRow): MonthlyPayment[] {
-  const installments = client.installments_json ?? []
+  const rawInstallments = client.installments_json ?? []
+  const installments: InstallmentPayment[] = typeof rawInstallments === 'string'
+    ? (() => { try { return JSON.parse(rawInstallments) as InstallmentPayment[] } catch { return [] } })()
+    : rawInstallments
 
   const monthlyPayments: MonthlyPayment[] = []
 
   for (const installment of installments) {
-    const dueDate = calculateInstallmentDueDate(client, installment.number)
-    const referenceMonth = calculateReferenceMonth(client, installment.number)
+    const dueDate = calculateInstallmentDueDate(client, installment.number ?? 1)
+    const referenceMonth = calculateReferenceMonth(client, installment.number ?? 1)
 
     if (!dueDate || !referenceMonth) {
       continue // Skip installments with invalid dates

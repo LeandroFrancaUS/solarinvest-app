@@ -117,7 +117,10 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
     }
   }
 
-  const installments = client.installments_json ?? []
+  const rawInstallments = client.installments_json ?? []
+  const installments: InstallmentPayment[] = typeof rawInstallments === 'string'
+    ? (() => { try { return JSON.parse(rawInstallments) as InstallmentPayment[] } catch { return [] } })()
+    : rawInstallments
 
   // If no installments, billing is inactive
   if (installments.length === 0) {
@@ -144,7 +147,7 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
       unpaidCount++
 
       // Calculate due date for this installment
-      const dueDate = calculateInstallmentDueDate(client, inst.number)
+      const dueDate = calculateInstallmentDueDate(client, inst.number ?? 1)
       if (dueDate) {
         const diffMs = dueDate.getTime() - today.getTime()
         const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
@@ -170,25 +173,27 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
   // Priority: em_atraso > vencido > pago > pendente
 
   if (severelyOverdueCount > 0) {
-    return {
+    const result: ClientPaymentStatusResult = {
       status: 'em_atraso',
       label: CLIENT_PAYMENT_STATUS_LABELS.em_atraso,
       unpaidCount,
       overdueCount,
-      daysUntilNextDue: daysUntilNextDue ?? undefined,
-      nextDueDate: nextDueDate ?? undefined,
     }
+    if (daysUntilNextDue != null) result.daysUntilNextDue = daysUntilNextDue
+    if (nextDueDate != null) result.nextDueDate = nextDueDate
+    return result
   }
 
   if (overdueCount > 0) {
-    return {
+    const result: ClientPaymentStatusResult = {
       status: 'vencido',
       label: CLIENT_PAYMENT_STATUS_LABELS.vencido,
       unpaidCount,
       overdueCount,
-      daysUntilNextDue: daysUntilNextDue ?? undefined,
-      nextDueDate: nextDueDate ?? undefined,
     }
+    if (daysUntilNextDue != null) result.daysUntilNextDue = daysUntilNextDue
+    if (nextDueDate != null) result.nextDueDate = nextDueDate
+    return result
   }
 
   if (unpaidCount === 0) {
@@ -200,12 +205,13 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
     }
   }
 
-  return {
+  const result: ClientPaymentStatusResult = {
     status: 'pendente',
     label: CLIENT_PAYMENT_STATUS_LABELS.pendente,
     unpaidCount,
     overdueCount: 0,
-    daysUntilNextDue: daysUntilNextDue ?? undefined,
-    nextDueDate: nextDueDate ?? undefined,
   }
+  if (daysUntilNextDue != null) result.daysUntilNextDue = daysUntilNextDue
+  if (nextDueDate != null) result.nextDueDate = nextDueDate
+  return result
 }

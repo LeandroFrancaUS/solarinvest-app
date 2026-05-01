@@ -1777,8 +1777,12 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
   const buildConfirmedMap = (installments: typeof client.installments_json) => {
     const map: Record<number, { receipt_number: string | null; paid_at: string }> = {}
     if (installments) {
-      for (const p of installments) {
-        if (p.status === 'confirmado' || p.status === 'pago') {
+      const parsed: Array<{ status?: string | null; number?: number | null; receipt_number?: string | null; paid_at?: string | null }> =
+        typeof installments === 'string'
+          ? (() => { try { return JSON.parse(installments) as typeof parsed } catch { return [] } })()
+          : installments
+      for (const p of parsed) {
+        if ((p.status === 'confirmado' || p.status === 'pago') && p.number != null) {
           map[p.number] = { receipt_number: p.receipt_number ?? null, paid_at: p.paid_at ?? '' }
         }
       }
@@ -2366,37 +2370,32 @@ function CobrancaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved:
 // ─────────────────────────────────────────────────────────────────────────────
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
+function buildUfData(client: PortfolioClientRow): UfConfigData {
+  const raw: UfConfigData = {
+    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
+    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
+    modelo_modulo: client.modelo_modulo ?? '',
+    modelo_inversor: client.modelo_inversor ?? '',
+    tipo_instalacao: client.tipo_instalacao ?? '',
+    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
+    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
+    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
+    tipo_rede: client.tipo_rede ?? '',
+  }
+  const ws = (client.wifi_status ?? (client.metadata as Record<string, unknown> | undefined)?.wifi_status) as UfConfigData['wifi_status']
+  if (ws != null) raw.wifi_status = ws
+  return raw
+}
+
 function UsinaTab({ client, onSaved }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void }) {
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
 
-  const [ufData, setUfData] = useState<UfConfigData>({
-    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
-    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
-    modelo_modulo: client.modelo_modulo ?? '',
-    modelo_inversor: client.modelo_inversor ?? '',
-    tipo_instalacao: client.tipo_instalacao ?? '',
-    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
-    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
-    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
-    tipo_rede: client.tipo_rede ?? '',
-    wifi_status: (client.wifi_status ?? (client.metadata as Record<string,unknown> | undefined)?.wifi_status ?? '') as UfConfigData['wifi_status'],
-  })
+  const [ufData, setUfData] = useState<UfConfigData>(() => buildUfData(client))
 
-  const resetUfData = () => setUfData({
-    potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
-    numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
-    modelo_modulo: client.modelo_modulo ?? '',
-    modelo_inversor: client.modelo_inversor ?? '',
-    tipo_instalacao: client.tipo_instalacao ?? '',
-    area_instalacao_m2: client.area_instalacao_m2 != null ? String(client.area_instalacao_m2) : '',
-    geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
-    potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
-    tipo_rede: client.tipo_rede ?? '',
-    wifi_status: (client.wifi_status ?? (client.metadata as Record<string,unknown> | undefined)?.wifi_status ?? '') as UfConfigData['wifi_status'],
-  })
+  const resetUfData = () => setUfData(buildUfData(client))
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
     setUfData((prev) => ({ ...prev, [field]: value }))

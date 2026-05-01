@@ -23,7 +23,7 @@ export default function FinancialAnalysesPage() {
             <div>
               <div className="font-semibold">{a.analysis_name}</div>
               <div className="text-sm text-gray-500">
-                {a.mode.toUpperCase()} • {new Date(a.created_at).toLocaleString()}
+                {a.mode.toUpperCase()} • {new Date(a.created_at).toLocaleString('pt-BR')}
               </div>
             </div>
 
@@ -66,7 +66,7 @@ function exportAnalysisPdf(a: SavedFinancialAnalysis) {
       </head>
       <body>
         <h1>${a.analysis_name}</h1>
-        <div class="meta">${a.mode.toUpperCase()} • ${new Date(a.created_at).toLocaleString()}</div>
+        <div class="meta">${a.mode.toUpperCase()} • ${new Date(a.created_at).toLocaleString('pt-BR')}</div>
 
         <div class="card">
           <h3>Resumo</h3>
