@@ -2,7 +2,8 @@
 // Data access layer for client invoices.
 
 /**
- * List all invoices for a client, ordered by due date descending
+ * List all non-deleted invoices for a client, ordered by due date descending.
+ * Soft-deleted rows (deleted_at IS NOT NULL) are excluded from normal listings.
  */
 export async function listClientInvoices(sql, clientId) {
   const rows = await sql`
@@ -25,13 +26,14 @@ export async function listClientInvoices(sql, clientId) {
       updated_at
     FROM public.client_invoices
     WHERE client_id = ${clientId}
+      AND deleted_at IS NULL
     ORDER BY due_date DESC, reference_month DESC, id DESC
   `
   return rows
 }
 
 /**
- * Get a single invoice by ID
+ * Get a single non-deleted invoice by ID.
  */
 export async function getInvoiceById(sql, invoiceId) {
   const rows = await sql`
@@ -54,6 +56,7 @@ export async function getInvoiceById(sql, invoiceId) {
       updated_at
     FROM public.client_invoices
     WHERE id = ${invoiceId}
+      AND deleted_at IS NULL
   `
   return rows[0] || null
 }
@@ -155,12 +158,16 @@ export async function updateInvoice(sql, invoiceId, patch) {
 }
 
 /**
- * Delete an invoice
+ * Soft-delete an invoice by setting deleted_at to the current timestamp.
+ * The row is preserved for audit and financial reconciliation purposes.
+ * Returns true when the invoice was found and marked deleted; false when not found.
  */
 export async function deleteInvoice(sql, invoiceId) {
   const rows = await sql`
-    DELETE FROM public.client_invoices
+    UPDATE public.client_invoices
+    SET deleted_at = NOW(), updated_at = NOW()
     WHERE id = ${invoiceId}
+      AND deleted_at IS NULL
     RETURNING id
   `
   return rows.length > 0
