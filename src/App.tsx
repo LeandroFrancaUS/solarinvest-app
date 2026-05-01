@@ -95,6 +95,7 @@ import {
 } from './lib/validation/clientReadiness'
 import { ClientReadinessErrorModal } from './components/validation/ClientReadinessErrorModal'
 import { validateProposalReadinessForClosing } from './lib/services/closeProposalPipeline'
+import type { SnapshotInput as ProposalSnapshotInput } from './lib/domain/proposalPortfolioMapping'
 import {
   parseVendaPdfText,
   mergeParsedVendaPdfData,
@@ -120,6 +121,7 @@ import {
   formatTipoLigacaoLabel,
   normalizeTipoLigacaoNorma,
   type NormComplianceResult,
+  type NormComplianceStatus,
   type PrecheckDecision,
   type PrecheckDecisionAction,
   type TipoLigacaoNorma,
@@ -213,6 +215,7 @@ import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
+  type Inputs as ComposicaoUFVInputs,
 } from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
@@ -732,7 +735,7 @@ const toFiniteNonNegativeNumber = (value: unknown): number | null => {
 const resolveConsumptionFromSnapshot = (snapshot: OrcamentoSnapshotData | null): number | null => {
   if (!snapshot) return null
   const legacyPageShared = (snapshot.pageShared as { kcKwhMes?: unknown } | undefined)?.kcKwhMes
-  const parametrosConsumo = (snapshot.parametros as { consumo_kwh_mes?: unknown } | undefined)?.consumo_kwh_mes
+  const parametrosConsumo = (snapshot as unknown as { parametros?: { consumo_kwh_mes?: unknown } }).parametros?.consumo_kwh_mes
   const vendaParametrosConsumo = (
     snapshot.vendaSnapshot as { parametros?: { consumo_kwh_mes?: unknown } } | undefined
   )?.parametros?.consumo_kwh_mes
@@ -755,8 +758,8 @@ const resolveSystemKwpFromSnapshot = (snapshot: OrcamentoSnapshotData | null): n
   if (!snapshot) return null
   return (
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.dadosTecnicos?.potenciaInstaladaKwp) ??
-    toFiniteNonNegativeNumber(snapshot.vendaForm?.potencia_sistema_kwp) ??
-    toFiniteNonNegativeNumber(snapshot.vendaSnapshot?.potenciaCalculadaKwp) ??
+    toFiniteNonNegativeNumber(snapshot.vendaForm?.potencia_instalada_kwp) ??
+    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as unknown as { potenciaCalculadaKwp?: unknown })?.potenciaCalculadaKwp) ??
     null
   )
 }
@@ -767,7 +770,7 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
     toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    toFiniteNonNegativeNumber(snapshot.vendaSnapshot?.financiamento?.prazoMeses) ??
+    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as unknown as { financiamento?: { prazoMeses?: unknown } })?.financiamento?.prazoMeses) ??
     null
   )
 }
@@ -868,13 +871,13 @@ const formatList = (values: string[]): string => {
     return ''
   }
   if (values.length === 1) {
-    return values[0]
+    return values[0] ?? ''
   }
   if (values.length === 2) {
-    return `${values[0]} e ${values[1]}`
+    return `${values[0] ?? ''} e ${values[1] ?? ''}`
   }
   const [last, ...rest] = values.slice().reverse()
-  return `${rest.reverse().join(', ')} e ${last}`
+  return `${rest.reverse().join(', ')} e ${last ?? ''}`
 }
 
 const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
@@ -900,6 +903,23 @@ type OrcamentoSnapshotMultiUcState = {
   anoVigencia: number
   overrideEscalonamento: boolean
   escalonamentoCustomPercent: number | null
+}
+
+type PageSharedSettings = {
+  tarifaCheia: number
+  taxaMinima: number
+  ufTarifa: string
+  distribuidoraTarifa: string
+  potenciaModulo: number
+  numeroModulosManual: number | ''
+  segmentoCliente: SegmentoCliente
+  tipoInstalacao: TipoInstalacao
+  tipoInstalacaoOutro: string
+  tipoSistema: TipoSistema
+  consumoManual: boolean
+  potenciaFonteManual: boolean
+  potenciaModuloDirty: boolean
+  tipoInstalacaoDirty: boolean
 }
 
 type OrcamentoSnapshotData = {
@@ -1084,7 +1104,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
     if (typeof value === 'string') {
       const parsed = toNumberFlexible(value)
-      if (Number.isFinite(parsed) && parsed > 0) return parsed
+      if (parsed !== null && Number.isFinite(parsed) && parsed > 0) return parsed
     }
     return null
   }
@@ -1169,7 +1189,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
           rateioPercentual: String(item.rateioPercentual ?? ''),
         })),
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
+        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
         kitBudget: null,
@@ -1332,9 +1352,9 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    system_kwp: row.system_kwp ?? null,
+    system_kwp: row.systemKwp ?? null,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    term_months: row.term_months ?? null,
+    term_months: row.termMonths ?? null,
     dados,
     ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
   }
@@ -2203,7 +2223,7 @@ const cloneBudgetUploadProgress = (
 
 const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => {
   if (!info || typeof info !== 'object') {
-    return { missingFields: [], totalRequired: 0, totalFound: 0 }
+    return { missingFields: [], hasAny: false, hasProduct: false, hasDescription: false, hasQuantity: false }
   }
   return {
     ...info,
@@ -2282,7 +2302,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
           ...s.multiUc,
           rows: Array.isArray(s.multiUc.rows) ? s.multiUc.rows.map((row) => ({ ...row })) : [],
         }
-      : { rows: [] } as OrcamentoSnapshotData['multiUc'],
+      : { rows: [] } as unknown as OrcamentoSnapshotData['multiUc'],
     composicaoTelhado: s.composicaoTelhado ? { ...s.composicaoTelhado } : ({} as OrcamentoSnapshotData['composicaoTelhado']),
     composicaoSolo: s.composicaoSolo ? { ...s.composicaoSolo } : ({} as OrcamentoSnapshotData['composicaoSolo']),
     impostosOverridesDraft: cloneImpostosOverrides(s.impostosOverridesDraft ?? {}),
@@ -2614,7 +2634,7 @@ const countDelimiterOccurrences = (line: string, delimiter: string): number => {
 
 const detectCsvDelimiter = (line: string): string => {
   const candidates = [CLIENTES_CSV_DELIMITER, ',', '\t']
-  let best = candidates[0]
+  let best = candidates[0] ?? CLIENTES_CSV_DELIMITER
   let bestCount = -1
 
   for (const candidate of candidates) {
@@ -2655,8 +2675,10 @@ const parseClientesCsv = (content: string): unknown[] => {
     return []
   }
 
-  const delimiter = detectCsvDelimiter(lines[0])
-  const headerCells = parseCsvLine(lines[0], delimiter).map(normalizeCsvHeader)
+  const firstLine = lines[0]
+  if (!firstLine) return []
+  const delimiter = detectCsvDelimiter(firstLine)
+  const headerCells = parseCsvLine(firstLine, delimiter).map(normalizeCsvHeader)
   const headerKeys = headerCells.map((header) => CSV_HEADER_KEY_MAP[header] ?? null)
   if (headerKeys.every((key) => !key)) {
     return []
@@ -2899,6 +2921,8 @@ const normalizeClienteRegistros = (
         contatoSindico: dados?.contatoSindico ?? '',
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
+        consultorId: dados?.consultorId ?? '',
+        consultorNome: dados?.consultorNome ?? '',
       },
       ...(propostaSnapshot ? { propostaSnapshot } : {}),
     }
@@ -3405,14 +3429,14 @@ function CorresponsavelModal({
         </div>
         <div className="modal-body corresponsavel-modal__body">
           <div className="grid g3">
-            <Field label="Nome completo" hint={<FieldError message={errors.nome} />}>
+            <Field label="Nome completo" hint={<FieldError {...(errors.nome !== undefined ? { message: errors.nome } : {})} />}>
               <input
                 value={draft.nome}
                 onChange={(event) => onChange('nome', event.target.value)}
                 placeholder="Nome completo"
               />
             </Field>
-            <Field label="CPF" hint={<FieldError message={errors.cpf} />}>
+            <Field label="CPF" hint={<FieldError {...(errors.cpf !== undefined ? { message: errors.cpf } : {})} />}>
               <input
                 value={draft.cpf}
                 onChange={(event) => onChange('cpf', formatCpfCnpj(event.target.value))}
@@ -3436,7 +3460,7 @@ function CorresponsavelModal({
                 placeholder="Ex.: Brasileira"
               />
             </Field>
-            <Field label="E-mail" hint={<FieldError message={errors.email} />}>
+            <Field label="E-mail" hint={<FieldError {...(errors.email !== undefined ? { message: errors.email } : {})} />}>
               <input
                 type="email"
                 value={draft.email}
@@ -3445,7 +3469,7 @@ function CorresponsavelModal({
                 autoComplete="email"
               />
             </Field>
-            <Field label="Telefone" hint={<FieldError message={errors.telefone} />}>
+            <Field label="Telefone" hint={<FieldError {...(errors.telefone !== undefined ? { message: errors.telefone } : {})} />}>
               <input
                 value={draft.telefone}
                 onChange={(event) => onChange('telefone', event.target.value)}
@@ -3479,7 +3503,7 @@ function CorresponsavelModal({
               />
             </Field>
             <div style={{ gridColumn: '1 / -1' }}>
-              <Field label="Logradouro" hint={<FieldError message={errors.endereco} />}>
+              <Field label="Logradouro" hint={<FieldError {...(errors.endereco !== undefined ? { message: errors.endereco } : {})} />}>
                 <input
                   value={endereco.logradouro}
                   onChange={(event) => onChangeEndereco('logradouro', event.target.value)}
@@ -4050,7 +4074,7 @@ export default function App() {
     setProjectHubTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
-    setOperationalDashboardTokenProvider(getAccessToken)
+    setOperationalDashboardTokenProvider(() => getAccessToken().then((t) => t ?? ''))
     setOperationsTokenProvider(getAccessToken)
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
@@ -4842,23 +4866,6 @@ export default function App() {
   const multiUcIdCounterRef = useRef<number>(multiUcRows.length + 1)
   const consumoAnteriorRef = useRef(kcKwhMes)
 
-  type PageSharedSettings = {
-    tarifaCheia: number
-    taxaMinima: number
-    ufTarifa: string
-  distribuidoraTarifa: string
-  potenciaModulo: number
-  numeroModulosManual: number | ''
-  segmentoCliente: SegmentoCliente
-  tipoInstalacao: TipoInstalacao
-  tipoInstalacaoOutro: string
-  tipoSistema: TipoSistema
-  consumoManual: boolean
-  potenciaFonteManual: boolean
-  potenciaModuloDirty: boolean
-  tipoInstalacaoDirty: boolean
-}
-
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
     tarifaCheia: INITIAL_VALUES.tarifaCheia,
     taxaMinima: INITIAL_VALUES.taxaMinima,
@@ -5266,7 +5273,7 @@ export default function App() {
         try {
           const response = await fetch(
             `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalizedUf}/municipios`,
-            { signal },
+            { ...(signal ? { signal } : {}) },
           )
           if (!response.ok) {
             throw new Error('Falha ao buscar municípios no IBGE.')
@@ -7003,7 +7010,7 @@ export default function App() {
 
       // Se o outro lado NÃO foi editado manualmente, sincronizar
       if (!syncStateRef.current.tusdEdited) {
-        updateTusdTipoCliente(novoValor)
+        if (novoValor) updateTusdTipoCliente(novoValor)
       }
 
       resetRetorno?.()
@@ -7131,7 +7138,7 @@ export default function App() {
         if (isModulo && !potenciaModuloWp) {
           const potenciaMatch = descricaoCompleta.match(/(\d{3,4})\s*(?:wp|w)\b/i)
           if (potenciaMatch) {
-            const numeric = potenciaMatch[1].replace(/\D+/g, '')
+            const numeric = (potenciaMatch[1] ?? '').replace(/\D+/g, '')
             const parsed = Number.parseInt(numeric, 10)
             if (Number.isFinite(parsed) && parsed > 0) {
               potenciaModuloWp = parsed
@@ -7760,7 +7767,7 @@ export default function App() {
   )
   const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
     Record<LeasingAnexoId, boolean>
-  >({})
+  >({} as Record<LeasingAnexoId, boolean>)
   const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
   const [contractTemplatesCategory, setContractTemplatesCategory] =
     useState<ContractTemplateCategory>('vendas')
@@ -7978,7 +7985,7 @@ export default function App() {
 
     setDistribuidoraTarifa((atual) => {
       if (lista.length === 1) {
-        return lista[0]
+        return lista[0] ?? ''
       }
       return lista.includes(atual) ? atual : ''
     })
@@ -8416,9 +8423,7 @@ export default function App() {
     }
 
     if (!eligibility.eligible) {
-      if (modoOrcamento !== 'manual') {
-        setModoOrcamento('manual')
-      }
+      setModoOrcamento('manual')
       setAutoKitValor(null)
       setAutoCustoFinal(null)
       setAutoPricingRede(null)
@@ -9187,7 +9192,7 @@ export default function App() {
         : {}),
     }
 
-    return calcularComposicaoUFV(input)
+    return calcularComposicaoUFV(input as ComposicaoUFVInputs)
   }, [
     capexBaseManualValor,
     arredondarPasso,
@@ -9258,7 +9263,7 @@ export default function App() {
         : {}),
     }
 
-    return calcularComposicaoUFV(input)
+    return calcularComposicaoUFV(input as ComposicaoUFVInputs)
   }, [
     capexBaseManualValor,
     arredondarPasso,
@@ -9643,8 +9648,8 @@ export default function App() {
     tusdPercent,
     tusdTipoCliente,
     tusdSubtipo,
-    tusdSimultaneidade,
-    tusdTarifaRkwh,
+    tusdSimultaneidade: tusdSimultaneidade ?? 0,
+    tusdTarifaRkwh: tusdTarifaRkwh ?? 0,
     tusdAnoReferencia,
     mesReajuste,
     mesReferencia,
@@ -9823,8 +9828,8 @@ export default function App() {
       tusdPercentualFioB: tusdPercentual,
       tusdTipoCliente,
       tusdSubtipo: tusdSubtipoNormalizado.length > 0 ? tusdSubtipoNormalizado : null,
-      tusdSimultaneidade: tusdSimValue,
-      tusdTarifaRkwh: tusdTarifaValue,
+      tusdSimultaneidade: tusdSimValue ?? 0,
+      tusdTarifaRkwh: tusdTarifaValue ?? 0,
       tusdAnoReferencia: tusdAno,
       aplicaTaxaMinima,
       cidKwhBase,
@@ -10061,6 +10066,7 @@ export default function App() {
 
     for (let index = 0; index < mesesConsiderados; index += 1) {
       const mensalidade = mensalidades[index]
+      if (mensalidade === undefined) continue
       const mes = index + 1
       const tarifaCheiaMes = tarifaProjetadaCheia(
         simulationState.tarifaCheia,
@@ -10120,7 +10126,7 @@ export default function App() {
       creditoMensal: creditoEntradaMensal,
       margemMinima: margemMinimaResumo,
       prazoEfetivo: mesesConsiderados,
-      totalPago: lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0,
+      totalPago: lista.length > 0 ? lista[lista.length - 1]?.totalAcumulado ?? 0 : 0,
       inflacaoMensal,
     }
   }, [
@@ -10530,7 +10536,7 @@ export default function App() {
             rateioPercentual: rateio,
           }
         })
-        .filter((item): item is PrintableUcBeneficiaria => Boolean(item))
+        .filter((item): item is NonNullable<typeof item> => item !== null)
 
       const tipoEdificacaoCodigo = segmentoPrintable ?? null
       const tipoEdificacaoLabel =
@@ -11268,7 +11274,7 @@ export default function App() {
           localFallback
             ? 'Clientes em modo local temporário: backend indisponível no momento.'
             : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
-          localFallback ? 'error' : 'warning',
+          localFallback ? 'error' : 'error',
         )
       }
       // Fall through to storage-based loading
@@ -12637,7 +12643,7 @@ export default function App() {
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
       ])
       if (result) {
-        return result
+        return result as unknown as ClienteRegistro
       }
     } catch (e) {
       if (import.meta.env.DEV) console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
@@ -12804,7 +12810,7 @@ export default function App() {
       skipGuard: Boolean(options?.skipGuard),
     })
 
-    if (!validateClienteParaSalvar({ silent: options?.silent })) {
+    if (!validateClienteParaSalvar({ ...(options?.silent !== undefined ? { silent: options.silent } : {}) })) {
       console.warn('[client-save] client mutation blocked by validation', {
         clientId: clienteEmEdicaoId ?? null,
         nome: Boolean(cliente.nome?.trim()),
@@ -12874,7 +12880,7 @@ export default function App() {
         ? snapshotClonado.desconto
         : null,
       mensalidade: isLeasingTab && Array.isArray(leasingSnap?.projecao?.mensalidadesAno) && leasingSnap.projecao.mensalidadesAno.length > 0
-        ? (Number(leasingSnap.projecao.mensalidadesAno[0]?.[0] ?? 0) || null)
+        ? (Number(leasingSnap.projecao.mensalidadesAno[0]?.mensalidade ?? 0) || null)
         : null,
       indicacao: dadosClonados.temIndicacao && dadosClonados.indicacaoNome?.trim()
         ? dadosClonados.indicacaoNome.trim()
@@ -13409,7 +13415,7 @@ export default function App() {
           console.info('[clients] cliente já inexistente no backend; UI reconciliada', { id: serverIdCandidate })
           adicionarNotificacao(
             'Cliente removido. A recarga completa da lista falhou, mas a remoção foi reconciliada e não deve reaparecer após atualização.',
-            'warning',
+            'info',
           )
         }
       }
@@ -13521,7 +13527,7 @@ export default function App() {
           temIndicacao: registro.dados.temIndicacao,
           diaVencimento: registro.dados.diaVencimento,
         },
-        snapshot: registro.propostaSnapshot ?? {},
+        snapshot: (registro.propostaSnapshot ?? {}) as ProposalSnapshotInput,
         ucBeneficiarias: ucBeneficiariasNums.length > 0 ? ucBeneficiariasNums : [],
       })
 
@@ -13563,31 +13569,31 @@ export default function App() {
           clientId: Number(serverIdCandidate),
           proposalId: registro.propostaSnapshot?.currentBudgetId ?? null,
           clienteDados: {
-            nome: registro.dados.nome,
-            razaoSocial: readStr('razaoSocial'),
-            documento: registro.dados.documento,
-            cpf: readStr('cpf'),
-            cnpj: readStr('cnpj'),
-            email: registro.dados.email,
-            telefone: registro.dados.telefone,
-            telefoneSecundario: readStr('telefoneSecundario'),
-            cep: registro.dados.cep,
-            cidade: registro.dados.cidade,
-            uf: registro.dados.uf,
-            endereco: registro.dados.endereco,
-            bairro: readStr('bairro'),
-            numero: readStr('numero'),
-            complemento: readStr('complemento'),
-            distribuidora: registro.dados.distribuidora,
-            uc: registro.dados.uc,
-            indicacaoNome: registro.dados.indicacaoNome,
-            temIndicacao: registro.dados.temIndicacao,
-            diaVencimento: registro.dados.diaVencimento,
-            consultorId: registro.dados.consultorId,
-            ownerUserId: registro.ownerUserId,
-            createdByUserId: registro.createdByUserId,
+            ...(registro.dados.nome !== undefined ? { nome: registro.dados.nome } : {}),
+            ...(readStr('razaoSocial') !== undefined ? { razaoSocial: readStr('razaoSocial') } : {}),
+            ...(registro.dados.documento !== undefined ? { documento: registro.dados.documento } : {}),
+            ...(readStr('cpf') !== undefined ? { cpf: readStr('cpf') } : {}),
+            ...(readStr('cnpj') !== undefined ? { cnpj: readStr('cnpj') } : {}),
+            ...(registro.dados.email !== undefined ? { email: registro.dados.email } : {}),
+            ...(registro.dados.telefone !== undefined ? { telefone: registro.dados.telefone } : {}),
+            telefoneSecundario: readStr('telefoneSecundario') ?? null,
+            ...(registro.dados.cep !== undefined ? { cep: registro.dados.cep } : {}),
+            ...(registro.dados.cidade !== undefined ? { cidade: registro.dados.cidade } : {}),
+            ...(registro.dados.uf !== undefined ? { uf: registro.dados.uf } : {}),
+            ...(registro.dados.endereco !== undefined ? { endereco: registro.dados.endereco } : {}),
+            bairro: readStr('bairro') ?? null,
+            numero: readStr('numero') ?? null,
+            complemento: readStr('complemento') ?? null,
+            ...(registro.dados.distribuidora !== undefined ? { distribuidora: registro.dados.distribuidora } : {}),
+            ...(registro.dados.uc !== undefined ? { uc: registro.dados.uc } : {}),
+            ...(registro.dados.indicacaoNome !== undefined ? { indicacaoNome: registro.dados.indicacaoNome } : {}),
+            ...(registro.dados.temIndicacao !== undefined ? { temIndicacao: registro.dados.temIndicacao } : {}),
+            ...(registro.dados.diaVencimento !== undefined ? { diaVencimento: registro.dados.diaVencimento } : {}),
+            consultorId: registro.dados.consultorId ?? null,
+            ownerUserId: registro.ownerUserId ?? null,
+            createdByUserId: registro.createdByUserId ?? null,
           },
-          snapshot: registro.propostaSnapshot ?? {},
+          snapshot: (registro.propostaSnapshot ?? {}) as ProposalSnapshotInput,
           consultants: formConsultores,
           ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
         })
@@ -13691,6 +13697,8 @@ export default function App() {
             cpfSindico: clienteDados.cpfSindico ?? '',
             contatoSindico: clienteDados.contatoSindico ?? '',
             diaVencimento: clienteDados.diaVencimento ?? '10',
+            consultorId: clienteDados.consultorId ?? '',
+            consultorNome: clienteDados.consultorNome ?? '',
           }
 
           const dadosNormalizados: PrintableProposalProps = {
@@ -13729,7 +13737,7 @@ export default function App() {
 
           dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
             ? dados.ucsBeneficiarias
-                .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
+                .filter((item): item is NonNullable<typeof item> => item !== null && typeof item === 'object')
                 .map((item) => ({
                   numero: typeof item.numero === 'string' ? item.numero : '',
                   endereco: typeof item.endereco === 'string' ? item.endereco : '',
@@ -14432,7 +14440,7 @@ export default function App() {
                 totalFields: Object.keys(completeSnapshot).length,
               })
             }
-            snapshotToApply = completeSnapshot
+            snapshotToApply = completeSnapshot as unknown as OrcamentoSnapshotData
           } else {
             if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] proposalStore snapshot empty, using fallback')
           }
@@ -15624,7 +15632,7 @@ export default function App() {
       if (!response.ok) {
         console.error('Não foi possível verificar disponibilidade dos anexos.')
         // Set all as available by default if check fails
-        setLeasingAnexosAvailability({})
+        setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
         return
       }
 
@@ -15640,7 +15648,7 @@ export default function App() {
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
       // Set all as available by default if check fails
-      setLeasingAnexosAvailability({})
+      setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
     } finally {
       setLeasingAnexosLoading(false)
     }
@@ -15714,7 +15722,7 @@ export default function App() {
         await persistContratoToOneDrive({
           fileName,
           contentBase64: base64,
-          contentType,
+          ...(contentType !== undefined ? { contentType } : {}),
         })
         return true
       } catch (error) {
@@ -16072,7 +16080,7 @@ export default function App() {
             contratosSalvos += 1
           }
 
-          if (!janelaPreview || janelaPreview.closed) {
+          if (!(janelaPreview as Window | null) || (janelaPreview as Window | null)?.closed) {
             const anchor = document.createElement('a')
             anchor.href = url
             anchor.target = '_blank'
@@ -16091,7 +16099,7 @@ export default function App() {
 
           sucesso += 1
         } catch (error) {
-          if (janelaPreview && !janelaPreview.closed) {
+          if ((janelaPreview as Window | null) && !(janelaPreview as Window | null)?.closed) {
             atualizarJanelaMensagem(
               error instanceof Error && error.message
                 ? error.message
@@ -16103,7 +16111,7 @@ export default function App() {
         }
       }
 
-      if (contratosGerados.length > 0 && janelaPreview && !janelaPreview.closed) {
+      if (contratosGerados.length > 0 && (janelaPreview as Window | null) && !(janelaPreview as Window | null)?.closed) {
         renderizarPreviewNaJanela(contratosGerados)
       }
 
@@ -17289,7 +17297,7 @@ export default function App() {
       let proximaDistribuidora = base.distribuidora
 
       if (listaDistribuidoras.length === 1) {
-        proximaDistribuidora = listaDistribuidoras[0]
+        proximaDistribuidora = listaDistribuidoras[0] ?? ''
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
       }
@@ -17370,7 +17378,7 @@ export default function App() {
   )
 
   const updateUcGeradoraTitularDraft = useCallback(
-    (patch: Partial<LeasingUcGeradoraTitular> & { endereco?: Partial<LeasingEndereco> }) => {
+    (patch: Omit<Partial<LeasingUcGeradoraTitular>, 'endereco'> & { endereco?: Partial<LeasingEndereco> }) => {
       const baseDraft = leasingContrato.ucGeradoraTitularDraft ?? createEmptyUcGeradoraTitular()
       const nextDraft: LeasingUcGeradoraTitular = {
         ...baseDraft,
@@ -17393,7 +17401,7 @@ export default function App() {
       const atual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
       let proximaDistribuidora = atual
       if (listaDistribuidoras.length === 1) {
-        proximaDistribuidora = listaDistribuidoras[0]
+        proximaDistribuidora = listaDistribuidoras[0] ?? ''
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
       }
@@ -17924,7 +17932,7 @@ export default function App() {
           const listaDistribuidoras = distribuidorasPorUf[uf] ?? []
           let proximaDistribuidora = base.distribuidora
           if (listaDistribuidoras.length === 1) {
-            proximaDistribuidora = listaDistribuidoras[0]
+            proximaDistribuidora = listaDistribuidoras[0] ?? ''
           } else if (
             proximaDistribuidora &&
             !listaDistribuidoras.includes(proximaDistribuidora)
@@ -18419,7 +18427,7 @@ export default function App() {
           await navigator.share({
             title: 'Proposta SolarInvest',
             text: mensagemBase,
-            url: shareUrl || undefined,
+            ...(shareUrl ? { url: shareUrl } : {}),
           })
           adicionarNotificacao('Compartilhamento iniciado no dispositivo.', 'success')
           setIsEnviarPropostaModalOpen(false)
@@ -18836,9 +18844,7 @@ export default function App() {
                     ? 'Fechar menu Painel SolarInvest'
                     : 'Abrir menu Painel SolarInvest',
                   expanded: isSidebarMobileOpen,
-                  userInfo: user?.displayName
-                    ? { name: user.displayName, role: userRole }
-                    : undefined,
+                  ...(user?.displayName ? { userInfo: { name: user.displayName, role: userRole } } : {}),
                 }
               : undefined
           }
@@ -19015,7 +19021,7 @@ export default function App() {
             mostrarTabelaBuyoutConfig={mostrarTabelaBuyoutConfig}
             setMostrarTabelaBuyoutConfig={setMostrarTabelaBuyoutConfig}
             buyoutReceitaRows={buyoutReceitaRows}
-            buyoutAceiteFinal={buyoutAceiteFinal}
+            buyoutAceiteFinal={buyoutAceiteFinal ?? undefined}
             buyoutMesAceiteFinal={buyoutMesAceiteFinal}
             oemBase={oemBase}
             setOemBase={setOemBase}
@@ -20140,15 +20146,14 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {kitBudget.items.map((item, index) => (
+                            {kitBudget.items.map((item) => (
                               <tr key={`budget-item-${item.id}`}>
                                 <td>
                                   <input
                                     type="text"
                                     value={item.description}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, description: event.target.value })
+                                      _handleBudgetItemTextChange(item.id, 'description', event.target.value)
                                     }}
                                     placeholder="Descrição do item"
                                   />
@@ -20157,10 +20162,9 @@ export default function App() {
                                   <input
                                     type="number"
                                     min={0}
-                                    value={item.quantity}
+                                    value={item.quantity ?? ''}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, quantity: Number(event.target.value) })
+                                      _handleBudgetItemQuantityChange(item.id, event.target.value)
                                     }}
                                     placeholder="Quantidade"
                                   />
@@ -20170,22 +20174,25 @@ export default function App() {
                                     type="number"
                                     min={0}
                                     step="0.01"
-                                    value={item.unitValue as unknown as number}
+                                    value={item.unitPrice ?? ''}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
+                                      updateKitBudgetItem(item.id, (it) => ({
+                                        ...it,
+                                        unitPrice: Number(event.target.value),
+                                        unitPriceInput: event.target.value,
+                                      }))
                                     }}
                                     placeholder="Valor unitário"
                                   />
                                 </td>
                                 <td>
-                                  <input type="text" value={currency(item.total as unknown as number)} readOnly aria-label="Total do item" />
+                                  <input type="text" value={currency((item.quantity ?? 0) * (item.unitPrice ?? 0))} readOnly aria-label="Total do item" />
                                 </td>
                                 <td>
                                   <button
                                     type="button"
                                     className="ghost danger"
-                                    onClick={() => handleRemoveBudgetItem(index)}
+                                    onClick={() => { handleRemoveBudgetItem(item.id) }}
                                   >
                                     Remover
                                   </button>

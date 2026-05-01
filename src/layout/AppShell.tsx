@@ -7,7 +7,7 @@ import type { AppTheme } from '../hooks/useTheme'
 export interface AppShellProps {
   topbar: TopbarProps
   sidebar: SidebarProps
-  content: ContentProps
+  content: Omit<ContentProps, 'children'>
   children: ReactNode
   mobileMenuButton?: {
     onToggle: () => void
