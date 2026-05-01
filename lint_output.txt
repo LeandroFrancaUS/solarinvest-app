@@ -1,0 +1,316 @@
+
+> solarinvest-app@2.4.4 lint
+> eslint --max-warnings=0 .
+
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/App.tsx
+      3:8   error    'CrmIntegrationMode' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+      4:3   error    'formatarDataCurta' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+     12:10  error    'createRoot' is defined but never used. Allowed unused vars must match /^_/u                               @typescript-eslint/no-unused-vars
+     52:10  error    'shouldUseBentoGrid' is defined but never used. Allowed unused vars must match /^_/u                       @typescript-eslint/no-unused-vars
+     53:10  error    'renderBentoLeasingToHtml' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+     81:8   error    'ModoPagamento' is defined but never used. Allowed unused vars must match /^_/u                            @typescript-eslint/no-unused-vars
+     88:62  error    'TUSD_TIPO_LABELS' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+    111:3   error    'formatPercentBRWithDigits' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+    132:30  error    'CidadeDB' is defined but never used. Allowed unused vars must match /^_/u                                 @typescript-eslint/no-unused-vars
+    171:3   error    'getPagamentoCondicaoInfo' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    172:3   error    'getPagamentoModoInfo' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+    173:3   error    'PAGAMENTO_CONDICAO_INFO' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    174:3   error    'PAGAMENTO_MODO_INFO' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+    184:15  error    'SidebarGroup' is defined but never used. Allowed unused vars must match /^_/u                             @typescript-eslint/no-unused-vars
+    198:3   error    'SETTINGS_TABS' is defined but never used. Allowed unused vars must match /^_/u                            @typescript-eslint/no-unused-vars
+    201:3   error    'UF_LABELS' is defined but never used. Allowed unused vars must match /^_/u                                @typescript-eslint/no-unused-vars
+    222:10  error    'MULTI_UC_CLASSES' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+    222:28  error    'MULTI_UC_CLASS_LABELS' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+    263:15  error    'PrintableBuyoutTableProps' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+    269:3   error    'formatKwhWithUnit' is defined but never used. Allowed unused vars must match /^_/u                        @typescript-eslint/no-unused-vars
+    285:10  error    'Switch' is defined but never used. Allowed unused vars must match /^_/u                                   @typescript-eslint/no-unused-vars
+    338:10  error    'FinancialManagementPage' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    342:15  error    'IndicadoresTab' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+    359:87  error    'formatConsultantOptionLabel' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+    362:10  error    'PlaceholderPage' is defined but never used. Allowed unused vars must match /^_/u                          @typescript-eslint/no-unused-vars
+    436:10  error    'VendasParametrosInternosSettings' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+    437:10  error    'TusdParametersSection' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+    468:7   error    'PrintableBuyoutTable' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+    473:7   error    'REGIME_TRIBUTARIO_LABELS' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   1811:72  error    'serializeClientesForStorage' was used before it was defined                                               @typescript-eslint/no-use-before-define
+   3029:7   error    'formatBudgetDate' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   4493:7   error    Unsafe call of a type that could not be resolved                                                           @typescript-eslint/no-unsafe-call
+   4494:7   error    Unsafe call of a type that could not be resolved                                                           @typescript-eslint/no-unsafe-call
+   5813:39  error    Unsafe return of a value of type `any`                                                                     @typescript-eslint/no-unsafe-return
+   5831:7   error    Unsafe return of a value of type `any`                                                                     @typescript-eslint/no-unsafe-return
+   5978:5   error    'crmIntegrationMode' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   5979:5   error    'setCrmIntegrationMode' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   5980:5   error    'crmIsSaving' is assigned a value but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   5981:5   error    'crmBackendStatus' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+   5982:5   error    'crmBackendError' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   5983:5   error    'crmLastSync' is assigned a value but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+   5985:5   error    'crmKpis' is assigned a value but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+   5986:5   error    'crmFinanceiroResumo' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   5987:5   error    'crmPosVendaResumo' is assigned a value but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   5988:5   error    'handleSyncCrmManualmente' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   8066:34  error    Unsafe return of a value of type `any`                                                                     @typescript-eslint/no-unsafe-return
+  16728:7   error    Unsafe call of a type that could not be resolved                                                           @typescript-eslint/no-unsafe-call
+  16760:9   error    'abrirAdminUsuarios' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  16926:7   error    Unsafe call of a type that could not be resolved                                                           @typescript-eslint/no-unsafe-call
+  18761:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18762:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18763:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18764:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18765:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18767:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18769:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18771:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18772:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18774:5   error    Promise-returning function provided to property where a void return was expected                           @typescript-eslint/no-misused-promises
+  18800:5   error    'mobileAllowedIds' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  18801:5   error    'allSidebarItems' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  18803:5   error    'desktopSimpleSidebarGroups' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  18890:20  error    Promise-returning function provided to attribute where a void return was expected                          @typescript-eslint/no-misused-promises
+  18942:13  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-misused-promises')
+  18944:13  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-misused-promises')
+  18946:13  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-misused-promises')
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/app/services/serverStorage.ts
+  186:5  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/components/portfolio/FaturasTab.tsx
+   75:5   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  369:23  error  Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+  517:25  error  Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+  650:37  error  Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+  760:25  error  Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+  885:25  error  Promise-returning function provided to attribute where a void return was expected                                                                                   @typescript-eslint/no-misused-promises
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/components/portfolio/InvoiceAlertsWidget.tsx
+  69:17  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+  96:45  error  Unsafe assignment of an error typed value  @typescript-eslint/no-unsafe-assignment
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/billing/paymentStatusEngine.ts
+  34:7   error  'DAY_MS' is assigned a value but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+  53:17  error  'value ?? ''' will use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/clients/client-status.ts
+  41:22  error  "LEAD" | "PROPOSTA_ENVIADA" | "NEGOCIANDO" | "CONTRATO_ENVIADO" | "GANHO" | "PERDIDO" is overridden by string in this union type  @typescript-eslint/no-redundant-type-constituents
+  42:20  error  "NAO_CLIENTE" | "ATIVO" | "INATIVO" | "CANCELADO" | "FINALIZADO" is overridden by string in this union type                       @typescript-eslint/no-redundant-type-constituents
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/conversion/__tests__/resolve-closed-deal-payload.test.ts
+  22:8  error  'ClosedDealResolvedPayload' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/dashboard/dashboardFinance.ts
+  75:11  error  Unsafe assignment of an `any` value       @typescript-eslint/no-unsafe-assignment
+  76:5   error  Unsafe return of a value of type `any[]`  @typescript-eslint/no-unsafe-return
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/payments/clientPaymentStatusV2.ts
+  23:43  warning  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+  29:13  error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+  67:34  warning  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+  68:42  error    Unsafe member access .number on an `any` value          @typescript-eslint/no-unsafe-member-access
+  68:56  error    Unsafe member access .number on an `any` value          @typescript-eslint/no-unsafe-member-access
+  69:5   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+  69:18  error    Unsafe member access .status on an `any` value          @typescript-eslint/no-unsafe-member-access
+  69:33  error    Unsafe member access .payment_status on an `any` value  @typescript-eslint/no-unsafe-member-access
+  70:5   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+  70:18  error    Unsafe member access .paid_at on an `any` value         @typescript-eslint/no-unsafe-member-access
+  70:34  error    Unsafe member access .paidAt on an `any` value          @typescript-eslint/no-unsafe-member-access
+  70:49  error    Unsafe member access .payment_date on an `any` value    @typescript-eslint/no-unsafe-member-access
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/payments/paymentStatus.ts
+  172:9  error  'pendenteCount' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/domain/wifi/wifiStatus.ts
+  16:17  error  'status ?? ''' will use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+  20:22  error  'value ?? ''' will use Object's default stringification format ('[object Object]') when stringified   @typescript-eslint/no-base-to-string
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/cobrancas/CobrancasDashboardPage.tsx
+  65:51  error  This assertion is unnecessary since the receiver accepts the original type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  87:50  error  This assertion is unnecessary since the receiver accepts the original type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/crm/useCrm.ts
+   1:1  error  Imports "React" are only used as type                                                           @typescript-eslint/consistent-type-imports
+   6:3  error  'CrmAdicionarNotificacaoFn' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  13:3  error  'CrmFinanceiroResumoData' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  17:3  error  'CrmIndicadoresGerenciaisData' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  19:3  error  'CrmKpisData' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+  25:3  error  'CrmPosVendaResumoData' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/operacao/AgendaPage.tsx
+  169:71  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/operacao/ChamadosPage.tsx
+  196:80  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  201:71  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/operacao/LimpezasPage.tsx
+  179:71  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/operacao/ManutencoesPage.tsx
+  193:71  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/operacao/SegurosPage.tsx
+  190:71  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/project-finance/__tests__/gfAfComparisonAudit.test.ts
+  186:42  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  245:56  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  320:42  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  322:44  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/project-finance/calculations.ts
+  439:5  error  'impostos_venda_percent' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/projectHub/convertAnaliseToProjeto.ts
+  92:26  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/simulacoes/AfBaseSistemaPanel.tsx
+  40:3  error  'setAfDiasOverride' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/simulacoes/AfResultadosLeasingPanel.tsx
+  24:3  error  'afMesesProjecao' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/features/simulacoes/AnaliseFinanceiraSection.tsx
+   19:10  error    'Field' is defined but never used. Allowed unused vars must match /^_/u                         @typescript-eslint/no-unused-vars
+   20:10  error    'MONEY_INPUT_PLACEHOLDER' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  219:3   warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+  297:3   warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/api/operationalDashboardApi.ts
+   54:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+   74:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+   95:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+  109:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+  123:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+  133:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+  153:3  error  Unsafe return of a value of type `Promise<any>`  @typescript-eslint/no-unsafe-return
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/budget/__tests__/budgetUploadPipeline.test.ts
+  30:3  error  Async method 'arrayBuffer' has no 'await' expression  @typescript-eslint/require-await
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/dashboard/__tests__/alerts.test.ts
+  144:51  error    Unsafe argument of type `any` assigned to a parameter of type `DashboardNotificationPreference | undefined`  @typescript-eslint/no-unsafe-argument
+  144:77  warning  Unexpected any. Specify a different type                                                                     @typescript-eslint/no-explicit-any
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/dashboard/alerts.ts
+  12:3  error  'AlertType' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/dashboard/notifications.ts
+  27:61  warning  Unexpected any. Specify a different type                    @typescript-eslint/no-explicit-any
+  27:66  error    Unsafe member access .webkitAudioContext on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/lib/proposals/__tests__/proposalOriginLink.test.ts
+  44:39  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/pages/DashboardPage.tsx
+  76:3  error  'onNavigateToComercialLeads' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/pages/FinancialAnalysesPage.tsx
+   2:1   error  Imports "SavedFinancialAnalysis" are only used as type                                                                                                              @typescript-eslint/consistent-type-imports
+   9:5   error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  73:48  error  Unsafe member access .result on an `any` value                                                                                                                      @typescript-eslint/no-unsafe-member-access
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/pages/FinancialManagementPage.tsx
+  633:42  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+  670:19  error    Unsafe member access .installments_json on an `any` value                               @typescript-eslint/no-unsafe-member-access
+  671:7   error    Unsafe call of an `any` typed value                                                     @typescript-eslint/no-unsafe-call
+  671:14  error    Unsafe member access .installments_json on an `any` value                               @typescript-eslint/no-unsafe-member-access
+  671:47  warning  Unexpected any. Specify a different type                                                @typescript-eslint/no-explicit-any
+  673:15  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  673:35  error    Unsafe member access .contractual_term_months on an `any` value                         @typescript-eslint/no-unsafe-member-access
+  673:69  error    Unsafe member access .term_months on an `any` value                                     @typescript-eslint/no-unsafe-member-access
+  677:15  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  677:34  error    Unsafe member access .commissioning_date_billing on an `any` value                      @typescript-eslint/no-unsafe-member-access
+  677:71  error    Unsafe member access .commissioning_date on an `any` value                              @typescript-eslint/no-unsafe-member-access
+  680:15  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  680:31  error    Unsafe member access .due_day on an `any` value                                         @typescript-eslint/no-unsafe-member-access
+  681:32  error    Unsafe argument of type `any` assigned to a parameter of type `string | number | Date`  @typescript-eslint/no-unsafe-argument
+  682:55  error    Unsafe argument of type `any` assigned to a parameter of type `number`                  @typescript-eslint/no-unsafe-argument
+  682:79  error    Unsafe member access .number on an `any` value                                          @typescript-eslint/no-unsafe-member-access
+  682:87  error    Unsafe argument of type `any` assigned to a parameter of type `number | undefined`      @typescript-eslint/no-unsafe-argument
+  685:11  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  685:28  error    Unsafe member access .id on an `any` value                                              @typescript-eslint/no-unsafe-member-access
+  686:11  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  686:30  error    Unsafe member access .name on an `any` value                                            @typescript-eslint/no-unsafe-member-access
+  686:57  error    Unsafe member access .id on an `any` value                                              @typescript-eslint/no-unsafe-member-access
+  687:11  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  687:35  error    Unsafe member access .number on an `any` value                                          @typescript-eslint/no-unsafe-member-access
+  689:11  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  689:26  error    Unsafe member access .valor_mensalidade on an `any` value                               @typescript-eslint/no-unsafe-member-access
+  690:11  error    Unsafe assignment of an `any` value                                                     @typescript-eslint/no-unsafe-assignment
+  690:24  error    Unsafe member access .status on an `any` value                                          @typescript-eslint/no-unsafe-member-access
+  691:24  error    Unsafe member access .status on an `any` value                                          @typescript-eslint/no-unsafe-member-access
+  691:56  error    Unsafe member access .status on an `any` value                                          @typescript-eslint/no-unsafe-member-access
+  792:42  error    'idx' is defined but never used. Allowed unused args must match /^_/u                   @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/pages/OperationalDashboardPage.tsx
+   36:85  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+   37:24  error    Unsafe member access .id on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+   38:23  error    Unsafe member access .client_id on an `any` value                               @typescript-eslint/no-unsafe-member-access
+   38:46  error    Unsafe member access .client_id on an `any` value                               @typescript-eslint/no-unsafe-member-access
+   39:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   39:25  error    Unsafe member access .client_name on an `any` value                             @typescript-eslint/no-unsafe-member-access
+   40:28  error    Unsafe member access .amount on an `any` value                                  @typescript-eslint/no-unsafe-member-access
+   41:25  error    Unsafe member access .paid_amount on an `any` value                             @typescript-eslint/no-unsafe-member-access
+   41:50  error    Unsafe member access .paid_amount on an `any` value                             @typescript-eslint/no-unsafe-member-access
+   42:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   42:22  error    Unsafe member access .due_date on an `any` value                                @typescript-eslint/no-unsafe-member-access
+   43:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   43:21  error    Unsafe member access .paid_at on an `any` value                                 @typescript-eslint/no-unsafe-member-access
+   44:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   44:34  error    Unsafe argument of type `any` assigned to a parameter of type `string`          @typescript-eslint/no-unsafe-argument
+   44:38  error    Unsafe member access .payment_status on an `any` value                          @typescript-eslint/no-unsafe-member-access
+   45:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   45:20  error    Unsafe member access .notes on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+   46:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   46:24  error    Unsafe member access .updated_at on an `any` value                              @typescript-eslint/no-unsafe-member-access
+   50:88  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+   51:25  error    Unsafe member access .id on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+   52:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   52:20  error    Unsafe member access .type on an `any` value                                    @typescript-eslint/no-unsafe-member-access
+   53:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   53:21  error    Unsafe member access .title on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+   54:24  error    Unsafe member access .client_id on an `any` value                               @typescript-eslint/no-unsafe-member-access
+   54:48  error    Unsafe member access .client_id on an `any` value                               @typescript-eslint/no-unsafe-member-access
+   55:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   55:26  error    Unsafe member access .client_name on an `any` value                             @typescript-eslint/no-unsafe-member-access
+   56:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   56:26  error    Unsafe member access .proposal_id on an `any` value                             @typescript-eslint/no-unsafe-member-access
+   57:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   57:22  error    Unsafe member access .status on an `any` value                                  @typescript-eslint/no-unsafe-member-access
+   58:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   58:28  error    Unsafe member access .scheduled_for on an `any` value                           @typescript-eslint/no-unsafe-member-access
+   59:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   59:27  error    Unsafe member access .completed_at on an `any` value                            @typescript-eslint/no-unsafe-member-access
+   60:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   60:29  error    Unsafe member access .blocked_reason on an `any` value                          @typescript-eslint/no-unsafe-member-access
+   61:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   61:33  error    Unsafe member access .responsible_user_id on an `any` value                     @typescript-eslint/no-unsafe-member-access
+   62:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   62:24  error    Unsafe member access .priority on an `any` value                                @typescript-eslint/no-unsafe-member-access
+   63:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   63:21  error    Unsafe member access .notes on an `any` value                                   @typescript-eslint/no-unsafe-member-access
+   64:9   error    Unsafe assignment of an `any` value                                             @typescript-eslint/no-unsafe-assignment
+   64:25  error    Unsafe member access .updated_at on an `any` value                              @typescript-eslint/no-unsafe-member-access
+  160:46  warning  Unexpected any. Specify a different type                                        @typescript-eslint/no-explicit-any
+  161:9   error    'now' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/pages/settings/VendasParametrosInternosSettings.tsx
+  6:1  error  Imports "useBRNumberField" are only used as type  @typescript-eslint/consistent-type-imports
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/services/financialAnalysesApi.ts
+   8:17  warning  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  17:12  warning  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  23:9   error    Unsafe assignment of an `any` value           @typescript-eslint/no-unsafe-assignment
+  24:3   error    Unsafe return of a value of type `any`        @typescript-eslint/no-unsafe-return
+  24:29  error    Unsafe member access .data on an `any` value  @typescript-eslint/no-unsafe-member-access
+  24:42  error    Unsafe member access .data on an `any` value  @typescript-eslint/no-unsafe-member-access
+  37:9   error    Unsafe assignment of an `any` value           @typescript-eslint/no-unsafe-assignment
+  38:3   error    Unsafe return of a value of type `any`        @typescript-eslint/no-unsafe-return
+  38:15  error    Unsafe member access .data on an `any` value  @typescript-eslint/no-unsafe-member-access
+
+/home/runner/work/solarinvest-app/solarinvest-app/src/utils/renderPdf.tsx
+  20:26  error  Unsafe argument of type error typed assigned to a parameter of type `PrintableProposalProps`  @typescript-eslint/no-unsafe-argument
+  21:37  error  Unsafe argument of type error typed assigned to a parameter of type `PrintableProposalProps`  @typescript-eslint/no-unsafe-argument
+
+✖ 234 problems (218 errors, 16 warnings)
+  16 errors and 5 warnings potentially fixable with the `--fix` option.
+

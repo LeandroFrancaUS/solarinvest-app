@@ -9,7 +9,6 @@ import type {
   DashboardAlert,
   DashboardNotificationPreference,
   AlertSeverity,
-  AlertType,
 } from '../../types/operationalDashboard.js'
 
 /**

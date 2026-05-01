@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  type CrmIntegrationMode,
-  formatarDataCurta,
+  formatarDataCurta as _formatarDataCurta,
   useCrm,
   CrmPage,
   CrmPageActions,
@@ -49,8 +48,8 @@ import {
   isProposalPdfIntegrationAvailable,
   ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
-import { shouldUseBentoGrid } from './utils/pdfVariant'
-import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
+import { shouldUseBentoGrid as _shouldUseBentoGrid } from './utils/pdfVariant'
+import { renderBentoLeasingToHtml as _renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
 import { renderPrintableProposalToHtml, renderPrintableBuyoutTableToHtml } from './utils/renderPdf'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
