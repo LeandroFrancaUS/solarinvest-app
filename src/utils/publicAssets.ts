@@ -46,6 +46,10 @@ function resolveDocumentBaseUrl(): string | null {
       return directoryPath || DEFAULT_BASE_URL
     }
 
+    if (lastSlashIndex > 0) {
+      return pathname.slice(0, lastSlashIndex + 1)
+    }
+
     return ensureTrailingSlash(pathname)
   } catch {
     return null

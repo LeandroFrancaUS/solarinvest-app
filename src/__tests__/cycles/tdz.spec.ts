@@ -43,7 +43,7 @@ describe('cycles and TDZ guard rails', () => {
       resolve(__dirname, '../../../src/App.tsx'),
       'utf8',
     )
-    const declIndex = appSrc.indexOf('const [kcKwhMes, setKcKwhMesState]')
+    const declIndex = appSrc.indexOf('const kcKwhMes = useConsumoBaseStore(')
     // After the fix, simulacoesSection was removed from this dep array so that
     // auto-population of afCustoKit/afFrete runs regardless of the active section.
     // The guard here now checks for the updated dep array pattern.
