@@ -230,7 +230,8 @@ export async function handleFinancialCategories(req, res, { method, sendJson, re
     if (typeof readJsonBody === 'function') {
       try {
         body = await readJsonBody(req)
-      } catch {
+      } catch (parseErr) {
+        console.warn('[financial][categories] JSON parse error:', parseErr?.message)
         sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
         return
       }
