@@ -48,7 +48,7 @@ describe('Bento Grid Components', () => {
         </BentoCard>
       )
       
-      expect(html).toContain('bg-solar-brand')
+      expect(html).toContain('bg-amber-500')
       expect(html).toContain('Highlighted')
     })
 
@@ -59,7 +59,7 @@ describe('Bento Grid Components', () => {
         </BentoCard>
       )
       
-      expect(html).toContain('bg-solar-dark')
+      expect(html).toContain('bg-slate-900')
       expect(html).toContain('Dark Card')
     })
 
@@ -82,7 +82,7 @@ describe('Bento Grid Components', () => {
       
       expect(html).toContain('Test Title')
       expect(html).toContain('font-bold')
-      expect(html).toContain('text-slate-800')
+      expect(html).toContain('text-slate-400')
     })
   })
 
@@ -93,7 +93,7 @@ describe('Bento Grid Components', () => {
       )
       
       expect(html).toContain('Test Content')
-      expect(html).toContain('text-slate-600')
+      expect(html).toContain('text-slate-500')
       expect(html).toContain('text-sm')
     })
   })
@@ -123,7 +123,7 @@ describe('Bento Grid Components', () => {
       expect(html).toContain('Main Title')
       expect(html).toContain('Left Card')
       expect(html).toContain('Right Card')
-      expect(html).toContain('bg-solar-brand')
+      expect(html).toContain('bg-amber-500')
     })
   })
 })
