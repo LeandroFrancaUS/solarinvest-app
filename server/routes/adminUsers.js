@@ -411,13 +411,18 @@ export async function handleAdminUserRevokePermission(req, res, { sendJson, user
   sendJson(res, 200, { ok: true })
 }
 
-// DELETE /api/admin/users/:id  — permanently delete a user from DB and Stack Auth
+// DELETE /api/admin/users/:id  — deactivate a user (soft-delete).
+//
+// Soft-delete strategy: sets is_active = false, can_access_app = false, and
+// access_status = 'deleted' so the user record is preserved for audit trails.
+// Stack Auth account deletion is attempted best-effort to revoke login access.
+// The DB row is intentionally kept to preserve audit history and FK integrity.
 export async function handleAdminUserDelete(req, res, { sendJson, userId }) {
   const appUser = await getCurrentAppUser(req)
   requireAdmin(appUser)
 
   const { rows } = await query(
-    `SELECT id, auth_provider_user_id, email FROM public.app_user_access WHERE id = $1 LIMIT 1`,
+    `SELECT id, auth_provider_user_id, email, access_status FROM public.app_user_access WHERE id = $1 LIMIT 1`,
     [userId]
   )
   const target = rows[0]
@@ -426,12 +431,17 @@ export async function handleAdminUserDelete(req, res, { sendJson, userId }) {
     return
   }
 
+  if (target.access_status === 'deleted') {
+    sendJson(res, 409, { error: 'User is already deleted.' })
+    return
+  }
+
   const stackId = sanitizeString(target.auth_provider_user_id)
 
-  // Write audit BEFORE deleting so the record still exists for FK constraints
-  await writeAudit(userId, 'user_deleted', null, null, null, null, appUser)
+  // Write audit BEFORE changing state so current values are recorded
+  await writeAudit(userId, 'user_deleted', target.access_status, 'deleted', null, null, appUser)
 
-  // Delete from Stack Auth first (best-effort — proceed even on failure)
+  // Remove from Stack Auth first (best-effort — proceed even on failure)
   if (stackId) {
     const stackDeleted = await deleteStackUser(stackId)
     if (!stackDeleted) {
@@ -439,8 +449,13 @@ export async function handleAdminUserDelete(req, res, { sendJson, userId }) {
     }
   }
 
-  // Delete from DB
-  await query(`DELETE FROM public.app_user_access WHERE id = $1`, [userId])
+  // Soft-delete in DB: preserve row for audit history and FK integrity
+  await query(
+    `UPDATE public.app_user_access
+     SET is_active = false, can_access_app = false, access_status = 'deleted', updated_at = NOW()
+     WHERE id = $1`,
+    [userId]
+  )
 
   sendJson(res, 200, { ok: true })
 }

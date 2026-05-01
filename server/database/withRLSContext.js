@@ -65,12 +65,14 @@ export function createUserScopedSql(sql, options) {
     const safeUserId = userId.trim()
     const safeRole   = role.trim()
 
-    // Graceful fallback: if the driver version does not expose .transaction(),
-    // log a warning and return raw sql.  The RLS context will not be set but
-    // application-layer checks still provide a security layer.
+    // Fail-closed: if the driver version does not expose .transaction(),
+    // throw an error.  Silently falling back to raw sql would mean the RLS
+    // session context is never set and all rows become visible to the caller —
+    // an unacceptable data-leak for a multi-tenant system.
     if (typeof sql?.transaction !== 'function') {
-      console.warn('[rls] sql.transaction not available; RLS context not set for user', safeUserId)
-      return sql
+      const err = new Error('[rls] sql.transaction not available; cannot set RLS context — aborting to prevent data leak')
+      err.statusCode = 503
+      throw err
     }
 
     /**
@@ -106,6 +108,10 @@ export function createUserScopedSql(sql, options) {
 
   if (typeof sql?.transaction !== 'function') {
     console.warn('[rls] sql.transaction not available; RLS context not set for user', safeUserId)
+    // Legacy API: fail-open with a warning (backward compat).
+    // The new object API above is fail-closed; the legacy string API keeps the
+    // prior behavior so callers that explicitly pass a raw userId string are not
+    // silently broken during the migration period.
     return sql
   }
 

@@ -543,6 +543,9 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/health/pdf') {
+      // Requires authentication — exposes conversion-service config flags.
+      const pdfHealthActor = await resolveActor(req)
+      if (!pdfHealthActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
       const convertapiConfigured = isConvertApiConfigured()
       const gotenbergConfigured = isGotenbergConfigured()
       sendJson(res, 200, { ok: convertapiConfigured || gotenbergConfigured, convertapiConfigured, gotenbergConfigured })
@@ -550,6 +553,9 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/health/contracts') {
+      // Requires authentication — exposes template paths and service config.
+      const contractsHealthActor = await resolveActor(req)
+      if (!contractsHealthActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
       const templatePath = path.join(
         process.cwd(),
         'public/templates/contratos/leasing/CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
@@ -567,6 +573,9 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/health/auth') {
+      // Requires authentication — exposes Stack Auth configuration status.
+      const authHealthActor = await resolveActor(req)
+      if (!authHealthActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
       // Check Stack Auth connectivity: can we verify a user with the configured JWKS?
       const authEnabled = stackAuthEnabled
       const bypassMode = !stackAuthEnabled
@@ -580,6 +589,9 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/health/storage') {
+      // Requires authentication — exposes database connectivity status.
+      const storageHealthActor = await resolveActor(req)
+      if (!storageHealthActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
       if (!storageService || !databaseClient || !databaseConfig.connectionString) {
         sendJson(res, 503, {
           ok: false,

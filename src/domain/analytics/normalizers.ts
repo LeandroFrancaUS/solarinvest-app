@@ -42,10 +42,16 @@ function regionFromState(uf: string | null): string | null {
  * Accepts the shape returned by clientsApi.listClients().
  */
 export function normalizeClient(c: Record<string, unknown>): AnalyticsRecord {
+  // Accept both camelCase/snake_case variants and the server-side client_* prefix
+  // (client_name, client_document, client_email, client_phone) used by some API
+  // endpoints that join from a different table shape.
   const state = str(c.state ?? c.uf) ?? str(c.client_state)
   const closedAt = str(c.portfolio_exported_at ?? c.exported_to_portfolio_at)
   const activatedAt = str(c.clientActivatedAt ?? c.client_activated_at)
   const inPortfolio = Boolean(c.in_portfolio ?? c.inPortfolio ?? c.is_converted_customer)
+
+  // Resolve display name — accept client_name as additional alias for owner/consultant
+  const consultant = str(c.owner_display_name ?? c.ownerName ?? c.client_name ?? c.name ?? c.nome)
 
   // contract_value may come from energy_profile or latest_proposal_profile
   let contractValue = num(c.contract_value)
@@ -61,7 +67,7 @@ export function normalizeClient(c: Record<string, unknown>): AnalyticsRecord {
     createdAt: str(c.created_at ?? c.criadoEm),
     closedAt,
     activatedAt,
-    consultant: str(c.owner_display_name ?? c.ownerName),
+    consultant,
     city: str(c.city ?? c.cidade),
     state,
     region: regionFromState(state),

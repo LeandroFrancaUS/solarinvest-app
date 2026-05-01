@@ -37,6 +37,35 @@ describe('normalizeClient', () => {
     expect(r.contractValue).toBe(900)
   })
 
+  it('accepts client_name as consultant fallback (join-based rows)', () => {
+    const row = {
+      id: 'c10',
+      client_name: 'Empresa ABC',
+    }
+    const r = normalizeClient(row)
+    expect(r.consultant).toBe('Empresa ABC')
+  })
+
+  it('prefers owner_display_name over client_name when both present', () => {
+    const row = {
+      id: 'c11',
+      owner_display_name: 'Consultor X',
+      client_name: 'Empresa ABC',
+    }
+    const r = normalizeClient(row)
+    expect(r.consultant).toBe('Consultor X')
+  })
+
+  it('handles client_state as state fallback', () => {
+    const row = {
+      id: 'c12',
+      client_state: 'MG',
+    }
+    const r = normalizeClient(row)
+    expect(r.state).toBe('MG')
+    expect(r.region).toBe('Sudeste')
+  })
+
   it('handles null/missing fields gracefully', () => {
     const r = normalizeClient({ id: 'c3' })
     expect(r.id).toBe('c3')
