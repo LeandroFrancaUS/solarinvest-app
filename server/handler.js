@@ -451,6 +451,11 @@ export default async function handler(req, res) {
     }
 
     if (pathname === '/api/health/db') {
+      // Requires admin role — exposes database connectivity details.
+      const dbHealthActor = await resolveActor(req)
+      if (!dbHealthActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      if (actorRole(dbHealthActor) !== 'role_admin') { sendJson(res, 403, { error: 'Requer perfil admin.' }); return }
+
       if (!databaseClient || !databaseConfig.connectionString) {
         sendServerError(res, 503, {
           ok: false,
@@ -620,23 +625,41 @@ export default async function handler(req, res) {
 
     if (pathname === LEASING_CONTRACTS_PATH) {
       if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
+      else {
+        // Minimum auth when Stack Auth is not configured: any authenticated user.
+        const contractsActor = await resolveActor(req)
+        if (!contractsActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      }
       await handleLeasingContractsRequest(req, res)
       return
     }
 
     if (pathname === CONTRACT_RENDER_PATH) {
       if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
+      else {
+        const contractsActor = await resolveActor(req)
+        if (!contractsActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      }
       await handleContractRenderRequest(req, res)
       return
     }
 
     if (pathname === CONTRACT_TEMPLATES_PATH) {
       if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
+      else {
+        const contractsActor = await resolveActor(req)
+        if (!contractsActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      }
       await handleContractTemplatesRequest(req, res)
       return
     }
 
     if (pathname === TEST_API_PATH) {
+      // Requires admin role — used for DB diagnostics only, not for production use.
+      const testActor = await resolveActor(req)
+      if (!testActor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
+      if (actorRole(testActor) !== 'role_admin') { sendJson(res, 403, { error: 'Requer perfil admin.' }); return }
+
       if (!databaseClient || !databaseConfig.connectionString) {
         sendJson(res, 503, { error: 'Persistência indisponível' })
         return
@@ -1699,11 +1722,11 @@ export default async function handler(req, res) {
       return
     }
 
-    // GET /api/financial-management/categories
+    // GET|POST /api/financial-management/categories
     if (pathname === '/api/financial-management/categories') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
+      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
       const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialCategories(req, res, { method, sendJson: sj })
+      await handleFinancialCategories(req, res, { method, sendJson: sj, readJsonBody })
       return
     }
 
@@ -1801,11 +1824,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // PATCH /api/projects/:id/pv-data
+    // PATCH|PUT /api/projects/:id/pv-data
     {
       const pvDataMatch = pathname.match(/^\/api\/projects\/([^/]+)\/pv-data$/)
       if (pvDataMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
+        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,PUT,OPTIONS'); sendNoContent(res); return }
         const sj = (s, b) => sendJson(res, s, b)
         await handleProjectPvData(req, res, { method, projectId: pvDataMatch[1], readJsonBody, sendJson: sj })
         return
@@ -1913,3 +1936,6 @@ export default async function handler(req, res) {
     )
   }
 }
+
+// Named export used by server/index.js for local dev server
+export { handler as handleRequest }

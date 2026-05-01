@@ -8,6 +8,7 @@ import { resolveActor, actorRole } from '../proposals/permissions.js'
 import { hasPermission } from '../auth/permissionMap.js'
 import {
   listFinancialCategories,
+  createFinancialCategory,
   listFinancialEntries,
   getFinancialEntryById,
   createFinancialEntry,
@@ -212,18 +213,49 @@ export async function handleFinancialEntries(req, res, { method, sendJson, reque
 // GET /api/financial-management/categories
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleFinancialCategories(req, res, { method, sendJson }) {
+export async function handleFinancialCategories(req, res, { method, sendJson, readJsonBody }) {
   const actor = await resolveActor(req)
   if (!requireAccess(actor, sendJson)) return
 
-  if (method !== 'GET') {
-    sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
+  const sql = await getScopedSql(actor)
+
+  if (method === 'GET') {
+    const data = await listFinancialCategories(sql)
+    sendJson(200, { data })
     return
   }
 
-  const sql = await getScopedSql(actor)
-  const data = await listFinancialCategories(sql)
-  sendJson(200, { data })
+  if (method === 'POST') {
+    let body = {}
+    if (typeof readJsonBody === 'function') {
+      try {
+        body = await readJsonBody(req)
+      } catch (parseErr) {
+        console.warn('[financial][categories] JSON parse error:', parseErr?.message)
+        sendJson(400, { error: { code: 'INVALID_JSON', message: 'JSON inválido na requisição.' } })
+        return
+      }
+    }
+    const name = typeof body?.name === 'string' ? body.name.trim() : ''
+    const type = typeof body?.type === 'string' ? body.type.trim() : ''
+    if (!name || !type) {
+      sendJson(400, { error: { code: 'VALIDATION_ERROR', message: 'Campos name e type são obrigatórios.' } })
+      return
+    }
+    const VALID_TYPES = ['income', 'expense', 'both']
+    const VALID_SCOPES = ['company', 'project', 'both']
+    if (!VALID_TYPES.includes(type)) {
+      sendJson(400, { error: { code: 'VALIDATION_ERROR', message: `type deve ser um de: ${VALID_TYPES.join(', ')}.` } })
+      return
+    }
+    const scope = VALID_SCOPES.includes(body?.scope) ? body.scope : 'both'
+    const sort_order = typeof body?.sort_order === 'number' ? body.sort_order : 0
+    const category = await createFinancialCategory(sql, { name, type, scope, sort_order })
+    sendJson(201, { data: category })
+    return
+  }
+
+  sendJson(405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

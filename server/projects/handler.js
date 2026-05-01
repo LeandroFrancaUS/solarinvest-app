@@ -251,12 +251,12 @@ export async function handleProjectStatus(req, res, { method, projectId, readJso
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/projects/:id/pv-data
+// PATCH|PUT /api/projects/:id/pv-data
 // ─────────────────────────────────────────────────────────────────────────────
 export async function handleProjectPvData(req, res, { method, projectId, readJsonBody, sendJson }) {
   const actor = await resolveActor(req)
   if (!requireWrite(actor, sendJson)) return
-  if (method !== 'PATCH') {
+  if (method !== 'PATCH' && method !== 'PUT') {
     sendError(sendJson, 405, 'METHOD_NOT_ALLOWED', 'Método não permitido.')
     return
   }

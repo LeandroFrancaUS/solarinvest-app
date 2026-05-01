@@ -60,6 +60,20 @@ export async function listFinancialCategories(sql) {
   return rows
 }
 
+/**
+ * Creates a new financial category.
+ * @param {import('postgres').Sql} sql
+ * @param {{ name: string, type: string, scope?: string, sort_order?: number }} data
+ */
+export async function createFinancialCategory(sql, { name, type, scope = 'both', sort_order = 0 }) {
+  const rows = await sql`
+    INSERT INTO financial_categories (name, type, scope, sort_order, is_active, created_at, updated_at)
+    VALUES (${name}, ${type}, ${scope}, ${sort_order}, TRUE, NOW(), NOW())
+    RETURNING id::text, name, type, scope, is_active, sort_order, created_at, updated_at
+  `
+  return rows[0]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Financial Entries — CRUD
 // ─────────────────────────────────────────────────────────────────────────────
