@@ -8,11 +8,11 @@
 export async function findClientsByName(sql, name) {
   if (!name?.trim()) return []
   const rows = await sql`
-    SELECT id, name, state, city, document
+    SELECT id, client_name AS name, client_state AS state, client_city AS city, client_document AS document
     FROM clients
     WHERE deleted_at IS NULL
-      AND LOWER(TRIM(name)) LIKE LOWER(${`%${name.trim()}%`})
-    ORDER BY name
+      AND LOWER(TRIM(client_name)) LIKE LOWER(${`%${name.trim()}%`})
+    ORDER BY client_name
     LIMIT 10
   `
   return rows
@@ -22,11 +22,11 @@ export async function findClientsByName(sql, name) {
 export async function findClientByNameAndState(sql, name, state) {
   if (!name?.trim()) return null
   const rows = await sql`
-    SELECT id, name, state, city, document
+    SELECT id, client_name AS name, client_state AS state, client_city AS city, client_document AS document
     FROM clients
     WHERE deleted_at IS NULL
-      AND LOWER(TRIM(name)) = LOWER(TRIM(${name.trim()}))
-      AND (${state ?? null}::TEXT IS NULL OR UPPER(TRIM(COALESCE(state,''))) = UPPER(TRIM(${state ?? ''})))
+      AND LOWER(TRIM(client_name)) = LOWER(TRIM(${name.trim()}))
+      AND (${state ?? null}::TEXT IS NULL OR UPPER(TRIM(COALESCE(client_state,''))) = UPPER(TRIM(${state ?? ''})))
     LIMIT 1
   `
   return rows[0] ?? null
@@ -35,7 +35,7 @@ export async function findClientByNameAndState(sql, name, state) {
 /** Create a new client. Returns the created row. */
 export async function insertClient(sql, { name, state, city, userId }) {
   const rows = await sql`
-    INSERT INTO clients (name, state, city, user_id, created_at, updated_at)
+    INSERT INTO clients (client_name, client_state, client_city, user_id, created_at, updated_at)
     VALUES (
       ${name.trim()},
       ${state?.trim() ?? null},
@@ -43,7 +43,7 @@ export async function insertClient(sql, { name, state, city, userId }) {
       ${userId ?? null},
       NOW(), NOW()
     )
-    RETURNING id, name, state, city
+    RETURNING id, client_name AS name, client_state AS state, client_city AS city
   `
   return rows[0]
 }

@@ -323,7 +323,7 @@ export async function getInvoiceNotifications(sql, config) {
       inv.due_date,
       inv.amount,
       inv.payment_status,
-      c.name as client_name,
+      c.client_name as client_name,
       EXTRACT(DAY FROM (inv.due_date - CURRENT_DATE)) as days_until_due
     FROM public.client_invoices inv
     INNER JOIN public.clients c ON c.id = inv.client_id
