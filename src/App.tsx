@@ -172,7 +172,7 @@ import './styles/bulk-import.css'
 import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
-import { AppShell } from './layout/AppShell'
+import { AppShell, type AppShellProps } from './layout/AppShell'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { resolveUserRole } from './features/auth/permissions'
@@ -330,6 +330,7 @@ import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
+import type { ClienteDadosForConversion } from './domain/conversion/resolve-closed-deal-payload'
 import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
 import { setRevenueBillingTokenProvider } from './services/revenueBillingApi'
 import { setProjectsTokenProvider } from './services/projectsApi'
@@ -402,7 +403,7 @@ import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
-import { BudgetSearchPage } from './pages/BudgetSearchPage'
+import { BudgetSearchPage, type BudgetSearchPageProps } from './pages/BudgetSearchPage'
 import { ComercialLeadsPage } from './pages/ComercialLeadsPage'
 import { ComercialPropostasPage } from './pages/ComercialPropostasPage'
 import { PrecheckModal } from './pages/PrecheckModal'
@@ -769,7 +770,6 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
   return (
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
     toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     toFiniteNonNegativeNumber((snapshot.vendaSnapshot as unknown as { financiamento?: { prazoMeses?: unknown } })?.financiamento?.prazoMeses) ??
     null
   )
@@ -1188,7 +1188,6 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
           consumoKWh: String(item.consumoKWh ?? ''),
           rateioPercentual: String(item.rateioPercentual ?? ''),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
@@ -1351,9 +1350,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     inPortfolio: Boolean(row.in_portfolio),
     clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     system_kwp: row.systemKwp ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     term_months: row.termMonths ?? null,
     dados,
     ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
@@ -2281,7 +2278,6 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
     cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
     clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
     ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     pageShared: s.pageShared ? { ...s.pageShared } : ({} as OrcamentoSnapshotData['pageShared']),
     configuracaoUsinaObservacoes: s.configuracaoUsinaObservacoes ?? '',
     propostaImagens: Array.isArray(s.propostaImagens)
@@ -12336,7 +12332,6 @@ export default function App() {
       cliente: cloneClienteDados(snapshot.cliente ?? base.cliente),
       clienteMensagens: snapshot.clienteMensagens ?? base.clienteMensagens,
       ucBeneficiarias: snapshot.ucBeneficiarias ?? base.ucBeneficiarias,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       pageShared: { ...base.pageShared, ...(snapshot.pageShared ?? {}) },
       budgetStructuredItems: snapshot.budgetStructuredItems ?? base.budgetStructuredItems,
       kitBudget: snapshot.kitBudget ?? base.kitBudget,
@@ -13592,7 +13587,7 @@ export default function App() {
             consultorId: registro.dados.consultorId ?? null,
             ownerUserId: registro.ownerUserId ?? null,
             createdByUserId: registro.createdByUserId ?? null,
-          },
+          } as ClienteDadosForConversion,
           snapshot: (registro.propostaSnapshot ?? {}) as ProposalSnapshotInput,
           consultants: formConsultores,
           ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
@@ -14210,12 +14205,9 @@ export default function App() {
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
     snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     snapshot.pageShared = {
       ...snapshot.pageShared,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
 
@@ -14228,7 +14220,6 @@ export default function App() {
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     setPageSharedState({ ...snapshot.pageShared })
     switchBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
@@ -18812,9 +18803,9 @@ export default function App() {
       <AppRoutes>
         <AppShell
           topbar={{
-            subtitle: shellTopbarSubtitle,
-            mobileSubtitle: mobileTopbarSubtitle,
-          }}
+            ...(shellTopbarSubtitle !== undefined ? { subtitle: shellTopbarSubtitle } : {}),
+            ...(mobileTopbarSubtitle !== undefined ? { mobileSubtitle: mobileTopbarSubtitle } : {}),
+          } as AppShellProps['topbar']}
           sidebar={{
             collapsed: isSidebarCollapsed,
             mobileOpen: isSidebarMobileOpen,
@@ -18822,35 +18813,31 @@ export default function App() {
             activeItemId: activeSidebarItem,
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
-            onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
+            ...(isMobileViewport ? {} : { onToggleCollapse: handleSidebarMenuToggle }),
             menuButtonLabel,
             menuButtonExpanded,
             menuButtonText: 'Painel SolarInvest',
-            userInfo: user?.displayName
-              ? { name: user.displayName, role: userRole }
-              : undefined,
-          }}
+            ...(user?.displayName ? { userInfo: { name: user.displayName, role: userRole } } : {}),
+          } as AppShellProps['sidebar']}
           content={{
-            subtitle: shellContentSubtitle,
-            actions: contentActions ?? undefined,
-            pageIndicator: shellPageIndicator,
-            className: activePage === 'app' ? 'content-wrap--proposal' : undefined,
-          }}
-          mobileMenuButton={
-            isMobileViewport
-              ? {
-                  onToggle: handleSidebarMenuToggle,
-                  label: isSidebarMobileOpen
-                    ? 'Fechar menu Painel SolarInvest'
-                    : 'Abrir menu Painel SolarInvest',
-                  expanded: isSidebarMobileOpen,
-                  ...(user?.displayName ? { userInfo: { name: user.displayName, role: userRole } } : {}),
-                }
-              : undefined
-          }
+            ...(shellContentSubtitle !== undefined ? { subtitle: shellContentSubtitle } : {}),
+            ...(contentActions != null ? { actions: contentActions } : {}),
+            ...(shellPageIndicator !== undefined ? { pageIndicator: shellPageIndicator } : {}),
+            ...(activePage === 'app' ? { className: 'content-wrap--proposal' } : {}),
+          } as AppShellProps['content']}
+          {...(isMobileViewport ? {
+            mobileMenuButton: {
+              onToggle: handleSidebarMenuToggle,
+              label: isSidebarMobileOpen
+                ? 'Fechar menu Painel SolarInvest'
+                : 'Abrir menu Painel SolarInvest',
+              expanded: isSidebarMobileOpen,
+              ...(user?.displayName ? { userInfo: { name: user.displayName, role: userRole } } : {}),
+            } as NonNullable<AppShellProps['mobileMenuButton']>,
+          } : {})}
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
-          onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
+          {...(isAdmin ? { onOpenPreferences: () => { void abrirConfiguracoes() } } : {})}
           onLogout={() => { void handleLogout() }}
           isLoggingOut={isLoggingOut}
         >
@@ -18899,7 +18886,7 @@ export default function App() {
           />
         ) : activePage === 'consultar' ? (
           <BudgetSearchPage
-            registros={orcamentosSalvos}
+            registros={orcamentosSalvos as BudgetSearchPageProps['registros']}
             isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
             isProposalReadOnly={isProposalReadOnly}
             onClose={fecharPesquisaOrcamentos}
@@ -18911,12 +18898,9 @@ export default function App() {
           <ClientesPage
             registros={clientesSalvos}
             onClose={fecharClientesPainel}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onEditar={handleEditarCliente}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onExcluir={handleExcluirCliente}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onExportarCarteira={handleExportarParaCarteira}
+            onEditar={(r) => { void handleEditarCliente(r as ClienteRegistro) }}
+            onExcluir={(r) => { void handleExcluirCliente(r as ClienteRegistro) }}
+            onExportarCarteira={(r) => { void handleExportarParaCarteira(r as ClienteRegistro) }}
             onExportarCsv={handleExportarClientesCsv}
             onExportarJson={handleExportarClientesJson}
             onImportar={handleClientesImportarClick}
