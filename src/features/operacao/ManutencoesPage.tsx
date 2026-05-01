@@ -7,7 +7,7 @@ import {
   createMaintenanceJob,
   type MaintenanceFilters,
 } from './operationsApi'
-import type { MaintenanceJob, CreateMaintenanceJobPayload, MaintenanceType, MaintenanceStatus } from './operationTypes'
+import type { MaintenanceJob, CreateMaintenanceJobPayload, MaintenanceType } from './operationTypes'
 import { MAINTENANCE_TYPES, MAINTENANCE_STATUSES } from './operationTypes'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -190,7 +190,7 @@ export function ManutencoesPage() {
                 <tr key={m.id}>
                   <td>{m.maintenance_type ?? '—'}</td>
                   <td>
-                    <span className={`operacao-badge operacao-badge-${m.status as MaintenanceStatus}`}>
+                    <span className={`operacao-badge operacao-badge-${m.status}`}>
                       {m.status}
                     </span>
                   </td>

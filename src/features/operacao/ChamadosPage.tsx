@@ -7,7 +7,7 @@ import {
   createTicket,
   type TicketFilters,
 } from './operationsApi'
-import type { ServiceTicket, CreateTicketPayload, TicketPriority, TicketStatus } from './operationTypes'
+import type { ServiceTicket, CreateTicketPayload, TicketPriority } from './operationTypes'
 import { TICKET_PRIORITIES, TICKET_STATUSES } from './operationTypes'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -193,12 +193,12 @@ export function ChamadosPage() {
                 <tr key={t.id}>
                   <td>{t.title}</td>
                   <td>{t.priority ? (
-                    <span className={`operacao-badge operacao-badge-priority-${t.priority as TicketPriority}`}>
+                    <span className={`operacao-badge operacao-badge-priority-${t.priority}`}>
                       {t.priority}
                     </span>
                   ) : '—'}</td>
                   <td>
-                    <span className={`operacao-badge operacao-badge-${t.status as TicketStatus}`}>
+                    <span className={`operacao-badge operacao-badge-${t.status}`}>
                       {t.status}
                     </span>
                   </td>

@@ -8,7 +8,6 @@ import {
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
-import { createRoot } from 'react-dom/client'
 
 import {
   selectCreditoMensal,
@@ -77,14 +76,13 @@ import {
 } from './app/services/clientStore'
 import {
   computeROI,
-  type ModoPagamento,
   type PagamentoCondicao,
   type RetornoProjetado,
   type SegmentoCliente,
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
@@ -107,7 +105,6 @@ import {
   formatMoneyBR,
   formatNumberBR,
   formatNumberBRWithOptions,
-  formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
@@ -128,7 +125,7 @@ import {
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
-import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
+import { searchCidades, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -166,12 +163,6 @@ import {
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
-import {
-  getPagamentoCondicaoInfo,
-  getPagamentoModoInfo,
-  PAGAMENTO_CONDICAO_INFO,
-  PAGAMENTO_MODO_INFO,
-} from './constants/pagamento'
 import { TIPOS_INSTALACAO, TIPOS_REDE } from './constants/instalacao'
 import './styles/config-page.css'
 import './styles/toast.css'
@@ -180,7 +171,6 @@ import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
-import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { resolveUserRole } from './features/auth/permissions'
@@ -194,10 +184,8 @@ import {
   INITIAL_VALUES,
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
-  SETTINGS_TABS,
   SIMULACOES_SECTIONS,
   STORAGE_KEYS,
-  UF_LABELS,
   createEmptyKitBudget,
   createInitialComposicaoSolo,
   createInitialComposicaoTelhado,
@@ -218,14 +206,13 @@ import {
 } from './app/config'
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { MULTI_UC_CLASSES, MULTI_UC_CLASS_LABELS, type MultiUcClasse } from './types/multiUc'
+import { type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
-  type RegimeTributario,
 } from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
@@ -259,13 +246,11 @@ import {
   TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
-import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
   currency,
   formatAxis,
   formatCep,
   formatCpfCnpj,
-  formatKwhWithUnit,
   formatTelefone,
   formatUcGeradoraTitularEndereco,
   normalizeNumbers,
@@ -281,7 +266,6 @@ import {
   getDistribuidoraDefaultForUf,
   resolveUfForDistribuidora,
 } from './utils/distribuidoraHelpers'
-import { Switch } from './components/ui/switch'
 import { useStackUser } from './app/stack-context'
 import { performLogout } from './lib/auth/logout'
 import { useStackRbac } from './lib/auth/rbac'
@@ -334,11 +318,9 @@ import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
-import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { CobrancasDashboardPage } from './features/cobrancas/CobrancasDashboardPage'
 import type { CobrancasTab } from './features/cobrancas/CobrancasDashboardPage'
 import { IndicadoresDashboardPage } from './features/indicadores/IndicadoresDashboardPage'
-import type { IndicadoresTab } from './features/indicadores/IndicadoresDashboardPage'
 import { RelatoriosPage } from './features/relatorios/RelatoriosPage'
 import type { RelatoriosTab } from './features/relatorios/reportTypes'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
@@ -355,10 +337,9 @@ import { setProjectHubTokenProvider } from './features/projectHub/projectsApi'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection, OperacaoSection } from './types/navigation'
 import { OPERACAO_SECTION_LABELS } from './types/navigation'
-import { PlaceholderPage } from './pages/PlaceholderPage'
 import { ProjectHubPage } from './features/projectHub/ProjectHubPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { useProjectStore } from './features/projectHub/useProjectStore'
@@ -432,8 +413,6 @@ import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSectio
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { LeasingConfiguracaoUsinaSection } from './components/LeasingConfiguracaoUsinaSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
-import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
-import { TusdParametersSection } from './components/TusdParametersSection'
 import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
 import { VendaParametrosSection } from './components/VendaParametrosSection'
 import type { ClienteMensagens } from './types/cliente'
@@ -464,16 +443,9 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
-const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
-
-const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
-  simples: 'Simples Nacional',
-  lucro_presumido: 'Lucro Presumido',
-  lucro_real: 'Lucro Real',
-}
 
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
@@ -2399,7 +2371,7 @@ const stripSnapshotForStorage = (
  * Serialize a list of client records for localStorage / remote storage.
  * Strips heavy snapshot fields so the payload stays within quota limits.
  */
-const serializeClientesForStorage = (registros: ClienteRegistro[]): string => {
+function serializeClientesForStorage(registros: ClienteRegistro[]): string {
   const lite = registros.map((r) => ({
     ...r,
     propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
@@ -3025,13 +2997,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   }
 }
 
-const formatBudgetDate = (isoString: string) => {
-  const parsed = new Date(isoString)
-  if (Number.isNaN(parsed.getTime())) {
-    return ''
-  }
-  return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
-}
 
 type ClienteContratoPayload = {
   nomeCompleto: string
@@ -4489,8 +4454,6 @@ export default function App() {
       const registroClonado = cloneOrcamentoSalvo(registro)
       setOrcamentoRegistroBase(registroClonado)
       setOrcamentoDisponivelParaDuplicar(registroClonado)
-      setOrcamentoVisualizado(null)
-      setOrcamentoVisualizadoInfo(null)
       const signatureOverride = registro.snapshot
         ? computeSnapshotSignature(registro.snapshot, dadosClonados)
         : null
@@ -5809,7 +5772,7 @@ export default function App() {
     setDistribuidoraTarifaState((prev) =>
       prev === snapshot.distribuidoraTarifa ? prev : snapshot.distribuidoraTarifa,
     )
-    setPotenciaModuloState((prev) => (prev === snapshot.potenciaModulo ? prev : snapshot.potenciaModulo))
+    setPotenciaModuloState(snapshot.potenciaModulo)
     setNumeroModulosManualState((prev) =>
       prev === snapshot.numeroModulosManual ? prev : snapshot.numeroModulosManual,
     )
@@ -5826,9 +5789,7 @@ export default function App() {
     setPotenciaFonteManualState((prev) =>
       prev === snapshot.potenciaFonteManual ? prev : snapshot.potenciaFonteManual,
     )
-    setPotenciaModuloDirtyState((prev) =>
-      prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
-    )
+    setPotenciaModuloDirtyState(snapshot.potenciaModuloDirty)
     setTipoInstalacaoDirtyState((prev) =>
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
@@ -5974,17 +5935,17 @@ export default function App() {
 
   const crmState = useCrm({ adicionarNotificacao })
   const {
-    crmIntegrationMode,
-    setCrmIntegrationMode,
-    crmIsSaving,
-    crmBackendStatus,
-    crmBackendError,
-    crmLastSync,
+    crmIntegrationMode: _crmIntegrationMode,
+    setCrmIntegrationMode: _setCrmIntegrationMode,
+    crmIsSaving: _crmIsSaving,
+    crmBackendStatus: _crmBackendStatus,
+    crmBackendError: _crmBackendError,
+    crmLastSync: _crmLastSync,
     crmDataset,
-    crmKpis,
-    crmFinanceiroResumo,
-    crmPosVendaResumo,
-    handleSyncCrmManualmente,
+    crmKpis: _crmKpis,
+    crmFinanceiroResumo: _crmFinanceiroResumo,
+    crmPosVendaResumo: _crmPosVendaResumo,
+    handleSyncCrmManualmente: _handleSyncCrmManualmente,
   } = crmState
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
@@ -8062,7 +8023,7 @@ export default function App() {
     void getIrradiacaoPorEstado(estadoAtual)
       .then(({ value, matched, via }) => {
         if (cancelado) return
-        setIrradiacao((prev) => (prev === value ? prev : value))
+        setIrradiacao(value)
         if (!matched) {
           console.warn(
             `[Irradiação] Estado "${estadoAtual}" não encontrado (${via}), usando fallback de ${formatNumberBRWithOptions(value, {
@@ -16724,7 +16685,6 @@ export default function App() {
     const canProceed = await runWithUnsavedChangesGuard(async () => {
       const registros = await carregarOrcamentosPrioritarios()
       setOrcamentosSalvos(registros)
-      setOrcamentoSearchTerm('')
       setActivePage('consultar')
     })
 
@@ -16756,7 +16716,7 @@ export default function App() {
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
 
-  const abrirAdminUsuarios = useCallback(async () => {
+  const _abrirAdminUsuarios = useCallback(async () => {
     if (!canSeeUsersEffective) return false
     return abrirConfiguracoes('usuarios')
   }, [abrirConfiguracoes, canSeeUsersEffective])
@@ -16922,7 +16882,6 @@ export default function App() {
       fieldSyncActions.reset()
       setSettingsTab(INITIAL_VALUES.settingsTab)
       setActivePage('app')
-      setOrcamentoSearchTerm('')
       limparOrcamentoAtivo()
       setBudgetStructuredItems([])
       setKitBudget(createEmptyKitBudget())
@@ -18757,20 +18716,20 @@ export default function App() {
     canSeeFinancialAnalysisEffective,
     isAdmin,
     userRole: userRoleFrontend,
-    abrirDashboard,
-    abrirCarteira,
-    abrirGestaoFinanceira,
-    abrirDashboardOperacional,
-    handleNavigateToProposalTab,
+    abrirDashboard: () => { void abrirDashboard() },
+    abrirCarteira: () => { void abrirCarteira() },
+    abrirGestaoFinanceira: () => { void abrirGestaoFinanceira() },
+    abrirDashboardOperacional: () => { void abrirDashboardOperacional() },
+    handleNavigateToProposalTab: (tab: 'leasing' | 'vendas') => { void handleNavigateToProposalTab(tab) },
     abrirSimulacoes,
-    handleGerarContratosComConfirmacao,
+    handleGerarContratosComConfirmacao: () => { void handleGerarContratosComConfirmacao() },
     abrirEnvioPropostaModal,
-    abrirPesquisaOrcamentos,
+    abrirPesquisaOrcamentos: () => { void abrirPesquisaOrcamentos() },
     setActivePage,
-    abrirCrmCentral,
-    abrirClientesPainel,
+    abrirCrmCentral: () => { void abrirCrmCentral() },
+    abrirClientesPainel: () => { void abrirClientesPainel() },
     abrirConfiguracoes: () => { void abrirConfiguracoes() },
-    handleLogout,
+    handleLogout: () => { void handleLogout() },
     abrirOperacaoPlaceholder,
     abrirComercialLeads,
     abrirComercialPropostas,
@@ -18796,10 +18755,10 @@ export default function App() {
     mobileTopbarSubtitle,
     shellContentSubtitle,
     shellPageIndicator,
-    mobileAllowedIds,
-    allSidebarItems,
+    mobileAllowedIds: _mobileAllowedIds,
+    allSidebarItems: _allSidebarItems,
     mobileSidebarGroups,
-    desktopSimpleSidebarGroups,
+    desktopSimpleSidebarGroups: _desktopSimpleSidebarGroups,
     activeSidebarItem,
     menuButtonLabel,
     menuButtonExpanded,
@@ -18886,7 +18845,7 @@ export default function App() {
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
           onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
-          onLogout={handleLogout}
+          onLogout={() => { void handleLogout() }}
           isLoggingOut={isLoggingOut}
         >
         <div className="printable-proposal-hidden" aria-hidden="true">
@@ -18938,11 +18897,8 @@ export default function App() {
             isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
             isProposalReadOnly={isProposalReadOnly}
             onClose={fecharPesquisaOrcamentos}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onCarregarOrcamento={carregarOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onAbrirOrcamento={abrirOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
             onConfirmarRemocao={confirmarRemocaoOrcamento}
           />
         ) : activePage === 'clientes' ? (

@@ -1,28 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CRM_BACKEND_BASE_URL, CRM_EMPTY_LEAD_FORM, CRM_LOCAL_STORAGE_KEY, CRM_PIPELINE_STAGES, CRM_STAGE_INDEX } from './crmConstants'
 import { carregarDatasetCrm, diasDesdeDataIso, formatarDataCurta, gerarIdCrm, normalizarTextoCrm } from './crmUtils'
 import { normalizeNumbers } from '../../utils/formatters'
 import type {
-  CrmAdicionarNotificacaoFn,
   CrmBackendStatus,
   CrmContratoFinanceiro,
   CrmContratoFormState,
   CrmCustoProjeto,
   CrmCustosFormState,
   CrmDataset,
-  CrmFinanceiroResumoData,
   CrmFiltroOperacao,
   CrmFinanceiroStatus,
   CrmGeracaoItem,
-  CrmIndicadoresGerenciaisData,
   CrmIntegrationMode,
-  CrmKpisData,
   CrmLeadFormState,
   CrmLeadRecord,
   CrmManutencaoFormState,
   CrmManutencaoRegistro,
   CrmMargemItem,
-  CrmPosVendaResumoData,
   CrmStageId,
   CrmTimelineEntry,
   UseCrmDeps,
@@ -397,7 +392,7 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
   }, [])
 
   const handleCrmLeadFormSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
       const consumoNumerico = Number(crmLeadForm.consumoKwhMes.replace(',', '.'))
@@ -686,7 +681,7 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
   )
 
   const handleSalvarCustosCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
       if (!crmLeadSelecionado) {
@@ -735,7 +730,7 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
   )
 
   const handleSalvarContratoCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
       const leadAlvoId = crmContratoForm.leadId || crmLeadSelecionado?.id
@@ -801,7 +796,7 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
   )
 
   const handleAdicionarManutencaoCrm = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
       const leadAlvoId = crmManutencaoForm.leadId || crmLeadSelecionado?.id

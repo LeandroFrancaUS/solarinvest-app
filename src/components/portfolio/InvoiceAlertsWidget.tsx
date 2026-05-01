@@ -9,7 +9,7 @@ interface InvoiceAlertsWidgetProps {
   onInvoiceClick?: (clientId: number) => void
 }
 
-const ALERT_STYLES: Record<string, { bg: string; border: string; icon: string; label: string }> = {
+const ALERT_STYLES: Record<'a_vencer' | 'vence_hoje' | 'vencida', { bg: string; border: string; icon: string; label: string }> = {
   vencida: { bg: 'rgba(239,68,68,0.08)', border: '#ef4444', icon: '🔴', label: 'Vencida' },
   vence_hoje: { bg: 'rgba(245,158,11,0.08)', border: '#f59e0b', icon: '🟡', label: 'Vence Hoje' },
   a_vencer: { bg: 'rgba(59,130,246,0.08)', border: '#3b82f6', icon: '🔵', label: 'A Vencer' },

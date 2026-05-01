@@ -62,7 +62,7 @@ function fmtDate(value: string | null | undefined): string {
   if (!value) return '—'
   const parts = value.slice(0, 10).split('-').map(Number)
   if (parts.length < 3) return '—'
-  const date = new Date(parts[0]!, parts[1]! - 1, parts[2]!)
+  const date = new Date(parts[0]!, parts[1]! - 1, parts[2])
   return isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR')
 }
 
@@ -84,7 +84,7 @@ function diasAtraso(dueDate: string): number {
   const today = new Date()
   const parts = dueDate.slice(0, 10).split('-').map(Number)
   if (parts.length < 3) return 0
-  const due = new Date(parts[0]!, parts[1]! - 1, parts[2]!)
+  const due = new Date(parts[0]!, parts[1]! - 1, parts[2])
   const diff = today.getTime() - due.getTime()
   return Math.max(0, Math.floor(diff / 86_400_000))
 }

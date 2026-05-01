@@ -7,7 +7,7 @@ import {
   createOperationEvent,
   type EventFilters,
 } from './operationsApi'
-import type { OperationEvent, CreateOperationEventPayload, OperationEventStatus } from './operationTypes'
+import type { OperationEvent, CreateOperationEventPayload } from './operationTypes'
 import { OPERATION_EVENT_STATUSES } from './operationTypes'
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error'
@@ -166,7 +166,7 @@ export function AgendaPage() {
                   <td>{new Date(ev.starts_at).toLocaleString('pt-BR')}</td>
                   <td>{ev.event_type ?? '—'}</td>
                   <td>
-                    <span className={`operacao-badge operacao-badge-${ev.status as OperationEventStatus}`}>
+                    <span className={`operacao-badge operacao-badge-${ev.status}`}>
                       {ev.status}
                     </span>
                   </td>
