@@ -41,6 +41,23 @@ if (!connectionString) {
 
 const sql = neon(connectionString)
 
+// ── Allowlists (prevent injection if caller passes untrusted opts) ─────────────
+
+const ALLOWED_TABLE_NAMES = new Set([
+  'clients',
+  'proposals',
+  'client_contracts',
+  'projects',
+  'client_invoices',
+  'financial_entries',
+  'dashboard_operational_tasks',
+  'schema_migrations',
+  'client_audit_log',
+  'app_user_access',
+])
+
+const ALLOWED_SUM_COLUMNS = new Set(['amount'])
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function tableExists(tableName) {
@@ -55,6 +72,13 @@ async function tableExists(tableName) {
  * Returns zero-values if the table does not exist yet.
  */
 async function aggregateTable(tableName, opts = {}) {
+  if (!ALLOWED_TABLE_NAMES.has(tableName)) {
+    throw new Error(`[snapshot] Table '${tableName}' not in allowlist — refusing to query.`)
+  }
+  if (opts.sumColumn && !ALLOWED_SUM_COLUMNS.has(opts.sumColumn)) {
+    throw new Error(`[snapshot] sumColumn '${opts.sumColumn}' not in allowlist — refusing to query.`)
+  }
+
   const exists = await tableExists(tableName)
   if (!exists) {
     console.warn(`[snapshot] Table public.${tableName} not found — recording zeros.`)

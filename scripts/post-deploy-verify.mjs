@@ -117,6 +117,23 @@ const THRESHOLDS = {
   },
 }
 
+// ── Allowlists ────────────────────────────────────────────────────────────────
+
+const ALLOWED_TABLE_NAMES = new Set([
+  'clients',
+  'proposals',
+  'client_contracts',
+  'projects',
+  'client_invoices',
+  'financial_entries',
+  'dashboard_operational_tasks',
+  'schema_migrations',
+  'client_audit_log',
+  'app_user_access',
+])
+
+const ALLOWED_SUM_COLUMNS = new Set(['amount'])
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function tableExists(tableName) {
@@ -127,6 +144,13 @@ async function tableExists(tableName) {
 }
 
 async function aggregateTable(tableName, opts = {}) {
+  if (!ALLOWED_TABLE_NAMES.has(tableName)) {
+    throw new Error(`[verify] Table '${tableName}' not in allowlist.`)
+  }
+  if (opts.sumColumn && !ALLOWED_SUM_COLUMNS.has(opts.sumColumn)) {
+    throw new Error(`[verify] sumColumn '${opts.sumColumn}' not in allowlist.`)
+  }
+
   const exists = await tableExists(tableName)
   if (!exists) return { total: 0, totalDistinctIds: 0, totalAmount: null }
 

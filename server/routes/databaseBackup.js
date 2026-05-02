@@ -44,16 +44,51 @@ async function safeSelectAll(sql, schema, table, orderBy = 'id ASC') {
 /**
  * Returns lightweight aggregate metrics for a table without fetching all rows.
  *
+ * All identifier parameters (schema, table, sumColumn) are validated against
+ * a strict allowlist before being interpolated into SQL to prevent injection.
+ *
  * @param {Function} sql         - Neon tagged-template SQL function
- * @param {string}   schema      - e.g. 'public'
- * @param {string}   table       - table name
+ * @param {string}   schema      - must be 'public'
+ * @param {string}   table       - must be one of ALLOWED_AGG_TABLES
  * @param {object}   [opts]
- * @param {string}   [opts.sumColumn]     - column name to SUM (e.g. 'amount')
+ * @param {string}   [opts.sumColumn]     - column name to SUM; must be one of ALLOWED_SUM_COLUMNS
  * @param {boolean}  [opts.filterDeleted] - if true, adds WHERE deleted_at IS NULL
  * @returns {{ total: number, totalDistinctIds: number, totalAmount: number|null }}
  */
+
+const ALLOWED_AGG_SCHEMAS = new Set(['public'])
+
+const ALLOWED_AGG_TABLES = new Set([
+  'clients',
+  'proposals',
+  'client_contracts',
+  'projects',
+  'client_invoices',
+  'financial_entries',
+  'dashboard_operational_tasks',
+  'schema_migrations',
+  'client_audit_log',
+  'app_user_access',
+])
+
+const ALLOWED_SUM_COLUMNS = new Set(['amount'])
+
 async function safeAggregate(sql, schema, table, opts = {}) {
   const empty = { total: 0, totalDistinctIds: 0, totalAmount: null }
+
+  if (!ALLOWED_AGG_SCHEMAS.has(schema)) {
+    console.warn(`[backup] safeAggregate: schema '${schema}' not in allowlist — skipped.`)
+    return empty
+  }
+  if (!ALLOWED_AGG_TABLES.has(table)) {
+    console.warn(`[backup] safeAggregate: table '${table}' not in allowlist — skipped.`)
+    return empty
+  }
+  if (opts.sumColumn && !ALLOWED_SUM_COLUMNS.has(opts.sumColumn)) {
+    console.warn(`[backup] safeAggregate: sumColumn '${opts.sumColumn}' not in allowlist — skipped.`)
+    return empty
+  }
+
   const exists = await tableExists(sql, schema, table)
   if (!exists) return empty
 
@@ -148,9 +183,7 @@ async function buildBackupPayload(sql, actor) {
     },
     summary: {
       totalClients: clients.length,
-      totalDistinctClients: clients.length,
       totalProposals: proposals.length,
-      totalDistinctProposals: proposals.length,
       totalClientAuditRows: clientAuditLog.length,
       totalClientContracts: contractsAgg.total,
       totalDistinctClientContracts: contractsAgg.totalDistinctIds,

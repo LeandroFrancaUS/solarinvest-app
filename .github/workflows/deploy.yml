@@ -72,6 +72,10 @@ jobs:
           retention-days: 14
 
       # ── Step 4: Create Neon staging branch (clone of production) ───────────
+      - name: Set staging branch expiry (1 day)
+        id: staging_expiry
+        run: echo "EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Create Neon staging branch
         id: create_staging_branch
         uses: neondatabase/create-branch-action@v6
@@ -80,10 +84,6 @@ jobs:
           branch_name: staging-deploy-${{ github.run_id }}
           api_key: ${{ secrets.NEON_API_KEY }}
           expires_at: ${{ steps.staging_expiry.outputs.EXPIRES_AT }}
-
-      - name: Set staging branch expiry (1 day)
-        id: staging_expiry
-        run: echo "EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       # ── Migration safety check ──────────────────────────────────────────────
       # Must run BEFORE migrations are applied on the staging branch.
