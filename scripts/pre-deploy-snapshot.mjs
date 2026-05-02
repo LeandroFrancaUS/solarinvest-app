@@ -85,6 +85,9 @@ async function aggregateTable(tableName, opts = {}) {
     return { total: 0, totalDistinctIds: 0, totalAmount: null }
   }
 
+  // SQL identifiers cannot be parameterized in PostgreSQL; only VALUES support
+  // bind parameters. The allowlist guards above are the correct security control
+  // for identifier interpolation. All allowed names contain only [a-z_] characters.
   const whereClause = opts.filterDeleted ? 'WHERE deleted_at IS NULL' : ''
   const sumExpr = opts.sumColumn
     ? `, COALESCE(SUM(${opts.sumColumn}), 0) AS total_amount`

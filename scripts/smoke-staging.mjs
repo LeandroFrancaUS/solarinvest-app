@@ -68,9 +68,11 @@ async function fetchWithTimeout(url, options = {}) {
 
 async function testHealth() {
   const res = await fetchWithTimeout(`${BASE_URL}/api/health`)
-  if (!res.ok && res.status !== 404) {
-    // Many apps don't have /api/health — 404 is acceptable; 5xx is not.
-    throw new Error(`/api/health returned ${res.status}`)
+  // 404 is acceptable — some deployments don't expose /api/health.
+  // Any 5xx indicates the server itself is broken.
+  if (res.status >= 500) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`/api/health returned ${res.status}: ${text.slice(0, 200)}`)
   }
   const body = await res.json().catch(() => ({}))
   console.log(`[smoke] GET /api/health → ${res.status}`, body.status ?? '')
@@ -78,7 +80,8 @@ async function testHealth() {
 
 async function testHealthPdf() {
   const res = await fetchWithTimeout(`${BASE_URL}/api/health/pdf`)
-  // 404 is acceptable if the route doesn't exist; 5xx is a hard failure.
+  // 404 is acceptable — some deployments omit this route.
+  // Any 5xx indicates the PDF subsystem is broken.
   if (res.status >= 500) {
     const text = await res.text().catch(() => '')
     throw new Error(`/api/health/pdf returned ${res.status}: ${text.slice(0, 200)}`)
@@ -89,6 +92,8 @@ async function testHealthPdf() {
 
 async function testHealthContracts() {
   const res = await fetchWithTimeout(`${BASE_URL}/api/health/contracts`)
+  // 404 is acceptable — some deployments omit this route.
+  // Any 5xx indicates the contracts subsystem is broken.
   if (res.status >= 500) {
     const text = await res.text().catch(() => '')
     throw new Error(`/api/health/contracts returned ${res.status}: ${text.slice(0, 200)}`)

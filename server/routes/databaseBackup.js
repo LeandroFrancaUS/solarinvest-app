@@ -92,6 +92,11 @@ async function safeAggregate(sql, schema, table, opts = {}) {
   const exists = await tableExists(sql, schema, table)
   if (!exists) return empty
 
+  // SQL identifiers (table names, column names) cannot be passed as bind
+  // parameters in PostgreSQL — only VALUES support parameterization.
+  // The allowlist checks above are the correct security control for identifiers.
+  // All values in ALLOWED_AGG_TABLES and ALLOWED_SUM_COLUMNS are compile-time
+  // constants containing only lowercase letters and underscores.
   const whereClause = opts.filterDeleted ? 'WHERE deleted_at IS NULL' : ''
   const sumExpr = opts.sumColumn
     ? `, COALESCE(SUM(${opts.sumColumn}), 0) AS total_amount`
