@@ -41,6 +41,44 @@ async function safeSelectAll(sql, schema, table, orderBy = 'id ASC') {
   return await sql(query)
 }
 
+/**
+ * Returns lightweight aggregate metrics for a table without fetching all rows.
+ *
+ * @param {Function} sql         - Neon tagged-template SQL function
+ * @param {string}   schema      - e.g. 'public'
+ * @param {string}   table       - table name
+ * @param {object}   [opts]
+ * @param {string}   [opts.sumColumn]     - column name to SUM (e.g. 'amount')
+ * @param {boolean}  [opts.filterDeleted] - if true, adds WHERE deleted_at IS NULL
+ * @returns {{ total: number, totalDistinctIds: number, totalAmount: number|null }}
+ */
+async function safeAggregate(sql, schema, table, opts = {}) {
+  const empty = { total: 0, totalDistinctIds: 0, totalAmount: null }
+  const exists = await tableExists(sql, schema, table)
+  if (!exists) return empty
+
+  const whereClause = opts.filterDeleted ? 'WHERE deleted_at IS NULL' : ''
+  const sumExpr = opts.sumColumn
+    ? `, COALESCE(SUM(${opts.sumColumn}), 0) AS total_amount`
+    : ''
+
+  const query = `
+    SELECT
+      COUNT(*)              AS total,
+      COUNT(DISTINCT id)    AS total_distinct_ids
+      ${sumExpr}
+    FROM ${schema}.${table}
+    ${whereClause}
+  `
+  const [row] = await sql(query)
+  if (!row) return empty
+  return {
+    total: Number(row.total ?? 0),
+    totalDistinctIds: Number(row.total_distinct_ids ?? 0),
+    totalAmount: opts.sumColumn ? Number(row.total_amount ?? 0) : null,
+  }
+}
+
 function sanitizeObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value
@@ -78,11 +116,23 @@ async function buildBackupPayload(sql, actor) {
     proposals,
     clientAuditLog,
     users,
+    contractsAgg,
+    projectsAgg,
+    invoicesAgg,
+    financialAgg,
+    opsAgg,
+    migrationsAgg,
   ] = await Promise.all([
     safeSelectAll(sql, 'public', 'clients', 'id ASC'),
     safeSelectAll(sql, 'public', 'proposals', 'created_at ASC'),
     safeSelectAll(sql, 'public', 'client_audit_log', 'id ASC'),
     safeSelectAll(sql, 'public', 'app_user_access', 'created_at ASC'),
+    safeAggregate(sql, 'public', 'client_contracts'),
+    safeAggregate(sql, 'public', 'projects', { filterDeleted: true }),
+    safeAggregate(sql, 'public', 'client_invoices', { sumColumn: 'amount' }),
+    safeAggregate(sql, 'public', 'financial_entries', { sumColumn: 'amount', filterDeleted: true }),
+    safeAggregate(sql, 'public', 'dashboard_operational_tasks'),
+    safeAggregate(sql, 'public', 'schema_migrations'),
   ])
 
   return {
@@ -98,8 +148,20 @@ async function buildBackupPayload(sql, actor) {
     },
     summary: {
       totalClients: clients.length,
+      totalDistinctClients: clients.length,
       totalProposals: proposals.length,
+      totalDistinctProposals: proposals.length,
       totalClientAuditRows: clientAuditLog.length,
+      totalClientContracts: contractsAgg.total,
+      totalDistinctClientContracts: contractsAgg.totalDistinctIds,
+      totalProjects: projectsAgg.total,
+      totalDistinctProjects: projectsAgg.totalDistinctIds,
+      totalInvoices: invoicesAgg.total,
+      totalInvoicesAmount: invoicesAgg.totalAmount,
+      totalFinancialEntries: financialAgg.total,
+      totalFinancialEntriesAmount: financialAgg.totalAmount,
+      totalOperationalTasks: opsAgg.total,
+      totalSchemaMigrations: migrationsAgg.total,
     },
     data: {
       clients,
