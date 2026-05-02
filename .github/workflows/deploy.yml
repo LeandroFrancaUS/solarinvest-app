@@ -1,3 +1,23 @@
+# =============================================================================
+# Required Secrets (Settings > Secrets > Actions):
+#   VERCEL_TOKEN          – Vercel API token
+#   VERCEL_ORG_ID         – Vercel organization ID
+#   VERCEL_PROJECT_ID     – Vercel project ID
+#   DATABASE_URL          – Pooled Neon connection string (production)
+#   DATABASE_URL_UNPOOLED – Direct/unpooled Neon connection string (production)
+#   NEON_API_KEY          – Neon API key (for branch management)
+#   ADMIN_BACKUP_TOKEN    – Bearer token used by smoke tests
+#
+# Required Variables (Settings > Variables > Actions):
+#   NEON_PROJECT_ID       – Neon project ID (non-secret)
+#
+# Environment Protection:
+#   The 'production' GitHub Environment must be configured with required
+#   reviewers to enforce manual approval before deploy-production runs.
+#
+# Bypass env vars are NOT set here and must remain disabled by default.
+# =============================================================================
+
 name: deploy
 
 on:
@@ -8,13 +28,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: staging
+  # Runs automatically after CI passes on main (no environment protection).
+  # Validates migrations and smoke tests against a disposable Neon clone
+  # before the production gate is opened for manual approval.
+  # ──────────────────────────────────────────────────────────────────────────
+  staging:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
-    environment: production
     permissions:
       contents: read
       deployments: write
@@ -30,33 +55,32 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      # ── Step 1: pg_dump production (physical rollback point) ────────────────
-      # Requires pg_dump to be available and DATABASE_URL_UNPOOLED to be set.
-      # The dump is uploaded as a GitHub Actions artifact for emergency rollback.
+      # ── Optional: pg_dump snapshot (continues on error if unavailable) ────
       - name: Install PostgreSQL client
         run: sudo apt-get install -y postgresql-client
 
-      - name: pg_dump production (physical backup)
+      - name: pg_dump production (physical backup for staging gate)
+        continue-on-error: true
         run: |
-          DUMP_FILE="backup-pre-deploy-$(date +%Y%m%d-%H%M%S).dump"
+          DUMP_FILE="backup-pre-staging-$(date +%Y%m%d-%H%M%S).dump"
           pg_dump "$DATABASE_URL_UNPOOLED" \
             --format=custom \
             --no-password \
             -f "$DUMP_FILE"
           echo "DUMP_FILE=$DUMP_FILE" >> "$GITHUB_ENV"
-          echo "[deploy] pg_dump complete: $DUMP_FILE ($(du -sh $DUMP_FILE | cut -f1))"
+          echo "[staging] pg_dump complete: $DUMP_FILE ($(du -sh $DUMP_FILE | cut -f1))"
         env:
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-        continue-on-error: false
 
       - name: Upload pg_dump artifact
+        if: ${{ env.DUMP_FILE != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: pg-dump-pre-deploy
+          name: pg-dump-pre-staging
           path: ${{ env.DUMP_FILE }}
           retention-days: 14
 
-      # ── Step 2 + 3: Pre-deploy snapshot (logical counts + sums) ────────────
+      # ── Pre-deploy logical snapshot ───────────────────────────────────────
       - name: Capture pre-deploy integrity snapshot
         run: npm run deploy:snapshot
         env:
@@ -71,7 +95,7 @@ jobs:
           path: tmp/pre-deploy-counts.json
           retention-days: 14
 
-      # ── Step 4: Create Neon staging branch (clone of production) ───────────
+      # ── Create Neon staging branch (clone of production) ─────────────────
       - name: Set staging branch expiry (1 day)
         id: staging_expiry
         run: echo "EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
@@ -85,20 +109,19 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           expires_at: ${{ steps.staging_expiry.outputs.EXPIRES_AT }}
 
-      # ── Migration safety check ──────────────────────────────────────────────
-      # Must run BEFORE migrations are applied on the staging branch.
+      # ── Migration safety check (must run before migrations) ──────────────
       - name: Check migration safety (scan for destructive patterns)
         run: npm run deploy:safety-check
         env:
           DATABASE_URL: ${{ steps.create_staging_branch.outputs.db_url }}
 
-      # ── Step 5: Run migrations on staging clone ─────────────────────────────
+      # ── Run migrations on staging clone ──────────────────────────────────
       - name: Run database migrations on staging branch
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ steps.create_staging_branch.outputs.db_url }}
 
-      # ── Step 6: Deploy to staging environment and run smoke tests ───────────
+      # ── Deploy to Vercel staging / preview ───────────────────────────────
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
@@ -115,16 +138,17 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           DATABASE_URL: ${{ steps.create_staging_branch.outputs.db_url }}
 
-      - name: Deploy to staging
+      - name: Deploy to Vercel staging
         id: staging_deploy
         run: |
           STAGING_URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} 2>&1 | tail -1)
           echo "STAGING_URL=$STAGING_URL" >> "$GITHUB_OUTPUT"
-          echo "[deploy] Staging URL: $STAGING_URL"
+          echo "[staging] Staging URL: $STAGING_URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      # ── Smoke tests against staging ───────────────────────────────────────
       - name: Run smoke tests against staging
         run: npm run deploy:smoke
         env:
@@ -134,7 +158,7 @@ jobs:
           SMOKE_RETRY_DELAY: 3000
           SMOKE_TIMEOUT: 20000
 
-      # ── Step 7: Clean up staging Neon branch ────────────────────────────────
+      # ── Cleanup: delete staging Neon branch (guaranteed, even on failure) ─
       - name: Delete staging Neon branch
         if: always()
         uses: neondatabase/delete-branch-action@v3
@@ -143,18 +167,90 @@ jobs:
           branch: staging-deploy-${{ github.run_id }}
           api_key: ${{ secrets.NEON_API_KEY }}
 
-      # ── Step 8: Deploy to production ────────────────────────────────────────
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: deploy-production
+  # Blocked on manual approval via the 'production' GitHub Environment.
+  # Only runs after the staging job succeeds.
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    needs: [staging]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      # ── Production pg_dump (physical rollback point) ──────────────────────
+      - name: Install PostgreSQL client
+        run: sudo apt-get install -y postgresql-client
+
+      - name: pg_dump production (physical backup)
+        run: |
+          DUMP_FILE="backup-pre-deploy-prod-$(date +%Y%m%d-%H%M%S).dump"
+          pg_dump "$DATABASE_URL_UNPOOLED" \
+            --format=custom \
+            --no-password \
+            -f "$DUMP_FILE"
+          echo "DUMP_FILE=$DUMP_FILE" >> "$GITHUB_ENV"
+          echo "[production] pg_dump complete: $DUMP_FILE ($(du -sh $DUMP_FILE | cut -f1))"
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+      - name: Upload pg_dump artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-dump-production-pre-deploy
+          path: ${{ env.DUMP_FILE }}
+          retention-days: 14
+
+      # ── Pre-deploy logical snapshot ───────────────────────────────────────
+      - name: Capture pre-deploy integrity snapshot
+        run: npm run deploy:snapshot
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SNAPSHOT_FILE: tmp/pre-deploy-counts.json
+
+      - name: Upload pre-deploy snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-deploy-snapshot-production
+          path: tmp/pre-deploy-counts.json
+          retention-days: 14
+
+      # ── Migration safety check ────────────────────────────────────────────
+      - name: Check migration safety (scan for destructive patterns)
+        run: npm run deploy:safety-check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      # ── Run migrations on production ──────────────────────────────────────
       - name: Run database migrations on production
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
           NEON_DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+      # ── Deploy to Vercel production ───────────────────────────────────────
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel production environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build for production
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
@@ -168,11 +264,11 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── Step 9: Post-deploy integrity verification ──────────────────────────
+      # ── Post-deploy integrity verification ────────────────────────────────
       - name: Download pre-deploy snapshot
         uses: actions/download-artifact@v4
         with:
-          name: pre-deploy-snapshot
+          name: pre-deploy-snapshot-production
           path: tmp/
 
       - name: Verify post-deploy integrity (compare counts + sums)
