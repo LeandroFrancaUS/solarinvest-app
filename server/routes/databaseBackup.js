@@ -41,6 +41,84 @@ async function safeSelectAll(sql, schema, table, orderBy = 'id ASC') {
   return await sql(query)
 }
 
+/**
+ * Returns lightweight aggregate metrics for a table without fetching all rows.
+ *
+ * All identifier parameters (schema, table, sumColumn) are validated against
+ * a strict allowlist before being interpolated into SQL to prevent injection.
+ *
+ * @param {Function} sql         - Neon tagged-template SQL function
+ * @param {string}   schema      - must be 'public'
+ * @param {string}   table       - must be one of ALLOWED_AGG_TABLES
+ * @param {object}   [opts]
+ * @param {string}   [opts.sumColumn]     - column name to SUM; must be one of ALLOWED_SUM_COLUMNS
+ * @param {boolean}  [opts.filterDeleted] - if true, adds WHERE deleted_at IS NULL
+ * @returns {{ total: number, totalDistinctIds: number, totalAmount: number|null }}
+ */
+
+const ALLOWED_AGG_SCHEMAS = new Set(['public'])
+
+const ALLOWED_AGG_TABLES = new Set([
+  'clients',
+  'proposals',
+  'client_contracts',
+  'projects',
+  'client_invoices',
+  'financial_entries',
+  'dashboard_operational_tasks',
+  'schema_migrations',
+  'client_audit_log',
+  'app_user_access',
+])
+
+const ALLOWED_SUM_COLUMNS = new Set(['amount'])
+
+async function safeAggregate(sql, schema, table, opts = {}) {
+  const empty = { total: 0, totalDistinctIds: 0, totalAmount: null }
+
+  if (!ALLOWED_AGG_SCHEMAS.has(schema)) {
+    console.warn(`[backup] safeAggregate: schema '${schema}' not in allowlist — skipped.`)
+    return empty
+  }
+  if (!ALLOWED_AGG_TABLES.has(table)) {
+    console.warn(`[backup] safeAggregate: table '${table}' not in allowlist — skipped.`)
+    return empty
+  }
+  if (opts.sumColumn && !ALLOWED_SUM_COLUMNS.has(opts.sumColumn)) {
+    console.warn(`[backup] safeAggregate: sumColumn '${opts.sumColumn}' not in allowlist — skipped.`)
+    return empty
+  }
+
+  const exists = await tableExists(sql, schema, table)
+  if (!exists) return empty
+
+  // SQL identifiers (table names, column names) cannot be passed as bind
+  // parameters in PostgreSQL — only VALUES support parameterization.
+  // The allowlist checks above are the correct security control for identifiers.
+  // All values in ALLOWED_AGG_TABLES and ALLOWED_SUM_COLUMNS are compile-time
+  // constants containing only lowercase letters and underscores.
+  const whereClause = opts.filterDeleted ? 'WHERE deleted_at IS NULL' : ''
+  const sumExpr = opts.sumColumn
+    ? `, COALESCE(SUM(${opts.sumColumn}), 0) AS total_amount`
+    : ''
+
+  const query = `
+    SELECT
+      COUNT(*)              AS total,
+      COUNT(DISTINCT id)    AS total_distinct_ids
+      ${sumExpr}
+    FROM ${schema}.${table}
+    ${whereClause}
+  `
+  const [row] = await sql(query)
+  if (!row) return empty
+  return {
+    total: Number(row.total ?? 0),
+    totalDistinctIds: Number(row.total_distinct_ids ?? 0),
+    totalAmount: opts.sumColumn ? Number(row.total_amount ?? 0) : null,
+  }
+}
+
 function sanitizeObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value
@@ -78,11 +156,23 @@ async function buildBackupPayload(sql, actor) {
     proposals,
     clientAuditLog,
     users,
+    contractsAgg,
+    projectsAgg,
+    invoicesAgg,
+    financialAgg,
+    opsAgg,
+    migrationsAgg,
   ] = await Promise.all([
     safeSelectAll(sql, 'public', 'clients', 'id ASC'),
     safeSelectAll(sql, 'public', 'proposals', 'created_at ASC'),
     safeSelectAll(sql, 'public', 'client_audit_log', 'id ASC'),
     safeSelectAll(sql, 'public', 'app_user_access', 'created_at ASC'),
+    safeAggregate(sql, 'public', 'client_contracts'),
+    safeAggregate(sql, 'public', 'projects', { filterDeleted: true }),
+    safeAggregate(sql, 'public', 'client_invoices', { sumColumn: 'amount' }),
+    safeAggregate(sql, 'public', 'financial_entries', { sumColumn: 'amount', filterDeleted: true }),
+    safeAggregate(sql, 'public', 'dashboard_operational_tasks'),
+    safeAggregate(sql, 'public', 'schema_migrations'),
   ])
 
   return {
@@ -100,6 +190,16 @@ async function buildBackupPayload(sql, actor) {
       totalClients: clients.length,
       totalProposals: proposals.length,
       totalClientAuditRows: clientAuditLog.length,
+      totalClientContracts: contractsAgg.total,
+      totalDistinctClientContracts: contractsAgg.totalDistinctIds,
+      totalProjects: projectsAgg.total,
+      totalDistinctProjects: projectsAgg.totalDistinctIds,
+      totalInvoices: invoicesAgg.total,
+      totalInvoicesAmount: invoicesAgg.totalAmount,
+      totalFinancialEntries: financialAgg.total,
+      totalFinancialEntriesAmount: financialAgg.totalAmount,
+      totalOperationalTasks: opsAgg.total,
+      totalSchemaMigrations: migrationsAgg.total,
     },
     data: {
       clients,
