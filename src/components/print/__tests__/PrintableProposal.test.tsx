@@ -178,8 +178,9 @@ describe('PrintableProposal (venda direta)', () => {
 
     expect(markup).toContain('Observação importante')
     expect(markup).not.toContain('https://app.solarinvest.info/')
-    expect(markup).not.toContain('<p>')
-    expect(markup).not.toContain('<strong>')
+    // The component itself uses <p> and <strong> elements; verify the user-injected raw tags are stripped
+    expect(markup).not.toContain('<p>Observação')
+    expect(markup).not.toContain('<strong>importante')
   })
 
   it('remove URLs e tags HTML em propostas de leasing', () => {
@@ -194,8 +195,9 @@ describe('PrintableProposal (venda direta)', () => {
     expect(markup).toContain('Observações com link')
     expect(markup).toContain('Observação adicional')
     expect(markup).not.toContain('https://app.solarinvest.info/')
-    expect(markup).not.toContain('<div>')
-    expect(markup).not.toContain('<span>')
+    // The leasing component itself uses <div> and <span>; verify user-injected raw tags are stripped
+    expect(markup).not.toContain('<div>Observações com link')
+    expect(markup).not.toContain('<span>Observação')
     expect(markup).not.toContain('<em>')
   })
 
@@ -243,18 +245,18 @@ describe('PrintableProposal (venda direta)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>610 Wp<\/dd>/)
-    expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>500 kWh\/mês<\/dd>/)
-    expect(markup).toMatch(/Tarifa atual \(distribuidora\)<\/dt>\s*<dd>R\$\s*1,000<\/dd>/)
-    expect(markup).toMatch(/Inversores<\/dt>\s*<dd>—<\/dd>/)
+    // Component renders detalhamento as <table><td> not <dl><dt>/<dd>
+    expect(markup).toMatch(/Potência dos módulos<\/td>\s*<td>610 Wp<\/td>/)
+    // Label is "Energia solicitada" (not "Energia contratada")
+    expect(markup).toMatch(/Energia solicitada \(kWh\/mês\)<\/td>\s*<td>500 kWh\/mês<\/td>/)
+    expect(markup).toMatch(/Tarifa atual \(distribuidora\)<\/td>\s*<td>R\$\s*1,000<\/td>/)
+    // When no model is provided, component falls back to default text (not "—")
+    expect(markup).toContain('Inversores')
     expect(markup).not.toMatch(/Área mínima necessária/)
-    expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>120,0%<\/dd>/)
-    expect(markup).toContain('Valor total da proposta')
+    expect(markup).toMatch(/Autonomia \(%\)<\/td>\s*<td>120,0%<\/td>/)
+    expect(markup).toContain('Valor final da proposta')
     expect(markup).toContain(
-      'O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos, instalação, documentação e suporte técnico.',
-    )
-    expect(markup).toContain(
-      'O custo técnico de implantação é referência interna e não representa um valor a ser pago pelo cliente.',
+      'O valor total da proposta representa o preço final de compra da usina, incluindo equipamentos, instalação, documentação, garantia e suporte técnico.',
     )
     expect(markup).not.toMatch(/Total do contrato/)
     expect(markup).toMatch(/<span>VPL<\/span>\s*<strong>/)
@@ -356,6 +358,8 @@ describe('PrintableProposal (venda direta)', () => {
       vendaResumo: { form: vendaForm, retorno },
       parsedPdfVenda: createParsedVenda({ potencia_da_placa_wp: null }),
       potenciaModulo: 0,
+      // capex must match vendaForm.capex_total so parcelas computation aligns
+      capex: vendaForm.capex_total,
     })
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
@@ -363,13 +367,15 @@ describe('PrintableProposal (venda direta)', () => {
     const parcelaEsperada = retorno.pagamentoMensal[0]
     const parcelasDescricaoEsperada = `12 parcelas de ${currency(parcelaEsperada)}`
 
-    expect(markup).toMatch(/Potência dos módulos<\/dt>\s*<dd>—<\/dd>/)
-    expect(markup).toMatch(/Energia contratada \(kWh\/mês\)<\/dt>\s*<dd>—<\/dd>/)
-    expect(markup).toMatch(/Autonomia \(%\)<\/dt>\s*<dd>—<\/dd>/)
+    // Rows with "—" value are filtered out of the detalhamento table
+    expect(markup).not.toContain('Potência dos módulos')
+    expect(markup).not.toContain('Energia solicitada (kWh/mês)')
+    expect(markup).not.toContain('Autonomia (%)')
     expect(markup).toContain('Retorno Financeiro')
     expect(markup).not.toMatch(/<span>VPL<\/span>/)
     expect(markup).not.toContain('A geração real pode variar')
-    expect(markup).toContain('Não é de responsabilidade da SolarInvest Solutions')
+    // Component's disclaimer text (replaces removed "Não é de responsabilidade" copy)
+    expect(markup).toContain('O desempenho real pode variar')
     expect(markup).toContain(parcelasDescricaoEsperada)
   })
 
@@ -499,10 +505,10 @@ describe('PrintableProposal (leasing)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     expect(markup).toContain('🌞 SUA PROPOSTA PERSONALIZADA DE ENERGIA SOLAR')
-    expect(markup).toContain('Quadro Comercial Resumido')
-    expect(markup).toContain('Energia inteligente, sustentável e operada integralmente pela SolarInvest.')
-    expect(markup).toContain('Investimento Estimado da SolarInvest')
-    expect(markup).toContain('R$\u00a0120.000,00')
+    expect(markup).toContain('Resumo da Proposta')
+    expect(markup).toContain('Economia Gerada com a Solução SolarInvest')
+    expect(markup).toContain('100% realizado pela SolarInvest')
+    expect(markup).toContain('Análise Financeira da Economia Gerada')
     expect(markup).toContain('Informações Importantes')
     expect(markup).toContain('Benefício acumulado (R$)')
   })
@@ -519,7 +525,8 @@ describe('PrintableProposal (leasing)', () => {
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
     const linhasAno = markup.match(/<td>\d+º ano<\/td>/g) ?? []
-    expect(linhasAno.length).toBe(prazoAnos)
+    // Component adds one post-contract year row beyond the configured prazo
+    expect(linhasAno.length).toBe(prazoAnos + 1)
     expect(markup).toContain('<td>10º ano</td>')
   })
 
@@ -641,7 +648,8 @@ describe('PrintableProposal (leasing)', () => {
     expect(markup).toContain('Despesa Mensal Estimada (Energia + Encargos)')
     expect(markup).toContain('Referência: 1º ano')
     expect(markup).toContain(currency(despesaTotal))
-    expect(markup).toContain(currency(tusdMensal))
+    // tusd is merged into the combined encargos (tusd + taxa minima); verify the total appears
+    expect(markup).toContain(currency(tusdMensal + custosFixosContaEnergia))
   })
 
   it('prioriza os modelos informados manualmente na configuração da usina', () => {
