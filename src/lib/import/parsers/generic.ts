@@ -210,7 +210,7 @@ export function extractCanonicalGrid(lines: string[]): CanonicalGrid {
   const headerIndex = normalizedLines.findIndex((line) => isHeaderLike(line))
   const sectionStart = headerIndex === -1 ? 0 : headerIndex + 1
 
-  let endIndex = normalizedLines.findIndex((line, index) => index > (headerIndex === -1 ? -1 : headerIndex) && isFooterTrigger(line))
+  let endIndex = normalizedLines.findIndex((line, index) => index > headerIndex && isFooterTrigger(line))
   if (endIndex === -1) {
     endIndex = lines.length
   }
