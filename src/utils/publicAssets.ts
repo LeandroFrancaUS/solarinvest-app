@@ -46,6 +46,13 @@ function resolveDocumentBaseUrl(): string | null {
       return directoryPath || DEFAULT_BASE_URL
     }
 
+    // When there are multiple path segments (lastSlashIndex > 0), the last segment is
+    // treated as a route page, not the app base. Strip it to get the real base.
+    // e.g. "/me/dashboard" → "/me/"   vs.   "/me" → "/me/"
+    if (lastSlashIndex > 0) {
+      return pathname.slice(0, lastSlashIndex + 1)
+    }
+
     return ensureTrailingSlash(pathname)
   } catch {
     return null
