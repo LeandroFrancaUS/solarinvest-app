@@ -14,6 +14,9 @@ function rec(overrides: Partial<AnalyticsRecord> = {}): AnalyticsRecord {
     state: null,
     region: null,
     contractValue: null,
+    saleContractValue: null,
+    leasingMonthlyValue: null,
+    contractType: 'unknown',
     consumption: null,
     isClosed: false,
     isActive: false,
@@ -35,8 +38,8 @@ describe('computeKPIs', () => {
 
   it('counts closed contracts and computes value KPIs', () => {
     const records = [
-      rec({ id: '1', isClosed: true, contractValue: 1000 }),
-      rec({ id: '2', isClosed: true, contractValue: 2000 }),
+      rec({ id: '1', isClosed: true, contractType: 'sale', contractValue: 1000 }),
+      rec({ id: '2', isClosed: true, contractType: 'sale', contractValue: 2000 }),
       rec({ id: '3', isClosed: false }),
     ]
     const kpis = computeKPIs(records)

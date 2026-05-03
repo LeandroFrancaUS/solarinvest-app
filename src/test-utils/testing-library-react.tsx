@@ -1,5 +1,6 @@
 import type React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { flushSync } from 'react-dom'
 
 type ActiveRoot = {
   container: HTMLElement
@@ -41,7 +42,10 @@ export const render = (ui: React.ReactElement): RenderResult => {
   const root = createRoot(container)
   const entry: ActiveRoot = { container, root }
   activeRoots.add(entry)
-  root.render(ui)
+  // flushSync forces React to commit synchronously so assertions can inspect the DOM immediately.
+  flushSync(() => {
+    root.render(ui)
+  })
 
   return {
     container,
@@ -55,7 +59,9 @@ export const render = (ui: React.ReactElement): RenderResult => {
       }
     },
     rerender: (nextUi) => {
-      root.render(nextUi)
+      flushSync(() => {
+        root.render(nextUi)
+      })
     },
   }
 }
