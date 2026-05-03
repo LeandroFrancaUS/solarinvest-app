@@ -7,7 +7,7 @@ import type { AppTheme } from '../hooks/useTheme'
 export interface AppShellProps {
   topbar: TopbarProps
   sidebar: SidebarProps
-  content: ContentProps
+  content: Omit<ContentProps, 'children'>
   children: ReactNode
   mobileMenuButton?: {
     onToggle: () => void
@@ -51,7 +51,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton,
     }
   }, [sidebar.mobileOpen])
 
-  const contentProps: ContentProps = { ...content }
+  const contentProps: ContentProps = { ...content, children: null }
   if (sidebar.mobileOpen && sidebar.onCloseMobile) {
     const originalDismiss = content.onInteractOutsideSidebar
     contentProps.onInteractOutsideSidebar = () => {

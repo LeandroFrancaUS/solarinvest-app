@@ -130,6 +130,7 @@ import {
   formatTipoLigacaoLabel,
   normalizeTipoLigacaoNorma,
   type NormComplianceResult,
+  type NormComplianceStatus,
   type PrecheckDecision,
   type PrecheckDecisionAction,
   type TipoLigacaoNorma,
@@ -231,6 +232,7 @@ import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
+  type Inputs as ComposicaoUFVInputs,
   type RegimeTributario,
 } from './lib/venda/calcComposicaoUFV'
 import {
@@ -706,7 +708,7 @@ const toFiniteNonNegativeNumber = (value: unknown): number | null => {
 const resolveConsumptionFromSnapshot = (snapshot: OrcamentoSnapshotData | null): number | null => {
   if (!snapshot) return null
   const legacyPageShared = (snapshot.pageShared as { kcKwhMes?: unknown } | undefined)?.kcKwhMes
-  const parametrosConsumo = (snapshot.parametros as { consumo_kwh_mes?: unknown } | undefined)?.consumo_kwh_mes
+  const parametrosConsumo = (snapshot as unknown as { parametros?: { consumo_kwh_mes?: unknown } }).parametros?.consumo_kwh_mes
   const vendaParametrosConsumo = (
     snapshot.vendaSnapshot as { parametros?: { consumo_kwh_mes?: unknown } } | undefined
   )?.parametros?.consumo_kwh_mes
@@ -729,8 +731,8 @@ const resolveSystemKwpFromSnapshot = (snapshot: OrcamentoSnapshotData | null): n
   if (!snapshot) return null
   return (
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.dadosTecnicos?.potenciaInstaladaKwp) ??
-    toFiniteNonNegativeNumber(snapshot.vendaForm?.potencia_sistema_kwp) ??
-    toFiniteNonNegativeNumber(snapshot.vendaSnapshot?.potenciaCalculadaKwp) ??
+    toFiniteNonNegativeNumber(snapshot.vendaForm?.potencia_instalada_kwp) ??
+    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { potenciaCalculadaKwp?: unknown } | undefined)?.potenciaCalculadaKwp) ??
     null
   )
 }
@@ -741,7 +743,7 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
     toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    toFiniteNonNegativeNumber(snapshot.vendaSnapshot?.financiamento?.prazoMeses) ??
+    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { financiamento?: { prazoMeses?: unknown } } | undefined)?.financiamento?.prazoMeses) ??
     null
   )
 }
@@ -842,10 +844,10 @@ const formatList = (values: string[]): string => {
     return ''
   }
   if (values.length === 1) {
-    return values[0]
+    return values[0]!
   }
   if (values.length === 2) {
-    return `${values[0]} e ${values[1]}`
+    return `${values[0]!} e ${values[1]!}`
   }
   const [last, ...rest] = values.slice().reverse()
   return `${rest.reverse().join(', ')} e ${last}`
@@ -874,6 +876,24 @@ type OrcamentoSnapshotMultiUcState = {
   anoVigencia: number
   overrideEscalonamento: boolean
   escalonamentoCustomPercent: number | null
+}
+
+type PageSharedSettings = {
+  kcKwhMes: number
+  tarifaCheia: number
+  taxaMinima: number
+  ufTarifa: string
+  distribuidoraTarifa: string
+  potenciaModulo: number
+  numeroModulosManual: number | ''
+  segmentoCliente: SegmentoCliente
+  tipoInstalacao: TipoInstalacao
+  tipoInstalacaoOutro: string
+  tipoSistema: TipoSistema
+  consumoManual: boolean
+  potenciaFonteManual: boolean
+  potenciaModuloDirty: boolean
+  tipoInstalacaoDirty: boolean
 }
 
 type OrcamentoSnapshotData = {
@@ -988,14 +1008,14 @@ type OrcamentoSnapshotData = {
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
-  clienteId?: string | undefined
+  clienteId?: string
   clienteNome: string
   clienteCidade: string
   clienteUf: string
-  clienteDocumento?: string | undefined
-  clienteUc?: string | undefined
+  clienteDocumento?: string
+  clienteUc?: string
   dados: PrintableProposalProps
-  snapshot?: OrcamentoSnapshotData | undefined
+  snapshot?: OrcamentoSnapshotData
   /** Display name of the consultant who owns this proposal (server-loaded, privileged views only) */
   ownerName?: string
   /** Stack user id of the owner (server-loaded, privileged views only) */
@@ -1058,7 +1078,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
     if (typeof value === 'string') {
       const parsed = toNumberFlexible(value)
-      if (Number.isFinite(parsed) && parsed > 0) return parsed
+      if (Number.isFinite(parsed) && parsed !== null && parsed > 0) return parsed
     }
     return null
   }
@@ -1143,7 +1163,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
           rateioPercentual: String(item.rateioPercentual ?? ''),
         })),
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as PageSharedSettings,
+        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
         kitBudget: null,
@@ -1306,9 +1326,9 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    system_kwp: row.system_kwp ?? null,
+    system_kwp: row.systemKwp ?? null,
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    term_months: row.term_months ?? null,
+    term_months: row.termMonths ?? null,
     dados,
     ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
   }
@@ -1350,16 +1370,17 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
   return {
     id: proposalId,
     criadoEm: row.created_at,
-    clienteId: undefined,
     clienteNome: row.client_name ?? snapshot?.cliente?.nome ?? '',
     clienteCidade: row.client_city ?? snapshot?.cliente?.cidade ?? '',
     clienteUf: row.client_state ?? snapshot?.cliente?.uf ?? '',
-    clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? undefined,
-    clienteUc: snapshot?.cliente?.uc ?? undefined,
+    ...(row.client_document ?? snapshot?.cliente?.documento
+      ? { clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? '' }
+      : {}),
+    ...(snapshot?.cliente?.uc ? { clienteUc: snapshot.cliente.uc } : {}),
     ...(ownerName != null ? { ownerName } : {}),
     ...(ownerUserId != null ? { ownerUserId } : {}),
     dados,
-    snapshot: snapshot ?? undefined,
+    ...(snapshot != null ? { snapshot } : {}),
   }
 }
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
@@ -2177,7 +2198,7 @@ const cloneBudgetUploadProgress = (
 
 const cloneEssentialCategoryInfo = (info: EssentialInfoSummary['modules']) => {
   if (!info || typeof info !== 'object') {
-    return { missingFields: [], totalRequired: 0, totalFound: 0 }
+    return { hasAny: false, hasProduct: false, hasDescription: false, hasQuantity: false, missingFields: [] }
   }
   return {
     ...info,
@@ -2256,7 +2277,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
           ...s.multiUc,
           rows: Array.isArray(s.multiUc.rows) ? s.multiUc.rows.map((row) => ({ ...row })) : [],
         }
-      : { rows: [] } as OrcamentoSnapshotData['multiUc'],
+      : ({ rows: [] } as unknown as OrcamentoSnapshotData['multiUc']),
     composicaoTelhado: s.composicaoTelhado ? { ...s.composicaoTelhado } : ({} as OrcamentoSnapshotData['composicaoTelhado']),
     composicaoSolo: s.composicaoSolo ? { ...s.composicaoSolo } : ({} as OrcamentoSnapshotData['composicaoSolo']),
     impostosOverridesDraft: cloneImpostosOverrides(s.impostosOverridesDraft ?? {}),
@@ -2365,7 +2386,7 @@ const computeSnapshotSignature = (
 const cloneOrcamentoSalvo = (registro: OrcamentoSalvo): OrcamentoSalvo => ({
   ...registro,
   dados: clonePrintableData(registro.dados),
-  snapshot: registro.snapshot ? cloneSnapshotData(registro.snapshot) : undefined,
+  ...(registro.snapshot ? { snapshot: cloneSnapshotData(registro.snapshot) } : {}),
 })
 
 const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
@@ -2588,7 +2609,7 @@ const countDelimiterOccurrences = (line: string, delimiter: string): number => {
 
 const detectCsvDelimiter = (line: string): string => {
   const candidates = [CLIENTES_CSV_DELIMITER, ',', '\t']
-  let best = candidates[0]
+  let best = candidates[0]!
   let bestCount = -1
 
   for (const candidate of candidates) {
@@ -2629,8 +2650,8 @@ const parseClientesCsv = (content: string): unknown[] => {
     return []
   }
 
-  const delimiter = detectCsvDelimiter(lines[0])
-  const headerCells = parseCsvLine(lines[0], delimiter).map(normalizeCsvHeader)
+  const delimiter = detectCsvDelimiter(lines[0]!)
+  const headerCells = parseCsvLine(lines[0]!, delimiter).map(normalizeCsvHeader)
   const headerKeys = headerCells.map((header) => CSV_HEADER_KEY_MAP[header] ?? null)
   if (headerKeys.every((key) => !key)) {
     return []
@@ -2873,6 +2894,8 @@ const normalizeClienteRegistros = (
         contatoSindico: dados?.contatoSindico ?? '',
         diaVencimento: dados?.diaVencimento ?? '10',
         herdeiros: herdeirosNormalizados,
+        consultorId: dados?.consultorId ?? '',
+        consultorNome: dados?.consultorNome ?? '',
       },
       ...(propostaSnapshot ? { propostaSnapshot } : {}),
     }
@@ -4232,7 +4255,7 @@ export default function App() {
     setProjectFinanceTokenProvider(getAccessToken)
     setFinancialImportTokenProvider(getAccessToken)
     setInvoicesTokenProvider(getAccessToken)
-    setOperationalDashboardTokenProvider(getAccessToken)
+    setOperationalDashboardTokenProvider(async () => (await getAccessToken()) ?? '')
     // Register token provider for the local→Neon migration tool.
     setMigrationTokenProvider(getAccessToken)
     // Register global token provider for httpClient.ts (used by personnelApi
@@ -4730,8 +4753,6 @@ export default function App() {
       const registroClonado = cloneOrcamentoSalvo(registro)
       setOrcamentoRegistroBase(registroClonado)
       setOrcamentoDisponivelParaDuplicar(registroClonado)
-      setOrcamentoVisualizado(null)
-      setOrcamentoVisualizadoInfo(null)
       const signatureOverride = registro.snapshot
         ? computeSnapshotSignature(registro.snapshot, dadosClonados)
         : null
@@ -5116,24 +5137,6 @@ export default function App() {
   const multiUcConsumoAnteriorRef = useRef<number | null>(null)
   const multiUcIdCounterRef = useRef<number>(multiUcRows.length + 1)
   const consumoAnteriorRef = useRef(kcKwhMes)
-
-  type PageSharedSettings = {
-    kcKwhMes: number
-    tarifaCheia: number
-    taxaMinima: number
-    ufTarifa: string
-  distribuidoraTarifa: string
-  potenciaModulo: number
-  numeroModulosManual: number | ''
-  segmentoCliente: SegmentoCliente
-  tipoInstalacao: TipoInstalacao
-  tipoInstalacaoOutro: string
-  tipoSistema: TipoSistema
-  consumoManual: boolean
-  potenciaFonteManual: boolean
-  potenciaModuloDirty: boolean
-  tipoInstalacaoDirty: boolean
-}
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
     kcKwhMes: INITIAL_VALUES.kcKwhMes,
@@ -5545,7 +5548,7 @@ export default function App() {
         try {
           const response = await fetch(
             `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalizedUf}/municipios`,
-            { signal },
+            signal !== undefined ? { signal } : undefined,
           )
           if (!response.ok) {
             throw new Error('Falha ao buscar municípios no IBGE.')
@@ -7270,7 +7273,7 @@ export default function App() {
 
       // Se o outro lado NÃO foi editado manualmente, sincronizar
       if (!syncStateRef.current.tusdEdited) {
-        updateTusdTipoCliente(novoValor)
+        updateTusdTipoCliente(SEGMENTO_TO_TUSD[novoValor])
       }
 
       resetRetorno?.()
@@ -7398,7 +7401,7 @@ export default function App() {
         if (isModulo && !potenciaModuloWp) {
           const potenciaMatch = descricaoCompleta.match(/(\d{3,4})\s*(?:wp|w)\b/i)
           if (potenciaMatch) {
-            const numeric = potenciaMatch[1].replace(/\D+/g, '')
+            const numeric = potenciaMatch[1]!.replace(/\D+/g, '')
             const parsed = Number.parseInt(numeric, 10)
             if (Number.isFinite(parsed) && parsed > 0) {
               potenciaModuloWp = parsed
@@ -8027,7 +8030,7 @@ export default function App() {
   )
   const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
     Record<LeasingAnexoId, boolean>
-  >({})
+  >({} as Record<LeasingAnexoId, boolean>)
   const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
   const [contractTemplatesCategory, setContractTemplatesCategory] =
     useState<ContractTemplateCategory>('vendas')
@@ -8245,7 +8248,7 @@ export default function App() {
 
     setDistribuidoraTarifa((atual) => {
       if (lista.length === 1) {
-        return lista[0]
+        return lista[0]!
       }
       return lista.includes(atual) ? atual : ''
     })
@@ -8693,9 +8696,7 @@ export default function App() {
     }
 
     if (!eligibility.eligible) {
-      if (modoOrcamento !== 'manual') {
-        setModoOrcamento('manual')
-      }
+      setModoOrcamento('manual')
       setAutoKitValor(null)
       setAutoCustoFinal(null)
       setAutoPricingRede(null)
@@ -9434,7 +9435,7 @@ export default function App() {
   }, [entradaConsiderada, entradaModo])
 
   const composicaoTelhadoCalculo = useMemo(() => {
-    const input = {
+    const input: ComposicaoUFVInputs = {
       projeto: toNumberSafe(composicaoTelhado.projeto),
       instalacao: toNumberSafe(composicaoTelhado.instalacao),
       material_ca: toNumberSafe(composicaoTelhado.materialCa),
@@ -9505,7 +9506,7 @@ export default function App() {
       toNumberSafe(composicaoSolo.trafo) +
       toNumberSafe(composicaoSolo.rede)
 
-    const input = {
+    const input: ComposicaoUFVInputs = {
       projeto: toNumberSafe(composicaoSolo.projeto),
       instalacao: toNumberSafe(composicaoSolo.instalacao),
       material_ca: toNumberSafe(composicaoSolo.materialCa) + extrasSolo,
@@ -10132,7 +10133,7 @@ export default function App() {
     const margemAlvo = afMargemLiquidaVenda
 
     try {
-      const input: AnaliseFinanceiraInput = {
+      const input = {
         modo: afModo,
         uf,
         consumo_kwh_mes: consumo,
@@ -10166,7 +10167,7 @@ export default function App() {
         mensalidades_previstas_rs: mensalidadesFinal,
         investimento_inicial_rs: preCustoVariavel,
         taxa_desconto_aa_pct: afTaxaDesconto > 0 ? afTaxaDesconto : null,
-      }
+      } as AnaliseFinanceiraInput
       return calcularAnaliseFinanceira(input)
     } catch {
       return null
@@ -10672,7 +10673,7 @@ export default function App() {
     const mesesConsiderados = limiteMeses > 0 ? Math.min(mensalidades.length, limiteMeses) : mensalidades.length
 
     for (let index = 0; index < mesesConsiderados; index += 1) {
-      const mensalidade = mensalidades[index]
+      const mensalidade = mensalidades[index]!
       const mes = index + 1
       const tarifaCheiaMes = tarifaProjetadaCheia(
         simulationState.tarifaCheia,
@@ -10732,7 +10733,7 @@ export default function App() {
       creditoMensal: creditoEntradaMensal,
       margemMinima: margemMinimaResumo,
       prazoEfetivo: mesesConsiderados,
-      totalPago: lista.length > 0 ? lista[lista.length - 1].totalAcumulado : 0,
+      totalPago: lista.length > 0 ? lista[lista.length - 1]!.totalAcumulado : 0,
       inflacaoMensal,
     }
   }, [
@@ -10815,7 +10816,7 @@ export default function App() {
   const duracaoMesesNormalizada = Math.max(0, Math.floor(duracaoMeses))
   const buyoutMesAceiteFinal = duracaoMesesNormalizada + 1
   const duracaoMesesExibicao = Math.max(7, buyoutMesAceiteFinal)
-  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal) ?? null
+  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal)
   const buyoutReceitaRows = useMemo(
     () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada),
     [tabelaBuyout, duracaoMesesNormalizada],
@@ -11126,7 +11127,7 @@ export default function App() {
         return parsed
       }
 
-      const ucsBeneficiariasPrintable: PrintableUcBeneficiaria[] = ucsBeneficiarias
+      const ucsBeneficiariasPrintable: PrintableUcBeneficiaria[] = (ucsBeneficiarias
         .map((item) => {
           const numero = sanitizeText(item.numero) ?? ''
           const endereco = sanitizeText(item.endereco) ?? ''
@@ -11142,7 +11143,7 @@ export default function App() {
             rateioPercentual: rateio,
           }
         })
-        .filter((item): item is PrintableUcBeneficiaria => Boolean(item))
+        .filter(Boolean) as PrintableUcBeneficiaria[])
 
       const tipoEdificacaoCodigo = segmentoPrintable ?? null
       const tipoEdificacaoLabel =
@@ -11880,7 +11881,7 @@ export default function App() {
           localFallback
             ? 'Clientes em modo local temporário: backend indisponível no momento.'
             : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
-          localFallback ? 'error' : 'warning',
+          localFallback ? 'error' : 'info',
         )
       }
       // Fall through to storage-based loading
@@ -13251,7 +13252,7 @@ export default function App() {
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
       ])
       if (result) {
-        return result
+        return result as ClienteRegistro
       }
     } catch (e) {
       if (import.meta.env.DEV) console.warn('[hydrateClienteRegistro] Failed to load latest for', registro.id, e)
@@ -13418,7 +13419,7 @@ export default function App() {
       skipGuard: Boolean(options?.skipGuard),
     })
 
-    if (!validateClienteParaSalvar({ silent: options?.silent })) {
+    if (!validateClienteParaSalvar(options?.silent !== undefined ? { silent: options.silent } : {})) {
       console.warn('[client-save] client mutation blocked by validation', {
         clientId: clienteEmEdicaoId ?? null,
         nome: Boolean(cliente.nome?.trim()),
@@ -13514,7 +13515,7 @@ export default function App() {
         ? snapshotClonado.desconto
         : null,
       mensalidade: isLeasingTab && Array.isArray(leasingSnap?.projecao?.mensalidadesAno) && leasingSnap.projecao.mensalidadesAno.length > 0
-        ? (Number(leasingSnap.projecao.mensalidadesAno[0]?.[0] ?? 0) || null)
+        ? (Number(leasingSnap.projecao.mensalidadesAno[0]?.mensalidade ?? 0) || null)
         : null,
       indicacao: dadosClonados.temIndicacao && dadosClonados.indicacaoNome?.trim()
         ? dadosClonados.indicacaoNome.trim()
@@ -14049,7 +14050,7 @@ export default function App() {
           console.info('[clients] cliente já inexistente no backend; UI reconciliada', { id: serverIdCandidate })
           adicionarNotificacao(
             'Cliente removido. A recarga completa da lista falhou, mas a remoção foi reconciliada e não deve reaparecer após atualização.',
-            'warning',
+            'info',
           )
         }
       }
@@ -14161,7 +14162,7 @@ export default function App() {
           temIndicacao: registro.dados.temIndicacao,
           diaVencimento: registro.dados.diaVencimento,
         },
-        snapshot: registro.propostaSnapshot ?? {},
+        snapshot: (registro.propostaSnapshot ?? {}) as Parameters<typeof validateProposalReadinessForClosing>[0]['snapshot'],
         ucBeneficiarias: ucBeneficiariasNums.length > 0 ? ucBeneficiariasNums : [],
       })
 
@@ -14226,8 +14227,8 @@ export default function App() {
             consultorId: registro.dados.consultorId,
             ownerUserId: registro.ownerUserId,
             createdByUserId: registro.createdByUserId,
-          },
-          snapshot: registro.propostaSnapshot ?? {},
+          } as Parameters<typeof convertClientToClosedDeal>[0]['clienteDados'],
+          snapshot: (registro.propostaSnapshot ?? {}) as Parameters<typeof convertClientToClosedDeal>[0]['snapshot'],
           consultants: formConsultores,
           ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
         })
@@ -14331,6 +14332,8 @@ export default function App() {
             cpfSindico: clienteDados.cpfSindico ?? '',
             contatoSindico: clienteDados.contatoSindico ?? '',
             diaVencimento: clienteDados.diaVencimento ?? '10',
+            consultorId: clienteDados.consultorId ?? '',
+            consultorNome: clienteDados.consultorNome ?? '',
           }
 
           const dadosNormalizados: PrintableProposalProps = {
@@ -14452,14 +14455,14 @@ export default function App() {
           return {
             id,
             criadoEm,
-            clienteId: clienteId || undefined,
+            ...(clienteId ? { clienteId } : {}),
             clienteNome: dadosNormalizados.cliente.nome,
             clienteCidade: dadosNormalizados.cliente.cidade,
             clienteUf: dadosNormalizados.cliente.uf,
             clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
             clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
             dados: dadosNormalizados,
-            snapshot: snapshotNormalizado,
+            ...(snapshotNormalizado != null ? { snapshot: snapshotNormalizado } : {}),
           }
         })
       } catch (error) {
@@ -15072,7 +15075,7 @@ export default function App() {
                 totalFields: Object.keys(completeSnapshot).length,
               })
             }
-            snapshotToApply = completeSnapshot
+            snapshotToApply = completeSnapshot as unknown as OrcamentoSnapshotData
           } else {
             if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] proposalStore snapshot empty, using fallback')
           }
@@ -15208,7 +15211,11 @@ export default function App() {
         snapshotAtualizado.currentBudgetId = effectiveBudgetId
         const registroAtualizado: OrcamentoSalvo = {
           ...existente,
-          clienteId: clienteIdAtual ?? existente.clienteId,
+          ...(clienteIdAtual != null
+            ? { clienteId: clienteIdAtual }
+            : existente.clienteId != null
+              ? { clienteId: existente.clienteId }
+              : {}),
           clienteNome: dados.cliente.nome,
             clienteCidade: dados.cliente.cidade,
             clienteUf: dados.cliente.uf,
@@ -15263,7 +15270,7 @@ export default function App() {
         const registro: OrcamentoSalvo = {
           id: novoId,
           criadoEm: new Date().toISOString(),
-          clienteId: clienteIdAtual ?? undefined,
+          ...(clienteIdAtual != null ? { clienteId: clienteIdAtual } : {}),
           clienteNome: dados.cliente.nome,
           clienteCidade: dados.cliente.cidade,
           clienteUf: dados.cliente.uf,
@@ -16264,7 +16271,7 @@ export default function App() {
       if (!response.ok) {
         console.error('Não foi possível verificar disponibilidade dos anexos.')
         // Set all as available by default if check fails
-        setLeasingAnexosAvailability({})
+        setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
         return
       }
 
@@ -16280,7 +16287,7 @@ export default function App() {
     } catch (error) {
       console.error('Erro ao verificar disponibilidade dos anexos:', error)
       // Set all as available by default if check fails
-      setLeasingAnexosAvailability({})
+      setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
     } finally {
       setLeasingAnexosLoading(false)
     }
@@ -16354,7 +16361,7 @@ export default function App() {
         await persistContratoToOneDrive({
           fileName,
           contentBase64: base64,
-          contentType,
+          ...(contentType !== undefined ? { contentType } : {}),
         })
         return true
       } catch (error) {
@@ -16712,7 +16719,8 @@ export default function App() {
             contratosSalvos += 1
           }
 
-          if (!janelaPreview || janelaPreview.closed) {
+          const janelaAtual = janelaPreview as Window | null
+          if (!janelaAtual || janelaAtual.closed) {
             const anchor = document.createElement('a')
             anchor.href = url
             anchor.target = '_blank'
@@ -16731,7 +16739,8 @@ export default function App() {
 
           sucesso += 1
         } catch (error) {
-          if (janelaPreview && !janelaPreview.closed) {
+          const janelaAtualCatch = janelaPreview as Window | null
+          if (janelaAtualCatch && !janelaAtualCatch.closed) {
             atualizarJanelaMensagem(
               error instanceof Error && error.message
                 ? error.message
@@ -16743,7 +16752,8 @@ export default function App() {
         }
       }
 
-      if (contratosGerados.length > 0 && janelaPreview && !janelaPreview.closed) {
+      const janelaFinal = janelaPreview as Window | null
+      if (contratosGerados.length > 0 && janelaFinal && !janelaFinal.closed) {
         renderizarPreviewNaJanela(contratosGerados)
       }
 
@@ -17838,7 +17848,7 @@ export default function App() {
       let proximaDistribuidora = base.distribuidora
 
       if (listaDistribuidoras.length === 1) {
-        proximaDistribuidora = listaDistribuidoras[0]
+        proximaDistribuidora = listaDistribuidoras[0]!
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
       }
@@ -17919,7 +17929,7 @@ export default function App() {
   )
 
   const updateUcGeradoraTitularDraft = useCallback(
-    (patch: Partial<LeasingUcGeradoraTitular> & { endereco?: Partial<LeasingEndereco> }) => {
+    (patch: Omit<Partial<LeasingUcGeradoraTitular>, 'endereco'> & { endereco?: Partial<LeasingEndereco> }) => {
       const baseDraft = leasingContrato.ucGeradoraTitularDraft ?? createEmptyUcGeradoraTitular()
       const nextDraft: LeasingUcGeradoraTitular = {
         ...baseDraft,
@@ -17942,7 +17952,7 @@ export default function App() {
       const atual = leasingContrato.ucGeradoraTitularDistribuidoraAneel
       let proximaDistribuidora = atual
       if (listaDistribuidoras.length === 1) {
-        proximaDistribuidora = listaDistribuidoras[0]
+        proximaDistribuidora = listaDistribuidoras[0]!
       } else if (proximaDistribuidora && !listaDistribuidoras.includes(proximaDistribuidora)) {
         proximaDistribuidora = ''
       }
@@ -18473,7 +18483,7 @@ export default function App() {
           const listaDistribuidoras = distribuidorasPorUf[uf] ?? []
           let proximaDistribuidora = base.distribuidora
           if (listaDistribuidoras.length === 1) {
-            proximaDistribuidora = listaDistribuidoras[0]
+            proximaDistribuidora = listaDistribuidoras[0]!
           } else if (
             proximaDistribuidora &&
             !listaDistribuidoras.includes(proximaDistribuidora)
@@ -18980,7 +18990,7 @@ export default function App() {
           await navigator.share({
             title: 'Proposta SolarInvest',
             text: mensagemBase,
-            url: shareUrl || undefined,
+            ...(shareUrl ? { url: shareUrl } : {}),
           })
           adicionarNotificacao('Compartilhamento iniciado no dispositivo.', 'success')
           setIsEnviarPropostaModalOpen(false)
@@ -20081,8 +20091,8 @@ export default function App() {
       <AppRoutes>
         <AppShell
           topbar={{
-            subtitle: shellTopbarSubtitle,
-            mobileSubtitle: mobileTopbarSubtitle,
+            ...(shellTopbarSubtitle !== undefined ? { subtitle: shellTopbarSubtitle } : {}),
+            ...(mobileTopbarSubtitle !== undefined ? { mobileSubtitle: mobileTopbarSubtitle } : {}),
           }}
           sidebar={{
             collapsed: isSidebarCollapsed,
@@ -20091,7 +20101,7 @@ export default function App() {
             activeItemId: activeSidebarItem,
             onNavigate: handleSidebarNavigate,
             onCloseMobile: handleSidebarClose,
-            onToggleCollapse: isMobileViewport ? undefined : handleSidebarMenuToggle,
+            ...(isMobileViewport ? {} : { onToggleCollapse: handleSidebarMenuToggle }),
             menuButtonLabel: isMobileViewport
               ? isSidebarMobileOpen
                 ? 'Fechar menu Painel SolarInvest'
@@ -20099,33 +20109,33 @@ export default function App() {
               : 'Painel SolarInvest',
             menuButtonExpanded: isMobileViewport ? isSidebarMobileOpen : !isSidebarCollapsed,
             menuButtonText: 'Painel SolarInvest',
-            userInfo: user?.displayName
-              ? { name: user.displayName, role: userRole }
-              : undefined,
+            ...(user?.displayName
+              ? { userInfo: { name: user.displayName, role: userRole } }
+              : {}),
           }}
           content={{
-            subtitle: shellContentSubtitle,
-            actions: contentActions ?? undefined,
-            pageIndicator: shellPageIndicator,
-            className: activePage === 'app' ? 'content-wrap--proposal' : undefined,
+            ...(shellContentSubtitle !== undefined ? { subtitle: shellContentSubtitle } : {}),
+            ...(contentActions != null ? { actions: contentActions } : {}),
+            ...(shellPageIndicator !== undefined ? { pageIndicator: shellPageIndicator } : {}),
+            ...(activePage === 'app' ? { className: 'content-wrap--proposal' } : {}),
           }}
-          mobileMenuButton={
-            isMobileViewport
-              ? {
+          {...(isMobileViewport
+            ? {
+                mobileMenuButton: {
                   onToggle: handleSidebarMenuToggle,
                   label: isSidebarMobileOpen
                     ? 'Fechar menu Painel SolarInvest'
                     : 'Abrir menu Painel SolarInvest',
                   expanded: isSidebarMobileOpen,
-                  userInfo: user?.displayName
-                    ? { name: user.displayName, role: userRole }
-                    : undefined,
-                }
-              : undefined
-          }
+                  ...(user?.displayName
+                    ? { userInfo: { name: user.displayName, role: userRole } }
+                    : {}),
+                },
+              }
+            : {})}
           theme={appTheme}
           onCycleTheme={cycleAppTheme}
-          onOpenPreferences={isAdmin ? () => { void abrirConfiguracoes() } : undefined}
+          {...(isAdmin ? { onOpenPreferences: () => { void abrirConfiguracoes() } } : {})}
           onLogout={handleLogout}
           isLoggingOut={isLoggingOut}
         >
@@ -20155,12 +20165,9 @@ export default function App() {
           <ClientesPage
             registros={clientesSalvos}
             onClose={fecharClientesPainel}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onEditar={handleEditarCliente}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onExcluir={handleExcluirCliente}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
-            onExportarCarteira={handleExportarParaCarteira}
+            onEditar={(r) => { void handleEditarCliente(r as unknown as ClienteRegistro) }}
+            onExcluir={(r) => { void handleExcluirCliente(r as unknown as ClienteRegistro) }}
+            onExportarCarteira={(r) => { void handleExportarParaCarteira(r as unknown as ClienteRegistro) }}
             onExportarCsv={handleExportarClientesCsv}
             onExportarJson={handleExportarClientesJson}
             onImportar={handleClientesImportarClick}
@@ -21206,8 +21213,7 @@ export default function App() {
                                     type="text"
                                     value={item.description}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, description: event.target.value })
+                                      updateKitBudgetItem(item.id, (prev) => ({ ...prev, description: event.target.value }))
                                     }}
                                     placeholder="Descrição do item"
                                   />
@@ -21216,10 +21222,9 @@ export default function App() {
                                   <input
                                     type="number"
                                     min={0}
-                                    value={item.quantity}
+                                    value={item.quantityInput}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, quantity: Number(event.target.value) })
+                                      updateKitBudgetItem(item.id, (prev) => ({ ...prev, quantityInput: event.target.value, quantity: Number(event.target.value) || null }))
                                     }}
                                     placeholder="Quantidade"
                                   />
@@ -21229,22 +21234,21 @@ export default function App() {
                                     type="number"
                                     min={0}
                                     step="0.01"
-                                    value={item.unitValue as unknown as number}
+                                    value={item.unitPriceInput}
                                     onChange={(event) => {
-                                      // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
-                                      return handleBudgetItemChange(index, { ...item, unitValue: Number(event.target.value) })
+                                      updateKitBudgetItem(item.id, (prev) => ({ ...prev, unitPriceInput: event.target.value, unitPrice: Number(event.target.value) || null }))
                                     }}
                                     placeholder="Valor unitário"
                                   />
                                 </td>
                                 <td>
-                                  <input type="text" value={currency(item.total as unknown as number)} readOnly aria-label="Total do item" />
+                                  <input type="text" value={currency((item.quantity ?? 0) * (item.unitPrice ?? 0))} readOnly aria-label="Total do item" />
                                 </td>
                                 <td>
                                   <button
                                     type="button"
                                     className="ghost danger"
-                                    onClick={() => handleRemoveBudgetItem(index)}
+                                    onClick={() => handleRemoveBudgetItem(item.id)}
                                   >
                                     Remover
                                   </button>

@@ -68,6 +68,6 @@ export function Field({
   )
 }
 
-export function FieldError({ message }: { message?: string }) {
+export function FieldError({ message }: { message?: string | undefined }) {
   return message ? <span className="field-error">{message}</span> : null
 }
