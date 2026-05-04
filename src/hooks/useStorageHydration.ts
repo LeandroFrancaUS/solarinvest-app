@@ -189,7 +189,10 @@ export function useStorageHydration({
     return () => {
       cancelado = true
     }
-  }, [applyDraftRef]) // applyDraftRef is a stable ref object — effect runs once
+    // Empty deps: runs once on mount. applyDraftRef is a stable ref object (same
+    // identity across renders) so omitting it from deps is safe; the async
+    // callback reads the latest value via ref rather than closing over a snapshot.
+  }, [])
 
   return { authSyncKey, isHydrating, isHydratingRef, setIsHydrating }
 }

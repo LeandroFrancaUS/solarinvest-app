@@ -149,7 +149,7 @@ function renderHook(
 // Helpers
 // ---------------------------------------------------------------------------
 
-const stableGetAccessToken = vi.fn((): Promise<null> => Promise.resolve(null))
+const mockGetAccessToken = vi.fn((): Promise<null> => Promise.resolve(null))
 
 function makeOptions(
   override: Partial<UseStorageHydrationOptions> = {},
@@ -157,7 +157,7 @@ function makeOptions(
   const applyDraftRef = { current: null as ((data: unknown) => void) | null }
   return {
     userId: null,
-    getAccessToken: stableGetAccessToken,
+    getAccessToken: mockGetAccessToken,
     applyDraftRef,
     onNotify: vi.fn(),
     ...override,
@@ -211,7 +211,7 @@ describe('useStorageHydration', () => {
       await new Promise<void>((r) => setTimeout(r, 0))
     })
 
-    expect(setStorageTokenProvider).toHaveBeenCalledWith(stableGetAccessToken)
+    expect(setStorageTokenProvider).toHaveBeenCalledWith(mockGetAccessToken)
     expect(result.current.authSyncKey).toBe(1)
     unmount()
   })
