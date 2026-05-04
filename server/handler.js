@@ -88,7 +88,7 @@ import {
   handlePersonnelImportableUsers,
   handlePersonnelImportableClients,
 } from './routes/personnelImport.js'
-import { handleDatabaseBackupRequest } from './routes/databaseBackup.js'
+import { registerDatabaseBackupRoutes } from './routes/databaseBackup.js'
 import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
 import { handlePurgeOldProposalsRequest } from './routes/purgeOldProposals.js'
 import {
@@ -398,6 +398,12 @@ registerAuthRoutes(router, {
   sendNoContent,
   expireAuthCookie,
   isAuthRateLimited,
+  isAdminRateLimited,
+})
+registerDatabaseBackupRoutes(router, {
+  sendJson,
+  sendNoContent,
+  readJsonBody,
   isAdminRateLimited,
 })
 
@@ -868,16 +874,6 @@ export default async function handler(req, res) {
         getScopedSql: createHandlerScopedSql,
         installerId: Number(installerDeactivateMatch[1]),
       })
-      return
-    }
-
-    // POST /api/admin/database-backup — secure DB snapshot export for admin/office
-    if (pathname === '/api/admin/database-backup') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      const body = await readJsonBody(req)
-      await handleDatabaseBackupRequest(req, res, { sendJson, body })
       return
     }
 

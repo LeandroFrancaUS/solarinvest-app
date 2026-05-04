@@ -1,3 +1,12 @@
+// server/routes/databaseBackup.js
+// /api/admin/database-backup route handler, extracted from the inline if-chain
+// in handler.js as part of the route registry migration (PR 15).
+//
+// Response shapes, status codes, auth behaviour, and rate-limiting are
+// intentionally identical to the originals.  handler.js imports and registers
+// this route via registerDatabaseBackupRoutes() so it continues to act as the
+// compatibility shim.
+
 import crypto from 'node:crypto'
 import { getDatabaseClient } from '../database/neonClient.js'
 import { resolveActor } from '../proposals/permissions.js'
@@ -468,4 +477,29 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
       detail: process.env.NODE_ENV !== 'production' ? error.message : undefined,
     })
   }
+}
+
+/**
+ * Registers the /api/admin/database-backup route on the given router.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   sendJson:            (res: object, status: number, payload: object) => void,
+ *   sendNoContent:       (res: object) => void,
+ *   readJsonBody:        (req: object) => Promise<object>,
+ *   isAdminRateLimited:  (req: object) => boolean,
+ * }} moduleCtx
+ */
+export function registerDatabaseBackupRoutes(router, moduleCtx) {
+  const { sendJson, sendNoContent, readJsonBody, isAdminRateLimited } = moduleCtx
+
+  // POST /api/admin/database-backup — secure DB snapshot export for admin/office
+  router.register('*', '/api/admin/database-backup', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const body = await readJsonBody(req)
+    await handleDatabaseBackupRequest(req, res, { sendJson, body })
+  })
 }
