@@ -72,7 +72,7 @@ function sqlForActor(db, actor) {
  *
  * Returns null and sends a 422 response when the adapter rejects the input.
  *
- * @param {object}   body     - Parsed request body.
+ * @param {any}      body     - Parsed request body (expected to be an object).
  * @param {Function} sendJson - Handler-local sendJson(status, payload).
  * @returns {object|null}
  */

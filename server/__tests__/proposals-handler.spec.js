@@ -394,7 +394,7 @@ describe('handleProposalByIdRequest()', () => {
     })
 
     it('preserves payload_json content in GET single response', async () => {
-      const payload = { kWp: 6, módulos: 12, inversor: 'SMA' }
+      const payload = { kWp: 6, modules: 12, inversor: 'SMA' }
       const row = {
         id: 'uuid-get-3',
         client_name: 'Iara',
