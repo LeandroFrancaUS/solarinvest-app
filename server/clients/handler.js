@@ -5,6 +5,11 @@ import { getDatabaseClient } from '../database/neonClient.js'
 import { getCanonicalDatabaseDiagnostics } from '../database/connection.js'
 import { createUserScopedSql } from '../database/withRLSContext.js'
 import {
+  toCanonicalClient,
+  toLegacyClient,
+  toClientWritePayload as buildCoreClientFields,
+} from '../adapters/clientAdapter.js'
+import {
   normalizeCpfServer,
   normalizeCnpjServer,
   normalizeDocumentServer,
@@ -119,16 +124,25 @@ function toClientWritePayload(body) {
     if (value !== undefined) accepted[field] = value
   }
 
-  assign('name', body.client_name, body.name)
-  assign('phone', body.client_phone, body.phone)
-  assign('email', body.client_email, body.email)
-  assign('city', body.client_city, body.city)
-  assign('state', body.client_state, body.state, body.uf)
-  assign('address', body.client_address, body.address)
-  assign('document', body.client_document, body.document)
+  // Use adapter to normalize the 8 core identity fields at the API boundary.
+  // The adapter accepts both canonical (client_*) and legacy field names and
+  // returns canonical keys; we re-map to the legacy keys that repository.js
+  // destructures for its INSERT/UPDATE parameters.
+  const core = buildCoreClientFields(body)
+  assign('name',     core.client_name)
+  assign('phone',    core.client_phone)
+  assign('email',    core.client_email)
+  assign('city',     core.client_city)
+  // 'uf' is a short-form alias for state used only by this handler's callers
+  // (not part of the canonical 8-field adapter set, kept here intentionally).
+  assign('state',    firstDefined(core.client_state, body.uf))
+  assign('address',  core.client_address)
+  assign('document', core.client_document)
   const normalizedCep = normalizeCep(firstDefined(body.client_cep, body.cep))
   if (normalizedCep !== undefined) accepted.client_cep = normalizedCep
-  assign('uc', body.uc_geradora, body.ucGeradora, body.uc)
+  // 'ucGeradora' is a camelCase alias sent by legacy clients; camelCase aliases
+  // are intentionally kept out of the shared adapter (which uses snake_case only).
+  assign('uc',       firstDefined(core.uc_geradora, body.ucGeradora))
   assign('uc_beneficiaria', body.uc_beneficiaria, body.ucBeneficiaria)
   assign('system_kwp', body.system_kwp, body.systemKwp)
   assign('term_months', body.term_months, body.termMonths)
@@ -179,26 +193,17 @@ function toClientWritePayload(body) {
 
 function normalizeClientResponse(row) {
   if (!row) return row
+  // Use adapter for the 8 core identity fields at the API response boundary.
+  // toCanonicalClient normalises canonical client_* names from either shape;
+  // toLegacyClient then back-populates the un-prefixed aliases so both forms
+  // are present in the response for backward compatibility.
+  const withBoth = toLegacyClient(toCanonicalClient(row))
   return {
-    ...row,
-    name: row.client_name ?? row.name ?? null,
-    client_name: row.client_name ?? row.name ?? null,
-    document: row.client_document ?? row.document ?? null,
-    client_document: row.client_document ?? row.document ?? null,
-    email: row.client_email ?? row.email ?? null,
-    client_email: row.client_email ?? row.email ?? null,
-    phone: row.client_phone ?? row.phone ?? null,
-    client_phone: row.client_phone ?? row.phone ?? null,
-    city: row.client_city ?? row.city ?? null,
-    client_city: row.client_city ?? row.city ?? null,
-    state: row.client_state ?? row.state ?? null,
-    client_state: row.client_state ?? row.state ?? null,
-    address: row.client_address ?? row.address ?? null,
-    client_address: row.client_address ?? row.address ?? null,
+    ...withBoth,
+    // cep aliases are not in the core adapter (client_cep is an extra column)
     cep: row.client_cep ?? row.cep ?? null,
     client_cep: row.client_cep ?? row.cep ?? null,
-    uc: row.uc_geradora ?? row.uc ?? null,
-    uc_geradora: row.uc_geradora ?? row.uc ?? null,
+    // camelCase convenience aliases for frontend compatibility
     ucBeneficiaria: row.uc_beneficiaria ?? null,
     consumptionKwhMonth: row.consumption_kwh_month ?? null,
     systemKwp: row.system_kwp ?? null,
