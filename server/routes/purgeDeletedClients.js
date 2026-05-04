@@ -15,6 +15,7 @@
 
 import { getDatabaseClient } from '../database/neonClient.js'
 import { purgeDeletedClients } from '../clients/purgeDeletedClients.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 /**
  * Validates the Authorization header against CRON_SECRET.
@@ -107,4 +108,21 @@ export async function handlePurgeDeletedClientsRequest(req, res, { sendJson, req
     console.error('[purge][cron] failed', { message: err?.message })
     sendJson(res, 500, { error: { code: 'PURGE_FAILED', message: err?.message ?? 'Unknown error' } })
   }
+}
+
+/**
+ * Registers the GET /api/internal/purge-deleted-clients route on the given router.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ */
+export function registerPurgeDeletedClientsRoute(router) {
+  // ── GET /api/internal/purge-deleted-clients ──────────────────────────────
+  // Vercel cron endpoint — protected by CRON_SECRET bearer token.
+  router.register('*', '/api/internal/purge-deleted-clients', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const requestUrl = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handlePurgeDeletedClientsRequest(req, res, { sendJson: jsonResponse, requestUrl })
+  })
 }

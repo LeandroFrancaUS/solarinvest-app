@@ -6,18 +6,15 @@
 // registerAuthRoutes() so it continues to act as the compatibility shim.
 //
 // Routes covered:
-//   GET  /api/auth/me                        — identity + DB authorization status
-//   GET  /api/authz/me                       — full authorization snapshot
-//   POST /api/auth/logout                    — clear session cookie
-//   POST /api/internal/auth/reconcile        — reconcile all users (admin)
-//   GET  /api/internal/rbac/inspect          — RBAC diagnostics (admin)
-//
-// The pattern-parameterised route
-//   POST /api/internal/auth/reconcile/:userId
-// remains in handler.js because the router only supports exact-path matching.
+//   GET  /api/auth/me                             — identity + DB authorization status
+//   GET  /api/authz/me                            — full authorization snapshot
+//   POST /api/auth/logout                         — clear session cookie
+//   POST /api/internal/auth/reconcile             — reconcile all users (admin)
+//   POST /api/internal/auth/reconcile/:userId     — reconcile single user (admin)
+//   GET  /api/internal/rbac/inspect               — RBAC diagnostics (admin)
 
 import { handleAuthMeRequest } from './authMe.js'
-import { handleAuthReconcileAll } from './authReconcile.js'
+import { handleAuthReconcileAll, handleAuthReconcileUser } from './authReconcile.js'
 import { handleRbacInspectRequest } from './rbacInspect.js'
 import { getAuthorizationSnapshot } from '../auth/authorizationSnapshot.js'
 import { jsonResponse, noContentResponse } from '../response.js'
@@ -95,6 +92,17 @@ export function registerAuthRoutes(router, moduleCtx) {
     if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
     if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
     await handleAuthReconcileAll(req, res, { sendJson })
+  })
+
+  // ── POST /api/internal/auth/reconcile/:userId ───────────────────────────
+  // Reconcile a single user's DB role against Stack Auth permissions (admin only).
+  router.register('*', '/api/internal/auth/reconcile/:userId', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const userId = reqCtx.params?.userId ?? ''
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,OPTIONS' }); return }
+    if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    await handleAuthReconcileUser(req, res, { sendJson, userId })
   })
 
   // ── GET /api/internal/rbac/inspect ───────────────────────────────────────

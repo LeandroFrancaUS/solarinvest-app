@@ -4,6 +4,7 @@
 // installer_code is auto-generated server-side (prefix 'I' + 3 random chars).
 
 import { resolveActor } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 // Regex for auto-generated installer codes: I/i + 3 alphanumerics
 const CODE_REGEX = /^[Ii][A-Za-z0-9]{3}$/
@@ -268,3 +269,57 @@ export async function handleInstallersDeactivateRequest(req, res, { sendJson, ge
   sendJson(200, { installer: rows[0] })
 }
 
+
+/**
+ * Registers all /api/installers routes on the given router.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   getScopedSql:  (actor: object) => Promise<object>,
+ *   readJsonBody:  (req: object)   => Promise<object>,
+ * }} moduleCtx
+ */
+export function registerInstallersRoutes(router, moduleCtx) {
+  const { getScopedSql, readJsonBody } = moduleCtx
+
+  // ── GET,POST /api/installers ─────────────────────────────────────────────
+  // GET  — list installers (privileged read)
+  // POST — create installer (admin only)
+  router.register('*', '/api/installers', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,POST,OPTIONS' }); return }
+    if (method === 'GET') {
+      await handleInstallersListRequest(req, res, { sendJson, getScopedSql, url })
+    } else if (method === 'POST') {
+      await handleInstallersCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── PUT /api/installers/:id ──────────────────────────────────────────────
+  // Update installer — admin only.
+  router.register('*', '/api/installers/:id', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const installerId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(installerId) || installerId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PUT,OPTIONS' }); return }
+    if (method !== 'PUT') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleInstallersUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, installerId })
+  })
+
+  // ── PATCH /api/installers/:id/deactivate ─────────────────────────────────
+  // Deactivate installer — admin only.
+  router.register('*', '/api/installers/:id/deactivate', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const installerId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(installerId) || installerId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PATCH,OPTIONS' }); return }
+    if (method !== 'PATCH') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleInstallersDeactivateRequest(req, res, { sendJson, getScopedSql, installerId })
+  })
+}

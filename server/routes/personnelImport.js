@@ -11,6 +11,7 @@
 //   GET /api/personnel/importable-clients?q=<search>
 
 import { resolveActor } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 function requireAdmin(actor, sendJson) {
   if (!actor) {
@@ -175,4 +176,38 @@ export async function handlePersonnelImportableClients(req, res, { sendJson, get
 
   console.info('[personnel-import][clients]', { count: clients.length, q: q || '(all)' })
   sendJson(200, { clients })
+}
+
+/**
+ * Registers all /api/personnel import routes on the given router.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   getScopedSql: (actor: object) => Promise<object>,
+ * }} moduleCtx
+ */
+export function registerPersonnelImportRoutes(router, moduleCtx) {
+  const { getScopedSql } = moduleCtx
+
+  // ── GET /api/personnel/importable-users ──────────────────────────────────
+  // List app users eligible for import into consultant/engineer/installer — admin only.
+  router.register('*', '/api/personnel/importable-users', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handlePersonnelImportableUsers(req, res, { sendJson, getScopedSql, url })
+  })
+
+  // ── GET /api/personnel/importable-clients ────────────────────────────────
+  // List clients eligible for import into personnel records — admin only.
+  router.register('*', '/api/personnel/importable-clients', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handlePersonnelImportableClients(req, res, { sendJson, getScopedSql, url })
+  })
 }

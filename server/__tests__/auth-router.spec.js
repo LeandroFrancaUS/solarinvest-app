@@ -119,9 +119,9 @@ function makeRouter({
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('registerAuthRoutes — route registration', () => {
-  it('registers exactly 5 routes', () => {
+  it('registers exactly 6 routes', () => {
     const { router } = makeRouter()
-    expect(router.size).toBe(5)
+    expect(router.size).toBe(6)
   })
 
   it('registers GET /api/auth/me', () => {
@@ -142,6 +142,11 @@ describe('registerAuthRoutes — route registration', () => {
   it('registers POST /api/internal/auth/reconcile', () => {
     const { router } = makeRouter()
     expect(router.match('POST', '/api/internal/auth/reconcile')).toBeTypeOf('function')
+  })
+
+  it('registers POST /api/internal/auth/reconcile/:userId', () => {
+    const { router } = makeRouter()
+    expect(router.match('POST', '/api/internal/auth/reconcile/some-user-id')).toBeTypeOf('function')
   })
 
   it('registers GET /api/internal/rbac/inspect', () => {
