@@ -7,6 +7,7 @@
 // the proposal form to populate the consultant dropdown).
 
 import { resolveActor } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 // Regex for auto-generated consultant codes: C/c + 3 alphanumerics
 const CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
@@ -648,3 +649,99 @@ export async function handleConsultantsAutoDetectRequest(req, res, { sendJson, g
   sendJson(200, { consultant: null })
 }
 
+
+/**
+ * Registers all /api/consultants routes on the given router.
+ *
+ * Exact-path routes (/picker, /auto-detect, /consultants) are registered first;
+ * parameterised routes (/:id, /:id/deactivate, /:id/link) follow.  The router's
+ * two-pass matching guarantees exact routes always win over patterns.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   getScopedSql:  (actor: object) => Promise<object>,
+ *   readJsonBody:  (req: object)   => Promise<object>,
+ * }} moduleCtx
+ */
+export function registerConsultantsRoutes(router, moduleCtx) {
+  const { getScopedSql, readJsonBody } = moduleCtx
+
+  // ── GET /api/consultants/picker ──────────────────────────────────────────
+  // Lightweight list for form dropdowns — any authenticated user.
+  router.register('*', '/api/consultants/picker', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsPickerRequest(req, res, { sendJson, getScopedSql })
+  })
+
+  // ── GET /api/consultants/auto-detect ─────────────────────────────────────
+  // Auto-detect linked consultant for the current user — any authenticated user.
+  router.register('*', '/api/consultants/auto-detect', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsAutoDetectRequest(req, res, { sendJson, getScopedSql })
+  })
+
+  // ── GET,POST /api/consultants ────────────────────────────────────────────
+  // GET  — list consultants (privileged read)
+  // POST — create consultant (admin only)
+  router.register('*', '/api/consultants', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,POST,OPTIONS' }); return }
+    if (method === 'GET') {
+      await handleConsultantsListRequest(req, res, { sendJson, getScopedSql, url })
+    } else if (method === 'POST') {
+      await handleConsultantsCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── PUT /api/consultants/:id ─────────────────────────────────────────────
+  // Update consultant — admin only.
+  router.register('*', '/api/consultants/:id', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PUT,OPTIONS' }); return }
+    if (method !== 'PUT') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId })
+  })
+
+  // ── PATCH /api/consultants/:id/deactivate ────────────────────────────────
+  // Deactivate consultant — admin only.
+  router.register('*', '/api/consultants/:id/deactivate', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PATCH,OPTIONS' }); return }
+    if (method !== 'PATCH') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsDeactivateRequest(req, res, { sendJson, getScopedSql, consultantId })
+  })
+
+  // ── POST,DELETE /api/consultants/:id/link ────────────────────────────────
+  // POST   — link consultant to a user account (admin only)
+  // DELETE — unlink consultant from a user account (admin only)
+  router.register('*', '/api/consultants/:id/link', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,DELETE,OPTIONS' }); return }
+    if (method === 'POST') {
+      await handleConsultantsLinkRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId })
+    } else if (method === 'DELETE') {
+      await handleConsultantsUnlinkRequest(req, res, { sendJson, getScopedSql, consultantId })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+}

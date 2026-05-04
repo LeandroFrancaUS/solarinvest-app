@@ -59,38 +59,13 @@ import {
   handleBulkImportPreview,
   handleBulkImport,
 } from './clients/bulkImport.js'
-import {
-  handleAuthReconcileUser,
-} from './routes/authReconcile.js'
-import {
-  handleConsultantsListRequest,
-  handleConsultantsCreateRequest,
-  handleConsultantsUpdateRequest,
-  handleConsultantsDeactivateRequest,
-  handleConsultantsPickerRequest,
-  handleConsultantsLinkRequest,
-  handleConsultantsUnlinkRequest,
-  handleConsultantsAutoDetectRequest,
-} from './routes/consultants.js'
-import {
-  handleEngineersListRequest,
-  handleEngineersCreateRequest,
-  handleEngineersUpdateRequest,
-  handleEngineersDeactivateRequest,
-} from './routes/engineers.js'
-import {
-  handleInstallersListRequest,
-  handleInstallersCreateRequest,
-  handleInstallersUpdateRequest,
-  handleInstallersDeactivateRequest,
-} from './routes/installers.js'
-import {
-  handlePersonnelImportableUsers,
-  handlePersonnelImportableClients,
-} from './routes/personnelImport.js'
+import { registerConsultantsRoutes } from './routes/consultants.js'
+import { registerEngineersRoutes } from './routes/engineers.js'
+import { registerInstallersRoutes } from './routes/installers.js'
+import { registerPersonnelImportRoutes } from './routes/personnelImport.js'
 import { registerDatabaseBackupRoutes } from './routes/databaseBackup.js'
-import { handlePurgeDeletedClientsRequest } from './routes/purgeDeletedClients.js'
-import { handlePurgeOldProposalsRequest } from './routes/purgeOldProposals.js'
+import { registerPurgeDeletedClientsRoute } from './routes/purgeDeletedClients.js'
+import { registerPurgeOldProposalsRoute } from './routes/purgeOldProposals.js'
 import {
   handlePortfolioListRequest,
   handlePortfolioGetRequest,
@@ -406,6 +381,12 @@ registerDatabaseBackupRoutes(router, {
   readJsonBody,
   isAdminRateLimited,
 })
+registerPurgeDeletedClientsRoute(router)
+registerPurgeOldProposalsRoute(router)
+registerPersonnelImportRoutes(router, { getScopedSql: createHandlerScopedSql })
+registerConsultantsRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
+registerEngineersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
+registerInstallersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 
 // ✅ ESTE É O HANDLER serverless
 export default async function handler(req, res) {
@@ -425,7 +406,7 @@ export default async function handler(req, res) {
     const pathname = requestUrl.pathname
     const method = req.method?.toUpperCase() ?? 'GET'
 
-    // ── Route registry dispatch (health endpoints) ─────────────────────────
+    // ── Route registry dispatch ────────────────────────────────────────────
     const routerFn = router.match(method, pathname)
     if (routerFn) {
       await routerFn(req, res, { requestId, vercelId })
@@ -553,8 +534,14 @@ export default async function handler(req, res) {
 
     // /api/storage is now handled by the route registry above (registerStorageRoutes).
     // Auth routes (/api/auth/me, /api/authz/me, /api/auth/logout,
-    //   /api/internal/auth/reconcile, /api/internal/rbac/inspect) are now handled
-    //   by the route registry above (registerAuthRoutes).
+    //   /api/internal/auth/reconcile, /api/internal/auth/reconcile/:userId,
+    //   /api/internal/rbac/inspect) are now handled by registerAuthRoutes above.
+    // Cron routes (/api/internal/purge-deleted-clients, /api/internal/purge-old-proposals)
+    //   are now handled by registerPurgeDeletedClientsRoute / registerPurgeOldProposalsRoute above.
+    // Personnel import routes (/api/personnel/importable-users, /api/personnel/importable-clients)
+    //   are now handled by registerPersonnelImportRoutes above.
+    // Consultants, engineers, and installers routes are now handled by their respective
+    //   registerXRoutes above.
 
     if (pathname === '/api/admin/users') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
@@ -615,265 +602,6 @@ export default async function handler(req, res) {
       } else {
         sendJson(res, 405, { error: 'Método não suportado.' })
       }
-      return
-    }
-
-    // ── Internal auth management ──────────────────────────────────────────────
-    // POST /api/internal/auth/reconcile/:userId — reconcile a single user
-    // (The /api/internal/auth/reconcile all-users route is handled by registerAuthRoutes above.)
-    const reconcileUserMatch = pathname.match(/^\/api\/internal\/auth\/reconcile\/([^/]+)$/)
-    if (reconcileUserMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      await handleAuthReconcileUser(req, res, { sendJson, userId: reconcileUserMatch[1] })
-      return
-    }
-
-    // ── Cron: purge soft-deleted clients past retention window ────────────────
-    // GET /api/internal/purge-deleted-clients — Vercel cron endpoint
-    // Protected by Authorization: Bearer <CRON_SECRET>
-    if (pathname === '/api/internal/purge-deleted-clients') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handlePurgeDeletedClientsRequest(req, res, { sendJson, requestUrl })
-      return
-    }
-
-    // ── Cron: hard-delete proposals older than 30 days ────────────────────────
-    // GET /api/internal/purge-old-proposals — Vercel cron endpoint
-    // Protected by Authorization: Bearer <CRON_SECRET>
-    if (pathname === '/api/internal/purge-old-proposals') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handlePurgeOldProposalsRequest(req, res, { sendJson, requestUrl })
-      return
-    }
-
-    // ── Personnel import helpers (read-only pre-fill sources) ─────────────────
-    // GET /api/personnel/importable-users    — list app users for import (admin)
-    // GET /api/personnel/importable-clients  — list clients for import (admin)
-    if (pathname === '/api/personnel/importable-users') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handlePersonnelImportableUsers(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        url: requestUrl,
-      })
-      return
-    }
-
-    if (pathname === '/api/personnel/importable-clients') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handlePersonnelImportableClients(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        url: requestUrl,
-      })
-      return
-    }
-
-    // ── Consultants API ───────────────────────────────────────────────────────
-    // GET  /api/consultants/picker  — lightweight list for form dropdowns (any auth)
-    // GET  /api/consultants         — list consultants (privileged read)
-    // POST /api/consultants         — create consultant (admin only)
-    if (pathname === '/api/consultants/picker') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleConsultantsPickerRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    if (pathname === '/api/consultants') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleConsultantsListRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          url: requestUrl,
-        })
-      } else if (method === 'POST') {
-        await handleConsultantsCreateRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          readJsonBody,
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // PUT    /api/consultants/:id              — update consultant (admin only)
-    // PATCH  /api/consultants/:id/deactivate   — deactivate consultant (admin only)
-    const consultantIdMatch = pathname.match(/^\/api\/consultants\/(\d+)$/)
-    if (consultantIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleConsultantsUpdateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        readJsonBody,
-        consultantId: Number(consultantIdMatch[1]),
-      })
-      return
-    }
-
-    const consultantDeactivateMatch = pathname.match(/^\/api\/consultants\/(\d+)\/deactivate$/)
-    if (consultantDeactivateMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleConsultantsDeactivateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        consultantId: Number(consultantDeactivateMatch[1]),
-      })
-      return
-    }
-
-    // POST   /api/consultants/:id/link   — link consultant to user (admin only)
-    // DELETE /api/consultants/:id/link   — unlink consultant from user (admin only)
-    const consultantLinkMatch = pathname.match(/^\/api\/consultants\/(\d+)\/link$/)
-    if (consultantLinkMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
-      if (method === 'POST') {
-        await handleConsultantsLinkRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          readJsonBody,
-          consultantId: Number(consultantLinkMatch[1]),
-        })
-      } else if (method === 'DELETE') {
-        await handleConsultantsUnlinkRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          consultantId: Number(consultantLinkMatch[1]),
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // GET /api/consultants/auto-detect — auto-detect linked consultant (any auth)
-    if (pathname === '/api/consultants/auto-detect') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleConsultantsAutoDetectRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // ── Engineers API ─────────────────────────────────────────────────────────
-    // GET  /api/engineers         — list engineers (privileged read)
-    // POST /api/engineers         — create engineer (admin only)
-    if (pathname === '/api/engineers') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleEngineersListRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          url: requestUrl,
-        })
-      } else if (method === 'POST') {
-        await handleEngineersCreateRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          readJsonBody,
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // PUT   /api/engineers/:id              — update engineer (admin only)
-    const engineerIdMatch = pathname.match(/^\/api\/engineers\/(\d+)$/)
-    if (engineerIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleEngineersUpdateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        readJsonBody,
-        engineerId: Number(engineerIdMatch[1]),
-      })
-      return
-    }
-
-    // PATCH /api/engineers/:id/deactivate   — deactivate engineer (admin only)
-    const engineerDeactivateMatch = pathname.match(/^\/api\/engineers\/(\d+)\/deactivate$/)
-    if (engineerDeactivateMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleEngineersDeactivateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        engineerId: Number(engineerDeactivateMatch[1]),
-      })
-      return
-    }
-
-    // ── Installers API ────────────────────────────────────────────────────────
-    // GET  /api/installers         — list installers (privileged read)
-    // POST /api/installers         — create installer (admin only)
-    if (pathname === '/api/installers') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleInstallersListRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          url: requestUrl,
-        })
-      } else if (method === 'POST') {
-        await handleInstallersCreateRequest(req, res, {
-          sendJson: (s, b) => sendJson(res, s, b),
-          getScopedSql: createHandlerScopedSql,
-          readJsonBody,
-        })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // PUT   /api/installers/:id              — update installer (admin only)
-    const installerIdMatch = pathname.match(/^\/api\/installers\/(\d+)$/)
-    if (installerIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PUT,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PUT') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleInstallersUpdateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        readJsonBody,
-        installerId: Number(installerIdMatch[1]),
-      })
-      return
-    }
-
-    // PATCH /api/installers/:id/deactivate   — deactivate installer (admin only)
-    const installerDeactivateMatch = pathname.match(/^\/api\/installers\/(\d+)\/deactivate$/)
-    if (installerDeactivateMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'PATCH') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      await handleInstallersDeactivateRequest(req, res, {
-        sendJson: (s, b) => sendJson(res, s, b),
-        getScopedSql: createHandlerScopedSql,
-        installerId: Number(installerDeactivateMatch[1]),
-      })
       return
     }
 

@@ -4,6 +4,7 @@
 // engineer_code is auto-generated server-side (prefix 'E' + 3 random chars).
 
 import { resolveActor } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 // Regex for auto-generated engineer codes: E/e + 3 alphanumerics
 const CODE_REGEX = /^[Ee][A-Za-z0-9]{3}$/
@@ -273,3 +274,57 @@ export async function handleEngineersDeactivateRequest(req, res, { sendJson, get
   sendJson(200, { engineer: rows[0] })
 }
 
+
+/**
+ * Registers all /api/engineers routes on the given router.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   getScopedSql:  (actor: object) => Promise<object>,
+ *   readJsonBody:  (req: object)   => Promise<object>,
+ * }} moduleCtx
+ */
+export function registerEngineersRoutes(router, moduleCtx) {
+  const { getScopedSql, readJsonBody } = moduleCtx
+
+  // ── GET,POST /api/engineers ──────────────────────────────────────────────
+  // GET  — list engineers (privileged read)
+  // POST — create engineer (admin only)
+  router.register('*', '/api/engineers', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,POST,OPTIONS' }); return }
+    if (method === 'GET') {
+      await handleEngineersListRequest(req, res, { sendJson, getScopedSql, url })
+    } else if (method === 'POST') {
+      await handleEngineersCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── PUT /api/engineers/:id ───────────────────────────────────────────────
+  // Update engineer — admin only.
+  router.register('*', '/api/engineers/:id', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const engineerId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(engineerId) || engineerId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PUT,OPTIONS' }); return }
+    if (method !== 'PUT') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleEngineersUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, engineerId })
+  })
+
+  // ── PATCH /api/engineers/:id/deactivate ──────────────────────────────────
+  // Deactivate engineer — admin only.
+  router.register('*', '/api/engineers/:id/deactivate', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const engineerId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(engineerId) || engineerId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PATCH,OPTIONS' }); return }
+    if (method !== 'PATCH') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleEngineersDeactivateRequest(req, res, { sendJson, getScopedSql, engineerId })
+  })
+}
