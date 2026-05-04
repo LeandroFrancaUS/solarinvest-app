@@ -378,6 +378,42 @@ import {
   type PropostaEnvioMetodo,
 } from './components/modals/EnviarPropostaModal'
 
+// ── Extracted client state types, helpers, and hook ──────────────────────────
+import type {
+  OrcamentoSnapshotData,
+  OrcamentoSnapshotBudgetState,
+  OrcamentoSnapshotMultiUcState,
+  PageSharedSettings,
+  ClienteRegistro,
+  ClientsSyncState,
+  ClientsSource,
+  PersistedClientReconciliation,
+} from './types/orcamentoTypes'
+import {
+  CLIENTES_STORAGE_KEY,
+  CLIENTS_RECONCILIATION_KEY,
+  CONSULTORES_CACHE_KEY,
+  CLIENT_SERVER_ID_MAP_STORAGE_KEY,
+  CLIENTE_ID_LENGTH,
+  CLIENTE_ID_PATTERN,
+  CLIENTE_INICIAL,
+  isSyncedClienteField,
+  normalizeDistribuidoraName,
+  getDistribuidoraValidationMessage,
+  cloneClienteDados,
+  ensureClienteHerdeiros,
+  normalizeClienteHerdeiros,
+  normalizeClienteIdCandidate,
+  generateClienteId,
+  ensureClienteId,
+  isQuotaExceededError,
+  persistWithFallback,
+  persistClientesToLocalStorage,
+  normalizeClienteRegistros,
+} from './features/clientes/clienteHelpers'
+import { useClientState } from './features/clientes/useClientState'
+// ─────────────────────────────────────────────────────────────────────────────
+
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
 const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
 const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
@@ -620,43 +656,6 @@ type IbgeEstado = {
   sigla?: string
 }
 
-type ClienteRegistro = {
-  id: string
-  criadoEm: string
-  atualizadoEm: string
-  dados: ClienteDados
-  propostaSnapshot?: OrcamentoSnapshotData
-  consumption_kwh_month?: number | null
-  system_kwp?: number | null
-  term_months?: number | null
-  /** Display name of the user who owns this client record (server-loaded, privileged views only) */
-  ownerName?: string
-  /** Email of the user who owns this client record (server-loaded, privileged views only) */
-  ownerEmail?: string
-  /** Stack user id of the owner (server-loaded, privileged views only) */
-  ownerUserId?: string
-  /**
-   * Stack user ID of the user who created the record (created_by_user_id from DB).
-   * Used as the primary key for the consultant filter on the Gestão de Clientes page.
-   */
-  createdByUserId?: string | null
-  /**
-   * Soft-delete timestamp from the database (deleted_at).
-   * Null/undefined means the record is active. Deleted records must not appear in the table.
-   */
-  deletedAt?: string | null
-  /**
-   * Whether this client has been activated in the portfolio (clients.in_portfolio).
-   * When true, the "Ativar Cliente" button must be disabled and show a "negócio fechado" icon.
-   */
-  inPortfolio?: boolean
-  /**
-   * Timestamp when the client was first activated in the portfolio (clients.portfolio_exported_at).
-   */
-  clientActivatedAt?: string | null
-}
-
-
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
 
@@ -842,152 +841,6 @@ const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   error: '⚠',
 }
 
-type OrcamentoSnapshotBudgetState = {
-  isProcessing: boolean
-  error: string | null
-  progress: BudgetUploadProgress | null
-  isTableCollapsed: boolean
-  ocrDpi: number
-}
-
-type OrcamentoSnapshotMultiUcState = {
-  ativo: boolean
-  rows: MultiUcRowState[]
-  rateioModo: MultiUcRateioModo
-  energiaGeradaKWh: number
-  energiaGeradaTouched: boolean
-  anoVigencia: number
-  overrideEscalonamento: boolean
-  escalonamentoCustomPercent: number | null
-}
-
-type PageSharedSettings = {
-  kcKwhMes: number
-  tarifaCheia: number
-  taxaMinima: number
-  ufTarifa: string
-  distribuidoraTarifa: string
-  potenciaModulo: number
-  numeroModulosManual: number | ''
-  segmentoCliente: SegmentoCliente
-  tipoInstalacao: TipoInstalacao
-  tipoInstalacaoOutro: string
-  tipoSistema: TipoSistema
-  consumoManual: boolean
-  potenciaFonteManual: boolean
-  potenciaModuloDirty: boolean
-  tipoInstalacaoDirty: boolean
-}
-
-type OrcamentoSnapshotData = {
-  activeTab: TabKey
-  settingsTab: SettingsTabKey
-  cliente: ClienteDados
-  clienteEmEdicaoId: string | null
-  clienteMensagens?: ClienteMensagens | undefined
-  ucBeneficiarias: UcBeneficiariaFormState[]
-  pageShared: PageSharedSettings
-  currentBudgetId: string
-  budgetStructuredItems: StructuredItem[]
-  kitBudget: KitBudgetState
-  budgetProcessing: OrcamentoSnapshotBudgetState
-  propostaImagens: PrintableProposalImage[]
-  ufTarifa: string
-  distribuidoraTarifa: string
-  ufsDisponiveis: string[]
-  distribuidorasPorUf: Record<string, string[]>
-  mesReajuste: number
-  kcKwhMes: number
-  consumoManual: boolean
-  tarifaCheia: number
-  desconto: number
-  taxaMinima: number
-  taxaMinimaInputEmpty: boolean
-  encargosFixosExtras: number
-  tusdPercent: number
-  tusdTipoCliente: TipoClienteTUSD
-  tusdSubtipo: string
-  tusdSimultaneidade: number | null
-  tusdTarifaRkwh: number | null
-  tusdAnoReferencia: number
-  tusdOpcoesExpandidas: boolean
-  leasingPrazo: LeasingPrazoAnos
-  potenciaModulo: number
-  potenciaModuloDirty: boolean
-  tipoInstalacao: TipoInstalacao
-  tipoInstalacaoOutro: string
-  tipoInstalacaoDirty: boolean
-  tipoSistema: TipoSistema
-  segmentoCliente: SegmentoCliente
-  tipoEdificacaoOutro: string
-  numeroModulosManual: number | ''
-  configuracaoUsinaObservacoes: string
-  composicaoTelhado: UfvComposicaoTelhadoValores
-  composicaoSolo: UfvComposicaoSoloValores
-  aprovadoresText: string
-  impostosOverridesDraft: Partial<ImpostosRegimeConfig>
-  vendasConfig: VendasConfig
-  vendasSimulacoes: Record<string, VendasSimulacao>
-  multiUc: OrcamentoSnapshotMultiUcState
-  precoPorKwp: number
-  irradiacao: number
-  eficiencia: number
-  diasMes: number
-  inflacaoAa: number
-  vendaForm: VendaForm
-  capexManualOverride: boolean
-  parsedVendaPdf: ParsedVendaPdfData | null
-  estruturaTipoWarning: EstruturaUtilizadaTipoWarning | null
-  jurosFinAa: number
-  prazoFinMeses: number
-  entradaFinPct: number
-  mostrarFinanciamento: boolean
-  mostrarGrafico: boolean
-  useBentoGridPdf: boolean
-  prazoMeses: number
-  bandeiraEncargo: number
-  cipEncargo: number
-  entradaRs: number
-  entradaModo: EntradaModoLabel
-  mostrarValorMercadoLeasing: boolean
-  mostrarTabelaParcelas: boolean
-  mostrarTabelaBuyout: boolean
-  mostrarTabelaParcelasConfig: boolean
-  mostrarTabelaBuyoutConfig: boolean
-  oemBase: number
-  oemInflacao: number
-  seguroModo: SeguroModo
-  seguroReajuste: number
-  seguroValorA: number
-  seguroPercentualB: number
-  exibirLeasingLinha: boolean
-  exibirFinLinha: boolean
-  cashbackPct: number
-  depreciacaoAa: number
-  inadimplenciaAa: number
-  tributosAa: number
-  ipcaAa: number
-  custosFixosM: number
-  opexM: number
-  seguroM: number
-  duracaoMeses: number
-  pagosAcumAteM: number
-  modoOrcamento: 'auto' | 'manual'
-  autoKitValor: number | null
-  autoCustoFinal: number | null
-  autoPricingRede: Rede | null
-  autoPricingVersion: string | null
-  autoBudgetReason: string | null
-  autoBudgetReasonCode: string | null
-  tipoRede: TipoRede
-  tipoRedeControle: 'auto' | 'manual'
-  temCorresponsavelFinanceiro: boolean
-  corresponsavel: LeasingCorresponsavel | null
-  leasingAnexosSelecionados: LeasingAnexoId[]
-  vendaSnapshot: VendaSnapshot
-  leasingSnapshot: LeasingState
-}
-
 type OrcamentoSalvo = {
   id: string
   criadoEm: string
@@ -1005,309 +858,7 @@ type OrcamentoSalvo = {
   ownerUserId?: string
 }
 
-const CLIENTES_STORAGE_KEY = 'solarinvest-clientes'
-const CLIENTS_RECONCILIATION_KEY = 'clients-reconciliation-v1'
 const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
-/** Caches the consultant list so it's available immediately on page reload (avoids "Sem consultor" flash). */
-const CONSULTORES_CACHE_KEY = 'solarinvest-consultores-cache'
-
-type PersistedClientReconciliation = {
-  deletedClientKeys: string[]
-  updatedAt: number
-  version: 1
-}
-
-/**
- * Maps a server-side ClientRow (from /api/clients) to the local ClienteRegistro format.
- * Used by privileged roles (admin, office, financeiro) to populate the clients list
- * from the RBAC-aware REST API instead of the user-scoped storage.
- *
- * Document field priority: `document` (canonical formatted field set by the server)
- * → `cpf_raw` (raw CPF digits) → `cnpj_raw` (raw CNPJ digits) → empty string.
- */
-function serverClientToRegistro(row: ClientRow): ClienteRegistro {
-  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
-  const ownerEmail = row.owner_email
-  const ownerUserId = row.owner_user_id
-  const ep = row.energy_profile
-  const lp = row.latest_proposal_profile
-
-  // Derive commercial fields prioritizing metadata (user-saved), then latest proposal, then energy profile.
-  const meta = row.metadata ?? {}
-  const metaTemIndicacao = meta.tem_indicacao as boolean | undefined
-  const metaIndicacaoNome = (meta.indicacao_nome as string | undefined)?.trim() || ''
-  const hasIndicacao = metaTemIndicacao != null
-    ? metaTemIndicacao
-    : Boolean(lp?.tem_indicacao || lp?.indicacao?.trim() || ep?.indicacao?.trim())
-  const indicacaoNome = metaIndicacaoNome || lp?.indicacao?.trim() || ep?.indicacao?.trim() || ''
-  const validTipoRede: TipoRede[] = ['monofasico', 'bifasico', 'trifasico', 'nenhum']
-  const resolvedTipoRede: TipoRede =
-    lp?.tipo_rede && validTipoRede.includes(lp.tipo_rede as TipoRede)
-      ? (lp.tipo_rede as TipoRede)
-      : ep?.tipo_rede && validTipoRede.includes(ep.tipo_rede as TipoRede)
-        ? (ep.tipo_rede as TipoRede)
-        : 'nenhum'
-  const resolvedModalidade: TabKey =
-    ep?.modalidade === 'venda' ? 'vendas' : 'leasing'
-  const parsePositiveConsumption = (value: unknown): number | null => {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value
-    if (typeof value === 'string') {
-      const parsed = toNumberFlexible(value)
-      if (Number.isFinite(parsed) && parsed !== null && parsed > 0) return parsed
-    }
-    return null
-  }
-  const resolvedKwhContratado = (
-    parsePositiveConsumption(row.consumption_kwh_month)
-    ?? parsePositiveConsumption(lp?.kwh_contratado)
-    ?? parsePositiveConsumption(ep?.kwh_contratado)
-  )
-  const resolvedTarifaAtual = lp?.tarifa_atual ?? ep?.tarifa_atual ?? null
-  const resolvedDesconto = lp?.desconto_percentual ?? ep?.desconto_percentual ?? null
-  const resolvedUcsBeneficiarias = Array.isArray(lp?.ucs_beneficiarias) ? lp.ucs_beneficiarias : []
-
-  const dados: ClienteDados = {
-    nome: row.name,
-    apelido: (meta.apelido as string | undefined) ?? '',
-    // `document` is the formatted canonical field; cpf_raw/cnpj_raw are fallbacks
-    // when the formatted field was not set (older records).
-    documento: row.document ?? row.cpf_raw ?? row.cnpj_raw ?? '',
-    rg: (meta.rg as string | undefined) ?? '',
-    estadoCivil: (meta.estado_civil as string | undefined) ?? '',
-    nacionalidade: (meta.nacionalidade as string | undefined) ?? '',
-    profissao: (meta.profissao as string | undefined) ?? '',
-    representanteLegal: (meta.representante_legal as string | undefined) ?? '',
-    email: row.email ?? '',
-    telefone: row.phone ?? '',
-    cep: formatCep(row.cep ?? ''),
-    distribuidora: row.distribuidora ?? '',
-    uc: row.uc ?? '',
-    endereco: row.address ?? '',
-    cidade: row.city ?? '',
-    uf: row.state ?? '',
-    temIndicacao: hasIndicacao,
-    indicacaoNome: hasIndicacao ? indicacaoNome : '',
-    // consultant_id: resolve canonical FK first, then fall back to legacy metadata.consultor_id.
-    // Never use created_by_user_id or owner_user_id as a substitute.
-    consultorId: (() => {
-      const canonical = row.consultant_id != null && row.consultant_id !== '' ? String(row.consultant_id).trim() : ''
-      if (canonical) {
-        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'canonical', consultantId: canonical })
-        return canonical
-      }
-      const legacyId = (meta.consultor_id as string | number | undefined)
-      if (legacyId != null && legacyId !== '') {
-        const legacyStr = String(legacyId).trim()
-        console.debug('[consultant][hydrate]', { clientId: row.id, source: 'legacy-metadata', consultantId: legacyStr })
-        return legacyStr
-      }
-      console.debug('[consultant][hydrate]', { clientId: row.id, source: 'none', canonicalNull: row.consultant_id, legacyMetadata: meta.consultor_id })
-      return ''
-    })(),
-    consultorNome: (meta.consultor_nome as string | undefined) ?? '',
-    herdeiros: (() => {
-      if (!Array.isArray(meta.herdeiros)) return ['']
-      const filtered = (meta.herdeiros as string[]).filter((h) => typeof h === 'string' && h.trim())
-      return filtered.length > 0 ? filtered : ['']
-    })(),
-    nomeSindico: (meta.nome_sindico as string | undefined) ?? '',
-    cpfSindico: (meta.cpf_sindico as string | undefined) ?? '',
-    contatoSindico: (meta.contato_sindico as string | undefined) ?? '',
-    diaVencimento: (meta.dia_vencimento as string | undefined) ?? '10',
-  }
-
-  // Build a partial proposal snapshot from the energy profile so that
-  // handleEditarCliente can pre-populate the form fields when the user loads
-  // a client that was previously saved with energy data.
-  const propostaSnapshot: OrcamentoSnapshotData | undefined = (ep || lp)
-    ? ({
-        // Minimal snapshot seeded with energy profile values.
-        // All unset fields are filled in by mergeSnapshotWithDefaults (spreads the
-        // createEmptySnapshot base over this object, then uses ?? to fall back to
-        // defaults for any null/undefined fields).
-        activeTab: resolvedModalidade,
-        settingsTab: 'painel',
-        cliente: dados,
-        clienteEmEdicaoId: row.id,
-        clienteMensagens: {},
-        ucBeneficiarias: resolvedUcsBeneficiarias.map((item, index) => ({
-          id: item.id ?? `lp-uc-${index + 1}`,
-          numero: typeof item.numero === 'string' ? item.numero : '',
-          endereco: typeof item.endereco === 'string' ? item.endereco : '',
-          consumoKWh: String(item.consumoKWh ?? ''),
-          rateioPercentual: String(item.rateioPercentual ?? ''),
-        })),
-
-        pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
-        currentBudgetId: '',
-        budgetStructuredItems: [],
-        kitBudget: null,
-        budgetProcessing: { isProcessing: false, error: null, progress: null, isTableCollapsed: false, ocrDpi: 150 },
-        propostaImagens: [],
-        ufTarifa: row.state ?? '',
-        distribuidoraTarifa: row.distribuidora ?? '',
-        ufsDisponiveis: [],
-        distribuidorasPorUf: {},
-        mesReajuste: 1,
-        kcKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
-        consumoManual: resolvedKwhContratado != null && resolvedKwhContratado > 0,
-        tarifaCheia: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
-        desconto: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
-        taxaMinima: 0,
-        taxaMinimaInputEmpty: false,
-        encargosFixosExtras: 0,
-        tusdPercent: 0,
-        tusdTipoCliente: 'residencial',
-        tusdSubtipo: '',
-        tusdSimultaneidade: null,
-        tusdTarifaRkwh: null,
-        tusdAnoReferencia: new Date().getFullYear(),
-        tusdOpcoesExpandidas: false,
-        leasingPrazo: ep?.prazo_meses != null ? Math.round(ep.prazo_meses / 12) as LeasingPrazoAnos : 20,
-        potenciaModulo: 0,
-        potenciaModuloDirty: false,
-        tipoInstalacao: 'residencial',
-        tipoInstalacaoOutro: '',
-        tipoInstalacaoDirty: false,
-        tipoSistema: 'ongrid',
-        segmentoCliente: 'residencial',
-        tipoEdificacaoOutro: '',
-        numeroModulosManual: '',
-        configuracaoUsinaObservacoes: '',
-        composicaoTelhado: null,
-        composicaoSolo: null,
-        aprovadoresText: '',
-        impostosOverridesDraft: {},
-        vendasConfig: null,
-        vendasSimulacoes: {},
-        multiUc: { ativo: false, rows: [], rateioModo: 'proporcional', energiaGeradaKWh: 0, energiaGeradaTouched: false, anoVigencia: new Date().getFullYear(), overrideEscalonamento: false, escalonamentoCustomPercent: null },
-        precoPorKwp: 0,
-        irradiacao: 0,
-        eficiencia: 0.8,
-        diasMes: 30,
-        inflacaoAa: 0,
-        vendaForm: {
-          consumo_kwh_mes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
-          modelo_inversor: ep?.marca_inversor ?? '',
-        },
-        capexManualOverride: false,
-        parsedVendaPdf: null,
-        estruturaTipoWarning: null,
-        jurosFinAa: 0,
-        prazoFinMeses: 0,
-        entradaFinPct: 0,
-        mostrarFinanciamento: false,
-        mostrarGrafico: true,
-        useBentoGridPdf: false,
-        prazoMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
-        bandeiraEncargo: 0,
-        cipEncargo: 0,
-        entradaRs: 0,
-        entradaModo: 'percentual',
-        mostrarValorMercadoLeasing: false,
-        mostrarTabelaParcelas: false,
-        mostrarTabelaBuyout: false,
-        mostrarTabelaParcelasConfig: false,
-        mostrarTabelaBuyoutConfig: false,
-        oemBase: 0,
-        oemInflacao: 0,
-        seguroModo: 'percentual',
-        seguroReajuste: 0,
-        seguroValorA: 0,
-        seguroPercentualB: 0,
-        exibirLeasingLinha: true,
-        exibirFinLinha: false,
-        cashbackPct: 0,
-        depreciacaoAa: 0,
-        inadimplenciaAa: 0,
-        tributosAa: 0,
-        ipcaAa: 0,
-        custosFixosM: 0,
-        opexM: 0,
-        seguroM: 0,
-        duracaoMeses: 0,
-        pagosAcumAteM: 0,
-        modoOrcamento: 'auto',
-        autoKitValor: null,
-        autoCustoFinal: null,
-        autoPricingRede: null,
-        autoPricingVersion: null,
-        autoBudgetReason: null,
-        autoBudgetReasonCode: null,
-        tipoRede: resolvedTipoRede,
-        tipoRedeControle: 'manual',
-        temCorresponsavelFinanceiro: false,
-        corresponsavel: null,
-        leasingAnexosSelecionados: [],
-        vendaSnapshot: null,
-        leasingSnapshot: {
-          prazoContratualMeses: ep?.prazo_meses != null ? Number(ep.prazo_meses) : 240,
-          energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
-          tarifaInicial: resolvedTarifaAtual != null ? Number(resolvedTarifaAtual) : 0,
-          descontoContratual: resolvedDesconto != null ? Number(resolvedDesconto) : 0,
-          inflacaoEnergiaAa: 0,
-          investimentoSolarinvest: 0,
-          dataInicioOperacao: '',
-          responsavelSolarinvest: 'Operação, manutenção, suporte técnico, limpeza e seguro da usina.',
-          valorDeMercadoEstimado: 0,
-          dadosTecnicos: {
-            potenciaInstaladaKwp: ep?.potencia_kwp != null ? Number(ep.potencia_kwp) : 0,
-            geracaoEstimadakWhMes: 0,
-            energiaContratadaKwhMes: resolvedKwhContratado != null ? Number(resolvedKwhContratado) : 0,
-            potenciaPlacaWp: 0,
-            numeroModulos: 0,
-            tipoInstalacao: '',
-            areaUtilM2: 0,
-          },
-          projecao: {
-            mensalidadesAno: [[ep?.mensalidade != null ? Number(ep.mensalidade) : 0]],
-            economiaProjetada: [],
-          },
-          contrato: {
-            tipoContrato: 'residencial',
-            dataInicio: '',
-            dataFim: '',
-            dataHomologacao: '',
-            localEntrega: '',
-            ucGeradoraTitularDiferente: false,
-            ucGeradoraTitular: null,
-            ucGeradoraTitularDraft: null,
-            ucGeradoraTitularDistribuidoraAneel: '',
-            ucGeradora_importarEnderecoCliente: false,
-            modulosFV: '',
-            inversoresFV: ep?.marca_inversor ?? '',
-            nomeCondominio: '',
-            cnpjCondominio: '',
-            nomeSindico: '',
-            cpfSindico: '',
-            temCorresponsavelFinanceiro: false,
-            corresponsavel: null,
-            proprietarios: [{ nome: '', cpfCnpj: '' }],
-          },
-        },
-      } as unknown as OrcamentoSnapshotData)
-    : undefined
-
-  return {
-    id: row.id,
-    criadoEm: row.created_at,
-    atualizadoEm: row.updated_at,
-    ...(ownerName != null ? { ownerName } : {}),
-    ...(ownerEmail != null ? { ownerEmail } : {}),
-    ...(ownerUserId != null ? { ownerUserId } : {}),
-    createdByUserId: row.created_by_user_id ?? null,
-    deletedAt: row.deleted_at ?? null,
-    inPortfolio: Boolean(row.in_portfolio),
-    clientActivatedAt: row.portfolio_exported_at ?? null,
-    consumption_kwh_month: resolvedKwhContratado,
-
-    system_kwp: row.systemKwp ?? null,
-
-    term_months: row.termMonths ?? null,
-    dados,
-    ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
-  }
-}
 
 /**
  * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
@@ -1359,7 +910,6 @@ function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
   }
 }
 const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
-const CLIENT_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-client-server-id-map'
 const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
   VENDA_DIRETA: 'SLRINVST-VND-',
   LEASING: 'SLRINVST-LSE-',
@@ -1367,82 +917,7 @@ const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
 const DEFAULT_BUDGET_ID_PREFIX = BUDGET_ID_PREFIXES.LEASING
 const BUDGET_ID_SUFFIX_LENGTH = 8
 const BUDGET_ID_MAX_ATTEMPTS = 1000
-const CLIENTE_ID_LENGTH = 5
-const CLIENTE_ID_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-const CLIENTE_ID_PATTERN = /^[A-Z0-9]{5}$/
-const CLIENTE_ID_MAX_ATTEMPTS = 10000
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
-
-// SolarInvest company information for contracts
-const CLIENTE_INICIAL: ClienteDados = {
-  nome: '',
-  documento: '',
-  rg: '',
-  estadoCivil: '',
-  nacionalidade: '',
-  profissao: '',
-  representanteLegal: '',
-  email: '',
-  telefone: '',
-  cep: '',
-  distribuidora: '',
-  uc: '',
-  endereco: '',
-  cidade: 'Anápolis',
-  uf: 'GO',
-  temIndicacao: false,
-  indicacaoNome: '',
-  consultorId: '',
-  consultorNome: '',
-  herdeiros: [''],
-  nomeSindico: '',
-  cpfSindico: '',
-  contatoSindico: '',
-  diaVencimento: '10',
-}
-
-const isSyncedClienteField = (key: keyof ClienteDados): key is FieldSyncKey =>
-  key === 'uf' || key === 'cidade' || key === 'distribuidora' || key === 'cep' || key === 'endereco'
-
-const normalizeDistribuidoraName = (value?: string | null): string =>
-  value
-    ?.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toUpperCase() ?? ''
-
-
-const getDistribuidoraValidationMessage = (
-  ufRaw?: string | null,
-  distribuidoraRaw?: string | null,
-): string | null => {
-  const uf = ufRaw?.trim().toUpperCase() ?? ''
-  const distribuidora = distribuidoraRaw?.trim() ?? ''
-  const expected = getDistribuidoraDefaultForUf(uf)
-  const distribuidoraNormalizada = normalizeDistribuidoraName(distribuidora)
-  const expectedNormalizada = normalizeDistribuidoraName(expected)
-
-  if (!uf && distribuidora) {
-    return 'Informe a UF antes de definir a distribuidora.'
-  }
-
-  if (expected) {
-    if (!distribuidora) {
-      return `Informe a distribuidora para a UF ${uf}. Sugestão: ${expected}.`
-    }
-    if (distribuidoraNormalizada !== expectedNormalizada) {
-      return `Distribuidora incompatível com a UF ${uf}. Use ${expected}.`
-    }
-    return null
-  }
-
-  if (uf && !distribuidora) {
-    return 'Informe a distribuidora para a UF selecionada.'
-  }
-
-  return null
-}
-
 
 const generateBudgetId = (
   existingIds: Set<string> = new Set(),
@@ -1649,78 +1124,6 @@ const isProcuracaoUfSupported = (value?: string | null): boolean => {
   return normalized === 'DF' || normalized === 'GO'
 }
 
-const isQuotaExceededError = (error: unknown) => {
-  if (!error) {
-    return false
-  }
-
-  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
-    return (
-      error.name === 'QuotaExceededError' ||
-      error.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
-      error.code === 22 ||
-      error.code === 1014
-    )
-  }
-
-  if (error instanceof Error) {
-    return /quota|storage/i.test(error.message)
-  }
-
-  return false
-}
-
-const persistWithFallback = <T,>(
-  key: string,
-  registros: T[],
-  options: {
-    serialize: (items: T[]) => string
-    reduce: (items: T[]) => T[] | null
-  },
-): { persisted: T[]; droppedCount: number } => {
-  if (typeof window === 'undefined') {
-    return { persisted: registros, droppedCount: 0 }
-  }
-
-  if (registros.length === 0) {
-    window.localStorage.removeItem(key)
-    return { persisted: [], droppedCount: 0 }
-  }
-
-  const working = [...registros]
-  let droppedCount = 0
-  let lastError: unknown = null
-
-  while (working.length >= 0) {
-    try {
-      if (working.length === 0) {
-        window.localStorage.removeItem(key)
-      } else {
-        window.localStorage.setItem(key, options.serialize(working))
-      }
-      return { persisted: working, droppedCount }
-    } catch (error) {
-      lastError = error
-      if (!isQuotaExceededError(error)) {
-        throw error
-      }
-
-      const next = options.reduce(working)
-      if (!next) {
-        break
-      }
-      droppedCount += Math.max(0, working.length - next.length)
-      working.splice(0, working.length, ...next)
-    }
-  }
-
-  if (lastError) {
-    throw lastError instanceof Error ? lastError : new Error(String(lastError as unknown as string))
-  }
-
-  throw new Error('Falha ao salvar orçamentos no armazenamento local.')
-}
-
 const persistBudgetsToLocalStorage = (
   registros: OrcamentoSalvo[],
 ): { persisted: OrcamentoSalvo[]; droppedCount: number } =>
@@ -1728,25 +1131,6 @@ const persistBudgetsToLocalStorage = (
     serialize: (items) => JSON.stringify(items),
     reduce: (items) => items.slice(0, -1),
   })
-
-const persistClientesToLocalStorage = (
-  registros: ClienteRegistro[],
-): { persisted: ClienteRegistro[]; droppedCount: number } => {
-  let strippedSnapshots = false
-  return persistWithFallback(CLIENTES_STORAGE_KEY, registros, {
-    serialize: (items) => (strippedSnapshots ? JSON.stringify(items) : serializeClientesForStorage(items)),
-    reduce: (items) => {
-      if (!strippedSnapshots) {
-        strippedSnapshots = true
-        return items.map((registro) => {
-          const { propostaSnapshot: _propostaSnapshot, ...rest } = registro
-          return rest as ClienteRegistro
-        })
-      }
-      return items.slice(0, -1)
-    },
-  })
-}
 
 const alertPrunedBudgets = (droppedCount: number) => {
   if (typeof window === 'undefined' || droppedCount === 0) {
@@ -2279,61 +1663,6 @@ const _getJsonSizeBytes = (obj: unknown): number => {
  */
 const _SAFE_STORAGE_PAYLOAD_BYTES = 250_000
 
-/**
- * Strip large/reconstructable fields from a snapshot before writing it to
- * localStorage or sending to /api/storage.  Returns a partial copy that
- * preserves only the data that matters for offline recovery.
- */
-const stripSnapshotForStorage = (
-  snapshot: OrcamentoSnapshotData | null | undefined,
-): OrcamentoSnapshotData | undefined => {
-  if (!snapshot) return undefined
-  const stripped: Partial<OrcamentoSnapshotData> = {
-    ...snapshot,
-    // Drop large blobs that are reconstructable from the proposal PDF / re-upload
-    parsedVendaPdf: null,
-    // Drop precomputed image list — not needed for client recovery
-    propostaImagens: [],
-    // Drop large budget item lists — can be re-parsed from PDF
-    budgetStructuredItems: [],
-    // Drop raw kit budget items — kept in proposals separately
-    kitBudget: snapshot.kitBudget
-      ? {
-          ...snapshot.kitBudget,
-          items: [],
-          missingInfo: null,
-          warnings: [],
-        }
-      : ({} as KitBudgetState),
-    // Drop transient processing state
-    budgetProcessing: {
-      isProcessing: false,
-      error: null,
-      progress: null,
-      isTableCollapsed: false,
-      ocrDpi: 150,
-    },
-    // Drop per-simulation cache — large and reconstructable
-    vendasSimulacoes: {},
-    // Drop static lookups
-    ufsDisponiveis: [],
-    distribuidorasPorUf: {},
-  }
-  return stripped as OrcamentoSnapshotData
-}
-
-/**
- * Serialize a list of client records for localStorage / remote storage.
- * Strips heavy snapshot fields so the payload stays within quota limits.
- */
-function serializeClientesForStorage(registros: ClienteRegistro[]): string {
-  const lite = registros.map((r) => ({
-    ...r,
-    propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
-  }))
-  return JSON.stringify(lite)
-}
-
 const computeSnapshotSignature = (
   snapshot: OrcamentoSnapshotData,
   dados: PrintableProposalProps,
@@ -2354,41 +1683,6 @@ const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
   delete clone.budgetId
   return stableStringify(clone)
 }
-
-const ensureClienteHerdeiros = (valor: unknown): string[] => {
-  if (Array.isArray(valor)) {
-    if (valor.length === 0) {
-      return ['']
-    }
-
-    return valor.map((item) => (typeof item === 'string' ? item : ''))
-  }
-
-  return ['']
-}
-
-const normalizeClienteHerdeiros = (valor: unknown): string[] => {
-  if (Array.isArray(valor)) {
-    const normalizados = valor.map((item) =>
-      typeof item === 'string' ? item.trim() : '',
-    )
-
-    return normalizados.length > 0 ? normalizados : ['']
-  }
-
-  if (typeof valor === 'string') {
-    const trimmed = valor.trim()
-    return trimmed ? [trimmed] : ['']
-  }
-
-  return ['']
-}
-
-const cloneClienteDados = (dados: ClienteDados): ClienteDados => ({
-  ...CLIENTE_INICIAL,
-  ...dados,
-  herdeiros: ensureClienteHerdeiros(dados.herdeiros),
-})
 
 const CLIENTES_CSV_DELIMITER = ';'
 const CLIENTES_CSV_HEADERS: { key: string; label: string }[] = [
@@ -2765,145 +2059,7 @@ const buildClientesCsv = (registros: ClienteRegistro[]): string => {
   return [header, ...rows].join('\n')
 }
 
-type NormalizeClienteRegistrosOptions = {
-  existingIds?: Set<string>
-  agoraIso?: string
-}
-
-const normalizeClienteRegistros = (
-  items: unknown[],
-  options: NormalizeClienteRegistrosOptions = {},
-): { registros: ClienteRegistro[]; houveAtualizacaoIds: boolean } => {
-  const agora = options.agoraIso ?? new Date().toISOString()
-  const baseExistingIds = options.existingIds ? Array.from(options.existingIds) : []
-  const existingIds = new Set<string>(baseExistingIds)
-  let houveAtualizacaoIds = false
-  /** Warn only once per normalization batch to avoid console spam. */
-  let snapshotWarnedInBatch = false
-
-  const normalizados = items.map((item) => {
-    const registro = item as Partial<ClienteRegistro> & { dados?: Partial<ClienteDados> }
-    const dados = registro.dados ?? (registro as unknown as { cliente?: Partial<ClienteDados> }).cliente ?? {}
-    const rawId = (registro.id ?? '').toString()
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    const sanitizedCandidate = normalizeClienteIdCandidate(rawId)
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    const idNormalizado = ensureClienteId(rawId, existingIds)
-    if (idNormalizado !== sanitizedCandidate || rawId.trim() !== idNormalizado) {
-      houveAtualizacaoIds = true
-    }
-
-    const temIndicacaoRaw = (dados as { temIndicacao?: unknown }).temIndicacao
-    const indicacaoNomeRaw = (dados as { indicacaoNome?: unknown }).indicacaoNome
-    const temIndicacaoNormalizado =
-      typeof temIndicacaoRaw === 'boolean'
-        ? temIndicacaoRaw
-        : typeof temIndicacaoRaw === 'string'
-        ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
-        : false
-    const indicacaoNomeNormalizado =
-      typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
-
-    const herdeirosNormalizados = normalizeClienteHerdeiros(
-      (dados as { herdeiros?: unknown }).herdeiros,
-    )
-
-    let propostaSnapshot: OrcamentoSnapshotData | undefined
-    const snapshotRaw =
-      (registro as { propostaSnapshot?: unknown }).propostaSnapshot ??
-      (registro as { snapshot?: unknown }).snapshot
-    if (snapshotRaw && typeof snapshotRaw === 'object') {
-      try {
-        propostaSnapshot = cloneSnapshotData(snapshotRaw as OrcamentoSnapshotData)
-      } catch (error) {
-        if (!snapshotWarnedInBatch) {
-          snapshotWarnedInBatch = true
-          console.warn(
-            `Não foi possível normalizar o snapshot do cliente (id: ${idNormalizado}). Os dados do cliente foram preservados.`,
-            error,
-          )
-        }
-        propostaSnapshot = undefined
-      }
-    }
-
-    const normalizado: ClienteRegistro = {
-      id: idNormalizado,
-      criadoEm: registro.criadoEm ?? agora,
-      atualizadoEm: registro.atualizadoEm ?? registro.criadoEm ?? agora,
-      dados: {
-        nome: dados?.nome ?? '',
-        documento: dados?.documento ?? '',
-        rg: dados?.rg ?? '',
-        estadoCivil: dados?.estadoCivil ?? '',
-        nacionalidade: dados?.nacionalidade ?? '',
-        profissao: dados?.profissao ?? '',
-        representanteLegal: dados?.representanteLegal ?? '',
-        email: dados?.email ?? '',
-        telefone: dados?.telefone ?? '',
-        cep: dados?.cep ?? '',
-        distribuidora: dados?.distribuidora ?? '',
-        uc: dados?.uc ?? '',
-        endereco: dados?.endereco ?? '',
-        cidade: dados?.cidade ?? '',
-        uf: dados?.uf ?? '',
-        temIndicacao: temIndicacaoNormalizado,
-        indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
-        nomeSindico: dados?.nomeSindico ?? '',
-        cpfSindico: dados?.cpfSindico ?? '',
-        contatoSindico: dados?.contatoSindico ?? '',
-        diaVencimento: dados?.diaVencimento ?? '10',
-        herdeiros: herdeirosNormalizados,
-        consultorId: dados?.consultorId ?? '',
-        consultorNome: dados?.consultorNome ?? '',
-      },
-      ...(propostaSnapshot ? { propostaSnapshot } : {}),
-    }
-
-    return normalizado
-  })
-
-  const ordenados = normalizados.sort((a, b) => (a.atualizadoEm < b.atualizadoEm ? 1 : -1))
-
-  return { registros: ordenados, houveAtualizacaoIds }
-}
-
-const normalizeClienteIdCandidate = (valor: string | undefined | null) =>
-  (valor ?? '')
-    .toString()
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-
-const generateClienteId = (existingIds: Set<string> = new Set()) => {
-  let attempts = 0
-
-  while (attempts < CLIENTE_ID_MAX_ATTEMPTS) {
-    attempts += 1
-    let candidate = ''
-    for (let index = 0; index < CLIENTE_ID_LENGTH; index += 1) {
-      const randomIndex = Math.floor(Math.random() * CLIENTE_ID_CHARSET.length)
-      candidate += CLIENTE_ID_CHARSET[randomIndex]
-    }
-
-    if (!existingIds.has(candidate)) {
-      existingIds.add(candidate)
-      return candidate
-    }
-  }
-
-  throw new Error('Não foi possível gerar um identificador único para o cliente.')
-}
-
-const ensureClienteId = (candidate: string | undefined, existingIds: Set<string>) => {
-  const normalized = normalizeClienteIdCandidate(candidate)
-  if (normalized.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalized) && !existingIds.has(normalized)) {
-    existingIds.add(normalized)
-    return normalized
-  }
-
-  return generateClienteId(existingIds)
-}
+type NormalizeClienteRegistrosOptions = Parameters<typeof normalizeClienteRegistros>[1]
 
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
@@ -3279,8 +2435,6 @@ export default function App() {
     canSeeFinancialManagementEffective,
     setActivePage,
   })
-  type ClientsSyncState = 'online-db' | 'reconciling' | 'degraded-api' | 'local-fallback'
-  type ClientsSource = 'api' | 'server-storage' | 'local-browser-storage' | 'memory'
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
   const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
   const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
@@ -3936,51 +3090,109 @@ export default function App() {
     [distribuidoraTarifa, updatePageSharedState],
   )
 
-  const [cliente, setCliente] = useState<ClienteDados>(() =>
-    cloneClienteDados(CLIENTE_INICIAL),
-  )
-  const [clientesSalvos, setClientesSalvos] = useState<ClienteRegistro[]>([])
-  const [clientsSyncState, setClientsSyncState] = useState<ClientsSyncState>('reconciling')
-  const [clientsSource, setClientsSource] = useState<ClientsSource>('memory')
-  const [clientsLastLoadError, setClientsLastLoadError] = useState<string | null>(null)
-  const [clientsLastDeleteError, setClientsLastDeleteError] = useState<string | null>(null)
-  const [lastSuccessfulApiLoadAt, setLastSuccessfulApiLoadAt] = useState<number | null>(null)
-  const [lastDeleteReconciledAt, setLastDeleteReconciledAt] = useState<number | null>(null)
-  const [reconciliationReady, setReconciliationReady] = useState(false)
-  const [allConsultores, setAllConsultores] = useState<ConsultantEntry[]>(() => {
-    // Pre-populate from localStorage so consultant names are available immediately on page
-    // refresh / re-login — before the API response arrives (avoids "Sem consultor" flash).
-    if (typeof window === 'undefined') return []
-    try {
-      const raw = window.localStorage.getItem(CONSULTORES_CACHE_KEY)
-      if (!raw) return []
-      const parsed = JSON.parse(raw) as unknown
-      if (!Array.isArray(parsed)) return []
-      return (parsed as ConsultantEntry[]).filter((e) => e && typeof e.id === 'string')
-    } catch {
-      return []
+  // ── Notification state (moved up — useClientState depends on adicionarNotificacao) ─────
+  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
+  const notificacaoSequencialRef = useRef(0)
+  const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
+
+  const removerNotificacao = useCallback((id: number) => {
+    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
+
+    const timeoutId = notificacaoTimeoutsRef.current[id]
+    if (timeoutId && typeof window !== 'undefined') {
+      window.clearTimeout(timeoutId)
     }
-  })
-  const [formConsultores, setFormConsultores] = useState<ConsultantPickerEntry[]>([])
-  const [clienteEmEdicaoId, setClienteEmEdicaoId] = useState<string | null>(null)
-  const clienteEmEdicaoIdRef = useRef<string | null>(clienteEmEdicaoId)
-  const lastSavedClienteRef = useRef<ClienteDados | null>(null)
-  const [originalClientData, setOriginalClientData] = useState<ClienteDados>(() =>
-    cloneClienteDados(CLIENTE_INICIAL),
+    delete notificacaoTimeoutsRef.current[id]
+  }, [])
+
+  const adicionarNotificacao = useCallback(
+    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
+      notificacaoSequencialRef.current += 1
+      const id = notificacaoSequencialRef.current
+
+      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
+
+      if (typeof window !== 'undefined') {
+        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
+        notificacaoTimeoutsRef.current[id] = timeoutId
+      }
+    },
+    [removerNotificacao],
   )
-  const [clientLastSaveStatus, setClientLastSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
-  const clientsLoadInFlightRef = useRef<Promise<ClienteRegistro[]> | null>(null)
+
+  const crmState = useCrm({ adicionarNotificacao })
+  const {
+    crmDataset,
+  } = crmState
+
+  // ─── Storage hydration ─────────────────────────────────────────────────────
+  // Ref that points to the current `aplicarSnapshot` function. Updated in the
+  // render body after `aplicarSnapshot` is declared (further below). The async
+  // draft-loader inside the hook reads this ref so it always calls the latest
+  // version without needing `aplicarSnapshot` in the effect's deps array.
+  const applyDraftRef = useRef<((data: unknown) => void) | null>(null)
+  const { authSyncKey, isHydrating, isHydratingRef, setIsHydrating } = useStorageHydration({
+    userId,
+    getAccessToken,
+    applyDraftRef,
+    onNotify: adicionarNotificacao,
+  })
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // ── Client state via extracted hook ────────────────────────────────────────
+  const {
+    cliente, setCliente,
+    clientesSalvos, setClientesSalvos,
+    clientsSyncState, setClientsSyncState,
+    clientsSource, setClientsSource,
+    clientsLastLoadError, setClientsLastLoadError,
+    clientsLastDeleteError, setClientsLastDeleteError,
+    lastSuccessfulApiLoadAt, setLastSuccessfulApiLoadAt,
+    lastDeleteReconciledAt, setLastDeleteReconciledAt,
+    reconciliationReady, setReconciliationReady,
+    allConsultores, setAllConsultores,
+    formConsultores, setFormConsultores,
+    clienteEmEdicaoId, setClienteEmEdicaoId,
+    originalClientData, setOriginalClientData,
+    clientLastSaveStatus, setClientLastSaveStatus,
+    clienteMensagens, setClienteMensagens,
+    clienteRef,
+    clienteEmEdicaoIdRef,
+    lastSavedClienteRef,
+    clientsLoadInFlightRef,
+    clientAutoSaveTimeoutRef,
+    clientsSyncStateRef,
+    deletingClientIdsRef,
+    deletedClientKeysRef,
+    clientServerIdMapRef,
+    clientServerAutoSaveInFlightRef,
+    clientLastPayloadSignatureRef,
+    consultantBackfillRanRef,
+    myConsultorDefaultRef,
+    updateClientServerIdMap,
+    removeClientServerIdMapEntry,
+    setClienteSync,
+    updateClienteSync,
+    parseClientesSalvos,
+    carregarClientesSalvos,
+    getClientStableKey,
+    persistDeletedClientKeys,
+    carregarClientesPrioritarios,
+  } = useClientState({
+    meAuthState,
+    authSyncKey,
+    user,
+    me,
+    isAdmin,
+    isOffice,
+    isFinanceiro,
+    adicionarNotificacao,
+  })
+  // ──────────────────────────────────────────────────────────────────────────
+
   const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const clientAutoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const clientsSyncStateRef = useRef<ClientsSyncState>(clientsSyncState)
-  const deletingClientIdsRef = useRef<Set<string>>(new Set())
-  const deletedClientKeysRef = useRef<Set<string>>(new Set())
   const proposalServerIdMapRef = useRef<Record<string, string>>({})
-  const clientServerIdMapRef = useRef<Record<string, string>>({})
   const proposalServerAutoSaveInFlightRef = useRef(false)
-  const clientServerAutoSaveInFlightRef = useRef(false)
-  const clientLastPayloadSignatureRef = useRef<string | null>(null)
-  const consultantBackfillRanRef = useRef(false)
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
@@ -3994,12 +3206,8 @@ export default function App() {
   const lastUfSelecionadaRef = useRef<string>(cliente.uf)
 
   // Refs to prevent stale closures in getCurrentSnapshot
-  const clienteRef = useRef(cliente)
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
-  /** Stores the logged-in user's linked consultant entry once resolved by fetchConsultantsForPicker.
-   *  Used to auto-assign the consultant when a new client form is started (Issue 2). */
-  const myConsultorDefaultRef = useRef<{ id: string; nome: string } | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -4022,30 +3230,6 @@ export default function App() {
     } catch (error) {
       console.warn('[AutoSave] Failed to hydrate proposal server-id map:', error)
       proposalServerIdMapRef.current = {}
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      const raw = window.localStorage.getItem(CLIENT_SERVER_ID_MAP_STORAGE_KEY)
-      if (!raw) {
-        clientServerIdMapRef.current = {}
-        return
-      }
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      if (!parsed || typeof parsed !== 'object') {
-        clientServerIdMapRef.current = {}
-        return
-      }
-      clientServerIdMapRef.current = Object.fromEntries(
-        Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-      )
-    } catch (error) {
-      console.warn('[ClienteAutoSave] Failed to hydrate client server-id map:', error)
-      clientServerIdMapRef.current = {}
     }
   }, [])
 
@@ -4084,60 +3268,6 @@ export default function App() {
     }
   }, [])
 
-  const updateClientServerIdMap = useCallback((localClientId: string, serverId: string) => {
-    if (typeof window === 'undefined' || !localClientId || !serverId) {
-      return
-    }
-    clientServerIdMapRef.current = {
-      ...clientServerIdMapRef.current,
-      [localClientId]: serverId,
-    }
-    try {
-      window.localStorage.setItem(
-        CLIENT_SERVER_ID_MAP_STORAGE_KEY,
-        JSON.stringify(clientServerIdMapRef.current),
-      )
-    } catch (error) {
-      console.warn('[ClienteAutoSave] Failed to persist client server-id map:', error)
-    }
-  }, [])
-
-  const removeClientServerIdMapEntry = useCallback((localClientId: string) => {
-    if (typeof window === 'undefined' || !localClientId) {
-      return
-    }
-    if (!(localClientId in clientServerIdMapRef.current)) {
-      return
-    }
-    const next = { ...clientServerIdMapRef.current }
-    delete next[localClientId]
-    clientServerIdMapRef.current = next
-    try {
-      window.localStorage.setItem(CLIENT_SERVER_ID_MAP_STORAGE_KEY, JSON.stringify(next))
-    } catch (error) {
-      console.warn('[ClienteAutoSave] Failed to remove client server-id map entry:', error)
-    }
-  }, [])
-
-  const setClienteSync = useCallback(
-    (next: ClienteDados) => {
-      clienteRef.current = next
-      setCliente(next)
-    },
-    [setCliente],
-  )
-
-  const updateClienteSync = useCallback(
-    (patch: Partial<ClienteDados>) => {
-      const base = clienteRef.current ?? cliente
-      const merged = { ...base, ...patch }
-      clienteRef.current = merged
-      setCliente(merged)
-    },
-    [cliente, setCliente],
-  )
-
-  const [clienteMensagens, setClienteMensagens] = useState<ClienteMensagens>({})
   const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
   const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
   const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
@@ -4804,53 +3934,6 @@ export default function App() {
   }, [clienteUfNormalizada])
   const [verificandoCidade, setVerificandoCidade] = useState(false)
   const [buscandoCep, setBuscandoCep] = useState(false)
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
-  const notificacaoSequencialRef = useRef(0)
-  const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
-
-  const removerNotificacao = useCallback((id: number) => {
-    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
-
-    const timeoutId = notificacaoTimeoutsRef.current[id]
-    if (timeoutId && typeof window !== 'undefined') {
-      window.clearTimeout(timeoutId)
-    }
-    delete notificacaoTimeoutsRef.current[id]
-  }, [])
-
-  const adicionarNotificacao = useCallback(
-    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
-      notificacaoSequencialRef.current += 1
-      const id = notificacaoSequencialRef.current
-
-      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
-
-      if (typeof window !== 'undefined') {
-        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
-        notificacaoTimeoutsRef.current[id] = timeoutId
-      }
-    },
-    [removerNotificacao],
-  )
-
-  const crmState = useCrm({ adicionarNotificacao })
-  const {
-    crmDataset,
-  } = crmState
-
-  // ─── Storage hydration ─────────────────────────────────────────────────────
-  // Ref that points to the current `aplicarSnapshot` function. Updated in the
-  // render body after `aplicarSnapshot` is declared (further below). The async
-  // draft-loader inside the hook reads this ref so it always calls the latest
-  // version without needing `aplicarSnapshot` in the effect's deps array.
-  const applyDraftRef = useRef<((data: unknown) => void) | null>(null)
-  const { authSyncKey, isHydrating, isHydratingRef, setIsHydrating } = useStorageHydration({
-    userId,
-    getAccessToken,
-    applyDraftRef,
-    onNotify: adicionarNotificacao,
-  })
-  // ──────────────────────────────────────────────────────────────────────────
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
   )
@@ -10032,423 +9115,6 @@ export default function App() {
       : undefined,
   })
 
-  const parseClientesSalvos = useCallback((existenteRaw: string | null): ClienteRegistro[] => {
-    if (!existenteRaw) {
-      return []
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const parsed = JSON.parse(existenteRaw)
-      if (!Array.isArray(parsed)) {
-        return []
-      }
-
-      const { registros, houveAtualizacaoIds } = normalizeClienteRegistros(parsed)
-
-      if (houveAtualizacaoIds) {
-        try {
-          persistClientesToLocalStorage(registros)
-        } catch (error) {
-          console.warn('Não foi possível atualizar os identificadores dos clientes salvos.', error)
-        }
-      }
-
-      return registros
-    } catch (error) {
-      console.warn('Não foi possível interpretar os clientes salvos existentes.', error)
-      return []
-    }
-  }, [])
-
-  const _getUltimaAtualizacao = useCallback((registros: ClienteRegistro[]) => {
-    return registros.reduce((maisRecente, registro) => {
-      if (!maisRecente || registro.atualizadoEm > maisRecente) {
-        return registro.atualizadoEm
-      }
-      return maisRecente
-    }, '')
-  }, [])
-
-  const carregarClientesSalvos = useCallback((): ClienteRegistro[] => {
-    if (typeof window === 'undefined') {
-      return []
-    }
-
-    return parseClientesSalvos(window.localStorage.getItem(CLIENTES_STORAGE_KEY))
-  }, [parseClientesSalvos])
-
-  const getClientStableKey = useCallback((registro: ClienteRegistro): string => {
-    const mapped = clientServerIdMapRef.current[registro.id]
-    return String(mapped ?? registro.id ?? '')
-  }, [])
-
-  const persistDeletedClientKeys = useCallback((keys: Set<string>, reconciledAt: number) => {
-    if (typeof window === 'undefined') return
-    const payload: PersistedClientReconciliation = {
-      deletedClientKeys: Array.from(keys),
-      updatedAt: reconciledAt,
-      version: 1,
-    }
-    try {
-      window.localStorage.setItem(CLIENTS_RECONCILIATION_KEY, JSON.stringify(payload))
-    } catch (error) {
-      console.warn('[clients][reconciliation][persist] failed', error)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    console.info('[clients][browser-env]', {
-      userAgent: navigator.userAgent,
-      hasIndexedDB: typeof indexedDB !== 'undefined',
-      hasLocalStorage: typeof localStorage !== 'undefined',
-      visibilityState: document.visibilityState,
-    })
-    try {
-      const raw = window.localStorage.getItem(CLIENTS_RECONCILIATION_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<PersistedClientReconciliation>
-        const restored = Array.isArray(parsed?.deletedClientKeys) ? parsed.deletedClientKeys : []
-        deletedClientKeysRef.current = new Set(restored.map((value) => String(value)))
-        if (typeof parsed?.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)) {
-          setLastDeleteReconciledAt(parsed.updatedAt)
-        }
-      }
-      console.info('[clients][reconciliation][restore]', {
-        restoredDeletedKeys: Array.from(deletedClientKeysRef.current),
-      })
-    } catch (error) {
-      console.warn('[clients][reconciliation][restore] failed', error)
-      deletedClientKeysRef.current = new Set()
-    } finally {
-      setReconciliationReady(true)
-    }
-  }, [])
-
-  // Keep clientsSyncStateRef in sync so carregarClientesPrioritarios can read
-  // the current value for logging without having it in the useCallback deps
-  // (which would recreate the callback and trigger spurious reloads).
-  useEffect(() => {
-    clientsSyncStateRef.current = clientsSyncState
-  }, [clientsSyncState])
-
-  const carregarClientesPrioritarios = useCallback(async (options?: { silent?: boolean }): Promise<ClienteRegistro[]> => {
-    if (clientsLoadInFlightRef.current) {
-      return clientsLoadInFlightRef.current
-    }
-    const task = (async () => {
-    if (typeof window === 'undefined') {
-      return []
-    }
-    if (meAuthState !== 'authenticated') {
-      console.info('[clients][load] skipped', { authState: meAuthState })
-      return carregarClientesSalvos()
-    }
-    console.info('[clients][load] start', {
-      authenticated: true,
-      syncState: clientsSyncStateRef.current,
-      browser: navigator.userAgent,
-    })
-
-    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
-    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
-    try {
-      const allRegistros: ClienteRegistro[] = []
-      const clientMapUpdates: Record<string, string> = {}
-      let page = 1
-      const limit = 100
-      const MAX_PAGES = 50 // safety cap: up to 5,000 records
-      for (;;) {
-        const result = await listClientsFromApi({ page, limit })
-        allRegistros.push(
-          ...result.data.map((row) => {
-            if (row.id) {
-              clientMapUpdates[row.id] = row.id
-            }
-            return serverClientToRegistro(row)
-          }),
-        )
-        if (page >= result.meta.totalPages || result.data.length === 0 || page >= MAX_PAGES) break
-        page++
-      }
-      const filteredRegistros = allRegistros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
-      if (Object.keys(clientMapUpdates).length > 0) {
-        clientServerIdMapRef.current = {
-          ...clientServerIdMapRef.current,
-          ...clientMapUpdates,
-        }
-        try {
-          window.localStorage.setItem(
-            CLIENT_SERVER_ID_MAP_STORAGE_KEY,
-            JSON.stringify(clientServerIdMapRef.current),
-          )
-        } catch (error) {
-          console.warn('[clients] Failed to persist client server-id map after API load:', error)
-        }
-      }
-      // Cache fresh Neon data in localStorage for offline fallback
-      try { persistClientesToLocalStorage(filteredRegistros) } catch {}
-      setClientsSyncState('online-db')
-      setClientsSource('api')
-      setLastSuccessfulApiLoadAt(Date.now())
-      setClientsLastLoadError(null)
-      console.info('[clients][load] source', {
-        source: 'api',
-        count: filteredRegistros.length,
-        deletedKeysCount: deletedClientKeysRef.current.size,
-      })
-      console.info('[clients][load] success', { count: filteredRegistros.length })
-      console.info('[clients][load] commit', {
-        source: 'api',
-        count: filteredRegistros.length,
-        keys: filteredRegistros.slice(0, 10).map(getClientStableKey),
-      })
-      return filteredRegistros
-    } catch (error) {
-      const localFallback = !(error instanceof ClientsApiError)
-      setClientsSyncState(localFallback ? 'local-fallback' : 'degraded-api')
-      setClientsSource(localFallback ? 'local-browser-storage' : 'memory')
-      setClientsLastLoadError(error instanceof Error ? error.message : String(error))
-      console.error('[clients][load] failed', { message: error instanceof Error ? error.message : String(error) })
-      console.warn('[clients][load] fallback-activated', {
-        reason: error instanceof Error ? error.message : String(error),
-        sourceAttempted: 'api',
-      })
-      if (!options?.silent) {
-        adicionarNotificacao(
-          localFallback
-            ? 'Clientes em modo local temporário: backend indisponível no momento.'
-            : 'Falha ao recarregar a lista de clientes do banco. Alterações confirmadas podem demorar para aparecer.',
-          localFallback ? 'error' : 'info',
-        )
-      }
-      // Fall through to storage-based loading
-    }
-
-    try {
-      const oneDrivePayload = await loadClientesFromOneDrive()
-      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
-        const raw =
-          typeof oneDrivePayload === 'string'
-            ? oneDrivePayload
-            : JSON.stringify(oneDrivePayload)
-        const registros = parseClientesSalvos(raw)
-        persistClientesToLocalStorage(registros)
-        const reconciled = registros.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
-        setClientsSource('server-storage')
-        console.info('[clients][load] source', {
-          source: 'server-storage',
-          count: registros.length,
-          deletedKeysCount: deletedClientKeysRef.current.size,
-        })
-        console.info('[clients][load] commit', {
-          source: 'server-storage',
-          count: reconciled.length,
-          keys: reconciled.slice(0, 10).map(getClientStableKey),
-        })
-        return reconciled
-      }
-    } catch (error) {
-      if (error instanceof OneDriveIntegrationMissingError) {
-        if (import.meta.env.DEV) console.debug('Leitura via OneDrive ignorada: integração não configurada.')
-      } else {
-        console.warn('Não foi possível carregar clientes via OneDrive.', error)
-      }
-    }
-
-    const local = carregarClientesSalvos()
-    const reconciled = local.filter((registro) => !deletedClientKeysRef.current.has(getClientStableKey(registro)))
-    setClientsSource('local-browser-storage')
-    console.info('[clients][load] source', {
-      source: 'local-browser-storage',
-      count: local.length,
-      deletedKeysCount: deletedClientKeysRef.current.size,
-    })
-    console.info('[clients][load] commit', {
-      source: 'local-browser-storage',
-      count: reconciled.length,
-      keys: reconciled.slice(0, 10).map(getClientStableKey),
-    })
-    return reconciled
-    })()
-    clientsLoadInFlightRef.current = task
-    try {
-      return await task
-    } finally {
-      clientsLoadInFlightRef.current = null
-    }
-  }, [adicionarNotificacao, carregarClientesSalvos, getClientStableKey, meAuthState, parseClientesSalvos])
-
-  useEffect(() => {
-    if (meAuthState !== 'authenticated' || !reconciliationReady) {
-      return
-    }
-    let cancelado = false
-    const carregar = async () => {
-      const registros = await carregarClientesPrioritarios()
-      if (cancelado) {
-        return
-      }
-      setClientesSalvos(registros)
-      if (typeof window !== 'undefined') {
-        try {
-          if (registros.length > 0) {
-            persistClientesToLocalStorage(registros)
-          } else {
-            window.localStorage.removeItem(CLIENTES_STORAGE_KEY)
-          }
-        } catch (error) {
-          console.warn('Não foi possível atualizar o cache local de clientes.', error)
-        }
-      }
-    }
-    void carregar()
-    return () => {
-      cancelado = true
-    }
-  // authSyncKey increments when Stack Auth token becomes available, ensuring
-  // this effect re-runs on new devices where auth resolves after initial mount.
-
-  }, [carregarClientesPrioritarios, authSyncKey, meAuthState, reconciliationReady])
-
-  // Fetch all registered consultants for privileged users so the client
-  // management page can populate its consultant filter dropdown.
-  useEffect(() => {
-    if (!user || !(isAdmin || isOffice || isFinanceiro)) {
-      setAllConsultores([])
-      // Clear cache on logout so stale data isn't shown on the next login
-      if (!user) {
-        try { window.localStorage.removeItem(CONSULTORES_CACHE_KEY) } catch {}
-      }
-      return
-    }
-    let cancelado = false
-    listConsultantsFromApi()
-      .then((entries) => {
-        if (!cancelado) {
-          setAllConsultores(entries)
-          // Persist to localStorage so the list is available immediately on next page load
-          // (avoids the "Sem consultor" flash while the API response is in-flight).
-          try {
-            window.localStorage.setItem(CONSULTORES_CACHE_KEY, JSON.stringify(entries))
-          } catch {
-            // localStorage quota or security error — non-critical
-          }
-        }
-      })
-      .catch(() => {
-        // Non-critical: fall back to names derived from loaded clients
-      })
-    return () => {
-      cancelado = true
-    }
-
-  }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
-
-  // Fetch active consultants for the proposal form picker (any authenticated user).
-  // Auto-selects the logged-in user's consultant entry on first load using the auto-detect API.
-  // Also listens for consultant link changes to re-run auto-detection.
-  useEffect(() => {
-    if (!user) {
-      setFormConsultores([])
-      return
-    }
-    let cancelado = false
-
-    // Fetch consultants for the dropdown
-    fetchConsultantsForPicker()
-      .then((entries) => {
-        if (cancelado) return
-        setFormConsultores(entries)
-      })
-      .catch(() => {
-        // Non-critical: form works without the dropdown
-      })
-
-    // Function to run auto-detection
-    const runAutoDetection = () => {
-      if (import.meta.env.DEV) {
-        console.debug('[consultant][auto-detect] Running auto-detection...')
-      }
-      import('./services/personnelApi').then(({ autoDetectLinkedConsultant }) => {
-        autoDetectLinkedConsultant()
-          .then((result) => {
-            if (cancelado) return
-            if (result.consultant && me) {
-              // Prefer the logged-in user's own name as the default consultant display name
-              const defaultNome = me.fullName?.trim() || consultorDisplayName(result.consultant)
-              // Store for reuse when iniciarNovaProposta resets the form
-              myConsultorDefaultRef.current = { id: String(result.consultant.id), nome: defaultNome }
-              const current = clienteRef.current ?? cliente
-              // Always update when auto-detection runs (handles both initial load and link changes)
-              updateClienteSync({ consultorId: String(result.consultant.id), consultorNome: defaultNome })
-              if (import.meta.env.DEV) {
-                console.debug('[consultant][auto-detect] Matched consultant via', result.matchType, {
-                  consultantId: result.consultant.id,
-                  nome: defaultNome,
-                  currentClienteConsultorId: current.consultorId
-                })
-              }
-            } else if (result.consultant === null && me) {
-              // No consultant found - clear the selection if previously set
-              const current = clienteRef.current ?? cliente
-              if (current.consultorId && myConsultorDefaultRef.current) {
-                myConsultorDefaultRef.current = null
-                updateClienteSync({ consultorId: '', consultorNome: '' })
-                if (import.meta.env.DEV) {
-                  console.debug('[consultant][auto-detect] No consultant found, clearing selection')
-                }
-              }
-            }
-          })
-          .catch((err) => {
-            if (!cancelado) {
-              console.warn('[consultant][auto-detect] Failed to auto-detect linked consultant:', err)
-            }
-          })
-      }).catch(() => {
-        // Module import failed (shouldn't happen in normal flow)
-      })
-    }
-
-    // Run initial auto-detection
-    runAutoDetection()
-
-    // Listen for consultant link change events
-    const cleanup = import('./events/consultantEvents').then(({ onConsultantLinkChanged }) => {
-      return onConsultantLinkChanged((detail) => {
-        // Only re-run auto-detection if the link change affects the current user
-        // Compare using both database id and auth provider id to handle both scenarios
-        const matchesById = me?.id && detail.userId === me.id
-        const matchesByAuthId = me?.authProviderId && detail.userId === me.authProviderId
-
-        if (import.meta.env.DEV) {
-          console.debug('[consultant][auto-detect] Link change event received', {
-            detail,
-            me: { id: me?.id, authProviderId: me?.authProviderId },
-            matchesById,
-            matchesByAuthId,
-            willRunDetection: matchesById || matchesByAuthId
-          })
-        }
-
-        if (matchesById || matchesByAuthId) {
-          if (import.meta.env.DEV) {
-            console.debug('[consultant][auto-detect] Link changed for current user, re-running auto-detection')
-          }
-          runAutoDetection()
-        }
-      })
-    }).catch(() => {
-      return () => {}
-    })
-
-    return () => {
-      cancelado = true
-      cleanup.then((cleanupFn) => cleanupFn()).catch(() => {})
-    }
-  }, [user, authSyncKey])
 
   useEffect(() => {
     if (consultantBackfillRanRef.current) return
