@@ -46,43 +46,13 @@ import {
   handleAdminUserDelete,
   handleAdminUserCreate,
 } from './routes/adminUsers.js'
-import {
-  handleProposalsRequest,
-  handleProposalByIdRequest,
-} from './proposals/handler.js'
-import {
-  handleUpsertClientByCpf,
-  handleClientsRequest as handleClientsRequestV2,
-  handleClientByIdRequest,
-} from './clients/handler.js'
-import {
-  handleBulkImportPreview,
-  handleBulkImport,
-} from './clients/bulkImport.js'
-import { registerConsultantsRoutes } from './routes/consultants.js'
-import { registerEngineersRoutes } from './routes/engineers.js'
-import { registerInstallersRoutes } from './routes/installers.js'
-import { registerPersonnelImportRoutes } from './routes/personnelImport.js'
-import { registerDatabaseBackupRoutes } from './routes/databaseBackup.js'
-import { registerPurgeDeletedClientsRoute } from './routes/purgeDeletedClients.js'
-import { registerPurgeOldProposalsRoute } from './routes/purgeOldProposals.js'
-import {
-  handlePortfolioListRequest,
-  handlePortfolioGetRequest,
-  handlePortfolioExportRequest,
-  handlePortfolioProfilePatch,
-  handlePortfolioContractPatch,
-  handlePortfolioProjectPatch,
-  handlePortfolioBillingPatch,
-  handlePortfolioPlanPatch,
-  handlePortfolioNotesRequest,
-  handlePortfolioRemoveRequest,
-  handleDashboardPortfolioSummary,
-} from './client-portfolio/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 import { createRouter } from './router.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerStorageRoutes } from './routes/storage.js'
+import { registerClientsRoutes } from './routes/clients.js'
+import { registerProposalsRoutes } from './routes/proposals.js'
+import { registerPortfolioRoutes } from './routes/portfolio.js'
 import { registerProjectsRoutes } from './routes/projects.js'
 import { registerFinancialManagementRoutes } from './routes/financialManagement.js'
 import { registerFinancialImportRoutes } from './routes/financialImport.js'
@@ -90,6 +60,13 @@ import { registerFinancialAnalysesRoutes } from './routes/financialAnalyses.js'
 import { registerInvoicesRoutes } from './routes/invoices.js'
 import { registerRevenueBillingRoutes } from './routes/revenueBilling.js'
 import { registerOperationalTasksRoutes } from './routes/operationalTasks.js'
+import { registerConsultantsRoutes } from './routes/consultants.js'
+import { registerEngineersRoutes } from './routes/engineers.js'
+import { registerInstallersRoutes } from './routes/installers.js'
+import { registerPersonnelImportRoutes } from './routes/personnelImport.js'
+import { registerDatabaseBackupRoutes } from './routes/databaseBackup.js'
+import { registerPurgeDeletedClientsRoute } from './routes/purgeDeletedClients.js'
+import { registerPurgeOldProposalsRoute } from './routes/purgeOldProposals.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -351,6 +328,9 @@ registerPersonnelImportRoutes(router, { getScopedSql: createHandlerScopedSql })
 registerConsultantsRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 registerEngineersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 registerInstallersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
+registerClientsRoutes(router, { readJsonBody })
+registerProposalsRoutes(router, { readJsonBody })
+registerPortfolioRoutes(router, { readJsonBody })
 registerInvoicesRoutes(router, { readJsonBody })
 registerOperationalTasksRoutes(router, { readJsonBody })
 registerRevenueBillingRoutes(router, {})
@@ -576,189 +556,6 @@ export default async function handler(req, res) {
       return
     }
 
-    // POST /api/clients/upsert-by-cpf — offline-first client upsert
-    if (pathname === '/api/clients/upsert-by-cpf' && method === 'POST') {
-      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
-      await handleUpsertClientByCpf(req, res, clientsCtx)
-      return
-    }
-
-    // POST /api/clients/bulk-import/preview — deduplication preview (no persistence)
-    if (pathname === '/api/clients/bulk-import/preview' && method === 'POST') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
-      await handleBulkImportPreview(req, res, clientsCtx)
-      return
-    }
-
-    // POST /api/clients/bulk-import — enterprise bulk import with deduplication
-    if (pathname === '/api/clients/bulk-import' && method === 'POST') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent }
-      await handleBulkImport(req, res, clientsCtx)
-      return
-    }
-
-    // POST /api/clients/consultor-backfill — normalize consultant metadata across all clients
-    if (pathname === '/api/clients/consultor-backfill' && method === 'POST') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
-      await handleClientsRequestV2(req, res, clientsCtx)
-      return
-    }
-
-    // GET /api/clients — list with filters
-    // POST /api/clients — create client
-    if (pathname === '/api/clients') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const clientsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
-      await handleClientsRequestV2(req, res, clientsCtx)
-      return
-    }
-
-    // GET /api/clients/:id — get client
-    // GET /api/clients/:id/proposals — get client's proposals
-    // PUT /api/clients/:id — update client
-    // DELETE /api/clients/:id — soft delete client
-    const clientByIdMatch = pathname.match(/^\/api\/clients\/(\d+)(\/proposals)?$/)
-    if (clientByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
-      const clientId = clientByIdMatch[1]
-      const subpath = clientByIdMatch[2]?.slice(1) ?? null  // 'proposals' or null
-      const clientsCtx = { method, clientId, subpath, readJsonBody, sendJson, sendNoContent }
-      await handleClientByIdRequest(req, res, clientsCtx)
-      return
-    }
-
-    // ── Proposals API ─────────────────────────────────────────────────────────
-    // GET /api/proposals        — list proposals
-    // POST /api/proposals       — create proposal
-    if (pathname === '/api/proposals') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const proposalsCtx = { method, readJsonBody, sendJson, sendNoContent, requestUrl }
-      await handleProposalsRequest(req, res, proposalsCtx)
-      return
-    }
-
-    // GET /api/proposals/:id    — get one proposal
-    // PATCH /api/proposals/:id  — update proposal
-    // DELETE /api/proposals/:id — soft delete
-    const proposalByIdMatch = pathname.match(/^\/api\/proposals\/([^/]+)$/)
-    if (proposalByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
-      const proposalId = proposalByIdMatch[1]
-      const proposalByIdCtx = { method, proposalId, readJsonBody, sendJson, sendNoContent, requestUrl }
-      await handleProposalByIdRequest(req, res, proposalByIdCtx)
-      return
-    }
-
-    // ── Carteira de Clientes ─────────────────────────────────────────────────
-
-    // PATCH /api/clients/:clientId/portfolio-export — mark client as converted to portfolio
-    const portfolioExportMatch = pathname.match(/^\/api\/clients\/(\d+)\/portfolio-export$/)
-    if (portfolioExportMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioExportMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioExportRequest(req, res, { method, clientId, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/clients/:clientId/portfolio-remove — remove client from portfolio (keeps client in system)
-    const portfolioRemoveMatch = pathname.match(/^\/api\/clients\/(\d+)\/portfolio-remove$/)
-    if (portfolioRemoveMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioRemoveMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioRemoveRequest(req, res, { method, clientId, sendJson: sj })
-      return
-    }
-
-    // GET /api/dashboard/portfolio/summary
-    if (pathname === '/api/dashboard/portfolio/summary') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleDashboardPortfolioSummary(req, res, { method, sendJson: sj })
-      return
-    }
-
-    // GET /api/client-portfolio — list portfolio clients
-    if (pathname === '/api/client-portfolio') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioListRequest(req, res, { method, sendJson: sj, requestUrl })
-      return
-    }
-
-    // GET /api/client-portfolio/:clientId — get single portfolio client detail
-    const portfolioByIdMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)$/)
-    if (portfolioByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioByIdMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioGetRequest(req, res, { method, clientId, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/client-portfolio/:clientId/profile
-    const portfolioProfileMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/profile$/)
-    if (portfolioProfileMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioProfileMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioProfilePatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/client-portfolio/:clientId/contract
-    const portfolioContractMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/contract$/)
-    if (portfolioContractMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioContractMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioContractPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/client-portfolio/:clientId/project
-    const portfolioProjectMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/project$/)
-    if (portfolioProjectMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioProjectMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioProjectPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/client-portfolio/:clientId/billing
-    const portfolioBillingMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/billing$/)
-    if (portfolioBillingMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioBillingMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioBillingPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // PATCH /api/client-portfolio/:clientId/plan
-    const portfolioPlanMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/plan$/)
-    if (portfolioPlanMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioPlanMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioPlanPatch(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // GET|POST /api/client-portfolio/:clientId/notes
-    const portfolioNotesMatch = pathname.match(/^\/api\/client-portfolio\/(\d+)\/notes$/)
-    if (portfolioNotesMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const clientId = Number(portfolioNotesMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
 
     if (method === 'OPTIONS') {
       res.setHeader('Allow', CORS_ALLOWED_METHODS)
