@@ -42,6 +42,10 @@ export function registerAuthRoutes(router, moduleCtx) {
     isAdminRateLimited,
   } = moduleCtx
 
+  // Alias used when passing jsonResponse to sub-handlers that expect { sendJson }.
+  // Sub-handlers accept sendJson(res, status, payload) which matches jsonResponse's signature.
+  const sendJson = jsonResponse
+
   // ── GET /api/auth/me ──────────────────────────────────────────────────────
   // Returns authenticated user info + internal authorization status.
   router.register('*', '/api/auth/me', async (req, res, _reqCtx) => {
@@ -50,7 +54,7 @@ export function registerAuthRoutes(router, moduleCtx) {
     if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
     if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
     if (isAuthRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
-    await handleAuthMeRequest(req, res, { sendJson: jsonResponse, requestUrl })
+    await handleAuthMeRequest(req, res, { sendJson, requestUrl })
   })
 
   // ── GET /api/authz/me ─────────────────────────────────────────────────────
@@ -90,7 +94,7 @@ export function registerAuthRoutes(router, moduleCtx) {
     if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,OPTIONS' }); return }
     if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
     if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
-    await handleAuthReconcileAll(req, res, { sendJson: jsonResponse })
+    await handleAuthReconcileAll(req, res, { sendJson })
   })
 
   // ── GET /api/internal/rbac/inspect ───────────────────────────────────────
@@ -101,6 +105,6 @@ export function registerAuthRoutes(router, moduleCtx) {
     if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
     if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
     if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
-    await handleRbacInspectRequest(req, res, { sendJson: jsonResponse, requestUrl })
+    await handleRbacInspectRequest(req, res, { sendJson, requestUrl })
   })
 }
