@@ -527,9 +527,11 @@ export function registerDatabaseBackupRoutes(router, moduleCtx) {
   // POST /api/admin/database-backup — secure DB snapshot export for admin/office
   router.register('*', '/api/admin/database-backup', async (req, res, reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
-    // OPTIONS pre-flight: always respond without auth or rate-limit checks.
+    // OPTIONS preflight: always respond without auth or rate-limit checks.
     if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-    // Method guard before auth — standard HTTP; avoids disclosing auth requirements.
+    // Method guard runs before the composed middleware chain (rate-limit → auth → handler)
+    // to keep standard HTTP semantics and avoid disclosing auth requirements to callers
+    // that use an unsupported method.
     if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
     await protectedHandler(req, res, reqCtx)
   })

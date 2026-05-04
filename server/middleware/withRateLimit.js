@@ -98,10 +98,15 @@ export function withRateLimit(handler, options = {}) {
     if (ip) {
       const now = Date.now()
 
-      // Purge expired buckets when the map grows too large.
+      // Purge up to 1 000 expired buckets when the map grows too large to
+      // avoid blocking the event loop with a full-map scan.
       if (buckets.size > 10_000) {
+        let purged = 0
         for (const [key, bucket] of buckets) {
-          if (bucket.resetAt <= now) buckets.delete(key)
+          if (bucket.resetAt <= now) {
+            buckets.delete(key)
+            if (++purged >= 1_000) break
+          }
         }
       }
 
