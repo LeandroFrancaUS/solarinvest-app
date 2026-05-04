@@ -11,7 +11,7 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment, InstallmentPayment } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, InstallmentPayment, ContractType, ContractStatus } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
