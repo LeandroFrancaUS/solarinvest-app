@@ -7,6 +7,7 @@
 
 import { getStackUser, sanitizeStackUserId } from '../auth/stackAuth.js'
 import { resolveActor, actorRole } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
 
@@ -17,17 +18,15 @@ const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
  * @param {{
  *   storageService:   object | null,
  *   stackAuthEnabled: boolean,
- *   sendJson:         (res: object, status: number, payload: object) => void,
- *   sendNoContent:    (res: object) => void,
  *   readJsonBody:     (req: object) => Promise<object>,
  * }} moduleCtx
  */
 export function registerStorageRoutes(router, moduleCtx) {
-  const { storageService, stackAuthEnabled, sendJson, sendNoContent, readJsonBody } = moduleCtx
+  const { storageService, stackAuthEnabled, readJsonBody } = moduleCtx
 
   router.register('*', '/api/storage', async (req, res, { requestId }) => {
     if (!storageService) {
-      sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Persistência indisponível' })
+      jsonResponse(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Persistência indisponível' })
       return
     }
 
@@ -52,9 +51,9 @@ export function registerStorageRoutes(router, moduleCtx) {
         stack: actorErr?.stack,
       })
       if (isAuthError) {
-        sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+        jsonResponse(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
       } else {
-        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Não foi possível verificar permissões. Tente novamente.' })
+        jsonResponse(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Não foi possível verificar permissões. Tente novamente.' })
       }
       return
     }
@@ -68,17 +67,16 @@ export function registerStorageRoutes(router, moduleCtx) {
     const method = req.method?.toUpperCase() ?? 'GET'
 
     if (method === 'OPTIONS') {
-      res.setHeader('Allow', CORS_ALLOWED_METHODS)
-      sendNoContent(res)
+      noContentResponse(res, { Allow: CORS_ALLOWED_METHODS })
       return
     }
 
     if (stackAuthEnabled && !userId) {
-      sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
+      jsonResponse(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
       return
     }
     if (stackAuthEnabled && !resolvedRole) {
-      sendJson(res, 403, {
+      jsonResponse(res, 403, {
         ok: false,
         code: 'FORBIDDEN',
         message: 'Unable to resolve internal app role for SQL session.',
@@ -90,7 +88,7 @@ export function registerStorageRoutes(router, moduleCtx) {
       try {
         if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
         const entries = await storageService.listEntries({ userId, userRole: resolvedRole })
-        sendJson(res, 200, { entries })
+        jsonResponse(res, 200, { entries })
       } catch (storageErr) {
         console.error('[storage] failed', {
           userId,
@@ -98,7 +96,7 @@ export function registerStorageRoutes(router, moduleCtx) {
           message: storageErr?.message,
           code: storageErr?.code,
         })
-        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao acessar armazenamento. Tente novamente.', requestId })
+        jsonResponse(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao acessar armazenamento. Tente novamente.', requestId })
       }
       return
     }
@@ -109,11 +107,11 @@ export function registerStorageRoutes(router, moduleCtx) {
         body = await readJsonBody(req)
       } catch (parseError) {
         if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
-          sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+          jsonResponse(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
           return
         }
         if (parseError?.code === 'INVALID_JSON') {
-          sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
+          jsonResponse(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
           return
         }
         throw parseError
@@ -121,16 +119,16 @@ export function registerStorageRoutes(router, moduleCtx) {
       const key = typeof body.key === 'string' ? body.key.trim() : ''
       const value = body.value === undefined ? null : body.value
       if (!key) {
-        sendJson(res, 400, { ok: false, code: 'VALIDATION_ERROR', message: 'Chave de armazenamento inválida.' })
+        jsonResponse(res, 400, { ok: false, code: 'VALIDATION_ERROR', message: 'Chave de armazenamento inválida.' })
         return
       }
       try {
         if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
         await storageService.setEntry({ userId, userRole: resolvedRole }, key, value)
-        sendNoContent(res)
+        noContentResponse(res)
       } catch (storageErr) {
         if (storageErr?.code === 'STORAGE_PAYLOAD_TOO_LARGE') {
-          sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+          jsonResponse(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
           return
         }
         console.error('[storage] failed', {
@@ -139,7 +137,7 @@ export function registerStorageRoutes(router, moduleCtx) {
           message: storageErr?.message,
           code: storageErr?.code,
         })
-        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao salvar no armazenamento. Tente novamente.', requestId })
+        jsonResponse(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao salvar no armazenamento. Tente novamente.', requestId })
       }
       return
     }
@@ -150,11 +148,11 @@ export function registerStorageRoutes(router, moduleCtx) {
         body = await readJsonBody(req)
       } catch (parseError) {
         if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
-          sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
+          jsonResponse(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
           return
         }
         if (parseError?.code === 'INVALID_JSON') {
-          sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
+          jsonResponse(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
           return
         }
         throw parseError
@@ -167,7 +165,7 @@ export function registerStorageRoutes(router, moduleCtx) {
         } else {
           await storageService.removeEntry({ userId, userRole: resolvedRole }, key)
         }
-        sendNoContent(res)
+        noContentResponse(res)
       } catch (storageErr) {
         console.error('[storage] failed', {
           userId,
@@ -175,11 +173,11 @@ export function registerStorageRoutes(router, moduleCtx) {
           message: storageErr?.message,
           code: storageErr?.code,
         })
-        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao remover do armazenamento. Tente novamente.', requestId })
+        jsonResponse(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao remover do armazenamento. Tente novamente.', requestId })
       }
       return
     }
 
-    sendJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Método não suportado.' })
+    jsonResponse(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Método não suportado.' })
   })
 }

@@ -6,6 +6,7 @@
 // are intentionally identical to the originals.
 
 import { getNeonDatabaseConfig } from '../database/neonConfig.js'
+import { jsonResponse } from '../response.js'
 
 /**
  * Registers all health-check routes on the given router.
@@ -16,7 +17,6 @@ import { getNeonDatabaseConfig } from '../database/neonConfig.js'
  *   databaseConfig:   { connectionString?: string },
  *   storageService:   object | null,
  *   stackAuthEnabled: boolean,
- *   sendJson:         (res: object, status: number, payload: object) => void,
  *   sendServerError:  (res: object, status: number, payload: object, requestId?: string, vercelId?: string) => void,
  * }} moduleCtx
  */
@@ -26,7 +26,6 @@ export function registerHealthRoutes(router, moduleCtx) {
     databaseConfig,
     storageService,
     stackAuthEnabled,
-    sendJson,
     sendServerError,
   } = moduleCtx
 
@@ -56,7 +55,7 @@ export function registerHealthRoutes(router, moduleCtx) {
 
     try {
       await databaseClient.sql`SELECT 1 AS ok`
-      sendJson(res, 200, { ok: true, db: true })
+      jsonResponse(res, 200, { ok: true, db: true })
     } catch (error) {
       console.error('[api/health] failed', {
         message: error instanceof Error ? error.message : String(error),
@@ -104,7 +103,7 @@ export function registerHealthRoutes(router, moduleCtx) {
           ? nowValue.toISOString()
           : nowValue
 
-      sendJson(res, 200, { ok: true, db: 'connected', now: serialized, latencyMs })
+      jsonResponse(res, 200, { ok: true, db: 'connected', now: serialized, latencyMs })
     } catch (error) {
       const latencyMs = Date.now() - startTime
       console.error('[database] Falha no health check:', error)
@@ -127,7 +126,7 @@ export function registerHealthRoutes(router, moduleCtx) {
   // Auth configuration probe: reports Stack Auth enabled/bypass status.
 
   router.register('*', '/api/health/auth', (_req, res, _reqCtx) => {
-    sendJson(res, 200, {
+    jsonResponse(res, 200, {
       ok: true,
       service: 'auth',
       status: !stackAuthEnabled ? 'bypass' : 'configured',
@@ -140,7 +139,7 @@ export function registerHealthRoutes(router, moduleCtx) {
 
   router.register('*', '/api/health/storage', async (_req, res, _reqCtx) => {
     if (!storageService || !databaseClient || !databaseConfig.connectionString) {
-      sendJson(res, 503, {
+      jsonResponse(res, 503, {
         ok: false,
         service: 'storage',
         status: 'not_configured',
@@ -152,14 +151,14 @@ export function registerHealthRoutes(router, moduleCtx) {
     const startTime = Date.now()
     try {
       await databaseClient.sql`SELECT 1 AS ok`
-      sendJson(res, 200, {
+      jsonResponse(res, 200, {
         ok: true,
         service: 'storage',
         status: 'connected',
         latencyMs: Date.now() - startTime,
       })
     } catch (_err) {
-      sendJson(res, 503, {
+      jsonResponse(res, 503, {
         ok: false,
         service: 'storage',
         status: 'error',

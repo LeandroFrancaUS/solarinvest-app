@@ -20,6 +20,7 @@ import { handleAuthMeRequest } from './authMe.js'
 import { handleAuthReconcileAll } from './authReconcile.js'
 import { handleRbacInspectRequest } from './rbacInspect.js'
 import { getAuthorizationSnapshot } from '../auth/authorizationSnapshot.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 /**
  * Registers all auth routes on the given router.
@@ -29,8 +30,6 @@ import { getAuthorizationSnapshot } from '../auth/authorizationSnapshot.js'
  *
  * @param {ReturnType<import('../router.js').createRouter>} router
  * @param {{
- *   sendJson:            (res: object, status: number, payload: object) => void,
- *   sendNoContent:       (res: object) => void,
  *   expireAuthCookie:    (req: object, res: object) => void,
  *   isAuthRateLimited:   (req: object) => boolean,
  *   isAdminRateLimited:  (req: object) => boolean,
@@ -38,21 +37,23 @@ import { getAuthorizationSnapshot } from '../auth/authorizationSnapshot.js'
  */
 export function registerAuthRoutes(router, moduleCtx) {
   const {
-    sendJson,
-    sendNoContent,
     expireAuthCookie,
     isAuthRateLimited,
     isAdminRateLimited,
   } = moduleCtx
+
+  // Alias used when passing jsonResponse to sub-handlers that expect { sendJson }.
+  // Sub-handlers accept sendJson(res, status, payload) which matches jsonResponse's signature.
+  const sendJson = jsonResponse
 
   // ── GET /api/auth/me ──────────────────────────────────────────────────────
   // Returns authenticated user info + internal authorization status.
   router.register('*', '/api/auth/me', async (req, res, _reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
     const requestUrl = new URL(req.url, 'http://localhost')
-    if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-    if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-    if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAuthRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
     await handleAuthMeRequest(req, res, { sendJson, requestUrl })
   })
 
@@ -60,19 +61,19 @@ export function registerAuthRoutes(router, moduleCtx) {
   // Full authorization snapshot (role, capabilities, permissions).
   router.register('*', '/api/authz/me', async (req, res, _reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
-    if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-    if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-    if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAuthRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
     try {
       const snapshot = await getAuthorizationSnapshot(req)
       if (!snapshot) {
-        sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+        jsonResponse(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
         return
       }
-      sendJson(res, 200, { ok: true, data: snapshot })
+      jsonResponse(res, 200, { ok: true, data: snapshot })
     } catch (err) {
       console.error('[authz/me] error:', err)
-      sendJson(res, 500, { ok: false, error: 'Falha ao carregar snapshot de autorização.' })
+      jsonResponse(res, 500, { ok: false, error: 'Falha ao carregar snapshot de autorização.' })
     }
   })
 
@@ -80,19 +81,19 @@ export function registerAuthRoutes(router, moduleCtx) {
   // Clears the session cookie by setting Max-Age=0.
   router.register('*', '/api/auth/logout', (req, res, _reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
-    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,OPTIONS' }); return }
+    if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
     expireAuthCookie(req, res)
-    sendNoContent(res)
+    noContentResponse(res)
   })
 
   // ── POST /api/internal/auth/reconcile ────────────────────────────────────
   // Reconcile all users' DB roles against Stack Auth permissions (admin only).
   router.register('*', '/api/internal/auth/reconcile', async (req, res, _reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
-    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,OPTIONS' }); return }
+    if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
     await handleAuthReconcileAll(req, res, { sendJson })
   })
 
@@ -101,9 +102,9 @@ export function registerAuthRoutes(router, moduleCtx) {
   router.register('*', '/api/internal/rbac/inspect', async (req, res, _reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
     const requestUrl = new URL(req.url, 'http://localhost')
-    if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-    if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { jsonResponse(res, 429, { error: 'Too many requests. Try again later.' }); return }
     await handleRbacInspectRequest(req, res, { sendJson, requestUrl })
   })
 }

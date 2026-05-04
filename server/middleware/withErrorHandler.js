@@ -9,12 +9,7 @@
 // The HTTP status code is taken from `error.statusCode` when present;
 // otherwise it defaults to 500.
 
-/** @param {object} res @param {number} status @param {object} payload */
-const sendJson = (res, status, payload) => {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.end(JSON.stringify(payload))
-}
+import { jsonResponse } from '../response.js'
 
 /** @type {Record<number, string>} */
 const STATUS_MESSAGES = {
@@ -59,7 +54,7 @@ export function withErrorHandler(handler) {
           ? err.message
           : 'Erro interno do servidor.')
 
-      sendJson(res, status, { ok: false, error: message })
+      jsonResponse(res, status, { ok: false, error: message })
     }
   }
 }
