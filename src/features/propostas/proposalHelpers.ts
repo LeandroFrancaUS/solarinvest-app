@@ -102,9 +102,9 @@ export const createDraftBudgetId = () =>
  *
  * The server stores the complete OrcamentoSnapshotData (raw form state) as payload_json.
  * We use it as both:
- *   - `snapshot`: used by carregarOrcamentoParaEdicao to reload the form for editing
+ *   - `snapshot`: used to reload the form for editing (carregarOrcamentoParaEdicao)
  *   - `dados`   : used by the listing page to read client metadata (nome, cidade, uc, etc.)
- *                 and by carregarOrcamentoSalvo to determine proposal type
+ *                 and to determine proposal type when loading a saved budget
  *
  * The double cast (as unknown as …) is intentional: payload_json is typed as
  * Record<string,unknown> at the API boundary but is guaranteed to be an

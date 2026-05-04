@@ -264,7 +264,7 @@ describe('resolveTermMonthsFromSnapshot', () => {
 // ---------------------------------------------------------------------------
 
 describe('serverProposalToOrcamento', () => {
-  const baseRow: ProposalRow = {
+  const baseRow = {
     id: 'uuid-123',
     proposal_code: 'SLRINVST-LSE-00001234',
     proposal_type: 'leasing',
@@ -289,50 +289,50 @@ describe('serverProposalToOrcamento', () => {
   }
 
   it('uses proposal_code as id when available', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.id).toBe('SLRINVST-LSE-00001234')
   })
 
   it('falls back to row.id when no proposal_code', () => {
     const row = { ...baseRow, proposal_code: null }
-    const result = serverProposalToOrcamento(row)
+    const result = serverProposalToOrcamento(row as unknown as ProposalRow)
     expect(result.id).toBe('uuid-123')
   })
 
   it('maps proposal_type leasing to LEASING tipoProposta', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.dados.tipoProposta).toBe('LEASING')
   })
 
   it('maps proposal_type venda to VENDA_DIRETA tipoProposta', () => {
     const row = { ...baseRow, proposal_type: 'venda' as const }
-    const result = serverProposalToOrcamento(row)
+    const result = serverProposalToOrcamento(row as unknown as ProposalRow)
     expect(result.dados.tipoProposta).toBe('VENDA_DIRETA')
   })
 
   it('prefers server client_name over snapshot nome', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.clienteNome).toBe('João Silva')
   })
 
   it('includes ownerName when owner_display_name is set', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.ownerName).toBe('Consultor A')
   })
 
   it('uses owner_email when no display name', () => {
     const row = { ...baseRow, owner_display_name: null, owner_email: 'a@b.com' }
-    const result = serverProposalToOrcamento(row)
+    const result = serverProposalToOrcamento(row as unknown as ProposalRow)
     expect(result.ownerName).toBe('a@b.com')
   })
 
   it('includes snapshot in result', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.snapshot).toBeDefined()
   })
 
   it('includes clienteUc when present in snapshot', () => {
-    const result = serverProposalToOrcamento(baseRow)
+    const result = serverProposalToOrcamento(baseRow as unknown as ProposalRow)
     expect(result.clienteUc).toBe('1234567890')
   })
 })
@@ -356,14 +356,14 @@ describe('alertPrunedBudgets', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
     alertPrunedBudgets(1)
     expect(alertSpy).toHaveBeenCalledOnce()
-    expect(alertSpy.mock.calls[0][0]).toContain('mais antigo foi removido')
+    expect(alertSpy.mock.calls[0]?.[0]).toContain('mais antigo foi removido')
   })
 
   it('calls window.alert with plural message for multiple dropped', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined)
     alertPrunedBudgets(3)
     expect(alertSpy).toHaveBeenCalledOnce()
-    expect(alertSpy.mock.calls[0][0]).toContain('3 orçamentos antigos')
+    expect(alertSpy.mock.calls[0]?.[0]).toContain('3 orçamentos antigos')
   })
 })
 
