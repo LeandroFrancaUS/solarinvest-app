@@ -274,7 +274,7 @@ export async function applyContractImport(input: {
       signedAt: chosenSignedAt,
       proposalCode: chosenCode,
       kwhContratado: chosenKwh,
-      prazoContratualMeses: chosenTerm !== null ? Number(chosenTerm) : null,
+      prazoContratualMeses: chosenTerm !== null && !isNaN(Number(chosenTerm)) ? Number(chosenTerm) : null,
     },
   }
 }
