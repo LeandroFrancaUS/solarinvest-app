@@ -1094,7 +1094,7 @@ function EditarTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -1396,7 +1396,7 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   useEffect(() => {
@@ -1786,7 +1786,7 @@ function ProjetoTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -2018,7 +2018,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     setConfirmedPayments(buildConfirmedMap(client.installments_json))
     setValorOverrides(buildValorOverrideMap(client.installments_json))
-   
+
   }, [client.installments_json])
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
@@ -2242,7 +2242,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -2854,7 +2854,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   return (
@@ -2931,7 +2931,7 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-   
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
