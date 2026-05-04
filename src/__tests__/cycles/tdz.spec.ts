@@ -35,21 +35,29 @@ describe('cycles and TDZ guard rails', () => {
   })
 
   test('kcKwhMes é declarado antes do useEffect que o usa como dep (guard TDZ)', () => {
-    // Reads App.tsx as raw text and asserts that the `kcKwhMes` useState declaration
-    // appears in the source BEFORE the useEffect that lists it in its dependency array.
-    // This prevents a regression of the production TDZ crash where Terser would evaluate
-    // the deps array before the `const [kcKwhMes, ...]` initializer had run.
+    // Reads App.tsx and the hook file as raw text to assert:
+    //  1. The `kcKwhMes` useState declaration still appears early in App.tsx.
+    //  2. The kit/frete auto-populate effect (with kcKwhMes in its deps) lives in
+    //     the extracted hook — not in App.tsx — so TDZ in App.tsx is no longer possible.
+    //  3. App.tsx passes kcKwhMes to the hook AFTER declaring it (no TDZ path).
     const appSrc = readFileSync(
       resolve(__dirname, '../../../src/App.tsx'),
       'utf8',
     )
+    const hookSrc = readFileSync(
+      resolve(__dirname, '../../features/simulacoes/useAnaliseFinanceiraState.ts'),
+      'utf8',
+    )
+    // 1. kcKwhMes must still be declared early in App.tsx
     const declIndex = appSrc.indexOf('const [kcKwhMes, setKcKwhMesState]')
-    // After the fix, simulacoesSection was removed from this dep array so that
-    // auto-population of afCustoKit/afFrete runs regardless of the active section.
-    // The guard here now checks for the updated dep array pattern.
-    const depsIndex = appSrc.indexOf('[kcKwhMes, afConsumoOverride,')
     expect(declIndex).toBeGreaterThan(0)
-    expect(depsIndex).toBeGreaterThan(0)
-    expect(declIndex).toBeLessThan(depsIndex)
+
+    // 2. The kit/frete effect deps now live in the hook, not App.tsx
+    expect(appSrc.indexOf('[kcKwhMes, afConsumoOverride,')).toBe(-1)
+    expect(hookSrc.indexOf('[kcKwhMes, afConsumoOverride,')).toBeGreaterThan(0)
+
+    // 3. App.tsx passes kcKwhMes to the hook after declaring it
+    const hookCallIndex = appSrc.indexOf('} = useAnaliseFinanceiraState({')
+    expect(hookCallIndex).toBeGreaterThan(declIndex)
   })
 })
