@@ -62,7 +62,7 @@ function buildUrl(path: string, params?: PeriodParams): string {
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== '') {
-        url.searchParams.set(key, value)
+        url.searchParams.set(key, value as string)
       }
     }
   }
