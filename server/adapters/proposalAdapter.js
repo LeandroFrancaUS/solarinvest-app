@@ -76,7 +76,7 @@ export function toProposalWritePayload(input) {
     client_phone:    input.client_phone    ?? input.phone    ?? undefined,
     client_city:     input.client_city     ?? input.city     ?? undefined,
     client_state:    input.client_state    ?? input.state    ?? undefined,
-    // payload_json is carried through untouched.
+    // payload_json is preserved untouched.
     payload_json,
   }
 }

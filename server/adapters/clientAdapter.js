@@ -28,12 +28,12 @@ export function toCanonicalClient(raw) {
 
   return {
     ...raw,
-    client_name:    raw.client_name    ?? raw.name    ?? null,
-    client_document: raw.client_document ?? raw.document ?? null,
-    client_email:   raw.client_email   ?? raw.email   ?? null,
-    client_phone:   raw.client_phone   ?? raw.phone   ?? null,
-    client_city:    raw.client_city    ?? raw.city    ?? null,
-    client_state:   raw.client_state   ?? raw.state   ?? null,
+    client_name:     raw.client_name     ?? raw.name     ?? null,
+    client_document: raw.client_document ?? raw.document  ?? null,
+    client_email:    raw.client_email    ?? raw.email    ?? null,
+    client_phone:    raw.client_phone    ?? raw.phone    ?? null,
+    client_city:     raw.client_city     ?? raw.city     ?? null,
+    client_state:    raw.client_state    ?? raw.state    ?? null,
     client_address: raw.client_address ?? raw.address ?? null,
     uc_geradora:    raw.uc_geradora    ?? raw.uc      ?? null,
   }
