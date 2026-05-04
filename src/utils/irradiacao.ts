@@ -57,12 +57,12 @@ function parseCsv(text: string): IrradiacaoDataset {
     if (!Number.isFinite(parsedValue)) continue
     const value = Number(parsedValue)
 
-    const normalizedState = normalizeState(stateRaw)
+    const normalizedState = normalizeState(stateRaw ?? '')
     if (normalizedState && !byState.has(normalizedState)) {
       byState.set(normalizedState, value)
     }
 
-    const normalizedUf = normalizeUf(ufRaw)
+    const normalizedUf = normalizeUf(ufRaw ?? '')
     if (normalizedUf && !byUf.has(normalizedUf)) {
       byUf.set(normalizedUf, value)
     }

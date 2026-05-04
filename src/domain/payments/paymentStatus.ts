@@ -94,7 +94,7 @@ export function getMonthlyPaymentStatus(
   dueDate.setHours(0, 0, 0, 0)
 
   // Calculate first day of the reference month
-  const [year, month] = payment.referenceMonth.split('-').map(Number)
+  const [year = 0, month = 0] = payment.referenceMonth.split('-').map(Number)
   const firstDayOfMonth = new Date(year, month - 1, 1)
   firstDayOfMonth.setHours(0, 0, 0, 0)
 

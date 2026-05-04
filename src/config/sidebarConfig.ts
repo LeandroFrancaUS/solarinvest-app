@@ -191,10 +191,9 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
                         abrirEnvioPropostaModal()
                       },
                       disabled: contatosEnvio.length === 0,
-                      title:
-                        contatosEnvio.length === 0
-                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-                          : undefined,
+                      ...(contatosEnvio.length === 0
+                        ? { title: 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.' }
+                        : {}),
                     },
                   ]
                 : []),
@@ -316,9 +315,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     {
       id: 'configuracoes',
       label: '',
-      items: [
-        // Portfolio and Financial Management moved to top - removed from here
-      ],
+      items: [] as SidebarItem[],
     },
   ]
 }

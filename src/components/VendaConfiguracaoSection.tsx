@@ -150,7 +150,7 @@ export function VendaConfiguracaoSection({
             type="number"
             min={0}
             step={1}
-            ref={moduleQuantityInputRef}
+            ref={moduleQuantityInputRef as React.RefObject<HTMLInputElement>}
             value={
               numeroModulosManual === ''
                 ? numeroModulosEstimado > 0
@@ -327,7 +327,7 @@ export function VendaConfiguracaoSection({
         >
           <input
             type="text"
-            ref={inverterModelInputRef}
+            ref={inverterModelInputRef as React.RefObject<HTMLInputElement>}
             value={vendaForm.modelo_inversor ?? ''}
             onChange={(event) => applyVendaUpdates({ modelo_inversor: event.target.value || undefined })}
           />

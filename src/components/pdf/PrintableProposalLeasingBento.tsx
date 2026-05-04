@@ -53,7 +53,7 @@ const formatArea = (value?: number) => {
 }
 
 const formatPercent = (value?: number) => {
-  if (!Number.isFinite(value)) return '—'
+  if (value === undefined || !Number.isFinite(value)) return '—'
   return formatPercentBRWithDigits(value / 100, 1)
 }
 
@@ -151,7 +151,7 @@ export const PrintableProposalLeasingBento: React.FC<PrintableProposalLeasingBen
       {/* PAGE 1 - CAPA INSTITUCIONAL */}
       <PrintLayout className="break-after-page">
         <div className="col-span-12">
-          <CoverHeader proposalId={budgetId} />
+          <CoverHeader {...(budgetId !== undefined ? { proposalId: budgetId } : {})} />
         </div>
 
         <div className="col-span-12 mt-8">

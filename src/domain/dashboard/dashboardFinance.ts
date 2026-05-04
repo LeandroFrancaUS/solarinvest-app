@@ -89,9 +89,8 @@ function buildCharges(row: PortfolioClientRow): Array<MonthlyChargeLike & { valu
       return {
         number,
         dueDate: dueDateForInstallment(row, number),
-        status: inst.status,
-        paid_at: inst.paid_at,
-        paidAt: inst.paid_at,
+        ...(inst.status !== undefined ? { status: inst.status } : undefined),
+        ...(inst.paid_at !== undefined ? { paid_at: inst.paid_at, paidAt: inst.paid_at } : undefined),
         value: toNumber(inst.valor_override ?? monthlyValue),
       }
     })

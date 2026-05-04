@@ -402,7 +402,7 @@ function PrintableProposalLeasingInner(
     if (parcelasLeasing.length > 0) {
       const ultimo = parcelasLeasing[parcelasLeasing.length - 1]
       if (Number.isFinite(ultimo?.mes)) {
-        return Math.max(0, Math.floor(ultimo.mes))
+        return Math.max(0, Math.floor(ultimo?.mes ?? 0))
       }
     }
     return 0
@@ -725,7 +725,7 @@ function PrintableProposalLeasingInner(
 
     return Object.keys(acumulado).reduce<Record<number, number>>((acc, chave) => {
       const ano = Number(chave)
-      const { soma, quantidade } = acumulado[ano]
+      const { soma, quantidade } = acumulado[ano] ?? { soma: 0, quantidade: 0 }
       acc[ano] = quantidade > 0 ? soma / quantidade : 0
       return acc
     }, {})
@@ -802,6 +802,7 @@ function PrintableProposalLeasingInner(
     let tusdPosContrato = 0
     for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
       const ano = anosTusdOrdenados[index]
+      if (ano === undefined) continue
       if (ano <= prazoContratualTotalAnos) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const valorTusd = tusdMedioPorAno[ano]
@@ -901,7 +902,7 @@ function PrintableProposalLeasingInner(
     const serie = calcularEconomiaAcumuladaPorAnos(economiaMarcos, calcularEconomiaTotalAteAno)
 
     return serie.map((row, index) => {
-      const acumuladoAnterior = index > 0 ? serie[index - 1].economiaAcumulada : 0
+      const acumuladoAnterior = index > 0 ? (serie[index - 1]?.economiaAcumulada ?? 0) : 0
       return {
         ano: row.ano,
         acumulado: row.economiaAcumulada,
@@ -1486,7 +1487,7 @@ function PrintableProposalLeasingInner(
             )}
           </section>
 
-          <PrintableProposalImages images={imagensInstalacao} />
+          <PrintableProposalImages images={imagensInstalacao ?? null} />
 
           {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
             <section

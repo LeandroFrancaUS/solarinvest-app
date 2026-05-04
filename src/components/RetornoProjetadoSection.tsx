@@ -97,7 +97,7 @@ export function RetornoProjetadoSection({
     const paybackYearIndex =
       paybackMesesVista != null ? years.findIndex((year) => paybackMesesVista <= year * 12) : -1
 
-    const chartValues = yearsData.map((item) => item.value)
+    const chartValues = yearsData.map((item) => item.value ?? 0)
     const maxPositive = Math.max(0, ...chartValues)
     const minNegative = Math.min(0, ...chartValues)
     const hasPositive = maxPositive > 0
@@ -140,7 +140,7 @@ export function RetornoProjetadoSection({
         </div>
         <ul className="financial-return-chart-list">
           {yearsData.map((item, index) => {
-            const value = item.value
+            const value = item.value ?? 0
             const valueLabel = currency(value)
             const isPositive = value >= 0
             const spanLimit = isPositive ? positiveSpan : negativeSpan

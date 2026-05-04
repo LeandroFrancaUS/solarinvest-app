@@ -15,6 +15,9 @@ const ALERT_STYLES: Record<string, { bg: string; border: string; icon: string; l
   a_vencer: { bg: 'rgba(59,130,246,0.08)', border: '#3b82f6', icon: '🔵', label: 'A Vencer' },
 }
 
+const ALERT_STYLE_DEFAULT: { bg: string; border: string; icon: string; label: string } =
+  { bg: 'rgba(59,130,246,0.08)', border: '#3b82f6', icon: '🔵', label: 'A Vencer' }
+
 function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -57,7 +60,7 @@ export function InvoiceAlertsWidget({ alerts, onInvoiceClick }: InvoiceAlertsWid
       </div>
       <div style={{ display: 'grid', gap: 6 }}>
         {alerts.map((alert, idx) => {
-          const levelStyle = ALERT_STYLES[alert.alertType] || ALERT_STYLES.a_vencer
+          const levelStyle = ALERT_STYLES[alert.alertType] ?? ALERT_STYLE_DEFAULT
           const { bg, border, icon, label } = levelStyle
           return (
             <div

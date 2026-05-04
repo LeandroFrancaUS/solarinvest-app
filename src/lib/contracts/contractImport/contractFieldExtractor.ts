@@ -31,7 +31,7 @@ function sanitizeCity(value: string | null | undefined): string | null {
     .split(/[•,]/)
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
-  const tailSegment = segments.length > 0 ? segments[segments.length - 1] : value
+  const tailSegment = segments.length > 0 ? (segments[segments.length - 1] ?? value) : value
   const normalized = tailSegment
     .replace(/\b(ENDERECO|ENDEREÇO|QUADRA|CHACARA|CHÁCARA|CONJUNTO|LOTE)\b/gi, ' ')
     .replace(/[^A-Za-zÀ-ÿ\s]/g, '')
