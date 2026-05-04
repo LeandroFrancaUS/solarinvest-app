@@ -123,8 +123,8 @@ export const evaluateNormCompliance = (
       potenciaInversorKw: potencia,
       message: `Potência dentro do limite para ${tipoLigacao.toLowerCase()} (${rule.kwMax} kW).`,
       kwMaxPermitido: rule.kwMax,
-      upgradeTo: rule.upgradeTo,
-      kwMaxUpgrade,
+      ...(rule.upgradeTo !== undefined ? { upgradeTo: rule.upgradeTo } : undefined),
+      ...(kwMaxUpgrade !== undefined ? { kwMaxUpgrade } : undefined),
     }
   }
 
@@ -139,7 +139,7 @@ export const evaluateNormCompliance = (
     }
   }
 
-  let nextTipo = rule.upgradeTo
+  let nextTipo: TipoLigacaoNorma | undefined = rule.upgradeTo
   let lastUpgrade: { tipo: TipoLigacaoNorma; rule: NormRule } | null = null
 
   while (nextTipo) {
@@ -183,8 +183,8 @@ export const evaluateNormCompliance = (
     potenciaInversorKw: potencia,
     message: `Potência acima do limite para ${tipoLigacao.toLowerCase()} (${rule.kwMax} kW).`,
     kwMaxPermitido: rule.kwMax,
-    upgradeTo: rule.upgradeTo,
-    kwMaxUpgrade,
+    ...(rule.upgradeTo !== undefined ? { upgradeTo: rule.upgradeTo } : undefined),
+    ...(kwMaxUpgrade !== undefined ? { kwMaxUpgrade } : undefined),
   }
 }
 

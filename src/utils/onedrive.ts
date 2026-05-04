@@ -384,7 +384,7 @@ export const persistContratoToOneDrive = async ({
     fileName: trimmedFileName,
     content: contentBase64,
     encoding: 'base64',
-    contentType,
+    ...(contentType !== undefined ? { contentType } : {}),
   }
 
   const bridge = resolveOneDriveBridge()

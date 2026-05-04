@@ -198,14 +198,15 @@ export function showToast(toast: ToastNotification): void {
  * Show a toast from a dashboard alert.
  */
 export function showToastFromAlert(alert: DashboardAlert): void {
+  const duration = alert.severity === 'CRITICAL' ? undefined : 8000
   showToast({
     id: alert.id,
     title: alert.title,
     message: alert.description,
     severity: alert.severity,
-    duration: alert.severity === 'CRITICAL' ? undefined : 8000,
-    actionLabel: alert.actionLabel,
-    onAction: alert.actionUrl ? () => window.location.href = alert.actionUrl! : undefined,
+    ...(duration !== undefined ? { duration } : undefined),
+    ...(alert.actionLabel !== undefined ? { actionLabel: alert.actionLabel } : undefined),
+    ...(alert.actionUrl !== undefined ? { onAction: () => { window.location.href = alert.actionUrl! } } : undefined),
   })
 }
 

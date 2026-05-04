@@ -57,7 +57,7 @@ export async function getClienteRegistroById(id: string) {
 
 export async function getAllClienteRegistros(): Promise<ClienteRegistro[]> {
   const registros: ClienteRegistro[] = [];
-  await store.iterate<Payload, void>((value, key) => {
+  await store.iterate((value, key) => {
     const typed = value as Payload | null
     if (key.startsWith("client:") && typed?.registro) {
       registros.push(typed.registro);

@@ -80,13 +80,14 @@ function calculateReferenceMonth(
  * @returns Array of MonthlyPayment objects
  */
 export function convertToMonthlyPayments(client: PortfolioClientRow): MonthlyPayment[] {
-  const installments = client.installments_json ?? []
+  const installmentsRaw = client.installments_json
+  const installments: InstallmentPayment[] = Array.isArray(installmentsRaw) ? installmentsRaw : []
 
   const monthlyPayments: MonthlyPayment[] = []
 
   for (const installment of installments) {
-    const dueDate = calculateInstallmentDueDate(client, installment.number)
-    const referenceMonth = calculateReferenceMonth(client, installment.number)
+    const dueDate = calculateInstallmentDueDate(client, installment.number ?? 0)
+    const referenceMonth = calculateReferenceMonth(client, installment.number ?? 0)
 
     if (!dueDate || !referenceMonth) {
       continue // Skip installments with invalid dates
@@ -120,7 +121,7 @@ export function isBillingActive(client: PortfolioClientRow): boolean {
   }
   // Must have term months defined
   const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
-  if (termMonths <= 0) {
+  if (Number(termMonths) <= 0) {
     return false
   }
   return true

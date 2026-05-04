@@ -533,9 +533,9 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
           return prev
         }
 
-        const novaEtapa = CRM_PIPELINE_STAGES[novoIndice].id
+        const novaEtapa = CRM_PIPELINE_STAGES[novoIndice]!.id
         const agoraIso = new Date().toISOString()
-        mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice].label}.`
+        mensagemSucesso = `Lead "${leadAtual.nome}" movido para ${CRM_PIPELINE_STAGES[novoIndice]!.label}.`
 
         const leadsAtualizados = prev.leads.map((lead) => {
           if (lead.id !== leadId) {
@@ -562,7 +562,7 @@ export function useCrm(deps: UseCrmDeps): UseCrmState {
         const evento: CrmTimelineEntry = {
           id: gerarIdCrm('evento'),
           leadId,
-          mensagem: `Etapa atualizada de ${CRM_PIPELINE_STAGES[indiceAtual].label} para ${CRM_PIPELINE_STAGES[novoIndice].label}.`,
+          mensagem: `Etapa atualizada de ${CRM_PIPELINE_STAGES[indiceAtual]!.label} para ${CRM_PIPELINE_STAGES[novoIndice]!.label}.`,
           tipo: 'status',
           criadoEmIso: agoraIso,
         }

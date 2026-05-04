@@ -22,7 +22,7 @@ export const lookupCep = async (
     return null
   }
 
-  const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`, { signal })
+  const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`, { ...(signal !== undefined ? { signal } : {}) })
   if (!response.ok) {
     throw new Error('Falha ao consultar CEP.')
   }
@@ -33,9 +33,9 @@ export const lookupCep = async (
   }
 
   return {
-    uf: data?.uf?.trim().toUpperCase(),
-    cidade: data?.localidade?.trim(),
-    logradouro: data?.logradouro?.trim(),
-    bairro: data?.bairro?.trim(),
+    ...(data?.uf ? { uf: data.uf.trim().toUpperCase() } : {}),
+    ...(data?.localidade ? { cidade: data.localidade.trim() } : {}),
+    ...(data?.logradouro ? { logradouro: data.logradouro.trim() } : {}),
+    ...(data?.bairro ? { bairro: data.bairro.trim() } : {}),
   }
 }

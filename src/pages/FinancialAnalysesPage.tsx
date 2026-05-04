@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listFinancialAnalyses, SavedFinancialAnalysis } from '../services/financialAnalysesApi'
+import { listFinancialAnalyses, type SavedFinancialAnalysis } from '../services/financialAnalysesApi'
 
 export default function FinancialAnalysesPage() {
   const [data, setData] = useState<SavedFinancialAnalysis[]>([])

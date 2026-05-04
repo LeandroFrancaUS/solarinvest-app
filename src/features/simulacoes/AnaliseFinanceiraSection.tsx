@@ -13,6 +13,7 @@ import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
+import type { AprovacaoStatus, AprovacaoChecklistKey } from './simulacoesConstants'
 import type { MoneyFieldHandle } from './simulacoesTypes'
 
 export interface AnaliseFinanceiraSectionProps {

@@ -556,7 +556,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   if (potencia_da_placa_wp == null) {
     const fallbackMatch = text.match(/m[óo]dulo[^\n]*?(\d{3,4})\s*(?:wp|w)\b/i)
     if (fallbackMatch) {
-      const numeric = fallbackMatch[1].replace(/\D+/g, '')
+      const numeric = fallbackMatch[1]!.replace(/\D+/g, '')
       if (numeric) {
         const parsed = toNumberFlexible(numeric)
         if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {

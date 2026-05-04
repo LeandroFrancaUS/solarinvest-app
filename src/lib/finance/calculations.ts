@@ -114,7 +114,7 @@ export function calcularEconomiaMensal({
     anosDecorridos,
     tipoLigacao,
     cipValor,
-    tusd,
+    ...(tusd !== undefined ? { tusd } : undefined),
     energiaGeradaKwh,
   })
   const economia = contaSemSolar - valorContaRede

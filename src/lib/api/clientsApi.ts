@@ -342,18 +342,19 @@ export async function listConsultants(): Promise<ConsultantEntry[]> {
   if (!res.ok) return []
   const body = (await res.json()) as { consultants?: ConsultantsListApiRow[] }
   if (!Array.isArray(body.consultants)) return []
-  return body.consultants
-    .map((row) => {
-      const preferredName = row.full_name?.trim() || row.apelido?.trim() || row.email?.trim() || ''
-      if (!preferredName) return null
-      return {
-        id: String(row.id),
-        name: preferredName,
-        email: row.email ?? null,
-        apelido: row.apelido?.trim() ?? null,
-      }
-    })
-    .filter((entry): entry is ConsultantEntry => Boolean(entry))
+  const consultants: ConsultantEntry[] = []
+  for (const row of body.consultants) {
+    const preferredName = row.full_name?.trim() || row.apelido?.trim() || row.email?.trim() || ''
+    if (!preferredName) continue
+    const entry: ConsultantEntry = {
+      id: String(row.id),
+      name: preferredName,
+      email: row.email ?? null,
+      ...(row.apelido !== undefined ? { apelido: row.apelido?.trim() ?? null } : undefined),
+    }
+    consultants.push(entry)
+  }
+  return consultants
 }
 
 // ─── Bulk Import ─────────────────────────────────────────────────────────────

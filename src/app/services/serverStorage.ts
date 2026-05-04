@@ -353,7 +353,7 @@ function recordStorageUnavailable(): void {
 
 const loadRemoteEntries = async (signal?: AbortSignal): Promise<RemoteStorageEntry[]> => {
   const headers = await buildHeaders()
-  const response = await fetch(STORAGE_ENDPOINT, { headers, credentials: 'include', signal })
+  const response = await fetch(STORAGE_ENDPOINT, { headers, credentials: 'include', signal: signal ?? null })
   if (response.status === 401 || response.status === 403) {
     throw new ServerStorageUnauthorizedError(response.status)
   }

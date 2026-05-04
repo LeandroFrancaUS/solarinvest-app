@@ -29,7 +29,7 @@ export async function saveFormDraft<T>(snapshotData: T): Promise<DraftEnvelope<T
         version: DRAFT_VERSION,
         updatedAt: new Date().toISOString(),
         data: snapshotData,
-      } as DraftEnvelope<T>
+      } as unknown as DraftEnvelope<T>
     }
     
     const envelope = await saveDraft(FORM_DRAFT_KEY, snapshotData, DRAFT_VERSION)

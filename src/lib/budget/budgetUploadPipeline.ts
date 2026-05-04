@@ -449,12 +449,12 @@ function preprocessImageData(source: ImageData): ImageData {
   const grayscale = new Uint8ClampedArray(length)
   const histogram = new Uint32Array(256)
   for (let index = 0; index < length; index += 4) {
-    const r = data[index]
-    const g = data[index + 1]
-    const b = data[index + 2]
-    const a = data[index + 3]
+    const r = data[index]!
+    const g = data[index + 1]!
+    const b = data[index + 2]!
+    const a = data[index + 3]!
     const gray = a === 0 ? 255 : Math.round(0.299 * r + 0.587 * g + 0.114 * b)
-    histogram[gray] += 1
+    histogram[gray] = (histogram[gray] ?? 0) + 1
     grayscale[index] = gray
     grayscale[index + 1] = gray
     grayscale[index + 2] = gray
@@ -466,8 +466,8 @@ function preprocessImageData(source: ImageData): ImageData {
   const output = new Uint8ClampedArray(length)
 
   for (let index = 0; index < length; index += 4) {
-    const gray = grayscale[index]
-    const alpha = grayscale[index + 3]
+    const gray = grayscale[index]!
+    const alpha = grayscale[index + 3]!
     const binary = alpha === 0 ? 255 : gray > threshold ? 255 : 0
     const blended = Math.round(gray * 0.6 + binary * 0.4)
     output[index] = blended
@@ -485,7 +485,7 @@ function computeOtsuThreshold(histogram: Uint32Array, totalPixels: number): numb
   }
   let sum = 0
   for (let i = 0; i < histogram.length; i += 1) {
-    sum += i * histogram[i]
+    sum += i * (histogram[i] ?? 0)
   }
 
   let sumB = 0
@@ -494,7 +494,7 @@ function computeOtsuThreshold(histogram: Uint32Array, totalPixels: number): numb
   let threshold = 127
 
   for (let i = 0; i < histogram.length; i += 1) {
-    wB += histogram[i]
+    wB += histogram[i] ?? 0
     if (wB === 0) {
       continue
     }
@@ -502,7 +502,7 @@ function computeOtsuThreshold(histogram: Uint32Array, totalPixels: number): numb
     if (wF === 0) {
       break
     }
-    sumB += i * histogram[i]
+    sumB += i * (histogram[i] ?? 0)
     const meanB = sumB / wB
     const meanF = (sum - sumB) / wF
     const variance = wB * wF * (meanB - meanF) * (meanB - meanF)

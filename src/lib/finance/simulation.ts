@@ -339,7 +339,7 @@ const calcularPayback = (contexto: SimulationContext, capex: number): number => 
   }
   let acumulado = 0
   for (let index = 0; index < contexto.mesesContrato; index += 1) {
-    const fluxo = contexto.receitaMensal[index] - contexto.opexMensal[index]
+    const fluxo = (contexto.receitaMensal[index] ?? 0) - (contexto.opexMensal[index] ?? 0)
     acumulado += fluxo
     if (acumulado >= capex) {
       return index + 1

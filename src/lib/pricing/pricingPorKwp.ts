@@ -146,17 +146,17 @@ export function calcPotenciaSistemaKwp({
 }
 
 export function getRedeByPotencia(kwp: number): Rede {
-  return kwp > triAnchors[0].kwp ? 'trifasico' : 'mono'
+  return kwp > (triAnchors[0]?.kwp ?? 0) ? 'trifasico' : 'mono'
 }
 
 const interpolate = (kwp: number, anchors: Anchor[]): { custoFinal: number; kitValor: number } => {
-  if (kwp <= anchors[0].kwp) {
-    return { custoFinal: anchors[0].custoFinal, kitValor: anchors[0].kitValor }
+  if (kwp <= anchors[0]!.kwp) {
+    return { custoFinal: anchors[0]!.custoFinal, kitValor: anchors[0]!.kitValor }
   }
 
   for (let i = 0; i < anchors.length - 1; i += 1) {
-    const a = anchors[i]
-    const b = anchors[i + 1]
+    const a = anchors[i]!
+    const b = anchors[i + 1]!
     if (kwp >= a.kwp && kwp <= b.kwp) {
       const t = (kwp - a.kwp) / (b.kwp - a.kwp)
       const custoFinal = a.custoFinal + t * (b.custoFinal - a.custoFinal)
@@ -165,8 +165,8 @@ const interpolate = (kwp: number, anchors: Anchor[]): { custoFinal: number; kitV
     }
   }
 
-  const last = anchors[anchors.length - 1]
-  const penultimate = anchors[anchors.length - 2]
+  const last = anchors[anchors.length - 1]!
+  const penultimate = anchors[anchors.length - 2]!
   const slopeCusto = (last.custoFinal - penultimate.custoFinal) / (last.kwp - penultimate.kwp)
   const slopeKit = (last.kitValor - penultimate.kitValor) / (last.kwp - penultimate.kwp)
   const custoFinal = last.custoFinal + slopeCusto * (kwp - last.kwp)

@@ -375,7 +375,7 @@ export function ClienteDadosSection({
                       onClearCepAviso()
                       onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                       onClearFieldHighlight(
-                        document.querySelector('[data-field="cliente-cidade"]'),
+                        document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
                       )
                     }}
                   >
@@ -402,11 +402,11 @@ export function ClienteDadosSection({
                           onClearCepAviso()
                           onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                           onClearFieldHighlight(
-                            document.querySelector('[data-field="cliente-cidade"]'),
+                            document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
                           )
                           if (cliente.uf.trim()) {
                             onClearFieldHighlight(
-                              document.querySelector('[data-field="cliente-uf"]'),
+                              document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
                             )
                           }
                         }}
@@ -433,11 +433,11 @@ export function ClienteDadosSection({
                       onClearCepAviso()
                       onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                       onClearFieldHighlight(
-                        document.querySelector('[data-field="cliente-cidade"]'),
+                        document.querySelector('[data-field="cliente-cidade"]') as HTMLElement | null,
                       )
                       if (cliente.uf.trim()) {
                         onClearFieldHighlight(
-                          document.querySelector('[data-field="cliente-uf"]'),
+                          document.querySelector('[data-field="cliente-uf"]') as HTMLElement | null,
                         )
                       }
                     }}
