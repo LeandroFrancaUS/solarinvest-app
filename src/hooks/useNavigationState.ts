@@ -313,7 +313,7 @@ export function useNavigationState({
       setActivePage('simulacoes')
       return true
     },
-    [setActivePage, canSeeFinancialAnalysisEffective],
+    [setActivePage, setSimulacoesSection, canSeeFinancialAnalysisEffective],
   )
 
   const abrirDashboardOperacional = useCallback(async (): Promise<boolean> => {

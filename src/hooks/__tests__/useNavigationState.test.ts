@@ -23,7 +23,7 @@
 // @ts-expect-error React 18 act env flag
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-import React, { act, useRef } from 'react'
+import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
@@ -36,45 +36,57 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal stub that captures the latest hook result. */
-function makeHarness(options: UseNavigationStateOptions) {
-  let result: UseNavigationStateResult | null = null
+type HookRef = { current: UseNavigationStateResult }
+
+function renderHook(opts: UseNavigationStateOptions): {
+  result: HookRef
+  unmount: () => void
+} {
+  const result: HookRef = { current: null as unknown as UseNavigationStateResult }
+  let root: Root
+  const container = document.createElement('div')
+  document.body.appendChild(container)
 
   function Harness() {
-    result = useNavigationState(options)
+    result.current = useNavigationState(opts)
     return null
   }
 
-  return { Harness, getResult: () => result! }
+  act(() => {
+    root = createRoot(container)
+    root.render(React.createElement(Harness))
+  })
+
+  return {
+    result,
+    unmount() {
+      act(() => { root.unmount() })
+      container.remove()
+    },
+  }
 }
 
 // Default permissive options
-const defaultOptions = (): UseNavigationStateOptions => ({
-  canSeePortfolioEffective: true,
-  canSeeFinancialManagementEffective: true,
-  canSeeDashboardEffective: true,
-  canSeeFinancialAnalysisEffective: true,
-  guardRef: { current: null },
-})
+function makeOptions(override: Partial<UseNavigationStateOptions> = {}): UseNavigationStateOptions {
+  return {
+    canSeePortfolioEffective: true,
+    canSeeFinancialManagementEffective: true,
+    canSeeDashboardEffective: true,
+    canSeeFinancialAnalysisEffective: true,
+    guardRef: { current: null },
+    ...override,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Test setup
 // ---------------------------------------------------------------------------
 
-let container: HTMLElement
-let root: Root
-
 beforeEach(() => {
-  container = document.createElement('div')
-  document.body.appendChild(container)
   window.localStorage.clear()
 })
 
 afterEach(() => {
-  if (root) {
-    act(() => { root.unmount() })
-  }
-  container.remove()
   window.localStorage.clear()
   vi.restoreAllMocks()
 })
@@ -84,410 +96,275 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('initial state', () => {
-  it('defaults activePage to "app" when localStorage is empty', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activePage).toBe('app')
+  it('defaults activePage to "app" when localStorage is empty', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activePage).toBe('app')
+    unmount()
   })
 
-  it('defaults activeTab to "leasing" when localStorage is empty', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activeTab).toBe('leasing')
+  it('defaults activeTab to "leasing" when localStorage is empty', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeTab).toBe('leasing')
+    unmount()
   })
 
-  it('defaults simulacoesSection to "nova" when localStorage is empty', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().simulacoesSection).toBe('nova')
+  it('defaults simulacoesSection to "nova" when localStorage is empty', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.simulacoesSection).toBe('nova')
+    unmount()
   })
 })
 
 describe('localStorage initialisation', () => {
-  it('restores activePage from localStorage', async () => {
+  it('restores activePage from localStorage', () => {
     window.localStorage.setItem('solarinvest-active-page', 'dashboard')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activePage).toBe('dashboard')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activePage).toBe('dashboard')
+    unmount()
   })
 
-  it('falls back to "app" for unknown activePage values', async () => {
+  it('falls back to "app" for unknown activePage values', () => {
     window.localStorage.setItem('solarinvest-active-page', 'unknown-page')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activePage).toBe('app')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activePage).toBe('app')
+    unmount()
   })
 
-  it('restores activeTab "vendas" from localStorage', async () => {
+  it('restores activeTab "vendas" from localStorage', () => {
     window.localStorage.setItem('solarinvest-active-tab', 'vendas')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activeTab).toBe('vendas')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeTab).toBe('vendas')
+    unmount()
   })
 
-  it('restores simulacoesSection from localStorage', async () => {
+  it('restores simulacoesSection from localStorage', () => {
     window.localStorage.setItem('solarinvest-simulacoes-section', 'salvas')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().simulacoesSection).toBe('salvas')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.simulacoesSection).toBe('salvas')
+    unmount()
   })
 
-  it('carteira is a known activePage value', async () => {
+  it('carteira is a known activePage value', () => {
     window.localStorage.setItem('solarinvest-active-page', 'carteira')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activePage).toBe('carteira')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activePage).toBe('carteira')
+    unmount()
   })
 })
 
 describe('localStorage persistence', () => {
-  it('persists activePage changes to localStorage', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(() => {
-      getResult().setActivePage('crm')
-    })
+  it('persists activePage changes to localStorage', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.setActivePage('crm') })
     expect(window.localStorage.getItem('solarinvest-active-page')).toBe('crm')
+    unmount()
   })
 
-  it('persists activeTab changes to localStorage', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(() => {
-      getResult().setActiveTab('vendas')
-    })
+  it('persists activeTab changes to localStorage', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.setActiveTab('vendas') })
     expect(window.localStorage.getItem('solarinvest-active-tab')).toBe('vendas')
+    unmount()
+  })
+
+  it('persists simulacoesSection changes to localStorage', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.abrirSimulacoes('risco') })
+    expect(window.localStorage.getItem('solarinvest-simulacoes-section')).toBe('risco')
+    unmount()
   })
 })
 
 describe('lastPrimaryPageRef', () => {
-  it('updates when activePage is a primary page', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(() => {
-      getResult().setActivePage('crm')
-    })
-    expect(getResult().lastPrimaryPageRef.current).toBe('crm')
+  it('updates when activePage is a primary page', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.setActivePage('crm') })
+    expect(result.current.lastPrimaryPageRef.current).toBe('crm')
+    unmount()
   })
 
-  it('does not update when activePage is not a primary page', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(() => {
-      getResult().setActivePage('crm')
-    })
-    await act(() => {
-      getResult().setActivePage('settings') // not a primary page
-    })
+  it('does not update when activePage is not a primary page', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.setActivePage('crm') })
+    act(() => { result.current.setActivePage('settings') }) // not a primary page
     // lastPrimaryPageRef should still be 'crm'
-    expect(getResult().lastPrimaryPageRef.current).toBe('crm')
+    expect(result.current.lastPrimaryPageRef.current).toBe('crm')
+    unmount()
   })
 })
 
 describe('activeSidebarItem', () => {
-  it('returns "dashboard-home" for dashboard page', async () => {
+  it('returns "dashboard-home" for dashboard page', () => {
     window.localStorage.setItem('solarinvest-active-page', 'dashboard')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activeSidebarItem).toBe('dashboard-home')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeSidebarItem).toBe('dashboard-home')
+    unmount()
   })
 
-  it('returns "propostas-vendas" when activeTab is "vendas" on app page', async () => {
+  it('returns "propostas-vendas" when activeTab is "vendas" on app page', () => {
     window.localStorage.setItem('solarinvest-active-tab', 'vendas')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activeSidebarItem).toBe('propostas-vendas')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeSidebarItem).toBe('propostas-vendas')
+    unmount()
   })
 
-  it('returns "simulacoes-nova" for simulacoes page with nova section', async () => {
+  it('returns "simulacoes-nova" for simulacoes page with nova section', () => {
     window.localStorage.setItem('solarinvest-active-page', 'simulacoes')
     window.localStorage.setItem('solarinvest-simulacoes-section', 'nova')
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    expect(getResult().activeSidebarItem).toBe('simulacoes-nova')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeSidebarItem).toBe('simulacoes-nova')
+    unmount()
+  })
+
+  it('returns "crm-clientes" for clientes page', () => {
+    window.localStorage.setItem('solarinvest-active-page', 'clientes')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeSidebarItem).toBe('crm-clientes')
+    unmount()
+  })
+
+  it('returns "gestao-financeira-home" for financial-management page', () => {
+    window.localStorage.setItem('solarinvest-active-page', 'financial-management')
+    const { result, unmount } = renderHook(makeOptions())
+    expect(result.current.activeSidebarItem).toBe('gestao-financeira-home')
+    unmount()
   })
 })
 
 describe('sidebar handlers', () => {
-  it('handleSidebarClose sets isSidebarMobileOpen to false', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    // Force open first
-    await act(() => {
-      getResult().setIsSidebarMobileOpen(true)
-    })
-    expect(getResult().isSidebarMobileOpen).toBe(true)
-    await act(() => {
-      getResult().handleSidebarClose()
-    })
-    expect(getResult().isSidebarMobileOpen).toBe(false)
+  it('handleSidebarClose sets isSidebarMobileOpen to false', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.setIsSidebarMobileOpen(true) })
+    expect(result.current.isSidebarMobileOpen).toBe(true)
+    act(() => { result.current.handleSidebarClose() })
+    expect(result.current.isSidebarMobileOpen).toBe(false)
+    unmount()
   })
 })
 
 describe('abrirSimulacoes', () => {
-  it('navigates to simulacoes with specified section', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    let result: boolean
-    await act(() => {
-      result = getResult().abrirSimulacoes('salvas')
-    })
-    expect(result!).toBe(true)
-    expect(getResult().activePage).toBe('simulacoes')
-    expect(getResult().simulacoesSection).toBe('salvas')
+  it('navigates to simulacoes with specified section', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    let res: boolean
+    act(() => { res = result.current.abrirSimulacoes('salvas') })
+    expect(res!).toBe(true)
+    expect(result.current.activePage).toBe('simulacoes')
+    expect(result.current.simulacoesSection).toBe('salvas')
+    unmount()
   })
 
-  it('blocks analise section when canSeeFinancialAnalysisEffective is false', async () => {
-    const opts = { ...defaultOptions(), canSeeFinancialAnalysisEffective: false }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    let result: boolean
-    await act(() => {
-      result = getResult().abrirSimulacoes('analise')
-    })
-    expect(result!).toBe(false)
-    expect(getResult().activePage).toBe('app') // unchanged
+  it('blocks analise section when canSeeFinancialAnalysisEffective is false', () => {
+    const { result, unmount } = renderHook(makeOptions({ canSeeFinancialAnalysisEffective: false }))
+    let res: boolean
+    act(() => { res = result.current.abrirSimulacoes('analise') })
+    expect(res!).toBe(false)
+    expect(result.current.activePage).toBe('app') // unchanged
+    unmount()
   })
 
-  it('defaults section to "nova" when no section is passed', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(() => {
-      getResult().abrirSimulacoes()
-    })
-    expect(getResult().simulacoesSection).toBe('nova')
+  it('defaults section to "nova" when no section is passed', () => {
+    const { result, unmount } = renderHook(makeOptions())
+    act(() => { result.current.abrirSimulacoes() })
+    expect(result.current.simulacoesSection).toBe('nova')
+    unmount()
   })
 })
 
 describe('abrirDashboard', () => {
   it('navigates without guard when guardRef is null', async () => {
-    const opts = defaultOptions() // guardRef.current = null
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirDashboard()
-    })
-    expect(getResult().activePage).toBe('dashboard')
+    const { result, unmount } = renderHook(makeOptions())
+    await act(async () => { await result.current.abrirDashboard() })
+    expect(result.current.activePage).toBe('dashboard')
+    unmount()
   })
 
   it('calls guard when guardRef is set', async () => {
-    const guard = vi.fn(async (action: () => void) => { action(); return true })
-    const opts = { ...defaultOptions(), guardRef: { current: guard } }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirDashboard()
-    })
+    const guard = vi.fn(async (action: () => void | Promise<void>) => { await action(); return true })
+    const { result, unmount } = renderHook(makeOptions({ guardRef: { current: guard } }))
+    await act(async () => { await result.current.abrirDashboard() })
     expect(guard).toHaveBeenCalledOnce()
-    expect(getResult().activePage).toBe('dashboard')
+    expect(result.current.activePage).toBe('dashboard')
+    unmount()
   })
 })
 
 describe('abrirCarteira', () => {
   it('returns false when canSeePortfolioEffective is false', async () => {
-    const opts = { ...defaultOptions(), canSeePortfolioEffective: false }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    let result: boolean
-    await act(async () => {
-      result = await getResult().abrirCarteira()
-    })
-    expect(result!).toBe(false)
-    expect(getResult().activePage).toBe('app')
+    const { result, unmount } = renderHook(makeOptions({ canSeePortfolioEffective: false }))
+    let res: boolean
+    await act(async () => { res = await result.current.abrirCarteira() })
+    expect(res!).toBe(false)
+    expect(result.current.activePage).toBe('app')
+    unmount()
   })
 
   it('navigates to carteira when permitted', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirCarteira()
-    })
-    expect(getResult().activePage).toBe('carteira')
+    const { result, unmount } = renderHook(makeOptions())
+    await act(async () => { await result.current.abrirCarteira() })
+    expect(result.current.activePage).toBe('carteira')
+    unmount()
   })
 })
 
 describe('abrirCrmCentral', () => {
   it('navigates to crm page', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirCrmCentral()
-    })
-    expect(getResult().activePage).toBe('crm')
+    const { result, unmount } = renderHook(makeOptions())
+    await act(async () => { await result.current.abrirCrmCentral() })
+    expect(result.current.activePage).toBe('crm')
+    unmount()
   })
 })
 
 describe('abrirGestaoFinanceira', () => {
   it('returns false when canSeeFinancialManagementEffective is false', async () => {
-    const opts = { ...defaultOptions(), canSeeFinancialManagementEffective: false }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    let result: boolean
-    await act(async () => {
-      result = await getResult().abrirGestaoFinanceira()
-    })
-    expect(result!).toBe(false)
-    expect(getResult().activePage).toBe('app')
+    const { result, unmount } = renderHook(makeOptions({ canSeeFinancialManagementEffective: false }))
+    let res: boolean
+    await act(async () => { res = await result.current.abrirGestaoFinanceira() })
+    expect(res!).toBe(false)
+    expect(result.current.activePage).toBe('app')
+    unmount()
   })
 
   it('navigates when permitted', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirGestaoFinanceira()
-    })
-    expect(getResult().activePage).toBe('financial-management')
+    const { result, unmount } = renderHook(makeOptions())
+    await act(async () => { await result.current.abrirGestaoFinanceira() })
+    expect(result.current.activePage).toBe('financial-management')
+    unmount()
   })
 })
 
 describe('abrirDashboardOperacional', () => {
   it('returns false when canSeeDashboardEffective is false', async () => {
-    const opts = { ...defaultOptions(), canSeeDashboardEffective: false }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    let result: boolean
-    await act(async () => {
-      result = await getResult().abrirDashboardOperacional()
-    })
-    expect(result!).toBe(false)
-    expect(getResult().activePage).toBe('app')
+    const { result, unmount } = renderHook(makeOptions({ canSeeDashboardEffective: false }))
+    let res: boolean
+    await act(async () => { res = await result.current.abrirDashboardOperacional() })
+    expect(res!).toBe(false)
+    expect(result.current.activePage).toBe('app')
+    unmount()
   })
 
   it('navigates when permitted', async () => {
-    const opts = defaultOptions()
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
-    await act(async () => {
-      await getResult().abrirDashboardOperacional()
-    })
-    expect(getResult().activePage).toBe('operational-dashboard')
+    const { result, unmount } = renderHook(makeOptions())
+    await act(async () => { await result.current.abrirDashboardOperacional() })
+    expect(result.current.activePage).toBe('operational-dashboard')
+    unmount()
   })
 })
 
 describe('guardRef late-binding pattern', () => {
   it('uses the latest guard even after it is updated post-hook-call', async () => {
-    const guardRef = { current: null as ((action: () => void) => Promise<boolean>) | null }
-    const opts = { ...defaultOptions(), guardRef }
-    const { Harness, getResult } = makeHarness(opts)
-    await act(() => {
-      root = createRoot(container)
-      root.render(React.createElement(Harness))
-    })
+    const guardRef: { current: ((action: () => void | Promise<void>) => Promise<boolean>) | null } = { current: null }
+    const { result, unmount } = renderHook(makeOptions({ guardRef }))
 
     // Install a guard after the hook was called
-    const guard = vi.fn(async (action: () => void) => { action(); return true })
+    const guard = vi.fn(async (action: () => void | Promise<void>) => { await action(); return true })
     guardRef.current = guard
 
-    await act(async () => {
-      await getResult().abrirDashboard()
-    })
+    await act(async () => { await result.current.abrirDashboard() })
 
     expect(guard).toHaveBeenCalledOnce()
-    expect(getResult().activePage).toBe('dashboard')
+    expect(result.current.activePage).toBe('dashboard')
+    unmount()
   })
 })
+
