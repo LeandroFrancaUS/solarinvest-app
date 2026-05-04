@@ -1,9 +1,13 @@
 // server/__tests__/database-backup-route.spec.js
-// Route-level tests for /api/admin/database-backup (PR 15).
+// Route-level tests for /api/admin/database-backup (PR 16 + PR 17).
 //
 // Verifies that registerDatabaseBackupRoutes correctly enforces HTTP method
 // guards, rate-limiting, authentication, authorization, and delegates to the
 // underlying backup handler for the success and service-error cases.
+//
+// Since PR 17, authentication and authorization are enforced by the withAuth
+// middleware.  The 401/403 error messages therefore come from withAuth rather
+// than handleDatabaseBackupRequest.
 //
 // Run with: npm run test:server
 
@@ -218,7 +222,8 @@ describe('unauthenticated → 401', () => {
     await fn(makeReq('POST'), res, {})
 
     expect(res.statusCode).toBe(401)
-    expect(parseBody(res)).toMatchObject({ ok: false, error: 'Autenticação obrigatória.' })
+    // 401 message is now produced by withAuth middleware.
+    expect(parseBody(res)).toMatchObject({ ok: false, error: 'Autenticação necessária.' })
   })
 
   it('returns 401 when resolveActor returns actor without userId', async () => {
@@ -230,7 +235,8 @@ describe('unauthenticated → 401', () => {
     await fn(makeReq('POST'), res, {})
 
     expect(res.statusCode).toBe(401)
-    expect(parseBody(res)).toMatchObject({ ok: false, error: 'Autenticação obrigatória.' })
+    // 401 message is now produced by withAuth middleware.
+    expect(parseBody(res)).toMatchObject({ ok: false, error: 'Autenticação necessária.' })
   })
 })
 
