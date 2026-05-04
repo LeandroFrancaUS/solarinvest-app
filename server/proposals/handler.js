@@ -22,6 +22,7 @@ import {
   canModifyProposal,
   canDeleteProposal,
 } from './permissions.js'
+import { toCanonicalProposal, toProposalWritePayload } from '../adapters/proposalAdapter.js'
 
 function sendError(sendJson, statusCode, code, message, details = {}) {
   sendJson(statusCode, { error: { code, message, details } })
@@ -57,6 +58,45 @@ function sqlForActor(db, actor) {
   // DATABASE_URL_UNPOOLED (direct connection) where sql.transaction() works
   // reliably.  All access control is enforced by RLS policies in the DB.
   return createUserScopedSql(db.sql, { userId: actor.userId, role: actorRole(actor) })
+}
+
+/**
+ * Normalize an incoming proposal request body through the proposal adapter.
+ *
+ * When payload_json is present the adapter maps legacy client field aliases
+ * (name, document, email, phone, city, state) to their canonical equivalents
+ * (client_name, client_document, …) and validates payload_json early at the
+ * API boundary.  When payload_json is absent (e.g. a PATCH that only updates
+ * status) the body is returned unchanged so that no null values are injected
+ * into the request and the update validator can accept partial bodies as normal.
+ *
+ * Returns null and sends a 422 response when the adapter rejects the input.
+ *
+ * @param {any}      body     - Parsed request body (expected to be an object).
+ * @param {Function} sendJson - Handler-local sendJson(status, payload).
+ * @returns {object|null}
+ */
+function normalizeIncomingProposal(body, sendJson) {
+  if (!('payload_json' in body)) return body
+
+  let adapted
+  try {
+    adapted = toProposalWritePayload(body)
+  } catch (err) {
+    sendError(sendJson, 422, err.code ?? 'VALIDATION_ERROR', err.message)
+    return null
+  }
+
+  // Merge: overlay all non-undefined adapter fields over the original body.
+  // This ensures canonical client names (client_name, client_document, …) win
+  // over legacy aliases (name, document, …), while other body fields such as
+  // client_cep and uc_geradora_nm that the adapter does not cover are preserved
+  // intact from the original body.
+  const merged = { ...body }
+  for (const [key, val] of Object.entries(adapted)) {
+    if (val !== undefined) merged[key] = val
+  }
+  return merged
 }
 
 async function resolveAndAuth(req, sendJson) {
@@ -114,7 +154,7 @@ export async function handleProposalsRequest(req, res, ctx) {
         status,
       })
       logRoute('/api/proposals', { method: 'GET', actorUserId: actor.userId, success: true, count: result.data.length })
-      sendJson(200, result)
+      sendJson(200, { data: result.data.map(toCanonicalProposal), pagination: result.pagination })
     } catch (err) {
       console.error('[proposals] listProposals error:', err)
       sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to list proposals')
@@ -137,7 +177,10 @@ export async function handleProposalsRequest(req, res, ctx) {
       return
     }
 
-    const validation = validateCreateProposal(body)
+    const normalizedBody = normalizeIncomingProposal(body, sendJson)
+    if (normalizedBody === null) return
+
+    const validation = validateCreateProposal(normalizedBody)
     if (!validation.valid) {
       sendError(sendJson, 422, 'VALIDATION_ERROR', validation.error)
       return
@@ -163,7 +206,7 @@ export async function handleProposalsRequest(req, res, ctx) {
       )
 
       logRoute('/api/proposals', { method: 'POST', actorUserId: actor.userId, success: true, proposalId: proposal.id })
-      sendJson(201, { data: proposal })
+      sendJson(201, { data: toCanonicalProposal(proposal) })
     } catch (err) {
       console.error('[proposals] createProposal error:', err)
       sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to create proposal')
@@ -219,7 +262,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
       return
     }
     logRoute('/api/proposals/:id', { method: 'GET', actorUserId: actor.userId, proposalId, success: true })
-    sendJson(200, { data: proposal })
+    sendJson(200, { data: toCanonicalProposal(proposal) })
     return
   }
 
@@ -238,7 +281,10 @@ export async function handleProposalByIdRequest(req, res, ctx) {
       return
     }
 
-    const validation = validateUpdateProposal(body)
+    const normalizedBody = normalizeIncomingProposal(body, sendJson)
+    if (normalizedBody === null) return
+
+    const validation = validateUpdateProposal(normalizedBody)
     if (!validation.valid) {
       sendError(sendJson, 422, 'VALIDATION_ERROR', validation.error)
       return
@@ -266,7 +312,7 @@ export async function handleProposalByIdRequest(req, res, ctx) {
       )
 
       logRoute('/api/proposals/:id', { method: 'PATCH', actorUserId: actor.userId, proposalId, success: true })
-      sendJson(200, { data: updated })
+      sendJson(200, { data: toCanonicalProposal(updated) })
     } catch (err) {
       console.error('[proposals] updateProposal error:', err)
       sendError(sendJson, 500, 'INTERNAL_ERROR', 'Failed to update proposal')
