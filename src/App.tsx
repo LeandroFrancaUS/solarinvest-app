@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  type CrmIntegrationMode,
-  formatarDataCurta,
   useCrm,
   CrmPage,
   CrmPageActions,
@@ -77,14 +75,13 @@ import {
 } from './app/services/clientStore'
 import {
   computeROI,
-  type ModoPagamento,
   type PagamentoCondicao,
   type RetornoProjetado,
   type SegmentoCliente,
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import {
   calcularAnaliseFinanceira,
@@ -114,7 +111,6 @@ import {
   formatMoneyBR,
   formatNumberBR,
   formatNumberBRWithOptions,
-  formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
@@ -137,7 +133,7 @@ import {
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
 import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
+import { calcRoundTripKm } from './shared/geocoding'
 import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
@@ -176,12 +172,6 @@ import {
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
-import {
-  getPagamentoCondicaoInfo,
-  getPagamentoModoInfo,
-  PAGAMENTO_CONDICAO_INFO,
-  PAGAMENTO_MODO_INFO,
-} from './constants/pagamento'
 import { TIPOS_INSTALACAO, TIPOS_REDE } from './constants/instalacao'
 import './styles/config-page.css'
 import './styles/toast.css'
@@ -201,7 +191,6 @@ import {
   INITIAL_VALUES,
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
-  SETTINGS_TABS,
   SIMULACOES_SECTIONS,
   STORAGE_KEYS,
   UF_LABELS,
@@ -225,7 +214,7 @@ import {
 } from './app/config'
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { MULTI_UC_CLASSES, MULTI_UC_CLASS_LABELS, type MultiUcClasse } from './types/multiUc'
+import { type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
@@ -233,7 +222,6 @@ import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
   type Inputs as ComposicaoUFVInputs,
-  type RegimeTributario,
 } from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
@@ -273,7 +261,6 @@ import {
   formatAxis,
   formatCep,
   formatCpfCnpj,
-  formatKwhWithUnit,
   formatTelefone,
   formatUcGeradoraTitularEndereco,
   normalizeNumbers,
@@ -342,7 +329,6 @@ import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
-import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { RevenueAndBillingPage } from './pages/RevenueAndBillingPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -355,7 +341,7 @@ import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
   type AprovacaoStatus,
@@ -380,7 +366,6 @@ import { ClienteDadosSection } from './components/ClienteDadosSection'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
-import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
 import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
 import type { ClienteMensagens } from './types/cliente'
@@ -416,12 +401,6 @@ const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/Leas
 const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
-
-const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
-  simples: 'Simples Nacional',
-  lucro_presumido: 'Lucro Presumido',
-  lucro_real: 'Lucro Real',
-}
 
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
@@ -742,7 +721,7 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
   return (
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
     toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+
     toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { financiamento?: { prazoMeses?: unknown } } | undefined)?.financiamento?.prazoMeses) ??
     null
   )
@@ -1162,7 +1141,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
           consumoKWh: String(item.consumoKWh ?? ''),
           rateioPercentual: String(item.rateioPercentual ?? ''),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
@@ -1325,9 +1304,9 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     inPortfolio: Boolean(row.in_portfolio),
     clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     system_kwp: row.systemKwp ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     term_months: row.termMonths ?? null,
     dados,
     ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
@@ -2256,7 +2235,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
     cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
     clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
     ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     pageShared: s.pageShared ? { ...s.pageShared } : ({} as OrcamentoSnapshotData['pageShared']),
     configuracaoUsinaObservacoes: s.configuracaoUsinaObservacoes ?? '',
     propostaImagens: Array.isArray(s.propostaImagens)
@@ -2366,7 +2345,7 @@ const stripSnapshotForStorage = (
  * Serialize a list of client records for localStorage / remote storage.
  * Strips heavy snapshot fields so the payload stays within quota limits.
  */
-const serializeClientesForStorage = (registros: ClienteRegistro[]): string => {
+function serializeClientesForStorage(registros: ClienteRegistro[]): string {
   const lite = registros.map((r) => ({
     ...r,
     propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
@@ -2733,7 +2712,7 @@ const parseClientesCsv = (content: string): unknown[] => {
           break
         }
         default:
-           
+
           ;(registro.dados as Record<string, unknown>)[key] = value
       }
         /* eslint-enable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
@@ -2992,14 +2971,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
     email: normalized.email,
     endereco: normalized.endereco,
   }
-}
-
-const formatBudgetDate = (isoString: string) => {
-  const parsed = new Date(isoString)
-  if (Number.isNaN(parsed.getTime())) {
-    return ''
-  }
-  return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 type ClienteContratoPayload = {
@@ -4491,7 +4462,7 @@ export default function App() {
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       setAfUfOverride(ufTarifa === 'DF' ? 'DF' : 'GO')
     }
-   
+
   }, [simulacoesSection])
   // NOTE: kcKwhMes must be declared here — before the useEffect below uses it in its
   // dependency array.  Declaring it any later (e.g. at the original line ~4818 position)
@@ -6075,16 +6046,16 @@ export default function App() {
   useEffect(() => {
     activeTabRef.current = activeTab
   }, [activeTab])
-  
+
   // Sync refs to prevent stale closures in getCurrentSnapshot
   useEffect(() => {
     clienteRef.current = cliente
   }, [cliente])
-  
+
   useEffect(() => {
     kcKwhMesRef.current = kcKwhMes
   }, [kcKwhMes])
-  
+
   useEffect(() => {
     pageSharedStateRef.current = pageSharedState
   }, [pageSharedState])
@@ -6107,13 +6078,13 @@ export default function App() {
     budgetIdRef.current = currentBudgetId
     budgetIdTransitionRef.current = false
   }, [currentBudgetId])
-  
+
   // Update prazoContratualMeses in leasing store when leasingPrazo (in years) changes
   useEffect(() => {
     const meses = leasingPrazo * 12
     leasingActions.update({ prazoContratualMeses: meses })
   }, [leasingPrazo])
-  
+
   const clienteIndicacaoCheckboxId = useId()
   const clienteIndicacaoNomeId = useId()
   const clienteConsultorSelectId = useId()
@@ -6208,17 +6179,7 @@ export default function App() {
 
   const crmState = useCrm({ adicionarNotificacao })
   const {
-    crmIntegrationMode,
-    setCrmIntegrationMode,
-    crmIsSaving,
-    crmBackendStatus,
-    crmBackendError,
-    crmLastSync,
     crmDataset,
-    crmKpis,
-    crmFinanceiroResumo,
-    crmPosVendaResumo,
-    handleSyncCrmManualmente,
   } = crmState
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
@@ -7951,7 +7912,7 @@ export default function App() {
     if (typeof window === 'undefined') {
       return
     }
-    
+
     try {
       window.localStorage.setItem('useBentoGridPdf', useBentoGridPdf.toString())
     } catch (error) {
@@ -11970,7 +11931,7 @@ export default function App() {
     }
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
-   
+
   }, [carregarClientesPrioritarios, authSyncKey, meAuthState, reconciliationReady])
 
   // Fetch all registered consultants for privileged users so the client
@@ -12004,7 +11965,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-   
+
   }, [user, isAdmin, isOffice, isFinanceiro, authSyncKey])
 
   // Fetch active consultants for the proposal form picker (any authenticated user).
@@ -12943,7 +12904,7 @@ export default function App() {
       cliente: cloneClienteDados(snapshot.cliente ?? base.cliente),
       clienteMensagens: snapshot.clienteMensagens ?? base.clienteMensagens,
       ucBeneficiarias: snapshot.ucBeneficiarias ?? base.ucBeneficiarias,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
       pageShared: { ...base.pageShared, ...(snapshot.pageShared ?? {}) },
       budgetStructuredItems: snapshot.budgetStructuredItems ?? base.budgetStructuredItems,
       kitBudget: snapshot.kitBudget ?? base.kitBudget,
@@ -13187,12 +13148,12 @@ export default function App() {
       vendaSnapshot: vendaSnapshotAtual,
       leasingSnapshot: leasingSnapshotAtual,
     }
-    
+
     // Debug: Check if returning empty snapshot
     const _snapshotNome = (snapshotData.cliente?.nome ?? '').trim()
     const _snapshotEndereco = (snapshotData.cliente?.endereco ?? '').trim()
     const snapshotKwh = Number(snapshotData.kcKwhMes ?? 0)
-    
+
     // Final log showing what we're returning
     if (import.meta.env.DEV) {
       console.debug('[getCurrentSnapshot] FINAL snapshot', {
@@ -13204,7 +13165,7 @@ export default function App() {
     if (isSnapshotEmpty(snapshotData)) {
       return snapshotData
     }
-    
+
     if (import.meta.env.DEV) {
       console.debug('[getCurrentSnapshot] clienteFonte resolved')
     }
@@ -13460,12 +13421,12 @@ export default function App() {
     dadosClonados.herdeiros = ensureClienteHerdeiros(dadosClonados.herdeiros).map((item) =>
       typeof item === 'string' ? item.trim() : '',
     )
-    
+
     // Debug: Log cliente endereco before saving
     if (import.meta.env.DEV) {
       console.debug('[ClienteSave] preparing clone')
     }
-    
+
     const snapshotAtual = getCurrentSnapshot()
     if (!snapshotAtual || isHydratingRef.current) {
       console.warn('[ClienteSave] Snapshot indisponível durante hidratação.')
@@ -13479,7 +13440,7 @@ export default function App() {
         totalFields: Object.keys(snapshotClonado).length,
       })
     }
-    
+
     const online = isConnectivityOnline()
     const agoraIso = new Date().toISOString()
     const estaEditando = Boolean(clienteEmEdicaoId)
@@ -13815,7 +13776,7 @@ export default function App() {
     clienteEmEdicaoIdRef.current = registroConfirmado.id
     setClienteEmEdicaoId(registroConfirmado.id)
     lastSavedClienteRef.current = cloneClienteDados(dadosClonados)
-    
+
     // Save to clientStore (IndexedDB) for guaranteed latest data
     try {
       await upsertClienteRegistro(registroConfirmado)
@@ -13823,7 +13784,7 @@ export default function App() {
       console.warn('[ClienteSave] Failed to save cliente to clientStore:', error)
       // Continue - localStorage is the source of truth
     }
-    
+
     scheduleMarkStateAsSaved()
 
     if (!sincronizadoComSucesso && !(erroSincronizacao instanceof OneDriveIntegrationMissingError)) {
@@ -14603,7 +14564,7 @@ export default function App() {
     }
   // authSyncKey increments when Stack Auth token becomes available, ensuring
   // this effect re-runs on new devices where auth resolves after initial mount.
-   
+
   }, [carregarOrcamentosPrioritarios, authSyncKey, meAuthState])
 
   // Carregar draft do formulário do IndexedDB na inicialização
@@ -14613,26 +14574,26 @@ export default function App() {
       try {
         if (import.meta.env.DEV) console.debug('[App] Loading form draft from IndexedDB on mount')
         const envelope = await loadFormDraft<OrcamentoSnapshotData>()
-        
+
         if (cancelado) {
           return
         }
-        
+
         if (envelope && envelope.data) {
           if (import.meta.env.DEV) console.debug('[App] Form draft found, applying snapshot')
-          
+
           // Enable hydration mode to prevent state reset and auto-save during apply
           isHydratingRef.current = true
           setIsHydrating(true)
           if (import.meta.env.DEV) console.debug('[App] Hydration mode enabled')
-          
+
           try {
             // eslint-disable-next-line @typescript-eslint/no-use-before-define
             aplicarSnapshot(envelope.data)
-            
+
             // Wait for React to apply all setState calls
             await tick()
-            
+
             if (import.meta.env.DEV) console.debug('[App] Hydration done')
           } finally {
             isHydratingRef.current = false
@@ -14658,7 +14619,7 @@ export default function App() {
     return () => {
       cancelado = true
     }
-     
+
   }, [])
 
   // Auto-save debounced: prioriza persistência oficial no backend (/api/proposals).
@@ -14668,14 +14629,14 @@ export default function App() {
     if (isHydratingRef.current) {
       return
     }
-    
+
     const AUTO_SAVE_INTERVAL_MS = 5000
-    
+
     const scheduleAutoSave = () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
       }
-      
+
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
       autoSaveTimeoutRef.current = setTimeout(async () => {
         // Double-check hydration status before saving
@@ -14684,25 +14645,25 @@ export default function App() {
           if (import.meta.env.DEV) console.debug('[App] Auto-save skipped: hydrating or missing budgetId')
           return
         }
-        
+
         try {
           const snapshot = getCurrentSnapshot()
           if (!snapshot || isHydratingRef.current) {
             console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
             return
           }
-          
+
           // Guard: Don't save empty snapshots that would corrupt the draft
           const snapshotNome = (snapshot?.cliente?.nome ?? '').trim()
           const snapshotEndereco = (snapshot?.cliente?.endereco ?? '').trim()
           const snapshotKwh = Number(snapshot?.kcKwhMes ?? 0)
-          
+
           const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
-          
+
           if (isEmptySnapshot) {
             return
           }
-          
+
           const online = isConnectivityOnline()
 
           if (!online) {
@@ -14774,10 +14735,10 @@ export default function App() {
         }
       }, AUTO_SAVE_INTERVAL_MS)
     }
-    
+
     // Agendar primeiro auto-save
     scheduleAutoSave()
-    
+
     return () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
@@ -14825,32 +14786,32 @@ export default function App() {
     options?: { budgetIdOverride?: string; allowEmpty?: boolean },
   ) => {
     if (import.meta.env.DEV) console.debug('[aplicarSnapshot] Starting to apply snapshot')
-    
+
     // Guard: Block empty snapshot applications that would wipe form data
     const nome = (snapshotEntrada?.cliente?.nome ?? '').trim()
     const endereco = (snapshotEntrada?.cliente?.endereco ?? '').trim()
     const kwh = Number(snapshotEntrada?.kcKwhMes ?? 0)
-    
+
     const isEmptyApply = !nome && !endereco && kwh === 0
-    
+
     // Allow empty only if explicitly requested (intentional reset)
     if (isEmptyApply && !options?.allowEmpty) {
       console.warn('[aplicarSnapshot] BLOCKED empty snapshot apply (would wipe form)')
       return
     }
-    
+
     const snapshotClonado = cloneSnapshotData(snapshotEntrada)
     const budgetId = options?.budgetIdOverride ?? snapshotClonado.currentBudgetId
     const snapshot = mergeSnapshotWithDefaults(snapshotClonado, budgetId)
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
     snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     snapshot.pageShared = {
       ...snapshot.pageShared,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
 
@@ -14863,7 +14824,7 @@ export default function App() {
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
     setPageSharedState({ ...snapshot.pageShared })
     switchBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
@@ -15054,13 +15015,13 @@ export default function App() {
     async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
       // Try to load complete snapshot from proposalStore first
       let snapshotToApply = registro.snapshot
-      
+
       if (registro.id) {
         // Use normalized ID for consistent lookup
         const budgetIdKey = normalizeProposalId(registro.id) || registro.id
         if (import.meta.env.DEV) console.debug(`[carregarOrcamentoParaEdicao] Loading snapshot for budget: ${budgetIdKey}`)
         const completeSnapshot = await loadProposalSnapshotById(budgetIdKey)
-        
+
         if (completeSnapshot) {
           // Validate that loaded snapshot is meaningful
           const nome = (completeSnapshot.cliente?.nome ?? '').trim()
@@ -15068,7 +15029,7 @@ export default function App() {
           const documento = (completeSnapshot.cliente?.documento ?? '').trim()
           const kc = Number(completeSnapshot.kcKwhMes ?? 0)
           const isMeaningful = Boolean(nome || endereco || documento) || kc > 0
-          
+
           if (isMeaningful) {
             if (import.meta.env.DEV) {
               console.debug('[carregarOrcamentoParaEdicao] Using proposalStore snapshot', {
@@ -15083,7 +15044,7 @@ export default function App() {
           if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] snapshot not found, using fallback')
         }
       }
-      
+
       if (!snapshotToApply) {
         window.alert(
           'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
@@ -15159,7 +15120,7 @@ export default function App() {
           return null
         }
         const snapshotClonado = cloneSnapshotData(snapshotAtual)
-        
+
         // Log snapshot quality before saving
         if (import.meta.env.DEV) {
           console.debug('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
@@ -15167,7 +15128,7 @@ export default function App() {
             totalFields: Object.keys(snapshotClonado).length,
           })
         }
-        
+
         // Check if snapshot is meaningful
         const nome = (snapshotClonado.cliente?.nome ?? '').trim()
         const endereco = (snapshotClonado.cliente?.endereco ?? '').trim()
@@ -15176,13 +15137,13 @@ export default function App() {
         const hasCliente = Boolean(nome || endereco || documento)
         const hasConsumption = kc > 0
         const isSnapshotMeaningful = hasCliente || hasConsumption
-        
+
         if (!isSnapshotMeaningful) {
           console.warn('[salvarOrcamentoLocalmente] Snapshot is empty - cannot save proposal without data')
           window.alert('Proposta sem dados para salvar. Preencha os campos do cliente e/ou consumo.')
           return null
         }
-        
+
         const fingerprint = computeSnapshotSignature(snapshotClonado, dadosClonados)
 
         const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
@@ -15239,14 +15200,14 @@ export default function App() {
             }
             if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
           })
-          
+
           // Save complete snapshot to proposalStore for full restoration
           const budgetIdKey = normalizeProposalId(effectiveBudgetId) || effectiveBudgetId
           if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', budgetIdKey)
           void saveProposalSnapshotById(budgetIdKey, snapshotAtualizado).catch((error) => {
             console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
           })
-          
+
           return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
         }
 
@@ -15292,14 +15253,14 @@ export default function App() {
           }
           if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
         })
-        
+
         // Save complete snapshot to proposalStore for full restoration
         const budgetIdKey = normalizeProposalId(registro.id) || registro.id
         if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (new):', budgetIdKey)
         void saveProposalSnapshotById(budgetIdKey, snapshotParaArmazenar).catch((error) => {
           console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
         })
-        
+
         return persisted.find((item) => item.id === registro.id) ?? registro
       } catch (error) {
         console.error('Erro ao salvar orçamento localmente.', error)
@@ -15884,17 +15845,17 @@ export default function App() {
 
     const enderecoCompleto = enderecoPartes.join(', ')
 
-    return { 
-      nomeCompleto, 
-      cpfCnpj, 
-      enderecoCompleto, 
-      unidadeConsumidora, 
+    return {
+      nomeCompleto,
+      cpfCnpj,
+      enderecoCompleto,
+      unidadeConsumidora,
       kWhContratado: formatNumberBRWithOptions(Math.max(kcKwhMes || 0, 0), {
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
       }),
-      uf, 
-      telefone, 
+      uf,
+      telefone,
       email,
       endereco: enderecoPrincipal,
       cidade,
@@ -17366,11 +17327,6 @@ export default function App() {
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
 
-  const abrirAdminUsuarios = useCallback(async () => {
-    if (!canSeeUsersEffective) return false
-    return abrirConfiguracoes('usuarios')
-  }, [abrirConfiguracoes, canSeeUsersEffective])
-
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
       setActivePage('dashboard')
@@ -17416,7 +17372,7 @@ export default function App() {
     if (import.meta.env.DEV) console.debug('[Nova Proposta] Starting')
     isHydratingRef.current = true
     setIsHydrating(true)
-    
+
     try {
       // Clear form draft to prevent stale data
       try {
@@ -17606,7 +17562,7 @@ export default function App() {
 
       // Notify the user that the reset completed successfully.
       adicionarNotificacao('Nova proposta iniciada.', 'info')
-      
+
       if (import.meta.env.DEV) console.debug('[Nova Proposta] Reset complete')
     } catch (error) {
       console.error('[Nova Proposta] Failed', error)
@@ -20154,11 +20110,11 @@ export default function App() {
             isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
             isProposalReadOnly={isProposalReadOnly}
             onClose={fecharPesquisaOrcamentos}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
             onCarregarOrcamento={carregarOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
             onAbrirOrcamento={abrirOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
             onConfirmarRemocao={confirmarRemocaoOrcamento}
           />
         ) : activePage === 'clientes' ? (
@@ -21206,7 +21162,7 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {kitBudget.items.map((item, index) => (
+                            {kitBudget.items.map((item) => (
                               <tr key={`budget-item-${item.id}`}>
                                 <td>
                                   <input

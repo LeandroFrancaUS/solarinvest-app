@@ -15,6 +15,7 @@ import {
   type CashflowPeriod,
 } from '../services/financialManagementApi'
 import { fetchPortfolioClients } from '../services/clientPortfolioApi'
+import type { PortfolioClientRow, InstallmentPayment } from '../types/clientPortfolio'
 import { formatCurrencyBRL } from '../utils/formatters'
 import { formatCpfCnpj } from '../lib/format/document'
 import { useProjectsStore } from '../store/useProjectsStore'
@@ -89,7 +90,9 @@ function sortCompare(a: unknown, b: unknown): number {
   if (a == null) return 1
   if (b == null) return -1
   if (typeof a === 'number' && typeof b === 'number') return a - b
-  return String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' })
+  const sa = typeof a === 'string' ? a : typeof a === 'number' || typeof a === 'boolean' ? String(a) : ''
+  const sb = typeof b === 'string' ? b : typeof b === 'number' || typeof b === 'boolean' ? String(b) : ''
+  return sa.localeCompare(sb, 'pt-BR', { sensitivity: 'base' })
 }
 
 const thSortStyle: React.CSSProperties = { cursor: 'pointer', userSelect: 'none' }
@@ -794,7 +797,7 @@ function SalesTab({ projects, error, onRetry }: { projects: FinancialProject[]; 
 // Faturas a Pagar Tab — Consolidated invoice tracking for all SolarInvest-owned accounts
 // ─────────────────────────────────────────────────────────────────────────────
 function FaturasAPagarTab() {
-  const [clients, setClients] = useState<any[]>([])
+  const [clients, setClients] = useState<PortfolioClientRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sortState, setSortState] = useState<SortState<'client' | 'installment' | 'due' | 'amount' | 'status' | 'days'> | null>(null)
@@ -832,8 +835,14 @@ function FaturasAPagarTab() {
     }> = []
 
     clients.forEach((client) => {
-      if (!client.installments_json) return
-      client.installments_json.forEach((inst: any) => {
+      const raw = client.installments_json
+      if (!raw) return
+      const installments: InstallmentPayment[] = Array.isArray(raw)
+        ? raw
+        : typeof raw === 'string'
+          ? (() => { try { const p = JSON.parse(raw) as unknown; return Array.isArray(p) ? (p as InstallmentPayment[]) : [] } catch { return [] } })()
+          : []
+      installments.forEach((inst: InstallmentPayment) => {
         // Calculate due date based on installment number and billing start
         const termMonths = client.contractual_term_months ?? client.term_months ?? 0
         if (termMonths === 0) return
@@ -844,14 +853,14 @@ function FaturasAPagarTab() {
 
         const dueDay = client.due_day ?? 5
         const start = new Date(startDate)
-        const dueDate = new Date(start.getFullYear(), start.getMonth() + inst.number, dueDay)
+        const dueDate = new Date(start.getFullYear(), start.getMonth() + (inst.number ?? 0), dueDay)
 
         invoices.push({
           clientId: client.id,
           clientName: client.name ?? `Cliente #${client.id}`,
-          installmentNumber: inst.number,
+          installmentNumber: inst.number ?? 0,
           dueDate,
-          amount: client.valor_mensalidade ?? 0,
+          amount: Number(client.valor_mensalidade) || 0,
           status: inst.status ?? 'pendente',
           isPaid: inst.status === 'confirmado' || inst.status === 'pago',
         })

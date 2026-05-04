@@ -12,11 +12,11 @@ export const WIFI_STATUS_LABELS: Record<WifiStatus, string> = {
   falha: 'Falha',
 }
 
-export function isInstallationConcluded(status: unknown): boolean {
+export function isInstallationConcluded(status: string | null | undefined): boolean {
   return String(status ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 'concluido'
 }
 
-export function normalizeWifiStatus(value: unknown): WifiStatus | null {
+export function normalizeWifiStatus(value: string | null | undefined): WifiStatus | null {
   const raw = String(value ?? '').trim().toLowerCase()
   return raw === 'conectado' || raw === 'desconectado' || raw === 'falha' ? raw : null
 }

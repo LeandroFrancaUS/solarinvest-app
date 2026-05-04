@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { computeAlerts, sortAlertsBySeverity, computeSeverityCounts } from '../alerts.js'
-import type { DashboardInvoice, DashboardOperationalTask } from '../../../types/operationalDashboard.js'
+import type { DashboardInvoice, DashboardNotificationPreference, DashboardOperationalTask } from '../../../types/operationalDashboard.js'
 
 describe('computeAlerts', () => {
   it('detects overdue invoices', () => {
@@ -141,7 +141,7 @@ describe('computeAlerts', () => {
     ]
 
     // Filter: only critical
-    const alerts = computeAlerts(invoices, tasks, { criticalOnly: true } as any)
+    const alerts = computeAlerts(invoices, tasks, { criticalOnly: true } as unknown as DashboardNotificationPreference)
 
     expect(alerts).toHaveLength(1)
     expect(alerts[0]!.severity).toBe('CRITICAL')

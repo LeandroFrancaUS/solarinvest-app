@@ -19,7 +19,6 @@ import { describe, it, expect } from 'vitest'
 import {
   resolveClosedDealPayload,
   type ResolveClosedDealPayloadInput,
-  type ClosedDealResolvedPayload,
 } from '../resolve-closed-deal-payload'
 import {
   buildDestPayload,

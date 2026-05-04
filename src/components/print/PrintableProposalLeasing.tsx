@@ -804,10 +804,10 @@ function PrintableProposalLeasingInner(
       const ano = anosTusdOrdenados[index]
       if (ano === undefined) continue
       if (ano <= prazoContratualTotalAnos) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
         const valorTusd = tusdMedioPorAno[ano]
         if (Number.isFinite(valorTusd)) {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+
           tusdPosContrato = Math.max(0, valorTusd ?? 0)
           break
         }
@@ -1101,7 +1101,7 @@ function PrintableProposalLeasingInner(
               </div>
             </div>
           </section>
-    
+
           {resumoCampos.length > 0 ? (
             <section className="print-section keep-together avoid-break">
               <h2 className="section-title keep-with-next">Identificação do Cliente</h2>
@@ -1174,7 +1174,7 @@ function PrintableProposalLeasingInner(
             </tbody>
             </table>
           </section>
-    
+
           <section className="print-section keep-together avoid-break">
             <h2 className="section-title keep-with-next">Especificações da Usina Solar</h2>
             <p className="section-subtitle keep-with-next">Especificações da usina projetada</p>
@@ -1196,7 +1196,7 @@ function PrintableProposalLeasingInner(
             </table>
             <p className="muted print-footnote print-footnote--spaced">{AVISO_ESPECIFICACOES}</p>
           </section>
-    
+
           <section
             id="condicoes-financeiras"
             className="print-section keep-together avoid-break page-break-before break-after"
@@ -1223,7 +1223,7 @@ function PrintableProposalLeasingInner(
               <p className="muted print-footnote print-footnote--spaced">{avisoMensalidadeCondicoes}</p>
             ) : null}
           </section>
-    
+
           {multiUcResumoDados ? (
             <section id="multi-uc" className="print-section keep-together">
               <h2 className="section-title keep-with-next">Cenário Misto (Multi-UC)</h2>
@@ -1317,7 +1317,7 @@ function PrintableProposalLeasingInner(
               </p>
             </section>
           ) : null}
-    
+
             <section className="print-section keep-together avoid-break">
               <h2 className="section-title keep-with-next">Economia Gerada com a Solução SolarInvest</h2>
               <p className="section-subtitle keep-with-next">Valores estimados por período contratual</p>
@@ -1612,7 +1612,7 @@ function PrintableProposalLeasingInner(
               <p className="print-important__observation no-break-inside">{informacoesImportantesObservacaoTexto}</p>
             ) : null}
           </section>
-    
+
           <section className="print-section print-section--footer no-break-inside avoid-break">
             <footer className="print-final-footer no-break-inside">
               <div className="print-final-footer__dates">

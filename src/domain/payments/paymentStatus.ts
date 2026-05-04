@@ -168,7 +168,7 @@ export function getPortfolioPaymentStatus(
 
   // Count each status type
   const paidCount = statuses.filter((s) => s === 'PAGO').length
-  const pendenteCount = statuses.filter((s) => s === 'PENDENTE').length
+  const _pendenteCount = statuses.filter((s) => s === 'PENDENTE').length
   const vencidoCount = statuses.filter((s) => s === 'VENCIDO').length
   const atrasadoCount = statuses.filter((s) => s === 'ATRASADO').length
 

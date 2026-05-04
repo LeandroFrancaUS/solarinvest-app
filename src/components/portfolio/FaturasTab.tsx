@@ -72,7 +72,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
 
   // Load invoices
   useEffect(() => {
-    loadInvoices()
+    void loadInvoices()
   }, [client.id])
 
   async function loadInvoices() {
@@ -372,7 +372,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
-              onClick={handleAutoGenerateInvoices}
+              onClick={() => { void handleAutoGenerateInvoices() }}
               disabled={saving}
               style={{
                 padding: '8px 16px',
@@ -520,7 +520,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleCreateInvoice}
+                onClick={() => { void handleCreateInvoice() }}
                 disabled={saving}
                 style={{
                   padding: '7px 16px',
@@ -653,7 +653,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteInvoice(inv.id)}
+                            onClick={() => { void handleDeleteInvoice(inv.id) }}
                             style={{
                               padding: '4px 8px',
                               borderRadius: 4,
@@ -763,7 +763,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleRegisterPayment}
+                onClick={() => { void handleRegisterPayment() }}
                 disabled={saving}
                 style={{
                   padding: '8px 16px',
@@ -888,7 +888,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleUpdateInvoice}
+                onClick={() => { void handleUpdateInvoice() }}
                 disabled={saving}
                 style={{
                   padding: '8px 16px',

@@ -3,7 +3,8 @@ import React from 'react'
 import { CheckboxSmall } from '../../components/CheckboxSmall'
 import { labelWithTooltip } from '../../components/InfoTooltip'
 import { formatMoneyBR, formatNumberBRWithOptions, formatPercentBRWithDigits } from '../../lib/locale/br-number'
-import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from '../../lib/locale/useBRNumberField'
+import type { useBRNumberField } from '../../lib/locale/useBRNumberField';
+import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type {
   ImpostosRegimeConfig,
   Outputs,
