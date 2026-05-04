@@ -124,7 +124,7 @@ describe('createRouter', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('registerHealthRoutes — route registration', () => {
-  it('registers /health, /api/health, /api/health/db, /api/health/auth, /api/health/storage', () => {
+  it('registers /health, /api/health, /api/health/db, /api/health/auth, /api/health/storage, /api/health/pdf, /api/health/contracts, /api/test', () => {
     const router = createRouter()
     const sendJson = makeSendJson()
     registerHealthRoutes(router, {
@@ -141,7 +141,10 @@ describe('registerHealthRoutes — route registration', () => {
     expect(router.match('GET', '/api/health/db')).toBeTypeOf('function')
     expect(router.match('GET', '/api/health/auth')).toBeTypeOf('function')
     expect(router.match('GET', '/api/health/storage')).toBeTypeOf('function')
-    expect(router.size).toBe(5) // /health + /api/health share the same fn; 5 registrations total
+    expect(router.match('GET', '/api/health/pdf')).toBeTypeOf('function')
+    expect(router.match('GET', '/api/health/contracts')).toBeTypeOf('function')
+    expect(router.match('GET', '/api/test')).toBeTypeOf('function')
+    expect(router.size).toBe(8) // 5 original + 3 new routes
   })
 })
 
@@ -423,5 +426,203 @@ describe('/api/health/storage handler', () => {
     expect(body.ok).toBe(false)
     expect(body.status).toBe('error')
     expect(typeof body.latencyMs).toBe('number')
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. /api/health/pdf handler behaviour
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('/api/health/pdf handler', () => {
+  function setup({ convertapi = false, gotenberg = false } = {}) {
+    const router = createRouter()
+    const sendJson = makeSendJson()
+    registerHealthRoutes(router, {
+      databaseClient: null,
+      databaseConfig: {},
+      storageService: null,
+      stackAuthEnabled: false,
+      sendJson,
+      sendServerError: makeSendServerError(sendJson),
+      isConvertApiConfigured: () => convertapi,
+      isGotenbergConfigured: () => gotenberg,
+    })
+    return router
+  }
+
+  it('returns 200 with ok=false when no converter is configured', async () => {
+    const res = makeRes()
+    const fn = setup({ convertapi: false, gotenberg: false }).match('GET', '/api/health/pdf')
+    await fn(makeReq('/api/health/pdf'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    const body = parseBody(res)
+    expect(body.ok).toBe(false)
+    expect(body.convertapiConfigured).toBe(false)
+    expect(body.gotenbergConfigured).toBe(false)
+  })
+
+  it('returns 200 with ok=true when convertapi is configured', async () => {
+    const res = makeRes()
+    const fn = setup({ convertapi: true }).match('GET', '/api/health/pdf')
+    await fn(makeReq('/api/health/pdf'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    expect(parseBody(res).ok).toBe(true)
+    expect(parseBody(res).convertapiConfigured).toBe(true)
+  })
+
+  it('returns 200 with ok=true when gotenberg is configured', async () => {
+    const res = makeRes()
+    const fn = setup({ gotenberg: true }).match('GET', '/api/health/pdf')
+    await fn(makeReq('/api/health/pdf'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    expect(parseBody(res).ok).toBe(true)
+    expect(parseBody(res).gotenbergConfigured).toBe(true)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. /api/health/contracts handler behaviour
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('/api/health/contracts handler', () => {
+  function setup({ fileExists = true } = {}) {
+    const router = createRouter()
+    const sendJson = makeSendJson()
+    registerHealthRoutes(router, {
+      databaseClient: null,
+      databaseConfig: {},
+      storageService: null,
+      stackAuthEnabled: false,
+      sendJson,
+      sendServerError: makeSendServerError(sendJson),
+      isConvertApiConfigured: () => false,
+      isGotenbergConfigured: () => false,
+      contractTemplatePath: '/fake/template.dotx',
+      checkFileExists: fileExists
+        ? () => Promise.resolve()
+        : () => Promise.reject(new Error('ENOENT')),
+    })
+    return router
+  }
+
+  it('returns 200 with ok=true when template file exists', async () => {
+    const res = makeRes()
+    const fn = setup({ fileExists: true }).match('GET', '/api/health/contracts')
+    await fn(makeReq('/api/health/contracts'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    const body = parseBody(res)
+    expect(body.ok).toBe(true)
+    expect(body.templateExists).toBe(true)
+    expect(typeof body.node).toBe('string')
+  })
+
+  it('returns 200 with ok=false when template file is missing', async () => {
+    const res = makeRes()
+    const fn = setup({ fileExists: false }).match('GET', '/api/health/contracts')
+    await fn(makeReq('/api/health/contracts'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    const body = parseBody(res)
+    expect(body.ok).toBe(false)
+    expect(body.templateExists).toBe(false)
+  })
+
+  it('returns ok=false when contractTemplatePath is null', async () => {
+    const router = createRouter()
+    const sendJson = makeSendJson()
+    registerHealthRoutes(router, {
+      databaseClient: null,
+      databaseConfig: {},
+      storageService: null,
+      stackAuthEnabled: false,
+      sendJson,
+      sendServerError: makeSendServerError(sendJson),
+    })
+
+    const res = makeRes()
+    const fn = router.match('GET', '/api/health/contracts')
+    await fn(makeReq('/api/health/contracts'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    expect(parseBody(res).ok).toBe(false)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. /api/test handler behaviour
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('/api/test handler', () => {
+  const NOW = new Date('2025-06-01T12:00:00.000Z')
+  let router
+  let sendJson
+  let mockSql
+
+  beforeEach(() => {
+    router = createRouter()
+    sendJson = makeSendJson()
+    mockSql = vi.fn().mockResolvedValue([{ current_time: NOW }])
+
+    registerHealthRoutes(router, {
+      databaseClient: { sql: mockSql },
+      databaseConfig: { connectionString: 'postgres://test' },
+      storageService: {},
+      stackAuthEnabled: false,
+      sendJson,
+      sendServerError: makeSendServerError(sendJson),
+    })
+  })
+
+  it('returns 200 with { now } ISO string when DB is available', async () => {
+    const res = makeRes()
+    const fn = router.match('GET', '/api/test')
+    await fn(makeReq('/api/test'), res, {})
+
+    expect(res.statusCode).toBe(200)
+    expect(parseBody(res)).toEqual({ now: NOW.toISOString() })
+  })
+
+  it('returns 503 when databaseClient is null', async () => {
+    const router2 = createRouter()
+    const sj = makeSendJson()
+    registerHealthRoutes(router2, {
+      databaseClient: null,
+      databaseConfig: {},
+      storageService: null,
+      stackAuthEnabled: false,
+      sendJson: sj,
+      sendServerError: makeSendServerError(sj),
+    })
+
+    const res = makeRes()
+    const fn = router2.match('GET', '/api/test')
+    await fn(makeReq('/api/test'), res, {})
+
+    expect(res.statusCode).toBe(503)
+    expect(parseBody(res).error).toBe('Persistência indisponível')
+  })
+
+  it('returns 503 when connectionString is absent', async () => {
+    const router2 = createRouter()
+    const sj = makeSendJson()
+    const mockSql2 = vi.fn()
+    registerHealthRoutes(router2, {
+      databaseClient: { sql: mockSql2 },
+      databaseConfig: { connectionString: '' },
+      storageService: null,
+      stackAuthEnabled: false,
+      sendJson: sj,
+      sendServerError: makeSendServerError(sj),
+    })
+
+    const res = makeRes()
+    const fn = router2.match('GET', '/api/test')
+    await fn(makeReq('/api/test'), res, {})
+
+    expect(res.statusCode).toBe(503)
   })
 })
