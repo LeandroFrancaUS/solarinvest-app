@@ -35,10 +35,8 @@ import {
   persistClienteRegistroToOneDrive,
   persistContratoToOneDrive,
   type ClienteRegistroSyncPayload,
-  loadPropostasFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
-  persistPropostasToOneDrive,
 } from './utils/onedrive'
 import {
   persistProposalPdf,
@@ -60,15 +58,7 @@ import {
   type EssentialInfoSummary,
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
-import {
-  fetchRemoteStorageEntry,
-  persistRemoteStorageEntry,
-} from './app/services/serverStorage'
 import { saveFormDraft, clearFormDraft } from './lib/persist/formDraft'
-import {
-  saveProposalSnapshotById,
-  loadProposalSnapshotById,
-} from './lib/persist/proposalStore'
 import { formatEnderecoCompleto } from './lib/formatEnderecoCompleto'
 import {
   upsertClienteRegistro,
@@ -273,11 +263,7 @@ import { useStackRbac } from './lib/auth/rbac'
 import { useAuthSession } from './auth/auth-session'
 import {
   createProposal,
-  deleteProposal,
   type CreateProposalInput,
-  listProposals as listProposalsFromApi,
-  type ProposalRow,
-  type UpdateProposalInput,
   updateProposal,
 } from './lib/api/proposalsApi'
 import {
@@ -381,40 +367,25 @@ import type {
 } from './types/orcamentoTypes'
 import {
   CLIENTES_STORAGE_KEY,
-  CLIENTE_ID_LENGTH,
   CLIENTE_ID_PATTERN,
   CLIENTE_INICIAL,
   isSyncedClienteField,
   getDistribuidoraValidationMessage,
   cloneClienteDados,
   ensureClienteHerdeiros,
-  normalizeClienteHerdeiros,
-  normalizeClienteIdCandidate,
   generateClienteId,
   isQuotaExceededError,
-  persistWithFallback,
   persistClientesToLocalStorage,
   normalizeClienteRegistros,
 } from './features/clientes/clienteHelpers'
 import { useClientState } from './features/clientes/useClientState'
 import {
   type OrcamentoSalvo,
-  BUDGETS_STORAGE_KEY,
-  PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
-  BUDGET_ID_PREFIXES,
-  DEFAULT_BUDGET_ID_PREFIX,
-  BUDGET_ID_SUFFIX_LENGTH,
-  BUDGET_ID_MAX_ATTEMPTS,
   tick,
-  generateBudgetId,
   createDraftBudgetId as createDraftBudgetIdHelper,
-  serverProposalToOrcamento,
-  toFiniteNonNegativeNumber,
   resolveConsumptionFromSnapshot,
   resolveSystemKwpFromSnapshot,
   resolveTermMonthsFromSnapshot,
-  persistBudgetsToLocalStorage,
-  alertPrunedBudgets,
   normalizeTusdTipoClienteValue,
   buildProposalUpsertPayload,
 } from './features/propostas/proposalHelpers'
@@ -1501,12 +1472,6 @@ const computeSnapshotSignature = (
     snapshot: cloneSnapshotData(snapshot),
     dados: clonePrintableData(dados),
   })
-
-const cloneOrcamentoSalvo = (registro: OrcamentoSalvo): OrcamentoSalvo => ({
-  ...registro,
-  dados: clonePrintableData(registro.dados),
-  ...(registro.snapshot ? { snapshot: cloneSnapshotData(registro.snapshot) } : {}),
-})
 
 const createBudgetFingerprint = (dados: PrintableProposalProps): string => {
   const clone = clonePrintableData(dados)
@@ -2916,7 +2881,7 @@ export default function App() {
   // draft-loader inside the hook reads this ref so it always calls the latest
   // version without needing `aplicarSnapshot` in the effect's deps array.
   const applyDraftRef = useRef<((data: unknown) => void) | null>(null)
-  const { authSyncKey, isHydrating, isHydratingRef, setIsHydrating } = useStorageHydration({
+  const { authSyncKey, isHydratingRef, setIsHydrating } = useStorageHydration({
     userId,
     getAccessToken,
     applyDraftRef,
@@ -2974,49 +2939,6 @@ export default function App() {
   const procuracaoUfRef = useRef<string | null>(null)
   const distribuidoraAneelEfetivaRef = useRef<string>('')
 
-  const {
-    orcamentosSalvos,
-    setOrcamentosSalvos,
-    proposalsSyncState,
-    setProposalsSyncState,
-    orcamentoAtivoInfo,
-    orcamentoRegistroBase,
-    orcamentoDisponivelParaDuplicar,
-    limparOrcamentoAtivo,
-    atualizarOrcamentoAtivo,
-    updateProposalServerIdMap,
-    removeProposalServerIdMapEntry,
-    parseOrcamentosSalvos,
-    carregarOrcamentosSalvos,
-    carregarOrcamentosPrioritarios,
-    carregarOrcamentoParaEdicao,
-    salvarOrcamentoLocalmente,
-    removerOrcamentoSalvo,
-    abrirPesquisaOrcamentos,
-    getCurrentSnapshotRef,
-    aplicarSnapshotRef,
-    proposalServerIdMapRef,
-  } = useProposalOrchestration({
-    activeTabRef,
-    isHydratingRef,
-    setIsHydrating,
-    clienteEmEdicaoIdRef,
-    runWithUnsavedChangesGuardRef,
-    getActiveBudgetId,
-    switchBudgetId,
-    setActivePage,
-    adicionarNotificacao,
-    carregarClientesSalvos,
-    scheduleMarkStateAsSaved,
-    procuracaoUfRef,
-    distribuidoraAneelEfetivaRef,
-    clonePrintableData,
-    cloneSnapshotData,
-    computeSnapshotSignature,
-    createBudgetFingerprint,
-    cloneOrcamentoSalvo,
-  })
-
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
@@ -3041,6 +2963,57 @@ export default function App() {
   const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
   const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
+
+  // ── Proposal orchestration hook ────────────────────────────────────────────
+  const {
+    orcamentosSalvos,
+    setOrcamentosSalvos,
+    proposalsSyncState,
+    orcamentoAtivoInfo,
+    orcamentoRegistroBase,
+    orcamentoDisponivelParaDuplicar,
+    limparOrcamentoAtivo,
+    atualizarOrcamentoAtivo,
+    updateProposalServerIdMap,
+    carregarOrcamentosPrioritarios,
+    carregarOrcamentoParaEdicao,
+    salvarOrcamentoLocalmente,
+    removerOrcamentoSalvo,
+    abrirPesquisaOrcamentos,
+    getCurrentSnapshotRef,
+    aplicarSnapshotRef,
+    proposalServerIdMapRef,
+  } = useProposalOrchestration({
+    meAuthState,
+    authSyncKey,
+    activeTabRef,
+    isHydratingRef,
+    setIsHydrating,
+    clienteEmEdicaoIdRef,
+    runWithUnsavedChangesGuardRef,
+    getActiveBudgetId,
+    switchBudgetId,
+    setActivePage,
+    adicionarNotificacao,
+    carregarClientesSalvos,
+    scheduleMarkStateAsSaved,
+    procuracaoUfRef,
+    distribuidoraAneelEfetivaRef,
+    clonePrintableData,
+    cloneSnapshotData,
+    computeSnapshotSignature,
+    createBudgetFingerprint,
+    cliente,
+    kcKwhMes,
+    tarifaCheia,
+    potenciaModulo,
+    numeroModulosManual,
+    activeTab,
+    ucsBeneficiarias,
+    budgetStructuredItems,
+  })
+  // ──────────────────────────────────────────────────────────────────────────
+
   const leasingContrato = useLeasingStore((state) => state.contrato)
   const _leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const corresponsavelAtivo = useMemo(() => {
@@ -11252,6 +11225,10 @@ export default function App() {
     ],
   )
 
+  const handleAbrirUploadImagens = useCallback(() => {
+    imagensUploadInputRef.current?.click()
+  }, [])
+
   const handleImagensSelecionadas = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const arquivos = Array.from(event.target.files ?? [])
@@ -12954,6 +12931,86 @@ export default function App() {
     validatePropostaLeasingMinimal,
   ])
 
+  const hasUnsavedChanges = useCallback(() => {
+    if (!userInteractedSinceSaveRef.current) {
+      return false
+    }
+
+    if (lastSavedSignatureRef.current == null) {
+      return initialSignatureSetRef.current
+    }
+
+    return computeSignatureRef.current() !== lastSavedSignatureRef.current
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Marca saída limpa da sessão — na próxima visita os stores iniciam com estado padrão.
+      // Se o browser crashar/tab for morta sem disparar beforeunload, 'session_active' permanece
+      // 'true' e os stores farão recuperação automática a partir do sessionStorage.
+      window.sessionStorage.removeItem('session_active')
+
+      // Emergency snapshot: save current form state to IndexedDB before the page
+      // unloads.  This is a synchronous-start / fire-and-forget write — the browser
+      // gives us a small window to initiate async work in beforeunload, and IndexedDB
+      // transactions started here will generally complete even if the page is torn down.
+      if (!isHydratingRef.current) {
+        try {
+          const snapshot = getCurrentSnapshot()
+          if (snapshot) {
+            const nome = (snapshot?.cliente?.nome ?? '').trim()
+            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
+            const kwh = Number(snapshot?.kcKwhMes ?? 0)
+            if (nome || endereco || kwh > 0) {
+              // Fire-and-forget — we can't await in beforeunload
+              void saveFormDraft(snapshot)
+            }
+          }
+        } catch {
+          // Best effort — don't block unload
+        }
+      }
+
+      if (!hasUnsavedChanges()) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    // Save a snapshot when the page loses visibility (user switches tabs/apps).
+    // This covers scenarios where the browser might kill the tab in the background.
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && !isHydratingRef.current) {
+        try {
+          const snapshot = getCurrentSnapshot()
+          if (snapshot) {
+            const nome = (snapshot?.cliente?.nome ?? '').trim()
+            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
+            const kwh = Number(snapshot?.kcKwhMes ?? 0)
+            if (nome || endereco || kwh > 0) {
+              void saveFormDraft(snapshot)
+            }
+          }
+        } catch {
+          // Best effort
+        }
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [hasUnsavedChanges, getCurrentSnapshot])
+
   // Pages where the proposal dirty-state guard applies.
   // Non-proposal pages (carteira, dashboard, settings, admin-users, simulacoes, crm)
   // have their own data models and must NOT trigger the proposal save prompt.
@@ -14514,6 +14571,18 @@ export default function App() {
     },
     [removerOrcamentoSalvo, requestConfirmDialog],
   )
+
+  const limparDadosModalidade = useCallback((tipo: PrintableProposalTipo) => {
+    fieldSyncActions.reset()
+    if (tipo === 'VENDA_DIRETA') {
+      vendaStore.reset()
+    } else {
+      leasingActions.reset()
+      // Re-sync prazoContratualMeses immediately after reset so the store
+      // never stays at 0 while leasingPrazo hasn't changed (effect wouldn't re-fire)
+      leasingActions.update({ prazoContratualMeses: leasingPrazo * 12 })
+    }
+  }, [leasingPrazo])
 
   const carregarOrcamentoSalvo = useCallback(
     async (registroInicial: OrcamentoSalvo) => {

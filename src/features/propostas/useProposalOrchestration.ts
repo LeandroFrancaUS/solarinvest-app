@@ -106,7 +106,7 @@ export interface UseProposalOrchestrationOptions {
   kcKwhMes: number
   tarifaCheia: number
   potenciaModulo: number
-  numeroModulosManual: number | null
+  numeroModulosManual: number | '' | null
   activeTab: string
   ucsBeneficiarias: UcBeneficiariaFormState[]
   budgetStructuredItems: StructuredItem[]
