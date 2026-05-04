@@ -6,8 +6,6 @@
 import { resolveActor } from '../proposals/permissions.js'
 import { jsonResponse, noContentResponse } from '../response.js'
 
-// Regex for auto-generated engineer codes: E/e + 3 alphanumerics
-const CODE_REGEX = /^[Ee][A-Za-z0-9]{3}$/
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**

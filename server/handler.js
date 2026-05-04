@@ -1,4 +1,13 @@
 // server/handler.js
+// Compatibility shim and serverless entry point.
+//
+// This file owns: CORS setup, router dispatch, OPTIONS fallback, and
+// static/SPA file serving.  All API route logic lives in server/routes/*.js.
+//
+// ⚠️  Do NOT add new route handlers or business logic here.
+//     Add new routes via a registerXRoutes() module in server/routes/ and
+//     wire the registration call in the "Route registry" section below.
+//     See docs/backend-routing.md for the full guide.
 import { readFile, access } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
