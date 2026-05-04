@@ -397,6 +397,28 @@ import {
   normalizeClienteRegistros,
 } from './features/clientes/clienteHelpers'
 import { useClientState } from './features/clientes/useClientState'
+import {
+  type OrcamentoSalvo,
+  BUDGETS_STORAGE_KEY,
+  PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
+  BUDGET_ID_PREFIXES,
+  DEFAULT_BUDGET_ID_PREFIX,
+  BUDGET_ID_SUFFIX_LENGTH,
+  BUDGET_ID_MAX_ATTEMPTS,
+  tick,
+  generateBudgetId,
+  createDraftBudgetId as createDraftBudgetIdHelper,
+  serverProposalToOrcamento,
+  toFiniteNonNegativeNumber,
+  resolveConsumptionFromSnapshot,
+  resolveSystemKwpFromSnapshot,
+  resolveTermMonthsFromSnapshot,
+  persistBudgetsToLocalStorage,
+  alertPrunedBudgets,
+  normalizeTusdTipoClienteValue,
+  buildProposalUpsertPayload,
+} from './features/propostas/proposalHelpers'
+import { useProposalOrchestration } from './features/propostas/useProposalOrchestration'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -457,11 +479,6 @@ const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefi
   }
 
   return undefined
-}
-
-const normalizeTusdTipoClienteValue = (value: unknown): TipoClienteTUSD => {
-  const normalized = normalizeTipoBasico(typeof value === 'string' ? value : null)
-  return (normalized || 'residencial')
 }
 
 function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
@@ -664,57 +681,6 @@ const formatCurrencyInputValue = (value: number | null) => {
   return formatMoneyBR(value)
 }
 
-const toFiniteNonNegativeNumber = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === '') return null
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
-  if (!Number.isFinite(parsed)) return null
-  return parsed >= 0 ? parsed : null
-}
-
-const resolveConsumptionFromSnapshot = (snapshot: OrcamentoSnapshotData | null): number | null => {
-  if (!snapshot) return null
-  const legacyPageShared = (snapshot.pageShared as { kcKwhMes?: unknown } | undefined)?.kcKwhMes
-  const parametrosConsumo = (snapshot as unknown as { parametros?: { consumo_kwh_mes?: unknown } }).parametros?.consumo_kwh_mes
-  const vendaParametrosConsumo = (
-    snapshot.vendaSnapshot as { parametros?: { consumo_kwh_mes?: unknown } } | undefined
-  )?.parametros?.consumo_kwh_mes
-  const candidates = [
-    snapshot.kcKwhMes,
-    legacyPageShared,
-    parametrosConsumo,
-    snapshot.leasingSnapshot?.energiaContratadaKwhMes,
-    snapshot.vendaForm?.consumo_kwh_mes,
-    vendaParametrosConsumo,
-  ]
-  for (const candidate of candidates) {
-    const parsed = toFiniteNonNegativeNumber(candidate)
-    if (parsed !== null) return parsed
-  }
-  return null
-}
-
-const resolveSystemKwpFromSnapshot = (snapshot: OrcamentoSnapshotData | null): number | null => {
-  if (!snapshot) return null
-  return (
-    toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.dadosTecnicos?.potenciaInstaladaKwp) ??
-    toFiniteNonNegativeNumber(snapshot.vendaForm?.potencia_instalada_kwp) ??
-    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { potenciaCalculadaKwp?: unknown } | undefined)?.potenciaCalculadaKwp) ??
-    null
-  )
-}
-
-const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): number | null => {
-  if (!snapshot) return null
-  return (
-    toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
-    toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
-
-    toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { financiamento?: { prazoMeses?: unknown } } | undefined)?.financiamento?.prazoMeses) ??
-    null
-  )
-}
-
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
 
@@ -826,106 +792,7 @@ const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   error: '⚠',
 }
 
-type OrcamentoSalvo = {
-  id: string
-  criadoEm: string
-  clienteId?: string
-  clienteNome: string
-  clienteCidade: string
-  clienteUf: string
-  clienteDocumento?: string
-  clienteUc?: string
-  dados: PrintableProposalProps
-  snapshot?: OrcamentoSnapshotData
-  /** Display name of the consultant who owns this proposal (server-loaded, privileged views only) */
-  ownerName?: string
-  /** Stack user id of the owner (server-loaded, privileged views only) */
-  ownerUserId?: string
-}
-
-const BUDGETS_STORAGE_KEY = 'solarinvest-orcamentos'
-
-/**
- * Maps a server-side ProposalRow (from /api/proposals) to the local OrcamentoSalvo format.
- *
- * The server stores the complete OrcamentoSnapshotData (raw form state) as payload_json.
- * We use it as both:
- *   - `snapshot`: used by carregarOrcamentoParaEdicao to reload the form for editing
- *   - `dados`   : used by the listing page to read client metadata (nome, cidade, uc, etc.)
- *                 and by carregarOrcamentoSalvo to determine proposal type
- *
- * The double cast (as unknown as …) is intentional: payload_json is typed as
- * Record<string,unknown> at the API boundary but is guaranteed to be an
- * OrcamentoSnapshotData object written by the auto-save path.  The fields
- * required for listing (cliente.*) and editing (full snapshot) are all present.
- * Used by privileged roles (admin, office, financeiro).
- */
-function serverProposalToOrcamento(row: ProposalRow): OrcamentoSalvo {
-  // payload_json is always an OrcamentoSnapshotData written by the auto-save path.
-  const snapshot = row.payload_json as unknown as OrcamentoSnapshotData
-  const tipoProposta: PrintableProposalTipo =
-    row.proposal_type === 'venda' ? 'VENDA_DIRETA' : 'LEASING'
-  // Merge tipoProposta into the snapshot so that carregarOrcamentoSalvo can
-  // determine the tab type without needing the full PrintableProposalProps.
-  const dados = {
-    ...(snapshot ?? {}),
-    tipoProposta,
-  } as unknown as PrintableProposalProps
-  const ownerName = row.owner_display_name ?? row.owner_email ?? row.owner_user_id
-  const ownerUserId = row.owner_user_id
-  // Prefer proposal_code (e.g. "SLRINVST-LSE-12345678") as the local id so
-  // it follows the established naming convention.  Fall back to the server
-  // UUID only when no code was stored — this can happen for legacy rows that
-  // were created before proposal_code was consistently populated.
-  const proposalId = row.proposal_code ?? row.id
-  return {
-    id: proposalId,
-    criadoEm: row.created_at,
-    clienteNome: row.client_name ?? snapshot?.cliente?.nome ?? '',
-    clienteCidade: row.client_city ?? snapshot?.cliente?.cidade ?? '',
-    clienteUf: row.client_state ?? snapshot?.cliente?.uf ?? '',
-    ...(row.client_document ?? snapshot?.cliente?.documento
-      ? { clienteDocumento: row.client_document ?? snapshot?.cliente?.documento ?? '' }
-      : {}),
-    ...(snapshot?.cliente?.uc ? { clienteUc: snapshot.cliente.uc } : {}),
-    ...(ownerName != null ? { ownerName } : {}),
-    ...(ownerUserId != null ? { ownerUserId } : {}),
-    dados,
-    ...(snapshot != null ? { snapshot } : {}),
-  }
-}
-const PROPOSAL_SERVER_ID_MAP_STORAGE_KEY = 'solarinvest-proposal-server-id-map'
-const BUDGET_ID_PREFIXES: Record<PrintableProposalTipo, string> = {
-  VENDA_DIRETA: 'SLRINVST-VND-',
-  LEASING: 'SLRINVST-LSE-',
-}
-const DEFAULT_BUDGET_ID_PREFIX = BUDGET_ID_PREFIXES.LEASING
-const BUDGET_ID_SUFFIX_LENGTH = 8
-const BUDGET_ID_MAX_ATTEMPTS = 1000
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
-
-const generateBudgetId = (
-  existingIds: Set<string> = new Set(),
-  tipoProposta: PrintableProposalTipo = 'LEASING',
-) => {
-  let attempts = 0
-
-  while (attempts < BUDGET_ID_MAX_ATTEMPTS) {
-    attempts += 1
-    const randomNumber = Math.floor(Math.random() * 10 ** BUDGET_ID_SUFFIX_LENGTH)
-    const suffix = randomNumber.toString().padStart(BUDGET_ID_SUFFIX_LENGTH, '0')
-    const prefix = BUDGET_ID_PREFIXES[tipoProposta] ?? DEFAULT_BUDGET_ID_PREFIX
-    const candidate = `${prefix}${suffix}`
-
-    if (!existingIds.has(candidate)) {
-      return candidate
-    }
-  }
-
-  throw new Error('Não foi possível gerar um código de orçamento único.')
-}
-
-const createDraftBudgetId = () => `DRAFT-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
+const createDraftBudgetId = () => createDraftBudgetIdHelper()
 
 const createUcBeneficiariaId = () => `UCB-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
 
@@ -1107,27 +974,6 @@ const normalizeUfForProcuracao = (value?: string | null): string => {
 const isProcuracaoUfSupported = (value?: string | null): boolean => {
   const normalized = normalizeUfForProcuracao(value)
   return normalized === 'DF' || normalized === 'GO'
-}
-
-const persistBudgetsToLocalStorage = (
-  registros: OrcamentoSalvo[],
-): { persisted: OrcamentoSalvo[]; droppedCount: number } =>
-  persistWithFallback(BUDGETS_STORAGE_KEY, registros, {
-    serialize: (items) => JSON.stringify(items),
-    reduce: (items) => items.slice(0, -1),
-  })
-
-const alertPrunedBudgets = (droppedCount: number) => {
-  if (typeof window === 'undefined' || droppedCount === 0) {
-    return
-  }
-
-  const mensagem =
-    droppedCount === 1
-      ? 'O armazenamento local estava cheio. O orçamento mais antigo foi removido para salvar a versão atual.'
-      : `O armazenamento local estava cheio. ${droppedCount} orçamentos antigos foram removidos para salvar a versão atual.`
-
-  window.alert(mensagem)
 }
 
 const createPrintableImageId = () => {
@@ -2417,28 +2263,11 @@ export default function App() {
     canSeeFinancialManagementEffective,
     setActivePage,
   })
-  const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
-  const [proposalsSyncState, setProposalsSyncState] = useState<'synced' | 'pending' | 'failed' | 'local-only'>('pending')
-  const [orcamentoAtivoInfo, setOrcamentoAtivoInfo] = useState<
-    | {
-        id: string
-        cliente: string
-      }
-    | null
-  >(null)
-  const [orcamentoRegistroBase, setOrcamentoRegistroBase] = useState<OrcamentoSalvo | null>(null)
-  const [orcamentoDisponivelParaDuplicar, setOrcamentoDisponivelParaDuplicar] =
-    useState<OrcamentoSalvo | null>(null)
   const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
   const lastSavedSignatureRef = useRef<string | null>(null)
   const userInteractedSinceSaveRef = useRef(false)
   const computeSignatureRef = useRef<() => string>(() => '')
   const initialSignatureSetRef = useRef(false)
-  const limparOrcamentoAtivo = useCallback(() => {
-    setOrcamentoAtivoInfo(null)
-    setOrcamentoRegistroBase(null)
-    setOrcamentoDisponivelParaDuplicar(null)
-  }, [])
   const scheduleMarkStateAsSaved = useCallback((signatureOverride?: string | null) => {
     userInteractedSinceSaveRef.current = false
     lastSavedSignatureRef.current = signatureOverride ?? computeSignatureRef.current()
@@ -2503,32 +2332,6 @@ export default function App() {
       return null
     })
   }, [])
-
-  const atualizarOrcamentoAtivo = useCallback(
-    (registro: OrcamentoSalvo) => {
-      const dadosClonados = clonePrintableData(registro.dados)
-      const clienteNome =
-        registro.clienteNome?.trim() ||
-        registro.dados.cliente.nome?.trim() ||
-        dadosClonados.cliente.nome?.trim() ||
-        registro.id
-      const idNormalizado = normalizeProposalId(dadosClonados.budgetId ?? registro.id)
-      const idParaExibir = idNormalizado || registro.id
-
-      setOrcamentoAtivoInfo({
-        id: idParaExibir,
-        cliente: clienteNome,
-      })
-      const registroClonado = cloneOrcamentoSalvo(registro)
-      setOrcamentoRegistroBase(registroClonado)
-      setOrcamentoDisponivelParaDuplicar(registroClonado)
-      const signatureOverride = registro.snapshot
-        ? computeSnapshotSignature(registro.snapshot, dadosClonados)
-        : null
-      scheduleMarkStateAsSaved(signatureOverride)
-    },
-    [scheduleMarkStateAsSaved],
-  )
 
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
     isOneDriveIntegrationAvailable(),
@@ -3168,9 +2971,52 @@ export default function App() {
   })
   // ──────────────────────────────────────────────────────────────────────────
 
-  const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const proposalServerIdMapRef = useRef<Record<string, string>>({})
-  const proposalServerAutoSaveInFlightRef = useRef(false)
+  const procuracaoUfRef = useRef<string | null>(null)
+  const distribuidoraAneelEfetivaRef = useRef<string>('')
+
+  const {
+    orcamentosSalvos,
+    setOrcamentosSalvos,
+    proposalsSyncState,
+    setProposalsSyncState,
+    orcamentoAtivoInfo,
+    orcamentoRegistroBase,
+    orcamentoDisponivelParaDuplicar,
+    limparOrcamentoAtivo,
+    atualizarOrcamentoAtivo,
+    updateProposalServerIdMap,
+    removeProposalServerIdMapEntry,
+    parseOrcamentosSalvos,
+    carregarOrcamentosSalvos,
+    carregarOrcamentosPrioritarios,
+    carregarOrcamentoParaEdicao,
+    salvarOrcamentoLocalmente,
+    removerOrcamentoSalvo,
+    abrirPesquisaOrcamentos,
+    getCurrentSnapshotRef,
+    aplicarSnapshotRef,
+    proposalServerIdMapRef,
+  } = useProposalOrchestration({
+    activeTabRef,
+    isHydratingRef,
+    setIsHydrating,
+    clienteEmEdicaoIdRef,
+    runWithUnsavedChangesGuardRef,
+    getActiveBudgetId,
+    switchBudgetId,
+    setActivePage,
+    adicionarNotificacao,
+    carregarClientesSalvos,
+    scheduleMarkStateAsSaved,
+    procuracaoUfRef,
+    distribuidoraAneelEfetivaRef,
+    clonePrintableData,
+    cloneSnapshotData,
+    computeSnapshotSignature,
+    createBudgetFingerprint,
+    cloneOrcamentoSalvo,
+  })
+
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
@@ -3186,65 +3032,6 @@ export default function App() {
   // Refs to prevent stale closures in getCurrentSnapshot
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      const raw = window.localStorage.getItem(PROPOSAL_SERVER_ID_MAP_STORAGE_KEY)
-      if (!raw) {
-        proposalServerIdMapRef.current = {}
-        return
-      }
-      const parsed = JSON.parse(raw) as Record<string, unknown>
-      if (!parsed || typeof parsed !== 'object') {
-        proposalServerIdMapRef.current = {}
-        return
-      }
-      proposalServerIdMapRef.current = Object.fromEntries(
-        Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-      )
-    } catch (error) {
-      console.warn('[AutoSave] Failed to hydrate proposal server-id map:', error)
-      proposalServerIdMapRef.current = {}
-    }
-  }, [])
-
-  const updateProposalServerIdMap = useCallback((budgetId: string, serverId: string) => {
-    if (typeof window === 'undefined' || !budgetId || !serverId) {
-      return
-    }
-    proposalServerIdMapRef.current = {
-      ...proposalServerIdMapRef.current,
-      [budgetId]: serverId,
-    }
-    try {
-      window.localStorage.setItem(
-        PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
-        JSON.stringify(proposalServerIdMapRef.current),
-      )
-    } catch (error) {
-      console.warn('[AutoSave] Failed to persist proposal server-id map:', error)
-    }
-  }, [])
-
-  const removeProposalServerIdMapEntry = useCallback((budgetId: string) => {
-    if (typeof window === 'undefined' || !budgetId) {
-      return
-    }
-    if (!(budgetId in proposalServerIdMapRef.current)) {
-      return
-    }
-    const next = { ...proposalServerIdMapRef.current }
-    delete next[budgetId]
-    proposalServerIdMapRef.current = next
-    try {
-      window.localStorage.setItem(PROPOSAL_SERVER_ID_MAP_STORAGE_KEY, JSON.stringify(next))
-    } catch (error) {
-      console.warn('[AutoSave] Failed to remove proposal server-id map entry:', error)
-    }
-  }, [])
 
   const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
   const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
@@ -3421,6 +3208,7 @@ export default function App() {
       leasingContrato.ucGeradoraTitularDiferente,
     ],
   )
+  useEffect(() => { distribuidoraAneelEfetivaRef.current = distribuidoraAneelEfetiva }, [distribuidoraAneelEfetiva])
   const procuracaoUf = useMemo(() => {
     if (isTitularDiferente) {
       return (
@@ -3436,6 +3224,7 @@ export default function App() {
     leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
     leasingContrato.ucGeradoraTitular?.endereco.uf,
   ])
+  useEffect(() => { procuracaoUfRef.current = procuracaoUf ?? null }, [procuracaoUf])
   const ucGeradoraTitularUf = (
     leasingContrato.ucGeradoraTitularDraft?.endereco.uf ??
     leasingContrato.ucGeradoraTitular?.endereco.uf ??
@@ -10194,6 +9983,7 @@ export default function App() {
 
     return snapshotData
   }
+  getCurrentSnapshotRef.current = getCurrentSnapshot
 
   const buildEmptySnapshotForNewProposal = (
     tab: TabKey,
@@ -10358,33 +10148,6 @@ export default function App() {
       payload.document = documentDigits
     }
     return payload
-  }, [])
-
-  const buildProposalUpsertPayload = useCallback((snapshot: OrcamentoSnapshotData): UpdateProposalInput => {
-    const clienteSnapshot = snapshot.cliente ?? {}
-    const resolvedConsumption = resolveConsumptionFromSnapshot(snapshot)
-    const resolvedSystemKwp = resolveSystemKwpFromSnapshot(snapshot)
-    const resolvedTermMonths = resolveTermMonthsFromSnapshot(snapshot)
-    const clientCepDigits = normalizeNumbers(clienteSnapshot.cep ?? '').slice(0, 8)
-    const ucBeneficiaria = snapshot.ucBeneficiarias
-      ?.map((item) => item.numero?.trim())
-      .filter((item): item is string => Boolean(item))
-      .join(', ')
-
-    return {
-      payload_json: snapshot as unknown as Record<string, unknown>,
-      ...(clienteSnapshot.nome?.trim() ? { client_name: clienteSnapshot.nome.trim() } : {}),
-      ...(clienteSnapshot.documento?.trim() ? { client_document: normalizeNumbers(clienteSnapshot.documento) } : {}),
-      ...(clienteSnapshot.cidade?.trim() ? { client_city: clienteSnapshot.cidade.trim() } : {}),
-      ...(clienteSnapshot.uf?.trim() ? { client_state: clienteSnapshot.uf.trim() } : {}),
-      ...(clienteSnapshot.telefone?.trim() ? { client_phone: clienteSnapshot.telefone.trim() } : {}),
-      ...(clienteSnapshot.email?.trim() ? { client_email: clienteSnapshot.email.trim() } : {}),
-      ...(clientCepDigits ? { client_cep: clientCepDigits } : {}),
-      ...(typeof resolvedConsumption === 'number' ? { consumption_kwh_month: resolvedConsumption } : {}),
-      ...(typeof resolvedSystemKwp === 'number' ? { system_kwp: resolvedSystemKwp } : {}),
-      ...(typeof resolvedTermMonths === 'number' ? { term_months: Math.round(resolvedTermMonths) } : {}),
-      ...(ucBeneficiaria ? { uc_beneficiaria: ucBeneficiaria } : {}),
-    }
   }, [])
 
   const handleSalvarCliente = useCallback(
@@ -11232,500 +10995,6 @@ export default function App() {
     [adicionarNotificacao, requestConfirmDialog, carregarClientesPrioritarios, setClientesSalvos, formConsultores],
   )
 
-  const parseOrcamentosSalvos = useCallback(
-    (existenteRaw: string | null): OrcamentoSalvo[] => {
-      if (!existenteRaw) {
-        return []
-      }
-
-      try {
-        const parsed = JSON.parse(existenteRaw) as unknown
-        if (!Array.isArray(parsed)) {
-          return []
-        }
-
-        const clientesRegistrados = carregarClientesSalvos()
-        const clienteIdPorDocumento = new Map<string, string>()
-        const clienteIdPorUc = new Map<string, string>()
-
-        clientesRegistrados.forEach((clienteRegistro) => {
-          const documento = normalizeNumbers(clienteRegistro.dados.documento ?? '')
-          if (documento && !clienteIdPorDocumento.has(documento)) {
-            clienteIdPorDocumento.set(documento, clienteRegistro.id)
-          }
-
-          const uc = normalizeText(clienteRegistro.dados.uc ?? '')
-          if (uc && !clienteIdPorUc.has(uc)) {
-            clienteIdPorUc.set(uc, clienteRegistro.id)
-          }
-        })
-
-        const sanitizeClienteId = (valor: unknown) => {
-          if (typeof valor !== 'string') {
-            return ''
-          }
-
-          const normalizado = normalizeClienteIdCandidate(valor)
-          if (normalizado.length === CLIENTE_ID_LENGTH && CLIENTE_ID_PATTERN.test(normalizado)) {
-            return normalizado
-          }
-
-          return ''
-        }
-
-        return parsed.map((item) => {
-          const registro = item as Partial<OrcamentoSalvo> & { clienteID?: string }
-          const dados = registro.dados as PrintableProposalProps
-          const clienteDados = (dados?.cliente ?? {}) as Partial<ClienteDados>
-          const temIndicacaoRaw = (clienteDados as { temIndicacao?: unknown }).temIndicacao
-          const indicacaoNomeRaw = (clienteDados as { indicacaoNome?: unknown }).indicacaoNome
-          const temIndicacaoNormalizado =
-            typeof temIndicacaoRaw === 'boolean'
-              ? temIndicacaoRaw
-              : typeof temIndicacaoRaw === 'string'
-              ? ['1', 'true', 'sim'].includes(temIndicacaoRaw.trim().toLowerCase())
-              : false
-          const indicacaoNomeNormalizado =
-            typeof indicacaoNomeRaw === 'string' ? indicacaoNomeRaw.trim() : ''
-
-          const herdeirosNormalizados = normalizeClienteHerdeiros(
-            (clienteDados as { herdeiros?: unknown }).herdeiros,
-          )
-
-          const clienteNormalizado: ClienteDados = {
-            nome: clienteDados.nome ?? '',
-            documento: clienteDados.documento ?? '',
-            rg: clienteDados.rg ?? '',
-            estadoCivil: clienteDados.estadoCivil ?? '',
-            nacionalidade: clienteDados.nacionalidade ?? '',
-            profissao: clienteDados.profissao ?? '',
-            representanteLegal: clienteDados.representanteLegal ?? '',
-            email: clienteDados.email ?? '',
-            telefone: clienteDados.telefone ?? '',
-            cep: clienteDados.cep ?? '',
-            distribuidora: clienteDados.distribuidora ?? '',
-            uc: clienteDados.uc ?? '',
-            endereco: clienteDados.endereco ?? '',
-            cidade: clienteDados.cidade ?? '',
-            uf: clienteDados.uf ?? '',
-            temIndicacao: temIndicacaoNormalizado,
-            indicacaoNome: temIndicacaoNormalizado ? indicacaoNomeNormalizado : '',
-            herdeiros: herdeirosNormalizados,
-            nomeSindico: clienteDados.nomeSindico ?? '',
-            cpfSindico: clienteDados.cpfSindico ?? '',
-            contatoSindico: clienteDados.contatoSindico ?? '',
-            diaVencimento: clienteDados.diaVencimento ?? '10',
-            consultorId: clienteDados.consultorId ?? '',
-            consultorNome: clienteDados.consultorNome ?? '',
-          }
-
-          const dadosNormalizados: PrintableProposalProps = {
-            ...dados,
-            budgetId: dados?.budgetId ?? registro.id,
-            cliente: clienteNormalizado,
-            distribuidoraTarifa: dados.distribuidoraTarifa ?? clienteNormalizado.distribuidora ?? '',
-            tipoProposta: dados?.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-          }
-
-          if (dados.ucGeradora && typeof dados.ucGeradora === 'object') {
-            const numero = typeof dados.ucGeradora.numero === 'string' ? dados.ucGeradora.numero : ''
-            const endereco =
-              typeof dados.ucGeradora.endereco === 'string' ? dados.ucGeradora.endereco : ''
-            dadosNormalizados.ucGeradora = { numero, endereco }
-          } else {
-            delete dadosNormalizados.ucGeradora
-          }
-
-          if (dados.ucGeradoraTitular && typeof dados.ucGeradoraTitular === 'object') {
-            const nomeCompleto =
-              typeof dados.ucGeradoraTitular.nomeCompleto === 'string'
-                ? dados.ucGeradoraTitular.nomeCompleto
-                : ''
-            const cpf =
-              typeof dados.ucGeradoraTitular.cpf === 'string' ? dados.ucGeradoraTitular.cpf : ''
-            const rg = typeof dados.ucGeradoraTitular.rg === 'string' ? dados.ucGeradoraTitular.rg : ''
-            const endereco =
-              typeof dados.ucGeradoraTitular.endereco === 'string'
-                ? dados.ucGeradoraTitular.endereco
-                : ''
-            dadosNormalizados.ucGeradoraTitular = { nomeCompleto, cpf, rg, endereco }
-          } else {
-            delete dadosNormalizados.ucGeradoraTitular
-          }
-
-          dadosNormalizados.ucsBeneficiarias = Array.isArray(dados.ucsBeneficiarias)
-            ? dados.ucsBeneficiarias
-                .filter((item): item is PrintableUcBeneficiaria => Boolean(item && typeof item === 'object'))
-                .map((item) => ({
-                  numero: typeof item.numero === 'string' ? item.numero : '',
-                  endereco: typeof item.endereco === 'string' ? item.endereco : '',
-                  rateioPercentual:
-                    item.rateioPercentual != null && Number.isFinite(item.rateioPercentual)
-                      ? Number(item.rateioPercentual)
-                      : null,
-                }))
-            : []
-
-          const clienteIdArmazenado =
-            sanitizeClienteId(
-              registro.clienteId ??
-                registro.clienteID ??
-                (dadosNormalizados as unknown as { clienteId?: string }).clienteId ??
-                ((dadosNormalizados.cliente as unknown as { id?: string })?.id ?? ''),
-            )
-
-          const documentoRaw = registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? ''
-          const ucRaw = registro.clienteUc ?? dadosNormalizados.cliente.uc ?? ''
-
-          let clienteId = clienteIdArmazenado
-
-          if (!clienteId) {
-            const documentoDigits = normalizeNumbers(documentoRaw)
-            if (documentoDigits) {
-              clienteId = clienteIdPorDocumento.get(documentoDigits) ?? ''
-            }
-          }
-
-          if (!clienteId) {
-            const ucTexto = normalizeText(ucRaw)
-            if (ucTexto) {
-              clienteId = clienteIdPorUc.get(ucTexto) ?? ''
-            }
-          }
-
-          const id =
-            typeof registro.id === 'string' && registro.id
-              ? registro.id
-              : ensureProposalId(dadosNormalizados.budgetId)
-          const criadoEm =
-            typeof registro.criadoEm === 'string' && registro.criadoEm
-              ? registro.criadoEm
-              : new Date().toISOString()
-
-          const snapshotCandidate =
-            registro.snapshot ??
-            (registro as unknown as { propostaSnapshot?: unknown }).propostaSnapshot ??
-            (dados as unknown as { snapshot?: unknown }).snapshot
-
-          let snapshotNormalizado: OrcamentoSnapshotData | undefined
-          if (snapshotCandidate && typeof snapshotCandidate === 'object') {
-            try {
-              snapshotNormalizado = cloneSnapshotData(snapshotCandidate as OrcamentoSnapshotData)
-              if (snapshotNormalizado.currentBudgetId !== id) {
-                snapshotNormalizado.currentBudgetId = id
-              }
-              snapshotNormalizado.tusdTipoCliente = normalizeTusdTipoClienteValue(
-                snapshotNormalizado.tusdTipoCliente,
-              )
-              snapshotNormalizado.segmentoCliente = normalizeTipoBasico(
-                snapshotNormalizado.segmentoCliente,
-              )
-              snapshotNormalizado.vendaForm = {
-                ...snapshotNormalizado.vendaForm,
-                segmento_cliente: snapshotNormalizado.vendaForm.segmento_cliente
-                  ? normalizeTipoBasico(snapshotNormalizado.vendaForm.segmento_cliente)
-                  : undefined,
-                tusd_tipo_cliente: snapshotNormalizado.vendaForm.tusd_tipo_cliente
-                  ? normalizeTusdTipoClienteValue(snapshotNormalizado.vendaForm.tusd_tipo_cliente)
-                  : undefined,
-              }
-            } catch (error) {
-              console.warn('Não foi possível interpretar o snapshot do orçamento salvo.', error)
-              snapshotNormalizado = undefined
-            }
-          }
-
-          return {
-            id,
-            criadoEm,
-            ...(clienteId ? { clienteId } : {}),
-            clienteNome: dadosNormalizados.cliente.nome,
-            clienteCidade: dadosNormalizados.cliente.cidade,
-            clienteUf: dadosNormalizados.cliente.uf,
-            clienteDocumento: registro.clienteDocumento ?? dadosNormalizados.cliente.documento ?? '',
-            clienteUc: registro.clienteUc ?? dadosNormalizados.cliente.uc ?? '',
-            dados: dadosNormalizados,
-            ...(snapshotNormalizado != null ? { snapshot: snapshotNormalizado } : {}),
-          }
-        })
-      } catch (error) {
-        console.warn('Não foi possível interpretar os orçamentos salvos existentes.', error)
-        return []
-      }
-    },
-    [carregarClientesSalvos],
-  )
-
-  // Loads the local draft cache from localStorage. NOT the official source of truth.
-  // The backend (/api/proposals) is the source of truth per docs/PROPOSALS_SOURCE_OF_TRUTH.md.
-  const carregarOrcamentosSalvos = useCallback(
-    (): OrcamentoSalvo[] => {
-      if (typeof window === 'undefined') {
-        return []
-      }
-
-      const existenteRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-      return parseOrcamentosSalvos(existenteRaw)
-    },
-    [parseOrcamentosSalvos],
-  )
-
-  const carregarOrcamentosPrioritarios = useCallback(async (): Promise<OrcamentoSalvo[]> => {
-    if (typeof window === 'undefined') {
-      return []
-    }
-
-    // All authenticated users: try Neon DB first. PostgreSQL RLS enforces per-role
-    // access control (admin/financeiro → all; office → own + comercial; comercial → own).
-    try {
-      const allRegistros: OrcamentoSalvo[] = []
-      const proposalMapUpdates: Record<string, string> = {}
-      let page = 1
-      const limit = 100
-      const MAX_PAGES = 50 // safety cap: up to 5,000 records
-      for (;;) {
-        const result = await listProposalsFromApi({ page, limit })
-        allRegistros.push(
-          ...result.data.map((row) => {
-            const mapped = serverProposalToOrcamento(row)
-            if (mapped.id && row.id) {
-              proposalMapUpdates[mapped.id] = row.id
-            }
-            return mapped
-          }),
-        )
-        if (page >= result.pagination.pages || result.data.length === 0 || page >= MAX_PAGES) break
-        page++
-      }
-      if (Object.keys(proposalMapUpdates).length > 0) {
-        proposalServerIdMapRef.current = {
-          ...proposalServerIdMapRef.current,
-          ...proposalMapUpdates,
-        }
-        try {
-          window.localStorage.setItem(
-            PROPOSAL_SERVER_ID_MAP_STORAGE_KEY,
-            JSON.stringify(proposalServerIdMapRef.current),
-          )
-        } catch (error) {
-          console.warn('[proposals] Failed to persist proposal server-id map after API load:', error)
-        }
-      }
-      // Cache fresh Neon data in localStorage for offline fallback
-      try { window.localStorage.setItem(BUDGETS_STORAGE_KEY, JSON.stringify(allRegistros)) } catch {}
-      setProposalsSyncState('synced')
-      return allRegistros
-    } catch (error) {
-      setProposalsSyncState('local-only')
-      adicionarNotificacao('Propostas em modo local temporário: backend indisponível / sem sincronização com o banco.', 'error')
-      console.warn('[proposals] Falha ao carregar propostas via API; fallback para armazenamento local.', error)
-      // Fall through to storage-based loading
-    }
-
-    let remoto = undefined as string | null | undefined
-    try {
-      remoto = await fetchRemoteStorageEntry(BUDGETS_STORAGE_KEY, { timeoutMs: 4000 })
-    } catch (error) {
-      console.warn('Não foi possível carregar orçamentos do banco de dados.', error)
-    }
-
-    if (remoto !== undefined) {
-      if (remoto === null) {
-        const registrosLocais = carregarOrcamentosSalvos()
-        if (registrosLocais.length > 0) {
-          await persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(registrosLocais))
-          return registrosLocais
-        }
-        window.localStorage.removeItem(BUDGETS_STORAGE_KEY)
-        return []
-      }
-      window.localStorage.setItem(BUDGETS_STORAGE_KEY, remoto)
-      return parseOrcamentosSalvos(remoto)
-    }
-
-    try {
-      const oneDrivePayload = await loadPropostasFromOneDrive()
-      if (oneDrivePayload !== null && oneDrivePayload !== undefined) {
-        const raw =
-          typeof oneDrivePayload === 'string'
-            ? oneDrivePayload
-            : JSON.stringify(oneDrivePayload)
-        window.localStorage.setItem(BUDGETS_STORAGE_KEY, raw)
-        return parseOrcamentosSalvos(raw)
-      }
-    } catch (error) {
-      if (error instanceof OneDriveIntegrationMissingError) {
-        if (import.meta.env.DEV) console.debug('Leitura via OneDrive ignorada: integração não configurada.')
-      } else {
-        console.warn('Não foi possível carregar propostas via OneDrive.', error)
-      }
-    }
-
-    const fallbackRaw = window.localStorage.getItem(BUDGETS_STORAGE_KEY)
-    return parseOrcamentosSalvos(fallbackRaw)
-  }, [adicionarNotificacao, carregarOrcamentosSalvos, parseOrcamentosSalvos])
-
-  useEffect(() => {
-    // Only load proposals once the backend session is confirmed authenticated.
-    // Without this guard the effect fires before the token provider is registered,
-    // producing a noisy 401 on /api/proposals and an unnecessary fallback cascade.
-    if (meAuthState !== 'authenticated') return
-    let cancelado = false
-    const carregar = async () => {
-      if (cancelado) {
-        return
-      }
-      const registros = await carregarOrcamentosPrioritarios()
-      if (!cancelado) {
-        setOrcamentosSalvos(registros)
-      }
-    }
-    void carregar()
-    return () => {
-      cancelado = true
-    }
-  // authSyncKey increments when Stack Auth token becomes available, ensuring
-  // this effect re-runs on new devices where auth resolves after initial mount.
-
-  }, [carregarOrcamentosPrioritarios, authSyncKey, meAuthState])
-
-  // Auto-save debounced: prioriza persistência oficial no backend (/api/proposals).
-  // O rascunho local (IndexedDB) é usado somente quando estiver offline.
-  useEffect(() => {
-    // Skip auto-save during hydration to prevent overwriting draft with empty/partial state
-    if (isHydratingRef.current) {
-      return
-    }
-
-    const AUTO_SAVE_INTERVAL_MS = 5000
-
-    const scheduleAutoSave = () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      autoSaveTimeoutRef.current = setTimeout(async () => {
-        // Double-check hydration status before saving
-        const activeBudgetId = getActiveBudgetId()
-        if (isHydratingRef.current || !activeBudgetId) {
-          if (import.meta.env.DEV) console.debug('[App] Auto-save skipped: hydrating or missing budgetId')
-          return
-        }
-
-        try {
-          const snapshot = getCurrentSnapshot()
-          if (!snapshot || isHydratingRef.current) {
-            console.warn('[AutoSave] Snapshot indisponível durante hidratação.')
-            return
-          }
-
-          // Guard: Don't save empty snapshots that would corrupt the draft
-          const snapshotNome = (snapshot?.cliente?.nome ?? '').trim()
-          const snapshotEndereco = (snapshot?.cliente?.endereco ?? '').trim()
-          const snapshotKwh = Number(snapshot?.kcKwhMes ?? 0)
-
-          const isEmptySnapshot = !snapshotNome && !snapshotEndereco && snapshotKwh === 0
-
-          if (isEmptySnapshot) {
-            return
-          }
-
-          const online = isConnectivityOnline()
-
-          if (!online) {
-            await saveFormDraft(snapshot)
-            if (import.meta.env.DEV) {
-              console.debug('[App] Auto-saved form draft to IndexedDB (offline fallback)')
-            }
-            return
-          }
-
-          if (proposalServerAutoSaveInFlightRef.current) {
-            if (import.meta.env.DEV) console.debug('[App] Auto-save skipped: server request already in flight')
-            return
-          }
-
-          proposalServerAutoSaveInFlightRef.current = true
-          try {
-            const proposalType = activeTabRef.current === 'vendas' ? 'venda' : 'leasing'
-            const budgetId = activeBudgetId
-            const knownServerId = proposalServerIdMapRef.current[budgetId]
-            const proposalPayload = buildProposalUpsertPayload(snapshot)
-
-            const row = knownServerId
-              ? await updateProposal(knownServerId, proposalPayload)
-              : await createProposal({
-                  proposal_type: proposalType,
-                  proposal_code: budgetId,
-                  payload_json: proposalPayload.payload_json ?? {},
-                  ...(proposalPayload.client_name ? { client_name: proposalPayload.client_name } : {}),
-                  ...(proposalPayload.client_document ? { client_document: proposalPayload.client_document } : {}),
-                  ...(proposalPayload.client_city ? { client_city: proposalPayload.client_city } : {}),
-                  ...(proposalPayload.client_state ? { client_state: proposalPayload.client_state } : {}),
-                  ...(proposalPayload.client_phone ? { client_phone: proposalPayload.client_phone } : {}),
-                  ...(proposalPayload.client_email ? { client_email: proposalPayload.client_email } : {}),
-                  ...(proposalPayload.client_cep ? { client_cep: proposalPayload.client_cep } : {}),
-                  ...(typeof proposalPayload.consumption_kwh_month === 'number'
-                    ? { consumption_kwh_month: proposalPayload.consumption_kwh_month }
-                    : {}),
-                  ...(typeof proposalPayload.system_kwp === 'number' ? { system_kwp: proposalPayload.system_kwp } : {}),
-                  ...(typeof proposalPayload.term_months === 'number' ? { term_months: proposalPayload.term_months } : {}),
-                  ...(proposalPayload.uc_beneficiaria ? { uc_beneficiaria: proposalPayload.uc_beneficiaria } : {}),
-                } satisfies CreateProposalInput)
-
-            updateProposalServerIdMap(budgetId, row.id)
-            await clearFormDraft()
-            if (import.meta.env.DEV) {
-              console.debug('[App] Auto-saved proposal to server', {
-                budgetId,
-                proposalId: row.id,
-                mode: knownServerId ? 'update' : 'create',
-              })
-            }
-          } finally {
-            proposalServerAutoSaveInFlightRef.current = false
-          }
-        } catch (error) {
-          console.warn('[App] Auto-save failed:', error)
-          try {
-            const snapshotFallback = getCurrentSnapshot()
-            if (snapshotFallback && !isHydratingRef.current) {
-              await saveFormDraft(snapshotFallback)
-              if (import.meta.env.DEV) {
-                console.debug('[App] Auto-save fallback: form draft saved to IndexedDB after server failure')
-              }
-            }
-          } catch (fallbackError) {
-            console.warn('[App] Auto-save fallback failed:', fallbackError)
-          }
-        }
-      }, AUTO_SAVE_INTERVAL_MS)
-    }
-
-    // Agendar primeiro auto-save
-    scheduleAutoSave()
-
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-    }
-  }, [
-    cliente,
-    kcKwhMes,
-    tarifaCheia,
-    potenciaModulo,
-    numeroModulosManual,
-    activeTab,
-    ucsBeneficiarias,
-    budgetStructuredItems,
-    buildProposalUpsertPayload,
-    getActiveBudgetId,
-    getCurrentSnapshot,
-    updateProposalServerIdMap,
-  ])
-
   // Idle sync: reload clients and proposals from Neon every 2 minutes while online.
   // Keeps data fresh without requiring manual navigation and catches changes made
   // from other devices or sessions.
@@ -11938,6 +11207,7 @@ export default function App() {
       vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
     }
   }
+  aplicarSnapshotRef.current = aplicarSnapshot
   // Keep the hook's draft-apply ref in sync with the current function on every render.
   // This is safe in the render body (no side-effects) and ensures the async
   // IndexedDB loader in useStorageHydration always calls the latest closure.
@@ -11981,451 +11251,6 @@ export default function App() {
       setOriginalClientData,
     ],
   )
-
-  const carregarOrcamentoParaEdicao = useCallback(
-    async (registro: OrcamentoSalvo, options?: { notificationMessage?: string }) => {
-      // Try to load complete snapshot from proposalStore first
-      let snapshotToApply = registro.snapshot
-
-      if (registro.id) {
-        // Use normalized ID for consistent lookup
-        const budgetIdKey = normalizeProposalId(registro.id) || registro.id
-        if (import.meta.env.DEV) console.debug(`[carregarOrcamentoParaEdicao] Loading snapshot for budget: ${budgetIdKey}`)
-        const completeSnapshot = await loadProposalSnapshotById(budgetIdKey)
-
-        if (completeSnapshot) {
-          // Validate that loaded snapshot is meaningful
-          const nome = (completeSnapshot.cliente?.nome ?? '').trim()
-          const endereco = (completeSnapshot.cliente?.endereco ?? '').trim()
-          const documento = (completeSnapshot.cliente?.documento ?? '').trim()
-          const kc = Number(completeSnapshot.kcKwhMes ?? 0)
-          const isMeaningful = Boolean(nome || endereco || documento) || kc > 0
-
-          if (isMeaningful) {
-            if (import.meta.env.DEV) {
-              console.debug('[carregarOrcamentoParaEdicao] Using proposalStore snapshot', {
-                totalFields: Object.keys(completeSnapshot).length,
-              })
-            }
-            snapshotToApply = completeSnapshot as unknown as OrcamentoSnapshotData
-          } else {
-            if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] proposalStore snapshot empty, using fallback')
-          }
-        } else {
-          if (import.meta.env.DEV) console.debug('[carregarOrcamentoParaEdicao] snapshot not found, using fallback')
-        }
-      }
-
-      if (!snapshotToApply) {
-        window.alert(
-          'Este orçamento foi salvo sem histórico completo. Visualize o PDF ou salve novamente para gerar uma cópia editável.',
-        )
-        return
-      }
-
-      const targetBudgetId = normalizeProposalId(registro.id) || registro.id
-      isHydratingRef.current = true
-      setIsHydrating(true)
-      try {
-        switchBudgetId(targetBudgetId)
-        await tick()
-        aplicarSnapshot(snapshotToApply, { budgetIdOverride: targetBudgetId })
-        await tick()
-      } finally {
-        isHydratingRef.current = false
-        setIsHydrating(false)
-      }
-      setActivePage('app')
-      atualizarOrcamentoAtivo(registro)
-      adicionarNotificacao(
-        options?.notificationMessage ??
-          'Orçamento carregado para edição. Salve novamente para preservar as alterações.',
-        'info',
-      )
-    },
-    [adicionarNotificacao, aplicarSnapshot, atualizarOrcamentoAtivo, setActivePage],
-  )
-
-  const limparDadosModalidade = useCallback((tipo: PrintableProposalTipo) => {
-    fieldSyncActions.reset()
-    if (tipo === 'VENDA_DIRETA') {
-      vendaStore.reset()
-    } else {
-      leasingActions.reset()
-      // Re-sync prazoContratualMeses immediately after reset so the store
-      // never stays at 0 while leasingPrazo hasn't changed (effect wouldn't re-fire)
-      leasingActions.update({ prazoContratualMeses: leasingPrazo * 12 })
-    }
-  }, [leasingPrazo])
-
-  // Saves proposal data to local storage (localStorage + IndexedDB) as a local draft cache.
-  // ⚠️  This is NOT the backend persistence. It is a local draft cache only.
-  // The official source of truth is Neon via POST/PATCH /api/proposals.
-  // See docs/PROPOSALS_SOURCE_OF_TRUTH.md.
-  const salvarOrcamentoLocalmente = useCallback(
-    (dados: PrintableProposalProps): OrcamentoSalvo | null => {
-      if (typeof window === 'undefined') {
-        return null
-      }
-
-      const distribuidoraValidation = getDistribuidoraValidationMessage(
-        procuracaoUf || cliente.uf,
-        distribuidoraAneelEfetiva,
-      )
-      if (distribuidoraValidation) {
-        adicionarNotificacao(distribuidoraValidation, 'error')
-        return null
-      }
-
-      try {
-        const registrosExistentes = carregarOrcamentosSalvos()
-        const dadosClonados = clonePrintableData(dados)
-        const snapshotAtual = getCurrentSnapshot()
-        const activeBudgetId = getActiveBudgetId()
-        if (!snapshotAtual || isHydratingRef.current || !activeBudgetId) {
-          console.warn('[salvarOrcamentoLocalmente] blocked: hydrating or missing budgetId', {
-            hydrating: isHydratingRef.current,
-            budgetIdRef: budgetIdRef.current,
-            budgetIdState: currentBudgetId,
-          })
-          return null
-        }
-        const snapshotClonado = cloneSnapshotData(snapshotAtual)
-
-        // Log snapshot quality before saving
-        if (import.meta.env.DEV) {
-          console.debug('[salvarOrcamentoLocalmente] Snapshot from getCurrentSnapshot():', {
-            kcKwhMes: snapshotClonado.kcKwhMes ?? 0,
-            totalFields: Object.keys(snapshotClonado).length,
-          })
-        }
-
-        // Check if snapshot is meaningful
-        const nome = (snapshotClonado.cliente?.nome ?? '').trim()
-        const endereco = (snapshotClonado.cliente?.endereco ?? '').trim()
-        const documento = (snapshotClonado.cliente?.documento ?? '').trim()
-        const kc = Number(snapshotClonado.kcKwhMes ?? 0)
-        const hasCliente = Boolean(nome || endereco || documento)
-        const hasConsumption = kc > 0
-        const isSnapshotMeaningful = hasCliente || hasConsumption
-
-        if (!isSnapshotMeaningful) {
-          console.warn('[salvarOrcamentoLocalmente] Snapshot is empty - cannot save proposal without data')
-          window.alert('Proposta sem dados para salvar. Preencha os campos do cliente e/ou consumo.')
-          return null
-        }
-
-        const fingerprint = computeSnapshotSignature(snapshotClonado, dadosClonados)
-
-        const registroExistenteIndex = registrosExistentes.findIndex((registro) => {
-          if (registro.snapshot) {
-            return computeSnapshotSignature(registro.snapshot, registro.dados) === fingerprint
-          }
-          return createBudgetFingerprint(registro.dados) === fingerprint
-        })
-
-        if (registroExistenteIndex >= 0) {
-          const existente = registrosExistentes[registroExistenteIndex]
-          if (!existente) {
-            console.error('Orçamento salvo não encontrado para atualização.')
-            return null
-          }
-          const snapshotAtualizado = cloneSnapshotData(snapshotClonado)
-          snapshotAtualizado.currentBudgetId = existente.id
-          if (snapshotAtualizado.vendaSnapshot.codigos) {
-            snapshotAtualizado.vendaSnapshot.codigos = {
-              ...snapshotAtualizado.vendaSnapshot.codigos,
-              codigo_orcamento_interno: existente.id,
-            }
-          }
-          const clienteIdAtual = clienteEmEdicaoIdRef.current
-        const effectiveBudgetId = getActiveBudgetId()
-        snapshotAtualizado.currentBudgetId = effectiveBudgetId
-        const registroAtualizado: OrcamentoSalvo = {
-          ...existente,
-          ...(clienteIdAtual != null
-            ? { clienteId: clienteIdAtual }
-            : existente.clienteId != null
-              ? { clienteId: existente.clienteId }
-              : {}),
-          clienteNome: dados.cliente.nome,
-            clienteCidade: dados.cliente.cidade,
-            clienteUf: dados.cliente.uf,
-            clienteDocumento: dados.cliente.documento,
-            clienteUc: dados.cliente.uc,
-            dados: { ...dadosClonados, budgetId: existente.id },
-            snapshot: snapshotAtualizado,
-          }
-
-          const registrosAtualizados = [
-            registroAtualizado,
-            ...registrosExistentes.filter((_, index) => index !== registroExistenteIndex),
-          ]
-          const { persisted, droppedCount } = persistBudgetsToLocalStorage(registrosAtualizados)
-          setOrcamentosSalvos(persisted)
-          alertPrunedBudgets(droppedCount)
-          void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
-          void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
-            if (error instanceof OneDriveIntegrationMissingError) {
-              return
-            }
-            if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
-          })
-
-          // Save complete snapshot to proposalStore for full restoration
-          const budgetIdKey = normalizeProposalId(effectiveBudgetId) || effectiveBudgetId
-          if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (update):', budgetIdKey)
-          void saveProposalSnapshotById(budgetIdKey, snapshotAtualizado).catch((error) => {
-            console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
-          })
-
-          return persisted.find((registro) => registro.id === registroAtualizado.id) ?? registroAtualizado
-        }
-
-        const existingIds = new Set(registrosExistentes.map((registro) => registro.id))
-        const candidatoInformado = normalizeProposalId(dadosClonados.budgetId)
-        const novoId =
-          candidatoInformado && !existingIds.has(candidatoInformado)
-            ? candidatoInformado
-            : generateBudgetId(existingIds, dadosClonados.tipoProposta)
-        switchBudgetId(novoId)
-        const snapshotParaArmazenar = cloneSnapshotData(snapshotClonado)
-        snapshotParaArmazenar.currentBudgetId = novoId
-        if (snapshotParaArmazenar.vendaSnapshot.codigos) {
-          snapshotParaArmazenar.vendaSnapshot.codigos = {
-            ...snapshotParaArmazenar.vendaSnapshot.codigos,
-            codigo_orcamento_interno: novoId,
-          }
-        }
-
-        const clienteIdAtual = clienteEmEdicaoIdRef.current
-        const registro: OrcamentoSalvo = {
-          id: novoId,
-          criadoEm: new Date().toISOString(),
-          ...(clienteIdAtual != null ? { clienteId: clienteIdAtual } : {}),
-          clienteNome: dados.cliente.nome,
-          clienteCidade: dados.cliente.cidade,
-          clienteUf: dados.cliente.uf,
-          clienteDocumento: dados.cliente.documento,
-          clienteUc: dados.cliente.uc,
-          dados: { ...dadosClonados, budgetId: novoId },
-          snapshot: snapshotParaArmazenar,
-        }
-
-        existingIds.add(registro.id)
-        const registrosAtualizados = [registro, ...registrosExistentes]
-        const { persisted, droppedCount } = persistBudgetsToLocalStorage(registrosAtualizados)
-        setOrcamentosSalvos(persisted)
-        alertPrunedBudgets(droppedCount)
-        void persistRemoteStorageEntry(BUDGETS_STORAGE_KEY, JSON.stringify(persisted))
-        void persistPropostasToOneDrive(JSON.stringify(persisted)).catch((error) => {
-          if (error instanceof OneDriveIntegrationMissingError) {
-            return
-          }
-          if (import.meta.env.DEV) console.warn('Não foi possível sincronizar propostas com o OneDrive.', error)
-        })
-
-        // Save complete snapshot to proposalStore for full restoration
-        const budgetIdKey = normalizeProposalId(registro.id) || registro.id
-        if (import.meta.env.DEV) console.debug('[salvarOrcamentoLocalmente] Saving to proposalStore (new):', budgetIdKey)
-        void saveProposalSnapshotById(budgetIdKey, snapshotParaArmazenar).catch((error) => {
-          console.error('[proposalStore] ERROR saving snapshot for budget:', budgetIdKey, error)
-        })
-
-        return persisted.find((item) => item.id === registro.id) ?? registro
-      } catch (error) {
-        console.error('Erro ao salvar orçamento localmente.', error)
-        window.alert('Não foi possível salvar o orçamento. Tente novamente.')
-        return null
-      }
-    },
-    [carregarOrcamentosSalvos],
-  )
-
-  useEffect(() => {
-    computeSignatureRef.current = () => {
-      const snapshot = getCurrentSnapshot()
-      if (!snapshot) {
-        const dadosAtuais = clonePrintableData(printableData)
-        return stableStringify({ snapshot: null, dados: dadosAtuais })
-      }
-      const dadosAtuais = clonePrintableData(printableData)
-      return stableStringify({ snapshot, dados: dadosAtuais })
-    }
-  },
-  [validateClienteParaSalvar],
-  )
-
-  useEffect(() => {
-    if (initialSignatureSetRef.current) {
-      return
-    }
-
-    initialSignatureSetRef.current = true
-    lastSavedSignatureRef.current = computeSignatureRef.current()
-  })
-
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return
-    }
-
-    const handleUserInput = (event: Event) => {
-      const target = event.target as HTMLElement | null
-      if (target?.closest('[data-ignore-unsaved-warning]')) {
-        return
-      }
-
-      userInteractedSinceSaveRef.current = true
-    }
-
-    document.addEventListener('input', handleUserInput, true)
-    document.addEventListener('change', handleUserInput, true)
-
-    return () => {
-      document.removeEventListener('input', handleUserInput, true)
-      document.removeEventListener('change', handleUserInput, true)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isHydrating) {
-      return
-    }
-    if (import.meta.env.DEV) {
-      console.debug('[Hydration] DONE - cliente state updated')
-    }
-  }, [cliente?.cidade, cliente?.documento, cliente?.endereco, cliente?.nome, isHydrating])
-
-  const hasUnsavedChanges = useCallback(() => {
-    if (!userInteractedSinceSaveRef.current) {
-      return false
-    }
-
-    if (lastSavedSignatureRef.current == null) {
-      return initialSignatureSetRef.current
-    }
-
-    return computeSignatureRef.current() !== lastSavedSignatureRef.current
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      // Marca saída limpa da sessão — na próxima visita os stores iniciam com estado padrão.
-      // Se o browser crashar/tab for morta sem disparar beforeunload, 'session_active' permanece
-      // 'true' e os stores farão recuperação automática a partir do sessionStorage.
-      window.sessionStorage.removeItem('session_active')
-
-      // Emergency snapshot: save current form state to IndexedDB before the page
-      // unloads.  This is a synchronous-start / fire-and-forget write — the browser
-      // gives us a small window to initiate async work in beforeunload, and IndexedDB
-      // transactions started here will generally complete even if the page is torn down.
-      if (!isHydratingRef.current) {
-        try {
-          const snapshot = getCurrentSnapshot()
-          if (snapshot) {
-            const nome = (snapshot?.cliente?.nome ?? '').trim()
-            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
-            const kwh = Number(snapshot?.kcKwhMes ?? 0)
-            if (nome || endereco || kwh > 0) {
-              // Fire-and-forget — we can't await in beforeunload
-              void saveFormDraft(snapshot)
-            }
-          }
-        } catch {
-          // Best effort — don't block unload
-        }
-      }
-
-      if (!hasUnsavedChanges()) {
-        return
-      }
-
-      event.preventDefault()
-      event.returnValue = ''
-    }
-
-    // Save a snapshot when the page loses visibility (user switches tabs/apps).
-    // This covers scenarios where the browser might kill the tab in the background.
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && !isHydratingRef.current) {
-        try {
-          const snapshot = getCurrentSnapshot()
-          if (snapshot) {
-            const nome = (snapshot?.cliente?.nome ?? '').trim()
-            const endereco = (snapshot?.cliente?.endereco ?? '').trim()
-            const kwh = Number(snapshot?.kcKwhMes ?? 0)
-            if (nome || endereco || kwh > 0) {
-              void saveFormDraft(snapshot)
-            }
-          }
-        } catch {
-          // Best effort
-        }
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [hasUnsavedChanges, getCurrentSnapshot])
-
-  // Marca a sessão como ativa logo após o mount. Combinado com a remoção no beforeunload,
-  // permite que os stores detectem crashes (session_active === 'true' no próximo boot).
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('session_active', 'true')
-    }
-  }, [])
-
-  const removerOrcamentoSalvo = useCallback(
-    async (id: string) => {
-      if (typeof window === 'undefined') {
-        return
-      }
-
-      const serverId = proposalServerIdMapRef.current[id]
-      if (isConnectivityOnline() && serverId) {
-        setProposalsSyncState('pending')
-        try {
-          await deleteProposal(serverId)
-          setProposalsSyncState('synced')
-        } catch (error) {
-          console.error('Erro ao excluir orçamento no backend.', error)
-          setProposalsSyncState('failed')
-          window.alert('Não foi possível excluir o orçamento no servidor. Tente novamente.')
-          return
-        }
-      }
-
-      setOrcamentosSalvos((prevRegistros) => {
-        const registrosAtualizados = prevRegistros.filter((registro) => registro.id !== id)
-
-        try {
-          const { persisted } = persistBudgetsToLocalStorage(registrosAtualizados)
-          return persisted
-        } catch (error) {
-          console.error('Erro ao atualizar os orçamentos salvos.', error)
-          window.alert('Não foi possível atualizar os orçamentos salvos. Tente novamente.')
-          return prevRegistros
-        }
-      })
-
-      removeProposalServerIdMapEntry(id)
-    },
-    [removeProposalServerIdMapEntry, setOrcamentosSalvos],
-  )
-
-  const handleAbrirUploadImagens = useCallback(() => {
-    imagensUploadInputRef.current?.click()
-  }, [])
 
   const handleImagensSelecionadas = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -14265,16 +13090,6 @@ export default function App() {
 
     return canProceed
   }, [carregarClientesPrioritarios, carregarClientesSalvos, clientIsDirty, clientLastSaveStatus, isAdmin, isFinanceiro, isOffice, runWithUnsavedChangesGuard, setActivePage, hydrateClienteRegistroFromStore])
-
-  const abrirPesquisaOrcamentos = useCallback(async () => {
-    const canProceed = await runWithUnsavedChangesGuard(async () => {
-      const registros = await carregarOrcamentosPrioritarios()
-      setOrcamentosSalvos(registros)
-      setActivePage('consultar')
-    })
-
-    return canProceed
-  }, [carregarOrcamentosPrioritarios, runWithUnsavedChangesGuard, setActivePage])
 
   const abrirConfiguracoes = useCallback(
     async (tab?: SettingsTabKey) => {
