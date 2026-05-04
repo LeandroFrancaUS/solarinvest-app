@@ -7,7 +7,6 @@ import {
 import { CheckboxSmall } from './components/CheckboxSmall'
 import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
-import { createRoot } from 'react-dom/client'
 
 import {
   selectCreditoMensal,
@@ -47,8 +46,13 @@ import {
   isProposalPdfIntegrationAvailable,
   ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
-import { shouldUseBentoGrid } from './utils/pdfVariant'
-import { renderBentoLeasingToHtml, buildBentoLeasingPdfDocument } from './utils/renderBentoLeasing'
+import {
+  renderPrintableProposalToHtml,
+  sanitizePrintableHtml,
+  buildProposalPdfDocument,
+  renderPrintableBuyoutTableToHtml,
+  type PrintVariant,
+} from './lib/pdf/printRenderers'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -255,7 +259,6 @@ import {
   TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
-import type { PrintableBuyoutTableProps } from './components/print/PrintableBuyoutTable'
 import {
   currency,
   formatAxis,
@@ -427,7 +430,6 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
-const PrintableBuyoutTable = React.lazy(() => import('./components/print/PrintableBuyoutTable'))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
 const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
@@ -2997,8 +2999,6 @@ type ClienteContratoPayload = {
 
 type PrintMode = 'preview' | 'print' | 'download'
 
-type PrintVariant = 'standard' | 'simple' | 'buyout'
-
 type PreviewActionRequest = { action: 'print' | 'download' }
 
 type PreviewActionResponse = {
@@ -3027,253 +3027,6 @@ type BudgetPreviewOptions = {
   initialVariant?: PrintVariant | undefined
   /** Pre-opened Window reference. When provided, skips window.open() so Safari popup policy is respected. */
   preOpenedWindow?: Window | null | undefined
-}
-
-function renderPrintableProposalToHtml(
-  dados: PrintableProposalProps,
-  userBentoPreference?: boolean
-): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  // Use Bento Grid for leasing proposals when user preference is enabled
-  if (shouldUseBentoGrid(dados, userBentoPreference)) {
-    return renderBentoLeasingToHtml(dados)
-  }
-
-  // Legacy rendering for other proposal types
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-
-    const cleanup = (root: ReturnType<typeof createRoot> | null) => {
-      if (root) {
-        root.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-      const localRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 8
-
-        const chartIsReady = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-          const chartWrapper = containerEl.querySelector('.recharts-wrapper')
-          if (!chartWrapper) {
-            return true
-          }
-          const chartSvg = chartWrapper.querySelector('svg')
-          if (!chartSvg) {
-            return false
-          }
-          return chartSvg.childNodes.length > 0
-        }
-
-        const attemptCapture = (root: ReturnType<typeof createRoot> | null) => {
-          if (resolved) {
-            return
-          }
-
-          const containerEl = wrapperRef.current
-
-          if (containerEl && chartIsReady(containerEl)) {
-            resolved = true
-            resolve(containerEl.outerHTML)
-            cleanup(root)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            resolved = true
-            resolve(containerEl ? containerEl.outerHTML : null)
-            cleanup(root)
-            return
-          }
-
-          const timeoutId = window.setTimeout(() => attemptCapture(root), 160)
-          timeouts.push(timeoutId)
-        }
-
-        const triggerResize = () => {
-          window.dispatchEvent(new Event('resize'))
-        }
-
-        const resizeTimeout = window.setTimeout(triggerResize, 120)
-        timeouts.push(resizeTimeout)
-
-        // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        const initialTimeout = window.setTimeout(() => attemptCapture(rootInstance), 220)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="standard">
-          <React.Suspense fallback={null}>
-            <PrintableProposal ref={localRef} {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    const rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
-}
-
-function sanitizePrintableHtml(html: string | null): string | null {
-  if (typeof html !== 'string') {
-    return html
-  }
-
-  return html.replace(/html\s*coding/gi, '').trim()
-}
-
-const buildProposalPdfDocument = (layoutHtml: string, nomeCliente: string, variant: PrintVariant = 'standard') => {
-  const safeCliente = nomeCliente?.trim() || 'SolarInvest'
-  const safeHtml = layoutHtml || ''
-
-  // Check if this is Bento Grid HTML (contains the marker)
-  if (safeHtml.includes('data-testid="proposal-bento-root"')) {
-    // Use Bento Grid document wrapper
-    return buildBentoLeasingPdfDocument(safeHtml, safeCliente)
-  }
-
-  // Legacy PDF document structure
-  return `<!DOCTYPE html>
-<html data-print-mode="download" data-print-variant="${variant}">
-  <head>
-    <meta charset="utf-8" />
-    <title>Proposta-${safeCliente}</title>
-    <style>
-      ${printStyles}
-      ${simplePrintStyles}
-      body{margin:0;background:#f8fafc;}
-      .preview-container{max-width:calc(210mm - 32mm);width:100%;margin:0 auto;padding:24px 0 40px;}
-    </style>
-  </head>
-  <body data-print-mode="download" data-print-variant="${variant}">
-    <div class="preview-container">${safeHtml}</div>
-  </body>
-</html>`
-}
-
-function renderPrintableBuyoutTableToHtml(dados: PrintableBuyoutTableProps): Promise<string | null> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  return new Promise((resolve) => {
-    const container = document.createElement('div')
-    container.style.position = 'fixed'
-    container.style.top = '-9999px'
-    container.style.left = '-9999px'
-    container.style.width = '672px'
-    container.style.padding = '0'
-    container.style.background = '#f8fafc'
-    container.style.zIndex = '-1'
-    document.body.appendChild(container)
-
-    let resolved = false
-    let rootInstance: ReturnType<typeof createRoot> | null = null
-
-    const cleanup = () => {
-      if (rootInstance) {
-        rootInstance.unmount()
-      }
-      if (container.parentElement) {
-        container.parentElement.removeChild(container)
-      }
-    }
-
-    const finalize = (html: string | null) => {
-      if (resolved) {
-        return
-      }
-      resolved = true
-      resolve(html)
-      cleanup()
-    }
-
-    const PrintableHost: React.FC = () => {
-      const wrapperRef = useRef<HTMLDivElement>(null)
-
-      useEffect(() => {
-        const timeouts: number[] = []
-        let attempts = 0
-        const maxAttempts = 12
-
-        const hasBuyoutContent = (containerEl: HTMLDivElement | null) => {
-          if (!containerEl) {
-            return false
-          }
-
-          return Boolean(containerEl.querySelector('[data-print-section="buyout"] .print-page'))
-        }
-
-        const attemptCapture = () => {
-          const containerEl = wrapperRef.current
-          if (hasBuyoutContent(containerEl)) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          attempts += 1
-          if (attempts >= maxAttempts) {
-            finalize(containerEl?.outerHTML ?? null)
-            return
-          }
-
-          const timeoutId = window.setTimeout(attemptCapture, 120)
-          timeouts.push(timeoutId)
-        }
-
-        const initialTimeout = window.setTimeout(attemptCapture, 200)
-        timeouts.push(initialTimeout)
-
-        return () => {
-          timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
-          const html = wrapperRef.current ? wrapperRef.current.outerHTML : null
-          finalize(html)
-        }
-      }, [])
-
-      return (
-        <div ref={wrapperRef} data-print-mode="download" data-print-variant="buyout">
-          <React.Suspense fallback={null}>
-            <PrintableBuyoutTable {...dados} />
-          </React.Suspense>
-        </div>
-      )
-    }
-
-    rootInstance = createRoot(container)
-    rootInstance.render(<PrintableHost />)
-  })
 }
 
 export default function App() {
