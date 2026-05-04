@@ -34,7 +34,7 @@ import { requireStackPermission } from './auth/stackPermissions.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
-import { handleAuthMeRequest } from './routes/authMe.js'
+import { registerAuthRoutes } from './routes/auth.js'
 import {
   handleAdminUsersListRequest,
   handleAdminUserApprove,
@@ -59,12 +59,9 @@ import {
   handleBulkImportPreview,
   handleBulkImport,
 } from './clients/bulkImport.js'
-import { getAuthorizationSnapshot } from './auth/authorizationSnapshot.js'
 import {
-  handleAuthReconcileAll,
   handleAuthReconcileUser,
 } from './routes/authReconcile.js'
-import { handleRbacInspectRequest } from './routes/rbacInspect.js'
 import {
   handleConsultantsListRequest,
   handleConsultantsCreateRequest,
@@ -396,6 +393,13 @@ registerStorageRoutes(router, {
   sendNoContent,
   readJsonBody,
 })
+registerAuthRoutes(router, {
+  sendJson,
+  sendNoContent,
+  expireAuthCookie,
+  isAuthRateLimited,
+  isAdminRateLimited,
+})
 
 // ✅ ESTE É O HANDLER serverless
 export default async function handler(req, res) {
@@ -542,42 +546,9 @@ export default async function handler(req, res) {
     }
 
     // /api/storage is now handled by the route registry above (registerStorageRoutes).
-
-    // Auth & Admin routes — apply rate limiting
-    if (pathname === '/api/auth/me') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      await handleAuthMeRequest(req, res, { sendJson, requestUrl })
-      return
-    }
-
-    // GET /api/authz/me — full authorization snapshot (role, capabilities, permissions)
-    if (pathname === '/api/authz/me') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      try {
-        const snapshot = await getAuthorizationSnapshot(req)
-        if (!snapshot) {
-          sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
-          return
-        }
-        sendJson(res, 200, { ok: true, data: snapshot })
-      } catch (err) {
-        console.error('[authz/me] error:', err)
-        sendJson(res, 500, { ok: false, error: 'Falha ao carregar snapshot de autorização.' })
-      }
-      return
-    }
-
-    if (pathname === '/api/auth/logout') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      expireAuthCookie(req, res)
-      sendNoContent(res)
-      return
-    }
+    // Auth routes (/api/auth/me, /api/authz/me, /api/auth/logout,
+    //   /api/internal/auth/reconcile, /api/internal/rbac/inspect) are now handled
+    //   by the route registry above (registerAuthRoutes).
 
     if (pathname === '/api/admin/users') {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
@@ -642,26 +613,8 @@ export default async function handler(req, res) {
     }
 
     // ── Internal auth management ──────────────────────────────────────────────
-    // POST /api/internal/auth/reconcile         — reconcile all users
     // POST /api/internal/auth/reconcile/:userId — reconcile a single user
-    if (pathname === '/api/internal/auth/reconcile') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      await handleAuthReconcileAll(req, res, { sendJson })
-      return
-    }
-
-    // ── Internal RBAC diagnostics ───────────────────────────────────────────
-    // GET /api/internal/rbac/inspect?emails=a@x.com,b@y.com
-    if (pathname === '/api/internal/rbac/inspect') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      await handleRbacInspectRequest(req, res, { sendJson, requestUrl })
-      return
-    }
-
+    // (The /api/internal/auth/reconcile all-users route is handled by registerAuthRoutes above.)
     const reconcileUserMatch = pathname.match(/^\/api\/internal\/auth\/reconcile\/([^/]+)$/)
     if (reconcileUserMatch) {
       if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
