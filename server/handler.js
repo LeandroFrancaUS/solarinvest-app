@@ -6,50 +6,24 @@ import crypto from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { URL } from 'node:url'
 
-import { handleAneelProxyRequest, DEFAULT_PROXY_BASE } from './aneelProxy.js'
 import {
-  CONTRACT_RENDER_PATH,
-  CONTRACT_TEMPLATES_PATH,
-  handleContractRenderRequest,
-  handleContractTemplatesRequest,
-  isConvertApiConfigured,
-  isGotenbergConfigured,
-} from './contracts.js'
-import {
-  LEASING_CONTRACTS_PATH,
-  LEASING_CONTRACTS_AVAILABILITY_PATH,
-  LEASING_CONTRACTS_SMOKE_PATH,
-  handleLeasingContractsRequest,
-  handleLeasingContractsAvailabilityRequest,
-  handleLeasingContractsSmokeRequest,
-} from './leasingContracts.js'
-import {
-  getStackUser,
   getTrustedOrigins,
   isStackAuthEnabled,
-  sanitizeStackUserId,
 } from './auth/stackAuth.js'
-import { resolveActor, actorRole } from './proposals/permissions.js'
-import { requireStackPermission } from './auth/stackPermissions.js'
+import { actorRole } from './proposals/permissions.js'
 import { getNeonDatabaseConfig } from './database/neonConfig.js'
 import { getDatabaseClient } from './database/neonClient.js'
 import { StorageService } from './database/storageService.js'
+import { isConvertApiConfigured, isGotenbergConfigured } from './contracts.js'
 import { registerAuthRoutes } from './routes/auth.js'
-import {
-  handleAdminUsersListRequest,
-  handleAdminUserApprove,
-  handleAdminUserBlock,
-  handleAdminUserRevoke,
-  handleAdminUserRole,
-  handleAdminUserGrantPermission,
-  handleAdminUserRevokePermission,
-  handleAdminUserDelete,
-  handleAdminUserCreate,
-} from './routes/adminUsers.js'
+import { registerAdminUsersRoutes } from './routes/adminUsers.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 import { createRouter } from './router.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerStorageRoutes } from './routes/storage.js'
+import { registerAneelRoutes } from './routes/aneel.js'
+import { registerContractsRoutes } from './routes/contracts.js'
+import { registerDbInfoRoutes } from './routes/dbInfo.js'
 import { registerClientsRoutes } from './routes/clients.js'
 import { registerProposalsRoutes } from './routes/proposals.js'
 import { registerPortfolioRoutes } from './routes/portfolio.js'
@@ -91,7 +65,6 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 }
 
-const TEST_API_PATH = '/api/test'
 const MAX_JSON_BODY_BYTES = 5 * 1024 * 1024
 const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
 const CORS_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS'
@@ -301,6 +274,13 @@ registerHealthRoutes(router, {
   stackAuthEnabled,
   sendJson,
   sendServerError,
+  isConvertApiConfigured,
+  isGotenbergConfigured,
+  contractTemplatePath: path.join(
+    process.cwd(),
+    'public/templates/contratos/leasing/CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
+  ),
+  checkFileExists: access,
 })
 registerStorageRoutes(router, {
   storageService,
@@ -316,6 +296,12 @@ registerAuthRoutes(router, {
   isAuthRateLimited,
   isAdminRateLimited,
 })
+registerAdminUsersRoutes(router, {
+  readJsonBody,
+  isAdminRateLimited,
+  sendJson,
+  sendNoContent,
+})
 registerDatabaseBackupRoutes(router, {
   sendJson,
   sendNoContent,
@@ -324,6 +310,9 @@ registerDatabaseBackupRoutes(router, {
 })
 registerPurgeDeletedClientsRoute(router)
 registerPurgeOldProposalsRoute(router)
+registerAneelRoutes(router, {})
+registerContractsRoutes(router, { stackAuthEnabled })
+registerDbInfoRoutes(router, { databaseClient, databaseConfig })
 registerPersonnelImportRoutes(router, { getScopedSql: createHandlerScopedSql })
 registerConsultantsRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 registerEngineersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
@@ -363,199 +352,6 @@ export default async function handler(req, res) {
       await routerFn(req, res, { requestId, vercelId })
       return
     }
-
-    if (pathname === '/api/db-info') {
-      // DB diagnostics endpoint — requires admin role.
-      // Returns masked host, db name, schema, current_user, pooled/unpooled indicator.
-      const actor = await resolveActor(req)
-      if (!actor) { sendJson(res, 401, { error: 'Autenticação necessária.' }); return }
-      if (actorRole(actor) !== 'role_admin') { sendJson(res, 403, { error: 'Requer perfil admin.' }); return }
-      if (!databaseClient?.sql) {
-        sendJson(res, 503, { ok: false, error: 'DB_NOT_CONFIGURED' })
-        return
-      }
-      try {
-        const rows = await databaseClient.sql`
-          SELECT
-            current_database() AS db_name,
-            current_schema()   AS db_schema,
-            current_user       AS db_user
-        `
-        const row = rows[0] ?? {}
-        const connStr = databaseConfig.connectionString ?? ''
-        // Mask credentials: keep only host/path, hide password
-        let maskedHost = null
-        try {
-          const u = new URL(connStr)
-          maskedHost = u.hostname + (u.port ? ':' + u.port : '') + u.pathname
-        } catch { /* ignore */ }
-        const isPooled =
-          typeof connStr === 'string' && !connStr.includes('unpooled')
-            ? !connStr.includes('-direct')
-            : connStr.includes('unpooled') ? false : null
-        sendJson(res, 200, {
-          ok: true,
-          db_name: row.db_name ?? null,
-          db_schema: row.db_schema ?? null,
-          db_user: row.db_user ?? null,
-          host: maskedHost,
-          pooled: isPooled,
-          source: databaseConfig.source ?? null,
-        })
-      } catch (err) {
-        console.error('[db-info] query failed', err?.message)
-        sendJson(res, 500, { ok: false, error: err?.message ?? 'DB_QUERY_FAILED' })
-      }
-      return
-    }
-
-    if (pathname === '/api/health/pdf') {
-      const convertapiConfigured = isConvertApiConfigured()
-      const gotenbergConfigured = isGotenbergConfigured()
-      sendJson(res, 200, { ok: convertapiConfigured || gotenbergConfigured, convertapiConfigured, gotenbergConfigured })
-      return
-    }
-
-    if (pathname === '/api/health/contracts') {
-      const templatePath = path.join(
-        process.cwd(),
-        'public/templates/contratos/leasing/CONTRATO DE LEASING OPERACIONAL DE SISTEMA FOTOVOLTAICO.dotx',
-      )
-      let templateExists = false
-      try { await access(templatePath); templateExists = true } catch { templateExists = false }
-      sendJson(res, 200, {
-        ok: templateExists,
-        templateExists,
-        convertapiConfigured: isConvertApiConfigured(),
-        gotenbergConfigured: isGotenbergConfigured(),
-        node: process.version,
-      })
-      return
-    }
-
-
-
-    if (pathname === DEFAULT_PROXY_BASE) {
-      await handleAneelProxyRequest(req, res)
-      return
-    }
-    if (pathname === LEASING_CONTRACTS_AVAILABILITY_PATH) {
-      await handleLeasingContractsAvailabilityRequest(req, res)
-      return
-    }
-
-    if (pathname === LEASING_CONTRACTS_SMOKE_PATH) {
-      await handleLeasingContractsSmokeRequest(req, res)
-      return
-    }
-
-    if (pathname === LEASING_CONTRACTS_PATH) {
-      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
-      await handleLeasingContractsRequest(req, res)
-      return
-    }
-
-    if (pathname === CONTRACT_RENDER_PATH) {
-      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
-      await handleContractRenderRequest(req, res)
-      return
-    }
-
-    if (pathname === CONTRACT_TEMPLATES_PATH) {
-      if (stackAuthEnabled) await requireStackPermission(req, 'page:financial_analysis')
-      await handleContractTemplatesRequest(req, res)
-      return
-    }
-
-    if (pathname === TEST_API_PATH) {
-      if (!databaseClient || !databaseConfig.connectionString) {
-        sendJson(res, 503, { error: 'Persistência indisponível' })
-        return
-      }
-      const result = await databaseClient.sql`SELECT NOW() AS current_time`
-      const row = Array.isArray(result) && result.length > 0 ? result[0] : null
-      const nowValue = row?.current_time ?? row?.now ?? null
-      const serialized =
-        nowValue && typeof nowValue.toISOString === 'function'
-          ? nowValue.toISOString()
-          : nowValue
-      sendJson(res, 200, { now: serialized })
-      return
-    }
-
-    // /api/storage is now handled by the route registry above (registerStorageRoutes).
-    // Auth routes (/api/auth/me, /api/authz/me, /api/auth/logout,
-    //   /api/internal/auth/reconcile, /api/internal/auth/reconcile/:userId,
-    //   /api/internal/rbac/inspect) are now handled by registerAuthRoutes above.
-    // Cron routes (/api/internal/purge-deleted-clients, /api/internal/purge-old-proposals)
-    //   are now handled by registerPurgeDeletedClientsRoute / registerPurgeOldProposalsRoute above.
-    // Personnel import routes (/api/personnel/importable-users, /api/personnel/importable-clients)
-    //   are now handled by registerPersonnelImportRoutes above.
-    // Consultants, engineers, and installers routes are now handled by their respective
-    //   registerXRoutes above.
-
-    if (pathname === '/api/admin/users') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      if (method === 'GET') {
-        await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
-      } else if (method === 'POST') {
-        if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-        const body = await readJsonBody(req)
-        await handleAdminUserCreate(req, res, { sendJson, body })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
-    // /api/admin/users/:id/approve|block|revoke|role
-    const adminUserActionMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/(approve|block|revoke|role)$/)
-    if (adminUserActionMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      const userId = adminUserActionMatch[1]
-      const action = adminUserActionMatch[2]
-      const body = await readJsonBody(req)
-      const ctx = { sendJson, userId, body }
-      if (action === 'approve') await handleAdminUserApprove(req, res, ctx)
-      else if (action === 'block') await handleAdminUserBlock(req, res, ctx)
-      else if (action === 'revoke') await handleAdminUserRevoke(req, res, ctx)
-      else if (action === 'role') await handleAdminUserRole(req, res, ctx)
-      return
-    }
-
-    // DELETE /api/admin/users/:id  — permanent deletion
-    const adminUserDeleteMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/)
-    if (adminUserDeleteMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'DELETE,OPTIONS'); sendNoContent(res); return }
-      if (method !== 'DELETE') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-      const userId = adminUserDeleteMatch[1]
-      await handleAdminUserDelete(req, res, { sendJson, userId })
-      return
-    }
-
-    // /api/admin/users/:id/permissions/:perm  — grant (POST) / revoke (DELETE)
-    const adminUserPermMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions\/([^/]+)$/)
-    if (adminUserPermMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
-      if ((method === 'POST' || method === 'DELETE') && isAdminRateLimited(req)) {
-        sendJson(res, 429, { error: 'Too many requests. Try again later.' })
-        return
-      }
-      const userId = adminUserPermMatch[1]
-      const permId = decodeURIComponent(adminUserPermMatch[2])
-      if (method === 'POST') {
-        await handleAdminUserGrantPermission(req, res, { sendJson, userId, permId })
-      } else if (method === 'DELETE') {
-        await handleAdminUserRevokePermission(req, res, { sendJson, userId, permId })
-      } else {
-        sendJson(res, 405, { error: 'Método não suportado.' })
-      }
-      return
-    }
-
 
     if (method === 'OPTIONS') {
       res.setHeader('Allow', CORS_ALLOWED_METHODS)

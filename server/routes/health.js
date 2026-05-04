@@ -2,8 +2,9 @@
 // Health-check route handlers.
 //
 // These handlers were extracted from the inline if-chain in handler.js as part
-// of the route registry foundation (PR 12).  Response shapes and status codes
-// are intentionally identical to the originals.
+// of the route registry foundation (PR 12).  /api/health/pdf,
+// /api/health/contracts, and /api/test were added in PR 22.
+// Response shapes and status codes are intentionally identical to the originals.
 
 import { getNeonDatabaseConfig } from '../database/neonConfig.js'
 import { jsonResponse } from '../response.js'
@@ -13,11 +14,15 @@ import { jsonResponse } from '../response.js'
  *
  * @param {ReturnType<import('../router.js').createRouter>} router
  * @param {{
- *   databaseClient:   { sql: Function } | null,
- *   databaseConfig:   { connectionString?: string },
- *   storageService:   object | null,
- *   stackAuthEnabled: boolean,
- *   sendServerError:  (res: object, status: number, payload: object, requestId?: string, vercelId?: string) => void,
+ *   databaseClient:        { sql: Function } | null,
+ *   databaseConfig:        { connectionString?: string },
+ *   storageService:        object | null,
+ *   stackAuthEnabled:      boolean,
+ *   sendServerError:       (res: object, status: number, payload: object, requestId?: string, vercelId?: string) => void,
+ *   isConvertApiConfigured?:  () => boolean,
+ *   isGotenbergConfigured?:   () => boolean,
+ *   contractTemplatePath?:    string,
+ *   checkFileExists?:         (p: string) => Promise<void>,
  * }} moduleCtx
  */
 export function registerHealthRoutes(router, moduleCtx) {
@@ -27,6 +32,10 @@ export function registerHealthRoutes(router, moduleCtx) {
     storageService,
     stackAuthEnabled,
     sendServerError,
+    isConvertApiConfigured = () => false,
+    isGotenbergConfigured = () => false,
+    contractTemplatePath = null,
+    checkFileExists = null,
   } = moduleCtx
 
   // ── /health  and  /api/health ──────────────────────────────────────────────
@@ -166,5 +175,54 @@ export function registerHealthRoutes(router, moduleCtx) {
         latencyMs: Date.now() - startTime,
       })
     }
+  })
+
+  // ── /api/health/pdf ────────────────────────────────────────────────────────
+  // Reports whether ConvertAPI / Gotenberg PDF converters are configured.
+
+  router.register('*', '/api/health/pdf', (_req, res, _reqCtx) => {
+    const convertapiConfigured = isConvertApiConfigured()
+    const gotenbergConfigured = isGotenbergConfigured()
+    jsonResponse(res, 200, {
+      ok: convertapiConfigured || gotenbergConfigured,
+      convertapiConfigured,
+      gotenbergConfigured,
+    })
+  })
+
+  // ── /api/health/contracts ──────────────────────────────────────────────────
+  // Checks whether the leasing contract template file exists on disk and which
+  // PDF converters are available.
+
+  router.register('*', '/api/health/contracts', async (_req, res, _reqCtx) => {
+    let templateExists = false
+    if (contractTemplatePath && checkFileExists) {
+      try { await checkFileExists(contractTemplatePath); templateExists = true } catch { templateExists = false }
+    }
+    jsonResponse(res, 200, {
+      ok: templateExists,
+      templateExists,
+      convertapiConfigured: isConvertApiConfigured(),
+      gotenbergConfigured: isGotenbergConfigured(),
+      node: process.version,
+    })
+  })
+
+  // ── /api/test ─────────────────────────────────────────────────────────────
+  // Lightweight DB connectivity probe — returns the current server timestamp.
+
+  router.register('*', '/api/test', async (_req, res, _reqCtx) => {
+    if (!databaseClient || !databaseConfig.connectionString) {
+      jsonResponse(res, 503, { error: 'Persistência indisponível' })
+      return
+    }
+    const result = await databaseClient.sql`SELECT NOW() AS current_time`
+    const row = Array.isArray(result) && result.length > 0 ? result[0] : null
+    const nowValue = row?.current_time ?? row?.now ?? null
+    const serialized =
+      nowValue && typeof nowValue.toISOString === 'function'
+        ? nowValue.toISOString()
+        : nowValue
+    jsonResponse(res, 200, { now: serialized })
   })
 }
