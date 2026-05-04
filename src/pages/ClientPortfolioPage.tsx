@@ -791,7 +791,7 @@ function ClientCard({
 
   // WiFi / monitoring badge
   const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
-  const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
+  const wifiBadge = (wifiStatus ? WIFI_BADGE_MAP[wifiStatus] : undefined) ?? WIFI_BADGE_DEFAULT
 
   const rawPhone = client.phone ?? ''
   const formattedPhone = rawPhone ? formatTelefone(rawPhone) : null
@@ -985,7 +985,7 @@ function DetailTabBar({ activeTab, onChange, showPlano, showFaturas, cobrancaEna
       id: 'cobranca',
       label: '💰 Cobrança',
       disabled: !cobrancaEnabled,
-      title: cobrancaEnabled ? undefined : (cobrancaDisabledReason ?? 'Indisponível'),
+      ...(cobrancaEnabled ? {} : { title: cobrancaDisabledReason ?? 'Indisponível' }),
     },
     { id: 'faturas', label: '🧾 Faturas', hidden: !showFaturas, title: 'Faturas sob titularidade da SolarInvest' },
     { id: 'notas', label: '📝 Notas' },
@@ -1095,7 +1095,7 @@ function EditarTab({
         email: form.client_email || client.email,
         city: form.client_city || client.city,
         state: form.client_state || client.state,
-        address: form.client_address || client.address,
+        address: form.client_address || client.address || null,
         distribuidora: form.distribuidora || client.distribuidora,
         uc: form.uc_geradora || client.uc,
         uc_beneficiaria: beneficiaryUCs[0] ?? null,
@@ -1465,13 +1465,13 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
         <div style={{ display: 'grid', gap: 10 }}>
           <label className="pf-label" style={labelSty}>
             Tipo de Contrato
-            <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value as ContractType }))} disabled={!editMode} style={inputStyle}>
               {Object.entries(CONTRACT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
           <label className="pf-label" style={labelSty}>
             Status do Contrato
-            <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value as ContractStatus }))} disabled={!editMode} style={inputStyle}>
               <option value="draft">Rascunho</option>
               <option value="active">Ativo</option>
               <option value="signed">Assinado</option>
@@ -2169,7 +2169,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // "Último Vencimento Previsto" = due date of the last generated installment
   const ultimoVencimentoPrevisto = useMemo(() => {
     if (installments.length === 0) return null
-    return installments[installments.length - 1].data_vencimento
+    return installments[installments.length - 1]!.data_vencimento
   }, [installments])
 
   // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
@@ -2796,7 +2796,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
+    wifi_status: (client.wifi_status ?? (client.metadata?.wifi_status as PortfolioClientRow['wifi_status'])) ?? '',
   })
 
   const resetUfData = () => setUfData({
@@ -2809,7 +2809,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
+    wifi_status: (client.wifi_status ?? (client.metadata?.wifi_status as PortfolioClientRow['wifi_status'])) ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
@@ -2882,7 +2882,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} installationStatus={client.installation_status} />
+      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} {...(client.installation_status !== undefined ? { installationStatus: client.installation_status } : {})} />
     </div>
   )
 }
@@ -3140,8 +3140,9 @@ function AddClientModal({
 
   const distribuidorasData = useMemo(() => getDistribuidorasFallback(), [])
   const distribuidorasList = useMemo(() => {
-    if (form.state && distribuidorasData.distribuidorasPorUf[form.state]) {
-      return distribuidorasData.distribuidorasPorUf[form.state]
+    const porUf = form.state ? distribuidorasData.distribuidorasPorUf[form.state] : undefined
+    if (porUf) {
+      return porUf
     }
     const all = Object.values(distribuidorasData.distribuidorasPorUf).flat()
     return [...new Set(all)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -3156,7 +3157,7 @@ function AddClientModal({
   async function handleCepChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setForm((f) => ({ ...f, cep: val }))
-    setErrors((prev) => ({ ...prev, cep: undefined }))
+    setErrors((prev) => { const { cep: _cep, ...rest } = prev; return rest })
     setCepError(null)
     setGlobalError(null)
     const digits = val.replace(/\D/g, '')
@@ -3177,7 +3178,7 @@ function AddClientModal({
               : f.address,
             distribuidora: '',
           }))
-          setErrors((prev) => ({ ...prev, city: undefined, state: undefined, address: undefined }))
+          setErrors((prev) => { const { city: _c, state: _s, address: _a, ...rest } = prev; return rest })
         } else {
           setCepError('CEP não encontrado')
         }
@@ -3312,7 +3313,7 @@ function AddClientModal({
                 value={form.state}
                 onChange={(e) => {
                   setForm((f) => ({ ...f, state: e.target.value, distribuidora: '' }))
-                  setErrors((prev) => ({ ...prev, state: undefined, distribuidora: undefined }))
+                  setErrors((prev) => { const { state: _s, distribuidora: _d, ...rest } = prev; return rest })
                   setGlobalError(null)
                 }}
                 style={{ ...inputStyle, borderColor: errors.state ? 'var(--ds-danger)' : undefined }}
@@ -3347,7 +3348,7 @@ function AddClientModal({
               value={form.distribuidora}
               onChange={(e) => {
                 setForm((f) => ({ ...f, distribuidora: e.target.value }))
-                setErrors((prev) => ({ ...prev, distribuidora: undefined }))
+                setErrors((prev) => { const { distribuidora: _d, ...rest } = prev; return rest })
                 setGlobalError(null)
               }}
               style={{ ...inputStyle, borderColor: errors.distribuidora ? 'var(--ds-danger)' : undefined }}
@@ -3616,7 +3617,7 @@ function ClientDetailPanel({
           showPlano={displayClient.contract_type === 'leasing'}
           showFaturas={displayClient.is_contratante_titular === false}
           cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
-          cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
+          {...(resolveCobrancaGating(displayClient).reason !== undefined ? { cobrancaDisabledReason: resolveCobrancaGating(displayClient).reason } : {})}
         />
 
         {/* Global edit controls */}
@@ -3657,7 +3658,7 @@ function ClientDetailPanel({
               </div>
             )}
             <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} />
             </div>
             {resolveCobrancaGating(displayClient).enabled && (
               <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
@@ -3690,7 +3691,7 @@ function ClientDetailPanel({
             {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} editMode={false} />}
             {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
@@ -3786,7 +3787,7 @@ function ClientDetailPanel({
                   </div>
                 )}
                 <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} />
                 </div>
                 {resolveCobrancaGating(displayClient).enabled && (
                   <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
@@ -3819,7 +3820,7 @@ function ClientDetailPanel({
                 {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
-                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} editMode={false} />}
                 {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
                 {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
@@ -4374,7 +4375,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               onRemovedFromPortfolio={handleRemovedFromPortfolio}
               onDeleted={handleDeleted}
               onToast={showToast}
-              onOpenFinancialProject={onOpenFinancialProject}
+              {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})}
             />
           </div>
         )}

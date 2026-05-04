@@ -56,7 +56,7 @@ const queuePersist = (() => {
       clearTimeout(timeout)
     }
 
-    timeout = window.setTimeout(() => {
+    timeout = setTimeout(() => {
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
       } catch (error) {

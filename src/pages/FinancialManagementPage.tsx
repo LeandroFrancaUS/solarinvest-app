@@ -238,27 +238,27 @@ function RealProjectsTab({ onOpenProject }: RealProjectsTabProps) {
   const handleSearch = useCallback((value: string) => {
     setSearch(value)
     void loadProjects({
-      search: value || undefined,
-      project_type: typeFilter || undefined,
-      status: statusFilter || undefined,
+      ...(value ? { search: value } : {}),
+      ...(typeFilter ? { project_type: typeFilter } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
     })
   }, [typeFilter, statusFilter, loadProjects])
 
   const handleTypeFilter = useCallback((value: ProjectType | '') => {
     setTypeFilter(value)
     void loadProjects({
-      search: search || undefined,
-      project_type: value || undefined,
-      status: statusFilter || undefined,
+      ...(search ? { search } : {}),
+      ...(value ? { project_type: value } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
     })
   }, [search, statusFilter, loadProjects])
 
   const handleStatusFilter = useCallback((value: ProjectStatus | '') => {
     setStatusFilter(value)
     void loadProjects({
-      search: search || undefined,
-      project_type: typeFilter || undefined,
-      status: value || undefined,
+      ...(search ? { search } : {}),
+      ...(typeFilter ? { project_type: typeFilter } : {}),
+      ...(value ? { status: value } : {}),
     })
   }, [search, typeFilter, loadProjects])
 
@@ -936,14 +936,14 @@ function FaturasAPagarTab() {
           value={String(overdue.length)}
           icon="⚠️"
           color={overdue.length > 0 ? 'red' : 'green'}
-          subtitle={overdue.length > 0 ? formatCurrencyBRL(overdue.reduce((sum, inv) => sum + inv.amount, 0)) : undefined}
+          {...(overdue.length > 0 ? { subtitle: formatCurrencyBRL(overdue.reduce((sum, inv) => sum + inv.amount, 0)) } : {})}
         />
         <KpiCard
           label="Vencem este Mês"
           value={String(dueThisMonth.length)}
           icon="📅"
           color="yellow"
-          subtitle={dueThisMonth.length > 0 ? formatCurrencyBRL(dueThisMonth.reduce((sum, inv) => sum + inv.amount, 0)) : undefined}
+          {...(dueThisMonth.length > 0 ? { subtitle: formatCurrencyBRL(dueThisMonth.reduce((sum, inv) => sum + inv.amount, 0)) } : {})}
         />
         <KpiCard
           label="Total Pendente"
@@ -1066,7 +1066,7 @@ export function FinancialManagementPage({ onBack, initialProjectId, initialTab, 
       return { from, to }
     }
     if (periodFilter === 'custom') {
-      return { from: customFrom || undefined, to: customTo || undefined }
+      return { ...(customFrom ? { from: customFrom } : {}), ...(customTo ? { to: customTo } : {}) }
     }
     // year
     const from = new Date(now.getFullYear(), 0, 1).toISOString().substring(0, 10)

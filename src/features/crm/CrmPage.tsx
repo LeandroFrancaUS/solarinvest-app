@@ -277,7 +277,7 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
                               type="button"
                               aria-label="Mover para etapa anterior"
                               onClick={() => handleMoverLead(lead.id, -1)}
-                              disabled={stage.id === CRM_PIPELINE_STAGES[0].id}
+                              disabled={stage.id === CRM_PIPELINE_STAGES[0]!.id}
                             >
                               ◀
                             </button>
@@ -285,7 +285,7 @@ export function CrmPage(props: CrmPageProps): React.JSX.Element {
                               type="button"
                               aria-label="Mover para próxima etapa"
                               onClick={() => handleMoverLead(lead.id, 1)}
-                              disabled={stage.id === CRM_PIPELINE_STAGES[CRM_PIPELINE_STAGES.length - 1].id}
+                              disabled={stage.id === CRM_PIPELINE_STAGES[CRM_PIPELINE_STAGES.length - 1]!.id}
                             >
                               ▶
                             </button>
