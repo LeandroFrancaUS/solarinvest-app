@@ -100,6 +100,26 @@ describe('toCanonicalProposal', () => {
     expect(result.status).toBe('approved')
   })
 
+  it('preserves proposal_type leasing', () => {
+    const row = { proposal_type: 'leasing', client_name: 'D', payload_json: { kWp: 8 } }
+    expect(toCanonicalProposal(row).proposal_type).toBe('leasing')
+  })
+
+  it('preserves proposal_type venda', () => {
+    const row = { proposal_type: 'venda', client_name: 'E', payload_json: { kWp: 12 } }
+    expect(toCanonicalProposal(row).proposal_type).toBe('venda')
+  })
+
+  it('preserves client_id as a BIGINT (numeric value)', () => {
+    const row = { id: 'uuid-5', client_name: 'F', client_id: 42, payload_json: { kWp: 5 } }
+    expect(toCanonicalProposal(row).client_id).toBe(42)
+  })
+
+  it('preserves client_id as null for proposals without a linked client', () => {
+    const row = { id: 'uuid-6', client_name: 'G', client_id: null, payload_json: { kWp: 3 } }
+    expect(toCanonicalProposal(row).client_id).toBeNull()
+  })
+
   it('returns empty object for null or non-object input', () => {
     expect(toCanonicalProposal(null)).toEqual({})
     expect(toCanonicalProposal(undefined)).toEqual({})
@@ -186,6 +206,29 @@ describe('toProposalWritePayload', () => {
 
   it('throws for null input', () => {
     expect(() => toProposalWritePayload(null)).toThrow('proposal input must be a non-null object')
+  })
+
+  it('includes proposal_type leasing in write payload', () => {
+    const result = toProposalWritePayload({ proposal_type: 'leasing', payload_json: { kWp: 10 } })
+    expect(result.proposal_type).toBe('leasing')
+  })
+
+  it('includes proposal_type venda in write payload', () => {
+    const result = toProposalWritePayload({ proposal_type: 'venda', payload_json: { kWp: 8 } })
+    expect(result.proposal_type).toBe('venda')
+  })
+
+  it('maps mixed legacy and canonical client context fields, canonical wins', () => {
+    const input = {
+      proposal_type: 'leasing',
+      client_name: 'Canonical Name',
+      name: 'Legacy Name',
+      document: '55566677788',
+      payload_json: { kWp: 9 },
+    }
+    const result = toProposalWritePayload(input)
+    expect(result.client_name).toBe('Canonical Name')
+    expect(result.client_document).toBe('55566677788')
   })
 })
 
