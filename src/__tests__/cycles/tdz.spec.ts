@@ -36,10 +36,10 @@ describe('cycles and TDZ guard rails', () => {
 
   test('kcKwhMes é declarado antes do useEffect que o usa como dep (guard TDZ)', () => {
     // Reads App.tsx and the hook file as raw text to assert:
-    //  1. The `kcKwhMes` useState declaration still appears early in App.tsx.
-    //  2. The kit/frete auto-populate effect (with kcKwhMes in its deps) lives in
-    //     the extracted hook — not in App.tsx — so TDZ in App.tsx is no longer possible.
-    //  3. App.tsx passes kcKwhMes to the hook AFTER declaring it (no TDZ path).
+    // 1. The `kcKwhMes` useState declaration still appears early in App.tsx.
+    // 2. The kit/frete auto-populate effect (with kcKwhMes in its deps) lives in
+    //    the extracted hook — not in App.tsx — so TDZ in App.tsx is no longer possible.
+    // 3. App.tsx passes kcKwhMes to the hook AFTER declaring it (no TDZ path).
     const appSrc = readFileSync(
       resolve(__dirname, '../../../src/App.tsx'),
       'utf8',

@@ -255,7 +255,11 @@ export function useAnaliseFinanceiraState(params: UseAnaliseFinanceiraStateParam
   })
 
   // -------------------------------------------------------------------------
-  // Initialize AF base system overrides from proposal values on first visit
+  // Initialize AF base system overrides from proposal values on first visit.
+  // Intentionally only includes `simulacoesSection` in the dep array — this
+  // is a one-time-init gate. Adding the other referenced params would cause
+  // the overrides to reset whenever the proposal changes, destroying any
+  // manual values the user entered in the AF section.
   // -------------------------------------------------------------------------
   useEffect(() => {
     if (simulacoesSection === 'analise' && !afBaseInitializedRef.current) {
