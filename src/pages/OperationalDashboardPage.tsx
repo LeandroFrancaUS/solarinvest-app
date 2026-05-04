@@ -41,36 +41,51 @@ export function OperationalDashboardPage() {
       const portfolioData = portfolioRes.status === 'fulfilled' ? portfolioRes.value : []
 
       // Map invoices to dashboard format
-      const mappedInvoices: DashboardInvoice[] = (invoicesData.data || []).map((inv: any): DashboardInvoice => ({
-        id: String(inv.id),
-        clientName: inv.client_name || 'Cliente sem nome',
-        amount: Number(inv.amount) || 0,
-        dueDate: inv.due_date,
-        status: mapInvoiceStatus(inv.payment_status),
-        updatedAt: inv.updated_at,
-        ...(inv.client_id != null && { clientId: String(inv.client_id) }),
-        ...(inv.paid_amount != null && { paidAmount: Number(inv.paid_amount) }),
-        ...(inv.paid_at != null && { paidAt: inv.paid_at }),
-        ...(inv.notes != null && { notes: inv.notes }),
-      }))
+      const mappedInvoices: DashboardInvoice[] = (invoicesData.data as unknown[] | undefined ?? []).map((inv): DashboardInvoice => {
+        const r = inv as {
+          id: unknown; client_name?: unknown; amount?: unknown; due_date?: unknown;
+          payment_status?: unknown; updated_at?: unknown; client_id?: unknown;
+          paid_amount?: unknown; paid_at?: unknown; notes?: unknown
+        }
+        return {
+          id: String(r.id),
+          clientName: (r.client_name as string | undefined) || 'Cliente sem nome',
+          amount: Number(r.amount) || 0,
+          dueDate: r.due_date as string,
+          status: mapInvoiceStatus((r.payment_status as string | undefined) ?? ''),
+          updatedAt: r.updated_at as string,
+          ...(r.client_id != null && { clientId: typeof r.client_id === 'string' || typeof r.client_id === 'number' ? String(r.client_id) : '' }),
+          ...(r.paid_amount != null && { paidAmount: Number(r.paid_amount) }),
+          ...(r.paid_at != null && { paidAt: r.paid_at as string }),
+          ...(r.notes != null && { notes: r.notes as string }),
+        }
+      })
 
       // Map tasks to dashboard format
-      const mappedTasks: DashboardOperationalTask[] = (tasksData.data || []).map((task: any): DashboardOperationalTask => ({
-        id: String(task.id),
-        type: task.type,
-        title: task.title,
-        clientName: task.client_name || 'Cliente sem nome',
-        status: task.status,
-        priority: task.priority,
-        updatedAt: task.updated_at,
-        ...(task.client_id != null && { clientId: String(task.client_id) }),
-        ...(task.proposal_id != null && { proposalId: task.proposal_id }),
-        ...(task.scheduled_for != null && { scheduledFor: task.scheduled_for }),
-        ...(task.completed_at != null && { completedAt: task.completed_at }),
-        ...(task.blocked_reason != null && { blockedReason: task.blocked_reason }),
-        ...(task.responsible_user_id != null && { responsibleUserId: task.responsible_user_id }),
-        ...(task.notes != null && { notes: task.notes }),
-      }))
+      const mappedTasks: DashboardOperationalTask[] = (tasksData.data as unknown[] | undefined ?? []).map((task): DashboardOperationalTask => {
+        const t = task as {
+          id: unknown; type?: unknown; title?: unknown; client_name?: unknown;
+          status?: unknown; priority?: unknown; updated_at?: unknown; client_id?: unknown;
+          proposal_id?: unknown; scheduled_for?: unknown; completed_at?: unknown;
+          blocked_reason?: unknown; responsible_user_id?: unknown; notes?: unknown
+        }
+        return {
+          id: String(t.id),
+          type: t.type as DashboardOperationalTask['type'],
+          title: t.title as string,
+          clientName: (t.client_name as string | undefined) || 'Cliente sem nome',
+          status: t.status as DashboardOperationalTask['status'],
+          priority: t.priority as DashboardOperationalTask['priority'],
+          updatedAt: t.updated_at as string,
+          ...(t.client_id != null && { clientId: typeof t.client_id === 'string' || typeof t.client_id === 'number' ? String(t.client_id) : '' }),
+          ...(t.proposal_id != null && { proposalId: t.proposal_id as string }),
+          ...(t.scheduled_for != null && { scheduledFor: t.scheduled_for as string }),
+          ...(t.completed_at != null && { completedAt: t.completed_at as string }),
+          ...(t.blocked_reason != null && { blockedReason: t.blocked_reason as string }),
+          ...(t.responsible_user_id != null && { responsibleUserId: t.responsible_user_id as string }),
+          ...(t.notes != null && { notes: t.notes as string }),
+        }
+      })
 
       setInvoices(mappedInvoices)
       setTasks(mappedTasks)
@@ -187,8 +202,7 @@ export function OperationalDashboardPage() {
   )
 }
 
-function mapInvoiceStatus(dbStatus: string): any {
-  const now = new Date()
+function mapInvoiceStatus(dbStatus: string): DashboardInvoice['status'] {
   // This is simplified - real implementation should check due dates
   switch (dbStatus) {
     case 'pago':

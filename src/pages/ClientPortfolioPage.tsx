@@ -87,29 +87,6 @@ function formatDate(value: string | null | undefined): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
 }
 
-/**
- * Calculates the remaining months in a contract.
- * Returns null when there is not enough data to compute.
- * Never returns a negative value (minimum is 0).
- */
-function calcRemainingMonths(
-  totalMonths: number | null | undefined,
-  contractStartDate: string | null | undefined,
-  fallbackDate?: string | null,
-): number | null {
-  const term = totalMonths ?? null
-  if (!term || term <= 0) return null
-  const startRaw = contractStartDate || fallbackDate
-  if (!startRaw) return null
-  const start = new Date(startRaw)
-  if (isNaN(start.getTime())) return null
-  const now = new Date()
-  const elapsed =
-    (now.getFullYear() - start.getFullYear()) * 12 +
-    (now.getMonth() - start.getMonth())
-  return Math.max(0, Math.round(term - elapsed))
-}
-
 function toTrimmedString(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
@@ -138,7 +115,7 @@ function parseInstallmentsJson(value: unknown): InstallmentPayment[] {
   if (Array.isArray(value)) return value as InstallmentPayment[]
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value)
+      const parsed: unknown = JSON.parse(value)
       if (Array.isArray(parsed)) return parsed as InstallmentPayment[]
     } catch {
       // ignore malformed JSON
@@ -538,7 +515,7 @@ function getInstallmentProgress(client: PortfolioClientRow): {
 
   const toFiniteNumber = (v: unknown): number | null => {
     if (v === null || v === undefined || v === '') return null
-    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(',', '.')) : NaN
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
@@ -748,7 +725,7 @@ function ClientCard({
     if (value === null || value === undefined || value === '') return null
     const parsed = typeof value === 'number'
       ? value
-      : Number(String(value).replace(',', '.'))
+      : typeof value === 'string' ? Number(value.replace(',', '.')) : NaN
     return Number.isFinite(parsed) ? parsed : null
   }
 
@@ -1024,7 +1001,7 @@ function EditarTab({
   editMode: boolean
   onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
   const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
@@ -1045,7 +1022,7 @@ function EditarTab({
     term_months: client.term_months != null ? String(client.term_months) : '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     client_name: client.name ?? '',
     client_document: client.document ?? '',
     client_phone: client.phone ?? '',
@@ -1117,7 +1094,7 @@ function EditarTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -1324,7 +1301,7 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     contract_file_name: client.contract_file_name ?? '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
@@ -1419,7 +1396,7 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   useEffect(() => {
@@ -1747,7 +1724,7 @@ function ProjetoTab({
   editMode: boolean
   onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // Financial project linked to this client in Gestão Financeira
@@ -1767,7 +1744,7 @@ function ProjetoTab({
 
   const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
 
-  const resetForm = () => setForm(buildProjetoForm(client))
+  const _resetForm = () => setForm(buildProjetoForm(client))
 
   async function handleSave() {
     const validationError = validateProjetoSave(form)
@@ -1809,7 +1786,7 @@ function ProjetoTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -1984,7 +1961,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   const { isAdmin, isOffice, isFinanceiro } = useStackRbac()
   const canManageBilling = isAdmin || isOffice || isFinanceiro
 
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
@@ -2057,7 +2034,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
@@ -2265,7 +2242,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -2784,7 +2761,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2799,7 +2776,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     wifi_status: (client.wifi_status ?? (client.metadata?.wifi_status as PortfolioClientRow['wifi_status'])) ?? '',
   })
 
-  const resetUfData = () => setUfData({
+  const _resetUfData = () => setUfData({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
     numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
     modelo_modulo: client.modelo_modulo ?? '',
@@ -2877,7 +2854,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   return (
@@ -2896,7 +2873,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
 // If energy_profile is null, the UI must show empty — not fallback to proposal.
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const prazoUnificado = client.contractual_term_months ?? client.prazo_meses ?? null
 
@@ -2912,7 +2889,7 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
     prazo_meses: prazoUnificado != null ? String(prazoUnificado) : '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     modalidade: client.modalidade ?? 'leasing',
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
@@ -2954,7 +2931,7 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -3917,7 +3894,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     // Helper: numeric value for wallet consumption sort
     const toFiniteNum = (v: unknown): number => {
       if (v === null || v === undefined || v === '') return -Infinity
-      const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(',', '.')) : NaN
       return Number.isFinite(n) ? n : -Infinity
     }
 

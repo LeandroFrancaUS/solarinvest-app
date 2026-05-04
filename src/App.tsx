@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
-  type CrmIntegrationMode,
-  formatarDataCurta,
   useCrm,
   CrmPage,
   CrmPageActions,
@@ -77,14 +75,13 @@ import {
 } from './app/services/clientStore'
 import {
   computeROI,
-  type ModoPagamento,
   type PagamentoCondicao,
   type RetornoProjetado,
   type SegmentoCliente,
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA, TUSD_TIPO_LABELS } from './lib/finance/tusd'
+import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import {
   calcularAnaliseFinanceira,
@@ -114,7 +111,6 @@ import {
   formatMoneyBR,
   formatNumberBR,
   formatNumberBRWithOptions,
-  formatPercentBRWithDigits,
   toNumberFlexible,
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
@@ -137,7 +133,7 @@ import {
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
 import { isExemptRegion, calculateInstallerTravelCost } from './lib/finance/travelCost'
-import { calcRoundTripKm, BASE_CITY_NAME } from './shared/geocoding'
+import { calcRoundTripKm } from './shared/geocoding'
 import { searchCidades, type CidadeDB, MIN_CITY_SEARCH_LENGTH } from './data/cidades'
 import {
   getAutoEligibility,
@@ -176,12 +172,6 @@ import {
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
 import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
-import {
-  getPagamentoCondicaoInfo,
-  getPagamentoModoInfo,
-  PAGAMENTO_CONDICAO_INFO,
-  PAGAMENTO_MODO_INFO,
-} from './constants/pagamento'
 import { TIPOS_INSTALACAO, TIPOS_REDE } from './constants/instalacao'
 import './styles/config-page.css'
 import './styles/toast.css'
@@ -201,7 +191,6 @@ import {
   INITIAL_VALUES,
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
-  SETTINGS_TABS,
   SIMULACOES_SECTIONS,
   STORAGE_KEYS,
   UF_LABELS,
@@ -225,7 +214,7 @@ import {
 } from './app/config'
 import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
 import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { MULTI_UC_CLASSES, MULTI_UC_CLASS_LABELS, type MultiUcClasse } from './types/multiUc'
+import { type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
@@ -233,7 +222,6 @@ import {
   calcularComposicaoUFV,
   type ImpostosRegimeConfig,
   type Inputs as ComposicaoUFVInputs,
-  type RegimeTributario,
 } from './lib/venda/calcComposicaoUFV'
 import {
   uploadBudgetFile,
@@ -273,7 +261,6 @@ import {
   formatAxis,
   formatCep,
   formatCpfCnpj,
-  formatKwhWithUnit,
   formatTelefone,
   formatUcGeradoraTitularEndereco,
   normalizeNumbers,
@@ -342,7 +329,6 @@ import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
-import { FinancialManagementPage } from './pages/FinancialManagementPage'
 import { RevenueAndBillingPage } from './pages/RevenueAndBillingPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -355,7 +341,7 @@ import { setProjectFinanceTokenProvider } from './features/project-finance/api'
 import { setFinancialImportTokenProvider } from './services/financialImportApi'
 import { setInvoicesTokenProvider } from './services/invoicesApi'
 import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName, formatConsultantOptionLabel } from './services/personnelApi'
+import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
   type AprovacaoStatus,
@@ -380,7 +366,6 @@ import { ClienteDadosSection } from './components/ClienteDadosSection'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
 import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
-import { VendasParametrosInternosSettings } from './pages/settings/VendasParametrosInternosSettings'
 import { TusdParametersSection } from './components/TusdParametersSection'
 import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
 import type { ClienteMensagens } from './types/cliente'
@@ -416,12 +401,6 @@ const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/Leas
 const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
-
-const REGIME_TRIBUTARIO_LABELS: Record<RegimeTributario, string> = {
-  simples: 'Simples Nacional',
-  lucro_presumido: 'Lucro Presumido',
-  lucro_real: 'Lucro Real',
-}
 
 
 const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
@@ -742,7 +721,7 @@ const resolveTermMonthsFromSnapshot = (snapshot: OrcamentoSnapshotData | null): 
   return (
     toFiniteNonNegativeNumber(snapshot.leasingSnapshot?.prazoContratualMeses) ??
     toFiniteNonNegativeNumber(snapshot.prazoMeses) ??
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+     
     toFiniteNonNegativeNumber((snapshot.vendaSnapshot as { financiamento?: { prazoMeses?: unknown } } | undefined)?.financiamento?.prazoMeses) ??
     null
   )
@@ -1162,7 +1141,7 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
           consumoKWh: String(item.consumoKWh ?? ''),
           rateioPercentual: String(item.rateioPercentual ?? ''),
         })),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+         
         pageShared: { procuracao: { uf: row.state ?? '', cidade: row.city ?? '' } } as unknown as PageSharedSettings,
         currentBudgetId: '',
         budgetStructuredItems: [],
@@ -1325,9 +1304,9 @@ function serverClientToRegistro(row: ClientRow): ClienteRegistro {
     inPortfolio: Boolean(row.in_portfolio),
     clientActivatedAt: row.portfolio_exported_at ?? null,
     consumption_kwh_month: resolvedKwhContratado,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     system_kwp: row.systemKwp ?? null,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     term_months: row.termMonths ?? null,
     dados,
     ...(propostaSnapshot != null ? { propostaSnapshot } : {}),
@@ -2256,7 +2235,7 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
     cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
     clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
     ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     pageShared: s.pageShared ? { ...s.pageShared } : ({} as OrcamentoSnapshotData['pageShared']),
     configuracaoUsinaObservacoes: s.configuracaoUsinaObservacoes ?? '',
     propostaImagens: Array.isArray(s.propostaImagens)
@@ -2366,7 +2345,7 @@ const stripSnapshotForStorage = (
  * Serialize a list of client records for localStorage / remote storage.
  * Strips heavy snapshot fields so the payload stays within quota limits.
  */
-const serializeClientesForStorage = (registros: ClienteRegistro[]): string => {
+function serializeClientesForStorage(registros: ClienteRegistro[]): string {
   const lite = registros.map((r) => ({
     ...r,
     propostaSnapshot: stripSnapshotForStorage(r.propostaSnapshot),
@@ -2992,14 +2971,6 @@ const createClienteComparisonData = (dados: ClienteDados) => {
     email: normalized.email,
     endereco: normalized.endereco,
   }
-}
-
-const formatBudgetDate = (isoString: string) => {
-  const parsed = new Date(isoString)
-  if (Number.isNaN(parsed.getTime())) {
-    return ''
-  }
-  return parsed.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 type ClienteContratoPayload = {
@@ -6208,17 +6179,7 @@ export default function App() {
 
   const crmState = useCrm({ adicionarNotificacao })
   const {
-    crmIntegrationMode,
-    setCrmIntegrationMode,
-    crmIsSaving,
-    crmBackendStatus,
-    crmBackendError,
-    crmLastSync,
     crmDataset,
-    crmKpis,
-    crmFinanceiroResumo,
-    crmPosVendaResumo,
-    handleSyncCrmManualmente,
   } = crmState
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
@@ -12943,7 +12904,7 @@ export default function App() {
       cliente: cloneClienteDados(snapshot.cliente ?? base.cliente),
       clienteMensagens: snapshot.clienteMensagens ?? base.clienteMensagens,
       ucBeneficiarias: snapshot.ucBeneficiarias ?? base.ucBeneficiarias,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+       
       pageShared: { ...base.pageShared, ...(snapshot.pageShared ?? {}) },
       budgetStructuredItems: snapshot.budgetStructuredItems ?? base.budgetStructuredItems,
       kitBudget: snapshot.kitBudget ?? base.kitBudget,
@@ -14845,12 +14806,12 @@ export default function App() {
     snapshot.tipoInstalacao = normalizeTipoInstalacao(snapshot.tipoInstalacao)
     snapshot.tipoInstalacaoOutro = snapshot.tipoInstalacaoOutro || ''
     snapshot.tipoEdificacaoOutro = snapshot.tipoEdificacaoOutro || ''
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+     
     snapshot.pageShared = {
       ...snapshot.pageShared,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+       
       tipoInstalacao: normalizeTipoInstalacao(snapshot.pageShared.tipoInstalacao),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment
+       
       tipoInstalacaoOutro: snapshot.pageShared.tipoInstalacaoOutro || '',
     }
 
@@ -14863,7 +14824,7 @@ export default function App() {
     lastSavedClienteRef.current = snapshot.clienteEmEdicaoId ? clienteClonado : null
     setClienteMensagens(snapshot.clienteMensagens ? { ...snapshot.clienteMensagens } : {})
     setUcsBeneficiarias(cloneUcBeneficiariasForm(snapshot.ucBeneficiarias || []))
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+     
     setPageSharedState({ ...snapshot.pageShared })
     switchBudgetId(budgetId)
     setBudgetStructuredItems(cloneStructuredItems(snapshot.budgetStructuredItems))
@@ -17365,11 +17326,6 @@ export default function App() {
     },
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
-
-  const abrirAdminUsuarios = useCallback(async () => {
-    if (!canSeeUsersEffective) return false
-    return abrirConfiguracoes('usuarios')
-  }, [abrirConfiguracoes, canSeeUsersEffective])
 
   const abrirDashboard = useCallback(async () => {
     return runWithUnsavedChangesGuard(() => {
@@ -20154,11 +20110,11 @@ export default function App() {
             isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
             isProposalReadOnly={isProposalReadOnly}
             onClose={fecharPesquisaOrcamentos}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+             
             onCarregarOrcamento={carregarOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+             
             onAbrirOrcamento={abrirOrcamentoSalvo}
-            // eslint-disable-next-line @typescript-eslint/no-misused-promises
+             
             onConfirmarRemocao={confirmarRemocaoOrcamento}
           />
         ) : activePage === 'clientes' ? (
@@ -21206,7 +21162,7 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody>
-                            {kitBudget.items.map((item, index) => (
+                            {kitBudget.items.map((item) => (
                               <tr key={`budget-item-${item.id}`}>
                                 <td>
                                   <input

@@ -6,8 +6,6 @@ import { describe, expect, test } from 'vitest'
 import PrintableProposal from '../../components/print/PrintableProposal'
 import type { PrintableProposalProps } from '../../types/printableProposal'
 
-const DEFAULT_COLORS = ['#FFA500', '#FF7F50', '#FFD700'] as const
-
 const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): PrintableProposalProps => ({
   cliente: {
     nome: 'Cliente Teste',

@@ -6,7 +6,7 @@ export default function FinancialAnalysesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    listFinancialAnalyses()
+    void listFinancialAnalyses()
       .then(setData)
       .finally(() => setLoading(false))
   }, [])
@@ -70,7 +70,7 @@ function exportAnalysisPdf(a: SavedFinancialAnalysis) {
 
         <div class="card">
           <h3>Resumo</h3>
-          <pre>${JSON.stringify(a.payload_json.result ?? {}, null, 2)}</pre>
+          <pre>${JSON.stringify((a.payload_json as { result?: unknown }).result ?? {}, null, 2)}</pre>
         </div>
 
         <script>

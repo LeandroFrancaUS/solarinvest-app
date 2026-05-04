@@ -1,7 +1,7 @@
 import { resolveApiUrl } from '../../utils/apiUrl'
 
 const STORAGE_ENDPOINT = resolveApiUrl('/api/storage')
-const AUTH_COOKIE_NAME = (import.meta.env.VITE_AUTH_COOKIE_NAME as string | undefined) ?? 'solarinvest_session'
+const AUTH_COOKIE_NAME = (import.meta.env.VITE_AUTH_COOKIE_NAME) ?? 'solarinvest_session'
 
 const DEFAULT_INITIALIZATION_TIMEOUT_MS = 2000
 
@@ -183,7 +183,7 @@ const gzipStringToBase64 = async (value: string): Promise<string | null> => {
   try {
     const stream = new CompressionStream('gzip')
     const writer = stream.writable.getWriter()
-    writer.write(new TextEncoder().encode(value))
+    await writer.write(new TextEncoder().encode(value))
     await writer.close()
 
     const compressedBuffer = await new Response(stream.readable).arrayBuffer()
