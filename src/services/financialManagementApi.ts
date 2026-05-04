@@ -56,7 +56,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
-function buildUrl(path: string, params?: Record<string, string | undefined>): string {
+function buildUrl(path: string, params?: PeriodParams): string {
   const resolved = resolveApiUrl(path)
   const url = new URL(resolved, window.location.origin)
   if (params) {

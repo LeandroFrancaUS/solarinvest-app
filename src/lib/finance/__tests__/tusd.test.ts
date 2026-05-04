@@ -51,7 +51,7 @@ describe('calcTusdNaoCompensavel', () => {
     )
 
     expect(resultado.simultaneidadeUsada).toBeCloseTo(
-      SIMULTANEIDADE_PADRAO.comercial.diurno,
+      SIMULTANEIDADE_PADRAO.comercial.diurno!,
       6,
     )
     expect(resultado.kWhInstantaneo).toBeCloseTo(350, 6)

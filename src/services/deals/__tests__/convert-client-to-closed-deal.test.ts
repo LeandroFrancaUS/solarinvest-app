@@ -155,6 +155,7 @@ beforeEach(() => {
     contract_term_months: null,
     mensalidade_base: null,
     project_id: 'proj-001',
+    tarifa_kwh: null,
   })
   vi.mocked(saveProjectFinance).mockResolvedValue(
     {} as unknown as Awaited<ReturnType<typeof saveProjectFinance>>,

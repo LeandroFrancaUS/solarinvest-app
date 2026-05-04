@@ -48,7 +48,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 function normalizePortfolioWifi(row: PortfolioClientRow): PortfolioClientRow {
   const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {}
   const wifiStatus = row.wifi_status ?? (metadata as Record<string, unknown>).wifi_status ?? null
-  return { ...row, wifi_status: wifiStatus as PortfolioClientRow['wifi_status'] }
+  return { ...row, wifi_status: wifiStatus as PortfolioClientRow['wifi_status'] } as PortfolioClientRow
 }
 
 function withWifiMetadata(data: Record<string, unknown>): Record<string, unknown> {

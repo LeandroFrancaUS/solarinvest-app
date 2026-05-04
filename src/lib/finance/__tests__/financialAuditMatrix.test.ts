@@ -100,9 +100,9 @@ describe('auditoria financeira - grade de cenários', () => {
             inflacao_energia_aa_pct: 0,
           }),
         )
-        expect(retorno.economia[0]).toBeGreaterThanOrEqual(0)
-        expect(retorno.economia[0]).toBeGreaterThanOrEqual(economiaAnterior)
-        economiaAnterior = retorno.economia[0]
+        expect(retorno.economia[0]!).toBeGreaterThanOrEqual(0)
+        expect(retorno.economia[0]!).toBeGreaterThanOrEqual(economiaAnterior)
+        economiaAnterior = retorno.economia[0]!
       }
     }
   })
@@ -121,9 +121,9 @@ describe('auditoria financeira - grade de cenários', () => {
       }),
     )
 
-    expect(retorno.economia[0]).toBeCloseTo(1000, 6)
-    expect(retorno.economia[12]).toBeCloseTo(1000 * 1.08, 6)
-    expect(retorno.economia[24]).toBeCloseTo(1000 * Math.pow(1.08, 2), 6)
+    expect(retorno.economia[0]!).toBeCloseTo(1000, 6)
+    expect(retorno.economia[12]!).toBeCloseTo(1000 * 1.08, 6)
+    expect(retorno.economia[24]!).toBeCloseTo(1000 * Math.pow(1.08, 2), 6)
   })
 
   it('simula prazos longos com VPL e payback válidos', () => {

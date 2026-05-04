@@ -3746,7 +3746,7 @@ function ClientDetailPanel({
               showPlano={displayClient.contract_type === 'leasing'}
               showFaturas={displayClient.is_contratante_titular === false}
               cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
-              cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
+              {...(resolveCobrancaGating(displayClient).reason !== undefined ? { cobrancaDisabledReason: resolveCobrancaGating(displayClient).reason } : {})}
             />
 
             {/* Global edit controls */}

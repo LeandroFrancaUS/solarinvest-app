@@ -143,8 +143,8 @@ describe('calcularMultiUc', () => {
       },
     })
 
-    const uc2025 = resultado2025.ucs[0]
-    const uc2029 = resultado2029.ucs[0]
+    const uc2025 = resultado2025.ucs[0]!
+    const uc2029 = resultado2029.ucs[0]!
 
     expect(resultado2025.escalonamentoPercentual).toBeCloseTo(0.45, 4)
     expect(resultado2029.escalonamentoPercentual).toBeCloseTo(1, 4)

@@ -41,35 +41,35 @@ export function OperationalDashboardPage() {
       const portfolioData = portfolioRes.status === 'fulfilled' ? portfolioRes.value : []
 
       // Map invoices to dashboard format
-      const mappedInvoices: DashboardInvoice[] = (invoicesData.data || []).map((inv: any) => ({
+      const mappedInvoices: DashboardInvoice[] = (invoicesData.data || []).map((inv: any): DashboardInvoice => ({
         id: String(inv.id),
-        clientId: inv.client_id ? String(inv.client_id) : undefined,
         clientName: inv.client_name || 'Cliente sem nome',
         amount: Number(inv.amount) || 0,
-        paidAmount: inv.paid_amount ? Number(inv.paid_amount) : undefined,
         dueDate: inv.due_date,
-        paidAt: inv.paid_at,
         status: mapInvoiceStatus(inv.payment_status),
-        notes: inv.notes,
         updatedAt: inv.updated_at,
+        ...(inv.client_id != null && { clientId: String(inv.client_id) }),
+        ...(inv.paid_amount != null && { paidAmount: Number(inv.paid_amount) }),
+        ...(inv.paid_at != null && { paidAt: inv.paid_at }),
+        ...(inv.notes != null && { notes: inv.notes }),
       }))
 
       // Map tasks to dashboard format
-      const mappedTasks: DashboardOperationalTask[] = (tasksData.data || []).map((task: any) => ({
+      const mappedTasks: DashboardOperationalTask[] = (tasksData.data || []).map((task: any): DashboardOperationalTask => ({
         id: String(task.id),
         type: task.type,
         title: task.title,
-        clientId: task.client_id ? String(task.client_id) : undefined,
         clientName: task.client_name || 'Cliente sem nome',
-        proposalId: task.proposal_id,
         status: task.status,
-        scheduledFor: task.scheduled_for,
-        completedAt: task.completed_at,
-        blockedReason: task.blocked_reason,
-        responsibleUserId: task.responsible_user_id,
         priority: task.priority,
-        notes: task.notes,
         updatedAt: task.updated_at,
+        ...(task.client_id != null && { clientId: String(task.client_id) }),
+        ...(task.proposal_id != null && { proposalId: task.proposal_id }),
+        ...(task.scheduled_for != null && { scheduledFor: task.scheduled_for }),
+        ...(task.completed_at != null && { completedAt: task.completed_at }),
+        ...(task.blocked_reason != null && { blockedReason: task.blocked_reason }),
+        ...(task.responsible_user_id != null && { responsibleUserId: task.responsible_user_id }),
+        ...(task.notes != null && { notes: task.notes }),
       }))
 
       setInvoices(mappedInvoices)

@@ -54,6 +54,8 @@ const createPrintableProps = (
     cpfSindico: '',
     contatoSindico: '',
     diaVencimento: '10',
+    consultorId: '',
+    consultorNome: '',
   },
   budgetId: 'ORC123',
   anos: anosBase,
@@ -63,16 +65,11 @@ const createPrintableProps = (
   mostrarFinanciamento: false,
   tabelaBuyout: [],
   buyoutResumo: {
+    valorBaseOriginalAtivo: 0,
     vm0: 0,
-    cashbackPct: 0,
     depreciacaoPct: 0,
-    inadimplenciaPct: 0,
-    tributosPct: 0,
     infEnergia: 0,
     ipca: 0,
-    custosFixos: 0,
-    opex: 0,
-    seguro: 0,
     duracao: 0,
   },
   capex: 30000,
@@ -100,7 +97,7 @@ const createPrintableProps = (
   parsedPdfVenda: undefined,
   orcamentoItens: [],
   ...overrides,
-})
+}) as PrintableProposalProps
 
 describe('PrintableProposal (venda direta)', () => {
   it('exibe UC geradora e lista beneficiárias quando presentes', () => {
@@ -364,7 +361,7 @@ describe('PrintableProposal (venda direta)', () => {
 
     const markup = renderToStaticMarkup(<PrintableProposal {...props} />)
 
-    const parcelaEsperada = retorno.pagamentoMensal[0]
+    const parcelaEsperada = retorno.pagamentoMensal[0]!
     const parcelasDescricaoEsperada = `12 parcelas de ${currency(parcelaEsperada)}`
 
     // Rows with "—" value are filtered out of the detalhamento table
@@ -488,16 +485,11 @@ describe('PrintableProposal (leasing)', () => {
       leasingValorMercadoProjetado: 120000,
       leasingInflacaoEnergiaAa: 8,
       buyoutResumo: {
+        valorBaseOriginalAtivo: 120000,
         vm0: 120000,
-        cashbackPct: 0,
         depreciacaoPct: 5,
-        inadimplenciaPct: 2,
-        tributosPct: 4,
         infEnergia: 8,
         ipca: 4,
-        custosFixos: 0,
-        opex: 0,
-        seguro: 0,
         duracao: 60,
       },
     })

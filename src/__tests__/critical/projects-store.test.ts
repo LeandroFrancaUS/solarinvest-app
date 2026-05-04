@@ -86,13 +86,13 @@ beforeEach(() => {
 describe('useProjectsStore — loadProjects', () => {
   it('populates list and total on success', async () => {
     const project = makeProject()
-    mockFetchProjects.mockResolvedValueOnce({ rows: [project], meta: { total: 1 } })
+    mockFetchProjects.mockResolvedValueOnce({ rows: [project], meta: { total: 1, limit: 1000, offset: 0 } })
 
     await useProjectsStore.getState().loadProjects()
     const state = useProjectsStore.getState()
 
     expect(state.list).toHaveLength(1)
-    expect(state.list[0].id).toBe('proj-1')
+    expect(state.list[0]!.id).toBe('proj-1')
     expect(state.listTotal).toBe(1)
     expect(state.listLoading).toBe(false)
     expect(state.listError).toBeNull()
@@ -101,7 +101,7 @@ describe('useProjectsStore — loadProjects', () => {
   it('sets listError on failure without clobbering the previous list', async () => {
     // Pre-populate list
     const project = makeProject()
-    mockFetchProjects.mockResolvedValueOnce({ rows: [project], meta: { total: 1 } })
+    mockFetchProjects.mockResolvedValueOnce({ rows: [project], meta: { total: 1, limit: 1000, offset: 0 } })
     await useProjectsStore.getState().loadProjects()
 
     // Simulate a network failure
@@ -176,7 +176,7 @@ describe('useProjectsStore — updateStatus', () => {
 
     const state = useProjectsStore.getState()
     expect(state.cache['proj-1']?.project.status).toBe('Em andamento')
-    expect(state.list[0].status).toBe('Em andamento')
+    expect(state.list[0]!.status).toBe('Em andamento')
   })
 })
 

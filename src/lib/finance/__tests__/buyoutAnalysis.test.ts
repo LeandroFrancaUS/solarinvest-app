@@ -12,7 +12,7 @@ const baseState: SimulationState = {
   taxaMinima: 0,
   encargosFixos: 0,
   entradaRs: 0,
-  modoEntrada: 'NAO_REDUZ',
+  modoEntrada: 'NONE',
   vm0: 100000,
   depreciacaoAa: 0.12,
   ipcaAa: 0.04,
@@ -60,7 +60,7 @@ describe('buyoutAnalysis', () => {
     expect(janela.piorMesSolarinvest?.mes).toBe(36)
 
     expect(roiProgression.map((item) => item.mes)).toEqual([7, 13, 19, 25, 31, 37, 43, 45])
-    expect(roiProgression[0].roiSolarinvest).toBeGreaterThan(roiProgression[roiProgression.length - 1].roiSolarinvest)
+    expect(roiProgression[0]!.roiSolarinvest).toBeGreaterThan(roiProgression[roiProgression.length - 1]!.roiSolarinvest)
     expect(roiProgression.every((item) => item.ganhoLiquidoCliente < 0)).toBe(true)
   })
 })

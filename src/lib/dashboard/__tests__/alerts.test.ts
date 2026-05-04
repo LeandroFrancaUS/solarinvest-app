@@ -24,9 +24,9 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts(invoices, [])
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].type).toBe('INVOICE_OVERDUE')
-    expect(alerts[0].severity).toBe('WARNING')
-    expect(alerts[0].title).toContain('vencida')
+    expect(alerts[0]!.type).toBe('INVOICE_OVERDUE')
+    expect(alerts[0]!.severity).toBe('WARNING')
+    expect(alerts[0]!.title).toContain('vencida')
   })
 
   it('detects invoices due soon', () => {
@@ -47,8 +47,8 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts(invoices, [])
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].type).toBe('INVOICE_DUE_SOON')
-    expect(alerts[0].title).toContain('vence')
+    expect(alerts[0]!.type).toBe('INVOICE_DUE_SOON')
+    expect(alerts[0]!.title).toContain('vence')
   })
 
   it('detects tasks not scheduled', () => {
@@ -67,8 +67,8 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts([], tasks)
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].type).toBe('DELIVERY_NOT_SCHEDULED')
-    expect(alerts[0].severity).toBe('ERROR')
+    expect(alerts[0]!.type).toBe('DELIVERY_NOT_SCHEDULED')
+    expect(alerts[0]!.severity).toBe('ERROR')
   })
 
   it('detects critical support tasks', () => {
@@ -87,8 +87,8 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts([], tasks)
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].type).toBe('SUPPORT_CRITICAL')
-    expect(alerts[0].severity).toBe('CRITICAL')
+    expect(alerts[0]!.type).toBe('SUPPORT_CRITICAL')
+    expect(alerts[0]!.severity).toBe('CRITICAL')
   })
 
   it('detects blocked tasks', () => {
@@ -108,9 +108,9 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts([], tasks)
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].type).toBe('TASK_BLOCKED')
-    expect(alerts[0].severity).toBe('CRITICAL')
-    expect(alerts[0].description).toContain('documentação')
+    expect(alerts[0]!.type).toBe('TASK_BLOCKED')
+    expect(alerts[0]!.severity).toBe('CRITICAL')
+    expect(alerts[0]!.description).toContain('documentação')
   })
 
   it('filters alerts by preferences', () => {
@@ -144,7 +144,7 @@ describe('computeAlerts', () => {
     const alerts = computeAlerts(invoices, tasks, { criticalOnly: true } as any)
 
     expect(alerts).toHaveLength(1)
-    expect(alerts[0].severity).toBe('CRITICAL')
+    expect(alerts[0]!.severity).toBe('CRITICAL')
   })
 })
 
@@ -188,9 +188,9 @@ describe('sortAlertsBySeverity', () => {
 
     const sorted = sortAlertsBySeverity(alerts)
 
-    expect(sorted[0].severity).toBe('CRITICAL')
-    expect(sorted[1].severity).toBe('ERROR')
-    expect(sorted[2].severity).toBe('WARNING')
+    expect(sorted[0]!.severity).toBe('CRITICAL')
+    expect(sorted[1]!.severity).toBe('ERROR')
+    expect(sorted[2]!.severity).toBe('WARNING')
   })
 })
 
