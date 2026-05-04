@@ -303,7 +303,7 @@ describe('backup success', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('backup service error → 500', () => {
-  it('returns 500 when getDatabaseClient returns null', async () => {
+  it('returns 503 when getDatabaseClient returns null', async () => {
     getDatabaseClient.mockReturnValue(null)
     resolveActor.mockResolvedValue(ADMIN_ACTOR)
 
