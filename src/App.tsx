@@ -62,12 +62,10 @@ import {
 } from './utils/moduleDetection'
 import { removeFogOverlays, watchFogReinjection } from './utils/antiOverlay'
 import {
-  ensureServerStorageSync,
   fetchRemoteStorageEntry,
   persistRemoteStorageEntry,
-  setStorageTokenProvider,
 } from './app/services/serverStorage'
-import { saveFormDraft, loadFormDraft, clearFormDraft } from './lib/persist/formDraft'
+import { saveFormDraft, clearFormDraft } from './lib/persist/formDraft'
 import {
   saveProposalSnapshotById,
   loadProposalSnapshotById,
@@ -177,6 +175,7 @@ import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
+import { useStorageHydration } from './hooks/useStorageHydration'
 import { useTheme } from './hooks/useTheme'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
@@ -280,7 +279,6 @@ import {
   type CreateProposalInput,
   listProposals as listProposalsFromApi,
   type ProposalRow,
-  setProposalsTokenProvider,
   type UpdateProposalInput,
   updateProposal,
 } from './lib/api/proposalsApi'
@@ -292,7 +290,6 @@ import {
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
   type ClientRow,
-  setClientsTokenProvider,
   runConsultorBackfillSweep,
   upsertClientByDocument,
   updateClientById,
@@ -311,29 +308,15 @@ import { BackupActionModal } from './components/clients/BackupActionModal'
 import type { BackupDestino } from './components/clients/BackupActionModal'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
-import {
-  migrateLocalStorageToServer,
-  setMigrationTokenProvider,
-} from './lib/migrateLocalStorageToServer'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { setAdminUsersTokenProvider } from './services/auth/admin-users'
-import { setFetchAuthTokenProvider } from './lib/auth/fetchWithStackAuth'
 import { useAuthorizationSnapshot } from './auth/useAuthorizationSnapshot'
 import { clearOfflineSnapshot } from './lib/auth/authorizationSnapshot'
 import { ClientPortfolioPage } from './pages/ClientPortfolioPage'
 import { RevenueAndBillingPage } from './pages/RevenueAndBillingPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { setPortfolioTokenProvider } from './services/clientPortfolioApi'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
-import { setFinancialManagementTokenProvider } from './services/financialManagementApi'
-import { setRevenueBillingTokenProvider } from './services/revenueBillingApi'
-import { setProjectsTokenProvider } from './services/projectsApi'
-import { setProjectFinanceTokenProvider } from './features/project-finance/api'
-import { setFinancialImportTokenProvider } from './services/financialImportApi'
-import { setInvoicesTokenProvider } from './services/invoicesApi'
-import { setOperationalDashboardTokenProvider } from './lib/api/operationalDashboardApi'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
 import type { ActivePage, SimulacoesSection } from './types/navigation'
 import {
@@ -3147,51 +3130,11 @@ export default function App() {
 
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
-  // Incremented when auth is established so that data-load effects re-run and
-  // fetch from Neon. Declared before the auth useEffects to satisfy React's TDZ rules.
-  const [authSyncKey, setAuthSyncKey] = useState(0)
   // Stable primitive derived from the Stack Auth user identity.
   // Using user.id (string | null) instead of the user object avoids re-running
   // the bootstrap effect when the SDK replaces the user object reference during
   // internal token refreshes or polling cycles (same user, new object identity).
   const userId = user?.id ?? null
-  // Wire up Stack Auth Bearer token for cross-device data persistence.
-  // When the user resolves, register the token provider so serverStorage
-  // and proposalsApi can include Authorization: Bearer <token> in requests.
-  // Storage sync runs only after auth is available to avoid unauthenticated
-  // /api/storage calls that can generate noisy 5xx/401 logs.
-  //
-  // Keyed on userId (primitive) + getAccessToken (stable ref from userRef pattern)
-  // so this runs ONCE per real login — not on every SDK polling cycle.
-  useEffect(() => {
-    if (!userId) return
-    setStorageTokenProvider(getAccessToken)
-    setProposalsTokenProvider(getAccessToken)
-    setClientsTokenProvider(getAccessToken)
-    setAdminUsersTokenProvider(getAccessToken)
-    setPortfolioTokenProvider(getAccessToken)
-    setFinancialManagementTokenProvider(getAccessToken)
-    setRevenueBillingTokenProvider(getAccessToken)
-    setProjectsTokenProvider(getAccessToken)
-    setProjectFinanceTokenProvider(getAccessToken)
-    setFinancialImportTokenProvider(getAccessToken)
-    setInvoicesTokenProvider(getAccessToken)
-    setOperationalDashboardTokenProvider(async () => (await getAccessToken()) ?? '')
-    // Register token provider for the local→Neon migration tool.
-    setMigrationTokenProvider(getAccessToken)
-    // Register global token provider for httpClient.ts (used by personnelApi
-    // and other services that go through the shared apiFetch helper).
-    setFetchAuthTokenProvider(getAccessToken)
-    // Silently migrate any locally-stored clients/proposals to Neon.
-    // Fire-and-forget: errors are caught internally; does not block auth flow.
-    void migrateLocalStorageToServer()
-    // Re-run server storage sync now that auth is available.
-    void ensureServerStorageSync({ timeoutMs: 6000 })
-    // Signal data-load effects to re-run now that auth token is available.
-    // This fixes cross-device/cross-browser: the initial load runs before auth
-    // resolves; this increment triggers a reload once the token provider is set.
-    setAuthSyncKey((k) => k + 1)
-  }, [userId, getAccessToken])
   useEffect(() => {
     removeFogOverlays()
     const disconnect = watchFogReinjection()
@@ -4104,8 +4047,6 @@ export default function App() {
   const clientServerAutoSaveInFlightRef = useRef(false)
   const clientLastPayloadSignatureRef = useRef<string | null>(null)
   const consultantBackfillRanRef = useRef(false)
-  const isHydratingRef = useRef(false)
-  const [isHydrating, setIsHydrating] = useState(false)
   const isApplyingCepRef = useRef(false)
   const isEditingEnderecoRef = useRef(false)
   const lastCepAppliedRef = useRef<string>('')
@@ -4966,6 +4907,20 @@ export default function App() {
   const {
     crmDataset,
   } = crmState
+
+  // ─── Storage hydration ─────────────────────────────────────────────────────
+  // Ref that points to the current `aplicarSnapshot` function. Updated in the
+  // render body after `aplicarSnapshot` is declared (further below). The async
+  // draft-loader inside the hook reads this ref so it always calls the latest
+  // version without needing `aplicarSnapshot` in the effect's deps array.
+  const applyDraftRef = useRef<((data: unknown) => void) | null>(null)
+  const { authSyncKey, isHydrating, isHydratingRef, setIsHydrating } = useStorageHydration({
+    userId,
+    getAccessToken,
+    applyDraftRef,
+    onNotify: adicionarNotificacao,
+  })
+  // ──────────────────────────────────────────────────────────────────────────
   const [capexManualOverride, setCapexManualOverride] = useState(
     INITIAL_VALUES.capexManualOverride,
   )
@@ -13084,61 +13039,6 @@ export default function App() {
 
   }, [carregarOrcamentosPrioritarios, authSyncKey, meAuthState])
 
-  // Carregar draft do formulário do IndexedDB na inicialização
-  useEffect(() => {
-    let cancelado = false
-    const carregarDraft = async () => {
-      try {
-        if (import.meta.env.DEV) console.debug('[App] Loading form draft from IndexedDB on mount')
-        const envelope = await loadFormDraft<OrcamentoSnapshotData>()
-
-        if (cancelado) {
-          return
-        }
-
-        if (envelope && envelope.data) {
-          if (import.meta.env.DEV) console.debug('[App] Form draft found, applying snapshot')
-
-          // Enable hydration mode to prevent state reset and auto-save during apply
-          isHydratingRef.current = true
-          setIsHydrating(true)
-          if (import.meta.env.DEV) console.debug('[App] Hydration mode enabled')
-
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-use-before-define
-            aplicarSnapshot(envelope.data)
-
-            // Wait for React to apply all setState calls
-            await tick()
-
-            if (import.meta.env.DEV) console.debug('[App] Hydration done')
-          } finally {
-            isHydratingRef.current = false
-            setIsHydrating(false)
-          }
-
-          // Show a discreet recovery notification
-          const clientName = (envelope.data.cliente?.nome ?? '').trim()
-          const recoveryMsg = clientName
-            ? `Progresso recuperado: ${clientName}`
-            : 'Progresso recuperado automaticamente'
-          adicionarNotificacao(recoveryMsg, 'info')
-
-          if (import.meta.env.DEV) console.debug('[App] Form draft applied successfully')
-        } else {
-          if (import.meta.env.DEV) console.debug('[App] No form draft found in IndexedDB')
-        }
-      } catch (error) {
-        console.error('[App] Failed to load form draft:', error)
-      }
-    }
-    void carregarDraft()
-    return () => {
-      cancelado = true
-    }
-
-  }, [])
-
   // Auto-save debounced: prioriza persistência oficial no backend (/api/proposals).
   // O rascunho local (IndexedDB) é usado somente quando estiver offline.
   useEffect(() => {
@@ -13488,6 +13388,10 @@ export default function App() {
       vendaActions.updateCodigos({ codigo_orcamento_interno: '', data_emissao: '' })
     }
   }
+  // Keep the hook's draft-apply ref in sync with the current function on every render.
+  // This is safe in the render body (no side-effects) and ensures the async
+  // IndexedDB loader in useStorageHydration always calls the latest closure.
+  applyDraftRef.current = aplicarSnapshot as (data: unknown) => void
 
   const handleEditarCliente = useCallback(
     async (registro: ClienteRegistro) => {
