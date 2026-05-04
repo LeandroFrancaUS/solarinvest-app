@@ -686,7 +686,7 @@ describe('valor atual de venda — auto-computation from consumo', () => {
       custo_fixo_rateado_percent: 5,
       lucro_minimo_percent: 10,
       comissao_minima_percent: 3,
-      margem_liquida_alvo_percent: opts.margemAlvo,
+      ...(opts.margemAlvo !== undefined && { margem_liquida_alvo_percent: opts.margemAlvo }),
       inadimplencia_percent: 2,
       custo_operacional_percent: 3,
       meses_projecao: mesesProjecao,

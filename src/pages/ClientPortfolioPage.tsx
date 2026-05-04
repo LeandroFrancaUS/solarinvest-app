@@ -3564,6 +3564,12 @@ function ClientDetailPanel({
     )
   }
 
+  const cobrancaGating = resolveCobrancaGating(displayClient)
+  const cobrancaTabProps = {
+    cobrancaEnabled: cobrancaGating.enabled,
+    ...(cobrancaGating.reason !== undefined ? { cobrancaDisabledReason: cobrancaGating.reason } : {}),
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -3745,8 +3751,7 @@ function ClientDetailPanel({
               onChange={setActiveTab}
               showPlano={displayClient.contract_type === 'leasing'}
               showFaturas={displayClient.is_contratante_titular === false}
-              cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
-              cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
+              {...cobrancaTabProps}
             />
 
             {/* Global edit controls */}

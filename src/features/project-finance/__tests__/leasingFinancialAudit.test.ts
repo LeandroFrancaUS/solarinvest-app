@@ -553,7 +553,7 @@ describe('computeReceitaTotalBruta — receita bruta total reativa', () => {
       s.prazo,
       null,
       {},
-      { impostos_percent: s.impostos_pct, taxa_desconto_aa_pct: s.taxa_desconto_aa_pct ?? undefined },
+      { impostos_percent: s.impostos_pct, ...(s.taxa_desconto_aa_pct != null ? { taxa_desconto_aa_pct: s.taxa_desconto_aa_pct } : {}) },
     )
     const esperado = computeReceitaTotalBruta(m, s.prazo, s.reajuste_anual_pct)
     expect(calculated.receita_total_bruta).not.toBeNull()

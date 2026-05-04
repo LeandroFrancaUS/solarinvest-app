@@ -31,17 +31,17 @@ describe('proposal origin link', () => {
   it('busca proposta por código em registros salvos', () => {
     const result = filterSavedProposals(records, { code: '42906319' })
     expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('p-1')
+    expect(result[0]!.id).toBe('p-1')
   })
 
   it('seleciona proposta e preenche proposalOriginRecordId e proposalOriginCode', () => {
-    const link = createProposalOriginLink(records[0])
+    const link = createProposalOriginLink(records[0]!)
     expect(link.proposalOriginRecordId).toBe('p-1')
     expect(link.proposalOriginCode).toBe('SLRINVST-LSE-42906319')
   })
 
   it('resolve proposalOriginId legado para recordId quando encontra proposta salva', async () => {
-    const findByCode = vi.fn(async () => records[0])
+    const findByCode = vi.fn(async () => records[0] ?? null)
     const resolved = await resolveLegacyProposalOrigin({ source_proposal_id: 'SLRINVST-LSE-42906319' }, findByCode)
 
     expect(findByCode).toHaveBeenCalledWith('SLRINVST-LSE-42906319')

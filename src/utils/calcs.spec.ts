@@ -159,7 +159,7 @@ describe('calcs utilitários', () => {
       tarifaCheia: 0.8,
       inflacaoEnergetica: 0.04,
       anosDecorridos: 0.5,
-      tipoLigacao: 'trifasica',
+      tipoLigacao: 'trifasico',
       cipValor: 12,
       tusd: { percentualFioB: 0.2, simultaneidade: 0.6, tarifaRkwh: 0.25 },
       energiaGeradaKwh: 650,

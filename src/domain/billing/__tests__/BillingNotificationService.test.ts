@@ -64,7 +64,7 @@ describe('generateNotificationsForClient', () => {
 
 describe('sendNotification', () => {
   it('marks notification as sent', () => {
-    const notif = generateNotificationsForClient(1, 'Test', [makeInstallment()])[0]
+    const notif = generateNotificationsForClient(1, 'Test', [makeInstallment()])[0]!
     const sent = sendNotification(notif)
 
     expect(sent.status).toBe('sent')

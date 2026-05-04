@@ -115,9 +115,9 @@ export async function previewContractImport(file: File, client: PortfolioClientR
   const plainText = isPdf ? await extractPdfText(file) : ''
   const parsed = parseContractFromText(plainText)
   const discrepancies = compareImportedWithPlan(parsed.fields, {
-    kwh_contratado: client.kwh_contratado,
-    kwh_mes_contratado: client.kwh_mes_contratado,
-    prazo_meses: client.prazo_meses,
+    ...(client.kwh_contratado !== undefined && { kwh_contratado: client.kwh_contratado }),
+    ...(client.kwh_mes_contratado !== undefined && { kwh_mes_contratado: client.kwh_mes_contratado }),
+    ...(client.prazo_meses !== undefined && { prazo_meses: client.prazo_meses }),
     modalidade: client.modalidade ?? null,
     uc: client.uc,
     distribuidora: client.distribuidora,
@@ -274,7 +274,7 @@ export async function applyContractImport(input: {
       signedAt: chosenSignedAt,
       proposalCode: chosenCode,
       kwhContratado: chosenKwh,
-      prazoContratualMeses: chosenTerm,
+      prazoContratualMeses: chosenTerm !== null && !isNaN(Number(chosenTerm)) ? Number(chosenTerm) : null,
     },
   }
 }

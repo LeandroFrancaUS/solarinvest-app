@@ -98,8 +98,8 @@ describe('budgetUploadPipeline.handleUpload', () => {
     expect(recognizeImageDataMock).toHaveBeenCalledTimes(1)
     expect(result.usedOcr).toBe(true)
     expect(result.json.itens).toHaveLength(1)
-    expect(result.json.itens[0].produto).toBe('Painel Solar 550W')
-    expect(result.json.itens[0].quantidade).toBe(2)
+    expect(result.json.itens[0]!.produto).toBe('Painel Solar 550W')
+    expect(result.json.itens[0]!.quantidade).toBe(2)
     expect(result.json.resumo.valorTotal).toBe(2000)
   })
 
@@ -133,7 +133,7 @@ describe('budgetUploadPipeline.handleUpload', () => {
 
     expect(recognizeImageDataMock).not.toHaveBeenCalled()
     expect(result.usedOcr).toBe(false)
-    expect(result.json.itens[0].quantidade).toBe(3)
+    expect(result.json.itens[0]!.quantidade).toBe(3)
     expect(progressSpy).toHaveBeenCalled()
   })
 
@@ -162,7 +162,7 @@ describe('budgetUploadPipeline.handleUpload', () => {
 
     expect(recognizeImageDataMock).toHaveBeenCalledTimes(1)
     expect(result.usedOcr).toBe(true)
-    expect(result.json.itens[0].produto).toBe('Inversor Solar Premium')
+    expect(result.json.itens[0]!.produto).toBe('Inversor Solar Premium')
     expect(result.json.resumo.valorTotal).toBe(5000)
   })
 
