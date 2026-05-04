@@ -79,53 +79,17 @@ import {
   handlePortfolioRemoveRequest,
   handleDashboardPortfolioSummary,
 } from './client-portfolio/handler.js'
-import {
-  handleFinancialSummary,
-  handleFinancialProjects,
-  handleFinancialCashflow,
-  handleFinancialEntries,
-  handleFinancialCategories,
-  handleFinancialDashboardFeed,
-} from './financial-management/handler.js'
-import { handleRevenueClients } from './revenue-billing/handler.js'
-import {
-  handleProjectsList,
-  handleProjectsSummary,
-  handleProjectById,
-  handleProjectStatus,
-  handleProjectPvData,
-  handleProjectFromPlan,
-} from './projects/handler.js'
-import { handleProjectFinance } from './project-finance/handler.js'
-import {
-  handleFinancialImportParse,
-  handleFinancialImportConfirm,
-  handleFinancialImportBatches,
-} from './financial-import/handler.js'
-import { handleFinancialAnalyses } from './financial-analyses/handler.js'
-import {
-  handleInvoicesListRequest,
-  handleInvoicesCreateRequest,
-  handleInvoicesUpdateRequest,
-  handleInvoicesDeleteRequest,
-  handleInvoicePaymentRequest,
-  handleInvoiceNotificationsRequest,
-  handleInvoiceNotificationConfigGetRequest,
-  handleInvoiceNotificationConfigUpdateRequest,
-} from './invoices/handler.js'
-import {
-  handleOperationalTasksListRequest,
-  handleOperationalTasksCreateRequest,
-  handleOperationalTasksUpdateRequest,
-  handleOperationalTasksDeleteRequest,
-  handleTaskHistoryRequest,
-  handleNotificationPreferencesGetRequest,
-  handleNotificationPreferencesUpdateRequest,
-} from './operational-tasks/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
 import { createRouter } from './router.js'
 import { registerHealthRoutes } from './routes/health.js'
 import { registerStorageRoutes } from './routes/storage.js'
+import { registerProjectsRoutes } from './routes/projects.js'
+import { registerFinancialManagementRoutes } from './routes/financialManagement.js'
+import { registerFinancialImportRoutes } from './routes/financialImport.js'
+import { registerFinancialAnalysesRoutes } from './routes/financialAnalyses.js'
+import { registerInvoicesRoutes } from './routes/invoices.js'
+import { registerRevenueBillingRoutes } from './routes/revenueBilling.js'
+import { registerOperationalTasksRoutes } from './routes/operationalTasks.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -387,6 +351,13 @@ registerPersonnelImportRoutes(router, { getScopedSql: createHandlerScopedSql })
 registerConsultantsRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 registerEngineersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
 registerInstallersRoutes(router, { getScopedSql: createHandlerScopedSql, readJsonBody })
+registerInvoicesRoutes(router, { readJsonBody })
+registerOperationalTasksRoutes(router, { readJsonBody })
+registerRevenueBillingRoutes(router, {})
+registerFinancialManagementRoutes(router, { readJsonBody })
+registerProjectsRoutes(router, { readJsonBody })
+registerFinancialImportRoutes(router, {})
+registerFinancialAnalysesRoutes(router, { readJsonBody })
 
 // ✅ ESTE É O HANDLER serverless
 export default async function handler(req, res) {
@@ -786,312 +757,6 @@ export default async function handler(req, res) {
       const clientId = Number(portfolioNotesMatch[1])
       const sj = (s, b) => sendJson(res, s, b)
       await handlePortfolioNotesRequest(req, res, { method, clientId, readJsonBody, sendJson: sj })
-      return
-    }
-
-    // ── Invoice Management routes ─────────────────────────────────────────────
-
-    // GET /api/invoices?client_id=:id — list invoices for a client
-    // POST /api/invoices — create new invoice
-    if (pathname === '/api/invoices') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'GET') {
-        await handleInvoicesListRequest(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      } else if (method === 'POST') {
-        const body = await readJsonBody(req)
-        await handleInvoicesCreateRequest(req, res, { method, sendJson: sj, body })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // PATCH /api/invoices/:invoiceId — update invoice
-    // DELETE /api/invoices/:invoiceId — delete invoice
-    const invoiceByIdMatch = pathname.match(/^\/api\/invoices\/(\d+)$/)
-    if (invoiceByIdMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
-      const invoiceId = Number(invoiceByIdMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'PATCH') {
-        const body = await readJsonBody(req)
-        await handleInvoicesUpdateRequest(req, res, { method, invoiceId, sendJson: sj, body })
-      } else if (method === 'DELETE') {
-        await handleInvoicesDeleteRequest(req, res, { method, invoiceId, sendJson: sj })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // POST /api/invoices/:invoiceId/payment — register payment
-    const invoicePaymentMatch = pathname.match(/^\/api\/invoices\/(\d+)\/payment$/)
-    if (invoicePaymentMatch) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const invoiceId = Number(invoicePaymentMatch[1])
-      const sj = (s, b) => sendJson(res, s, b)
-      const body = await readJsonBody(req)
-      await handleInvoicePaymentRequest(req, res, { method, invoiceId, sendJson: sj, body })
-      return
-    }
-
-    // GET /api/invoices/notifications — get invoice alerts
-    if (pathname === '/api/invoices/notifications') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleInvoiceNotificationsRequest(req, res, { method, sendJson: sj })
-      return
-    }
-
-    // GET /api/invoices/notification-config — get notification config
-    // POST /api/invoices/notification-config — update notification config
-    if (pathname === '/api/invoices/notification-config') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'GET') {
-        await handleInvoiceNotificationConfigGetRequest(req, res, { method, sendJson: sj })
-      } else if (method === 'POST') {
-        const body = await readJsonBody(req)
-        await handleInvoiceNotificationConfigUpdateRequest(req, res, { method, sendJson: sj, body })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // ── Operational Tasks routes ──────────────────────────────────────────────
-
-    // GET /api/operational-tasks — list operational tasks
-    // POST /api/operational-tasks — create operational task
-    if (pathname === '/api/operational-tasks') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'GET') {
-        await handleOperationalTasksListRequest(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      } else if (method === 'POST') {
-        const body = await readJsonBody(req)
-        await handleOperationalTasksCreateRequest(req, res, { method, sendJson: sj, body })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // PATCH /api/operational-tasks/:taskId — update task
-    // DELETE /api/operational-tasks/:taskId — delete task
-    const operationalTaskMatch = pathname.match(/^\/api\/operational-tasks\/(\d+)$/)
-    if (operationalTaskMatch) {
-      const taskId = parseInt(operationalTaskMatch[1], 10)
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,DELETE,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'PATCH') {
-        const body = await readJsonBody(req)
-        await handleOperationalTasksUpdateRequest(req, res, { method, taskId, sendJson: sj, body })
-      } else if (method === 'DELETE') {
-        await handleOperationalTasksDeleteRequest(req, res, { method, taskId, sendJson: sj })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // GET /api/operational-tasks/:taskId/history — get task history
-    const taskHistoryMatch = pathname.match(/^\/api\/operational-tasks\/(\d+)\/history$/)
-    if (taskHistoryMatch) {
-      const taskId = parseInt(taskHistoryMatch[1], 10)
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleTaskHistoryRequest(req, res, { method, taskId, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // GET /api/dashboard/notification-preferences — get dashboard notification preferences
-    // POST /api/dashboard/notification-preferences — update dashboard notification preferences
-    if (pathname === '/api/dashboard/notification-preferences') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      if (method === 'GET') {
-        await handleNotificationPreferencesGetRequest(req, res, { method, sendJson: sj })
-      } else if (method === 'POST') {
-        const body = await readJsonBody(req)
-        await handleNotificationPreferencesUpdateRequest(req, res, { method, sendJson: sj, body })
-      } else {
-        sendJson(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: 'Método não permitido.' } })
-      }
-      return
-    }
-
-    // ── Revenue Billing routes ────────────────────────────────────────────────
-
-    // GET /api/revenue-billing/clients
-    if (pathname === '/api/revenue-billing/clients') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleRevenueClients(req, res, { method, sendJson: sj, requestUrl })
-      return
-    }
-
-    // ── Financial Management routes ───────────────────────────────────────────
-
-    // GET /api/financial-management/summary
-    if (pathname === '/api/financial-management/summary') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialSummary(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // GET /api/financial-management/projects
-    if (pathname === '/api/financial-management/projects') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialProjects(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // GET /api/financial-management/cashflow
-    if (pathname === '/api/financial-management/cashflow') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialCashflow(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // GET /api/financial-management/categories
-    if (pathname === '/api/financial-management/categories') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialCategories(req, res, { method, sendJson: sj })
-      return
-    }
-
-    // GET /api/financial-management/dashboard-feed
-    if (pathname === '/api/financial-management/dashboard-feed') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialDashboardFeed(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // GET|POST|PUT|DELETE /api/financial-management/entries[/:id]
-    if (pathname === '/api/financial-management/entries' || pathname.startsWith('/api/financial-management/entries/')) {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,POST,PUT,DELETE,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => {
-        if (b === null) { sendNoContent(res); return }
-        sendJson(res, s, b)
-      }
-      const body = ['POST', 'PUT'].includes(method) ? await readJsonBody(req) : undefined
-      await handleFinancialEntries(req, res, { method, sendJson: sj, requestUrl: req.url ?? '', body })
-      return
-    }
-
-    // ── Projects (Gestão Financeira > Projetos) ───────────────────────────────
-
-    // GET /api/projects/summary
-    if (pathname === '/api/projects/summary') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleProjectsSummary(req, res, { method, sendJson: sj })
-      return
-    }
-
-    // POST /api/projects/from-plan/:planId
-    {
-      const fromPlanMatch = pathname.match(/^\/api\/projects\/from-plan\/([^/]+)$/)
-      if (fromPlanMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-        const sj = (s, b) => sendJson(res, s, b)
-        const planId = decodeURIComponent(fromPlanMatch[1])
-        await handleProjectFromPlan(req, res, { method, planId, readJsonBody, sendJson: sj })
-        return
-      }
-    }
-
-    // GET|PUT /api/projects/:id/finance
-    {
-      const financeMatch = pathname.match(/^\/api\/projects\/([^/]+)\/finance$/)
-      if (financeMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PUT,OPTIONS'); sendNoContent(res); return }
-        const sj = (s, b) => sendJson(res, s, b)
-        await handleProjectFinance(req, res, { method, projectId: financeMatch[1], readJsonBody, sendJson: sj })
-        return
-      }
-    }
-
-    // PATCH /api/projects/:id/status
-    {
-      const statusMatch = pathname.match(/^\/api\/projects\/([^/]+)\/status$/)
-      if (statusMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-        const sj = (s, b) => sendJson(res, s, b)
-        await handleProjectStatus(req, res, { method, projectId: statusMatch[1], readJsonBody, sendJson: sj })
-        return
-      }
-    }
-
-    // PATCH /api/projects/:id/pv-data
-    {
-      const pvDataMatch = pathname.match(/^\/api\/projects\/([^/]+)\/pv-data$/)
-      if (pvDataMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'PATCH,OPTIONS'); sendNoContent(res); return }
-        const sj = (s, b) => sendJson(res, s, b)
-        await handleProjectPvData(req, res, { method, projectId: pvDataMatch[1], readJsonBody, sendJson: sj })
-        return
-      }
-    }
-
-    // GET|PATCH /api/projects/:id
-    {
-      const byIdMatch = pathname.match(/^\/api\/projects\/([^/]+)$/)
-      if (byIdMatch) {
-        if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,PATCH,OPTIONS'); sendNoContent(res); return }
-        const sj = (s, b) => sendJson(res, s, b)
-        await handleProjectById(req, res, { method, projectId: byIdMatch[1], readJsonBody, sendJson: sj })
-        return
-      }
-    }
-
-    // GET /api/projects
-    if (pathname === '/api/projects') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleProjectsList(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    // ── Financial Import (Excel) ──────────────────────────────────────────────
-    // POST /api/financial-import/parse   — upload XLSX → preview
-    // POST /api/financial-import/confirm — upload XLSX → full import
-    // GET  /api/financial-import/batches — list recent batches (audit log)
-
-    if (pathname === '/api/financial-import/parse') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialImportParse(req, res, { method, sendJson: sj })
-      return
-    }
-
-    if (pathname === '/api/financial-import/confirm') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialImportConfirm(req, res, { method, sendJson: sj })
-      return
-    }
-
-    if (pathname === '/api/financial-import/batches') {
-      if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
-      const sj = (s, b) => sendJson(res, s, b)
-      await handleFinancialImportBatches(req, res, { method, sendJson: sj, requestUrl: req.url ?? '' })
-      return
-    }
-
-    if (pathname === '/api/financial-analyses') {
-      await handleFinancialAnalyses(req, res, {
-        method,
-        readJsonBody,
-        sendJson: (status, payload) => sendJson(res, status, payload),
-      })
       return
     }
 
