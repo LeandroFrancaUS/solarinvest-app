@@ -174,6 +174,7 @@ import { AppRoutes } from './app/Routes'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
+import { useNavigationState } from './hooks/useNavigationState'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { useStorageHydration } from './hooks/useStorageHydration'
 import { useTheme } from './hooks/useTheme'
@@ -184,8 +185,6 @@ import {
   INITIAL_VALUES,
   LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
-  SIMULACOES_SECTIONS,
-  STORAGE_KEYS,
   UF_LABELS,
   createEmptyKitBudget,
   createInitialComposicaoSolo,
@@ -318,7 +317,7 @@ import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
-import type { ActivePage, SimulacoesSection } from './types/navigation'
+import type { SimulacoesSection } from './types/navigation'
 import {
   SIMULACOES_SECTION_COPY,
 } from './features/simulacoes/simulacoesConstants'
@@ -3219,44 +3218,39 @@ export default function App() {
   }, [])
 
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
-  const [activePage, setActivePage] = useState<ActivePage>(() => {
-    if (typeof window === 'undefined') {
-      return 'app'
-    }
-
-    const storedPage = window.localStorage.getItem(STORAGE_KEYS.activePage)
-    const isKnownPage =
-      storedPage === 'dashboard' ||
-      storedPage === 'operational-dashboard' ||
-      storedPage === 'app' ||
-      storedPage === 'crm' ||
-      storedPage === 'consultar' ||
-      storedPage === 'clientes' ||
-      storedPage === 'settings' ||
-      storedPage === 'simulacoes' ||
-      storedPage === 'admin-users' ||
-      storedPage === 'carteira' ||
-      storedPage === 'financial-management'
-
-    return isKnownPage ? (storedPage as ActivePage) : 'app'
-  })
-  // Pending project ID to auto-open in Gestão Financeira when navigating there from another page.
-  const [pendingFinancialProjectId, setPendingFinancialProjectId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    if (typeof window === 'undefined') {
-      return INITIAL_VALUES.activeTab
-    }
-
-    const storedTab = window.localStorage.getItem(STORAGE_KEYS.activeTab)
-    return storedTab === 'leasing' || storedTab === 'vendas' ? storedTab : INITIAL_VALUES.activeTab
-  })
-  const activeTabRef = useRef(activeTab)
-  const [simulacoesSection, setSimulacoesSection] = useState<SimulacoesSection>(() => {
-    if (typeof window === 'undefined') return 'nova'
-    const stored = window.localStorage.getItem(STORAGE_KEYS.simulacoesSection)
-    return (stored && (SIMULACOES_SECTIONS as readonly string[]).includes(stored))
-      ? (stored as SimulacoesSection)
-      : 'nova'
+  // Stable ref for runWithUnsavedChangesGuard — defined later in this file.
+  // The hook reads guardRef.current each time a nav callback is invoked so it
+  // always uses the latest guard without re-declaring the hook.
+  const runWithUnsavedChangesGuardRef = useRef<((action: () => void | Promise<void>) => Promise<boolean>) | null>(null)
+  const {
+    activePage,
+    setActivePage,
+    activeTab,
+    setActiveTab,
+    activeTabRef,
+    simulacoesSection,
+    pendingFinancialProjectId,
+    setPendingFinancialProjectId,
+    lastPrimaryPageRef,
+    isSidebarCollapsed,
+    isSidebarMobileOpen,
+    isMobileViewport,
+    handleSidebarMenuToggle,
+    handleSidebarNavigate,
+    handleSidebarClose,
+    activeSidebarItem,
+    abrirDashboard,
+    abrirCarteira,
+    abrirCrmCentral,
+    abrirGestaoFinanceira,
+    abrirSimulacoes,
+    abrirDashboardOperacional,
+  } = useNavigationState({
+    canSeePortfolioEffective,
+    canSeeFinancialManagementEffective,
+    canSeeDashboardEffective,
+    canSeeFinancialAnalysisEffective,
+    guardRef: runWithUnsavedChangesGuardRef,
   })
   const isVendaDiretaTab = activeTab === 'vendas'
   useEffect(() => {
@@ -3269,18 +3263,6 @@ export default function App() {
   const [kcKwhMes, setKcKwhMesState] = useState(INITIAL_VALUES.kcKwhMes)
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
-
-  const lastPrimaryPageRef = useRef<'dashboard' | 'app' | 'crm' | 'simulacoes'>('app')
-  useEffect(() => {
-    if (
-      activePage === 'dashboard' ||
-      activePage === 'app' ||
-      activePage === 'crm' ||
-      activePage === 'simulacoes'
-    ) {
-      lastPrimaryPageRef.current = activePage
-    }
-  }, [activePage])
 
   // Guard protected pages: redirect unauthorized users away from 'settings',
   // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
@@ -3297,54 +3279,6 @@ export default function App() {
     canSeeFinancialManagementEffective,
     setActivePage,
   })
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-
-    return window.innerWidth < 1000
-  })
-  const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false)
-  const [isMobileViewport, setIsMobileViewport] = useState(false)
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    const handleResize = () => {
-      const width = window.innerWidth
-      if (width <= 920) {
-        setIsSidebarCollapsed(false)
-      } else {
-        setIsSidebarCollapsed(width < 1000)
-      }
-    }
-
-    handleResize()
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    if (typeof window.matchMedia !== 'function') {
-      return
-    }
-
-    const mediaQuery = window.matchMedia('(max-width: 920px)')
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsMobileViewport(event.matches)
-      if (!event.matches) {
-        setIsSidebarMobileOpen(false)
-      }
-    }
-
-    setIsMobileViewport(mediaQuery.matches)
-    mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [])
   type ClientsSyncState = 'online-db' | 'reconciling' | 'degraded-api' | 'local-fallback'
   type ClientsSource = 'api' | 'server-storage' | 'local-browser-storage' | 'memory'
   const [orcamentosSalvos, setOrcamentosSalvos] = useState<OrcamentoSalvo[]>([])
@@ -4769,10 +4703,6 @@ export default function App() {
     clienteEmEdicaoIdRef.current = clienteEmEdicaoId
   }, [clienteEmEdicaoId])
 
-  useEffect(() => {
-    activeTabRef.current = activeTab
-  }, [activeTab])
-
   // Sync refs to prevent stale closures in getCurrentSnapshot
   useEffect(() => {
     clienteRef.current = cliente
@@ -4927,30 +4857,6 @@ export default function App() {
   const [parsedVendaPdf, setParsedVendaPdf] = useState<ParsedVendaPdfData | null>(null)
   const [estruturaTipoWarning, setEstruturaTipoWarning] =
     useState<EstruturaUtilizadaTipoWarning | null>(null)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.localStorage.setItem(STORAGE_KEYS.activePage, activePage)
-  }, [activePage])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.localStorage.setItem(STORAGE_KEYS.activeTab, activeTab)
-  }, [activeTab])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.localStorage.setItem(STORAGE_KEYS.simulacoesSection, simulacoesSection)
-  }, [simulacoesSection])
 
   const budgetItemsTotal = useMemo(
     () => computeBudgetItemsTotalValue(kitBudget.items),
@@ -15620,6 +15526,9 @@ export default function App() {
     },
     [handleSalvarPropostaPdf, hasUnsavedChanges, isProposalPage, requestSaveDecision, scheduleMarkStateAsSaved],
   )
+  // Keep the nav-hook's guardRef in sync so navigation callbacks always call the
+  // latest version of this guard (follows the applyDraftRef pattern).
+  runWithUnsavedChangesGuardRef.current = runWithUnsavedChangesGuard
 
   const handleGerarContratosComConfirmacao = useCallback(async () => {
     // ── Data-integrity gate ───────────────────────────────────────────────
@@ -15723,18 +15632,6 @@ export default function App() {
     return canProceed
   }, [carregarOrcamentosPrioritarios, runWithUnsavedChangesGuard, setActivePage])
 
-  const abrirSimulacoes = useCallback(
-    (section?: SimulacoesSection) => {
-      if (section === 'analise' && !canSeeFinancialAnalysisEffective) {
-        return false
-      }
-      setSimulacoesSection(section ?? 'nova')
-      setActivePage('simulacoes')
-      return true
-    },
-    [setActivePage, canSeeFinancialAnalysisEffective],
-  )
-
   const abrirConfiguracoes = useCallback(
     async (tab?: SettingsTabKey) => {
       if (!isAdmin) {
@@ -15747,39 +15644,6 @@ export default function App() {
     },
     [runWithUnsavedChangesGuard, setActivePage, setSettingsTab, isAdmin],
   )
-
-  const abrirDashboard = useCallback(async () => {
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('dashboard')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage])
-
-  const abrirCarteira = useCallback(async () => {
-    if (!canSeePortfolioEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('carteira')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeePortfolioEffective])
-
-  const abrirGestaoFinanceira = useCallback(async () => {
-    if (!canSeeFinancialManagementEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('financial-management')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeFinancialManagementEffective])
-
-  const abrirDashboardOperacional = useCallback(async () => {
-    if (!canSeeDashboardEffective) return false
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('operational-dashboard')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage, canSeeDashboardEffective])
-
-  const abrirCrmCentral = useCallback(async () => {
-    return runWithUnsavedChangesGuard(() => {
-      setActivePage('crm')
-    })
-  }, [runWithUnsavedChangesGuard, setActivePage])
 
   const iniciarNovaProposta = useCallback(async () => {
     if (novaPropostaEmAndamentoRef.current) {
@@ -18072,31 +17936,6 @@ export default function App() {
     </React.Suspense>
   ) : null
 
-  const handleSidebarMenuToggle = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen((previous) => {
-        const next = !previous
-        if (next) {
-          setIsSidebarCollapsed(false)
-        }
-        return next
-      })
-      return
-    }
-
-    setIsSidebarCollapsed((previous) => !previous)
-  }, [isMobileViewport])
-
-  const handleSidebarNavigate = useCallback(() => {
-    if (isMobileViewport) {
-      setIsSidebarMobileOpen(false)
-    }
-  }, [isMobileViewport])
-
-  const handleSidebarClose = useCallback(() => {
-    setIsSidebarMobileOpen(false)
-  }, [])
-
   const contentActions = activePage === 'crm'
     ? <CrmPageActions {...crmState} onVoltar={() => setActivePage('app')} />
     : null
@@ -18419,28 +18258,6 @@ export default function App() {
       </div>
     )
   }
-
-  const activeSidebarItem =
-    activePage === 'dashboard'
-      ? 'dashboard-home'
-      : activePage === 'crm'
-        ? 'crm-central'
-        : activePage === 'clientes'
-          ? 'crm-clientes'
-          : activePage === 'carteira'
-            ? 'carteira-clientes'
-            : activePage === 'consultar'
-              ? 'orcamentos-importar'
-          : activePage === 'settings' || activePage === 'admin-users'
-                ? 'gestao-financeira-home'
-                : activePage === 'financial-management'
-                  ? 'gestao-financeira-home'
-                  : activePage === 'simulacoes'
-                  ? `simulacoes-${simulacoesSection}`
-                    : activeTab === 'vendas'
-                      ? 'propostas-vendas'
-                      : 'propostas-leasing'
-
 
   // If in print mode, render the Bento Grid print page
   if (isPrintMode) {

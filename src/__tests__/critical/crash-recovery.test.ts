@@ -61,12 +61,12 @@ describe('beforeunload emergency save', () => {
 
 describe('activePage persistence', () => {
   it('should include carteira in known pages', () => {
-    const source = readFileSync(resolve(ROOT, 'App.tsx'), 'utf-8')
+    const source = readFileSync(resolve(ROOT, 'hooks/useNavigationState.ts'), 'utf-8')
     expect(source).toContain("storedPage === 'carteira'")
   })
 
   it('should persist simulacoesSection to localStorage', () => {
-    const source = readFileSync(resolve(ROOT, 'App.tsx'), 'utf-8')
+    const source = readFileSync(resolve(ROOT, 'hooks/useNavigationState.ts'), 'utf-8')
     expect(source).toContain('STORAGE_KEYS.simulacoesSection')
   })
 })
