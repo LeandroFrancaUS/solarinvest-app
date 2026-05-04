@@ -151,6 +151,8 @@ import {
   handleNotificationPreferencesUpdateRequest,
 } from './operational-tasks/handler.js'
 import { createUserScopedSql } from './database/withRLSContext.js'
+import { createRouter } from './router.js'
+import { registerHealthRoutes } from './routes/health.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -377,6 +379,17 @@ if (databaseConfig.connectionString && databaseClient) {
   console.warn(`[storage] DATABASE_URL (or equivalent) is not set — storage is unavailable.${vercelHint}`)
 }
 
+// ── Route registry (health endpoints only in this initial phase) ──────────────
+const router = createRouter()
+registerHealthRoutes(router, {
+  databaseClient,
+  databaseConfig,
+  storageService,
+  stackAuthEnabled,
+  sendJson,
+  sendServerError,
+})
+
 // ✅ ESTE É O HANDLER serverless
 export default async function handler(req, res) {
   const requestId = createRequestId()
@@ -395,75 +408,10 @@ export default async function handler(req, res) {
     const pathname = requestUrl.pathname
     const method = req.method?.toUpperCase() ?? 'GET'
 
-    if (pathname === '/health' || pathname === '/api/health') {
-      const diagnostics = getNeonDatabaseConfig()
-      console.info('[db-runtime]', {
-        route: pathname,
-        dbSource: diagnostics.source ?? null,
-        schema: diagnostics.schema ?? 'public',
-      })
-      if (!databaseClient || !databaseConfig.connectionString) {
-        sendServerError(res, 503, {
-          ok: false,
-          db: false,
-          error: 'DB_NOT_CONFIGURED',
-        }, requestId, vercelId)
-        return
-      }
-
-      try {
-        await databaseClient.sql`SELECT 1 AS ok`
-        sendJson(res, 200, { ok: true, db: true })
-      } catch (error) {
-        console.error('[api/health] failed', {
-          message: error instanceof Error ? error.message : String(error),
-        })
-        sendServerError(res, 500, {
-          ok: false,
-          db: false,
-          error: 'DB_HEALTHCHECK_FAILED',
-        }, requestId, vercelId)
-      }
-      return
-    }
-
-    if (pathname === '/api/health/db') {
-      if (!databaseClient || !databaseConfig.connectionString) {
-        sendServerError(res, 503, {
-          ok: false,
-          db: 'not_configured',
-          error: 'Banco de dados não configurado. Defina DATABASE_URL.'
-        }, requestId, vercelId)
-        return
-      }
-
-      const startTime = Date.now()
-      try {
-        const result = await databaseClient.sql`SELECT 1 as ok, NOW() as now`
-        const latencyMs = Date.now() - startTime
-        const row = Array.isArray(result) && result.length > 0 ? result[0] : null
-        const nowValue = row?.now ?? null
-        const serialized =
-          nowValue && typeof nowValue.toISOString === 'function'
-            ? nowValue.toISOString()
-            : nowValue
-
-        sendJson(res, 200, {
-          ok: true,
-          db: 'connected',
-          now: serialized,
-          latencyMs
-        })
-      } catch (error) {
-        const latencyMs = Date.now() - startTime
-        console.error('[database] Falha no health check:', error)
-        sendServerError(res, 500, {
-          ok: false,
-          db: 'error',
-          error: 'Falha ao conectar ao banco de dados',
-          latencyMs
-        }, requestId, vercelId)
-      }
+    // ── Route registry dispatch (health endpoints) ─────────────────────────
+    const routerFn = router.match(method, pathname)
+    if (routerFn) {
+      await routerFn(req, res, { requestId, vercelId })
       return
     }
 
@@ -536,49 +484,6 @@ export default async function handler(req, res) {
       return
     }
 
-    if (pathname === '/api/health/auth') {
-      // Check Stack Auth connectivity: can we verify a user with the configured JWKS?
-      const authEnabled = stackAuthEnabled
-      const bypassMode = !stackAuthEnabled
-      sendJson(res, 200, {
-        ok: true,
-        service: 'auth',
-        status: bypassMode ? 'bypass' : 'configured',
-        stackAuthEnabled: authEnabled,
-      })
-      return
-    }
-
-    if (pathname === '/api/health/storage') {
-      if (!storageService || !databaseClient || !databaseConfig.connectionString) {
-        sendJson(res, 503, {
-          ok: false,
-          service: 'storage',
-          status: 'not_configured',
-          error: 'DATABASE_URL não definido ou storage indisponível.',
-        })
-        return
-      }
-      const startTime = Date.now()
-      try {
-        await databaseClient.sql`SELECT 1 AS ok`
-        sendJson(res, 200, {
-          ok: true,
-          service: 'storage',
-          status: 'connected',
-          latencyMs: Date.now() - startTime,
-        })
-      } catch (err) {
-        sendJson(res, 503, {
-          ok: false,
-          service: 'storage',
-          status: 'error',
-          error: 'Falha ao conectar ao banco de dados.',
-          latencyMs: Date.now() - startTime,
-        })
-      }
-      return
-    }
 
 
     if (pathname === DEFAULT_PROXY_BASE) {
