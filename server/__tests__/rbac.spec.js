@@ -589,11 +589,30 @@ describe('createUserScopedSql — fail-closed guard', () => {
     expect(result).toBe(mockSql)
   })
 
-  it('returns wrapper function for legacy non-empty userId string', () => {
-    // No .transaction on mock → falls back to raw sql with a warning
+  it('returns wrapper function for legacy non-empty userId string (legacy path still graceful)', () => {
+    // Legacy string path keeps the graceful fallback for backward compat.
+    // No .transaction on mock → falls back to raw sql with a console.warn.
     const result = createUserScopedSql(mockSql, 'some-user-id')
     // Should not throw; returns raw sql due to missing .transaction
     expect(result).toBe(mockSql)
+  })
+
+  it('throws 503 when sql.transaction is unavailable in object form (fail-closed)', () => {
+    // The new object API must never silently bypass RLS — it throws when the
+    // Neon driver does not support sql.transaction().
+    expect(() => createUserScopedSql(mockSql, { userId: 'u1', role: 'role_admin' }))
+      .toThrow(/sql\.transaction not available/)
+  })
+
+  it('503 error has statusCode 503 when sql.transaction is unavailable (object form)', () => {
+    let caught = null
+    try {
+      createUserScopedSql(mockSql, { userId: 'u1', role: 'role_comercial' })
+    } catch (err) {
+      caught = err
+    }
+    expect(caught).not.toBeNull()
+    expect(caught.statusCode).toBe(503)
   })
 
   it('returns wrapper function for valid object form when .transaction available', () => {
