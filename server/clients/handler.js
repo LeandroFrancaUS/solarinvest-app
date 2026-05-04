@@ -133,13 +133,15 @@ function toClientWritePayload(body) {
   assign('phone',    core.client_phone)
   assign('email',    core.client_email)
   assign('city',     core.client_city)
-  // state also accepts the 'uf' alias which is not in the core adapter
+  // 'uf' is a short-form alias for state used only by this handler's callers
+  // (not part of the canonical 8-field adapter set, kept here intentionally).
   assign('state',    firstDefined(core.client_state, body.uf))
   assign('address',  core.client_address)
   assign('document', core.client_document)
   const normalizedCep = normalizeCep(firstDefined(body.client_cep, body.cep))
   if (normalizedCep !== undefined) accepted.client_cep = normalizedCep
-  // uc also accepts the camelCase 'ucGeradora' alias not covered by the adapter
+  // 'ucGeradora' is a camelCase alias sent by legacy clients; camelCase aliases
+  // are intentionally kept out of the shared adapter (which uses snake_case only).
   assign('uc',       firstDefined(core.uc_geradora, body.ucGeradora))
   assign('uc_beneficiaria', body.uc_beneficiaria, body.ucBeneficiaria)
   assign('system_kwp', body.system_kwp, body.systemKwp)
