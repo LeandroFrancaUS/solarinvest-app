@@ -153,6 +153,7 @@ import {
 import { createUserScopedSql } from './database/withRLSContext.js'
 import { createRouter } from './router.js'
 import { registerHealthRoutes } from './routes/health.js'
+import { registerStorageRoutes } from './routes/storage.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -177,7 +178,6 @@ const MIME_TYPES = {
   '.woff2': 'font/woff2',
 }
 
-const STORAGE_API_PATH = '/api/storage'
 const TEST_API_PATH = '/api/test'
 const MAX_JSON_BODY_BYTES = 5 * 1024 * 1024
 const CORS_ALLOWED_HEADERS = 'Content-Type, Authorization, X-Requested-With'
@@ -379,7 +379,7 @@ if (databaseConfig.connectionString && databaseClient) {
   console.warn(`[storage] DATABASE_URL (or equivalent) is not set — storage is unavailable.${vercelHint}`)
 }
 
-// ── Route registry (health endpoints only in this initial phase) ──────────────
+// ── Route registry ────────────────────────────────────────────────────────────
 const router = createRouter()
 registerHealthRoutes(router, {
   databaseClient,
@@ -388,6 +388,13 @@ registerHealthRoutes(router, {
   stackAuthEnabled,
   sendJson,
   sendServerError,
+})
+registerStorageRoutes(router, {
+  storageService,
+  stackAuthEnabled,
+  sendJson,
+  sendNoContent,
+  readJsonBody,
 })
 
 // ✅ ESTE É O HANDLER serverless
@@ -534,157 +541,7 @@ export default async function handler(req, res) {
       return
     }
 
-    if (pathname === STORAGE_API_PATH) {
-      if (!storageService) {
-        sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Persistência indisponível' })
-        return
-      }
-
-      const stackUser = await getStackUser(req)
-      const fallbackUserId = stackAuthEnabled
-        ? sanitizeStackUserId(stackUser && stackUser.payload ? stackUser : null)
-        : sanitizeStackUserId(stackUser)
-
-      let actor = null
-      try {
-        actor = await resolveActor(req)
-      } catch (actorErr) {
-        // Classify the error: auth/permission failures should be 401/403, not 503.
-        const errMsg = actorErr?.message ?? String(actorErr)
-        const isAuthError = errMsg.includes('Unauthorized') || errMsg.includes('401') ||
-          errMsg.includes('unauthenticated') || errMsg.includes('token')
-        console.error('[storage] resolveActor failed:', {
-          message: actorErr?.message,
-          code: actorErr?.code,
-          stack: actorErr?.stack,
-        })
-        if (isAuthError) {
-          sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
-        } else {
-          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Não foi possível verificar permissões. Tente novamente.' })
-        }
-        return
-      }
-
-      const userId = actor?.userId ?? fallbackUserId
-      const resolvedRole = actorRole(actor)
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[storage] auth context', { userId, resolvedRole })
-      }
-
-      if (method === 'OPTIONS') {
-        res.setHeader('Allow', CORS_ALLOWED_METHODS)
-        sendNoContent(res)
-        return
-      }
-
-      if (stackAuthEnabled && !userId) {
-        sendJson(res, 401, { ok: false, code: 'UNAUTHORIZED', message: 'Autenticação obrigatória.' })
-        return
-      }
-      if (stackAuthEnabled && !resolvedRole) {
-        sendJson(res, 403, {
-          ok: false,
-          code: 'FORBIDDEN',
-          message: 'Unable to resolve internal app role for SQL session.',
-        })
-        return
-      }
-
-      if (method === 'GET') {
-        try {
-          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
-          const entries = await storageService.listEntries({ userId, userRole: resolvedRole })
-          sendJson(res, 200, { entries })
-        } catch (storageErr) {
-          console.error('[storage] failed', {
-            userId,
-            userRole: resolvedRole,
-            message: storageErr?.message,
-            code: storageErr?.code,
-          })
-          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao acessar armazenamento. Tente novamente.', requestId })
-        }
-        return
-      }
-
-      if (method === 'PUT' || method === 'POST') {
-        let body = {}
-        try {
-          body = await readJsonBody(req)
-        } catch (parseError) {
-          if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
-            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
-            return
-          }
-          if (parseError?.code === 'INVALID_JSON') {
-            sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
-            return
-          }
-          throw parseError
-        }
-        const key = typeof body.key === 'string' ? body.key.trim() : ''
-        const value = body.value === undefined ? null : body.value
-        if (!key) return sendJson(res, 400, { ok: false, code: 'VALIDATION_ERROR', message: 'Chave de armazenamento inválida.' })
-        try {
-          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
-          await storageService.setEntry({ userId, userRole: resolvedRole }, key, value)
-          sendNoContent(res)
-        } catch (storageErr) {
-          if (storageErr?.code === 'STORAGE_PAYLOAD_TOO_LARGE') {
-            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
-            return
-          }
-          console.error('[storage] failed', {
-            userId,
-            userRole: resolvedRole,
-            message: storageErr?.message,
-            code: storageErr?.code,
-          })
-          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao salvar no armazenamento. Tente novamente.', requestId })
-        }
-        return
-      }
-
-      if (method === 'DELETE') {
-        let body = {}
-        try {
-          body = await readJsonBody(req)
-        } catch (parseError) {
-          if (parseError?.code === 'PAYLOAD_TOO_LARGE') {
-            sendJson(res, 413, { ok: false, code: 'PAYLOAD_TOO_LARGE', message: 'Payload acima do limite permitido.' })
-            return
-          }
-          if (parseError?.code === 'INVALID_JSON') {
-            sendJson(res, 400, { ok: false, code: 'INVALID_JSON', message: 'JSON inválido na requisição.' })
-            return
-          }
-          throw parseError
-        }
-        const key = typeof body.key === 'string' ? body.key.trim() : ''
-        try {
-          if (process.env.NODE_ENV !== 'production') console.log('[storage] applying rls context', { userId, userRole: resolvedRole })
-          if (!key) {
-            await storageService.clear({ userId, userRole: resolvedRole })
-          } else {
-            await storageService.removeEntry({ userId, userRole: resolvedRole }, key)
-          }
-          sendNoContent(res)
-        } catch (storageErr) {
-          console.error('[storage] failed', {
-            userId,
-            userRole: resolvedRole,
-            message: storageErr?.message,
-            code: storageErr?.code,
-          })
-          sendJson(res, 503, { ok: false, code: 'STORAGE_UNAVAILABLE', message: 'Falha ao remover do armazenamento. Tente novamente.', requestId })
-        }
-        return
-      }
-
-      sendJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Método não suportado.' })
-      return
-    }
+    // /api/storage is now handled by the route registry above (registerStorageRoutes).
 
     // Auth & Admin routes — apply rate limiting
     if (pathname === '/api/auth/me') {
