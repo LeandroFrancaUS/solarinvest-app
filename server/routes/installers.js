@@ -6,8 +6,6 @@
 import { resolveActor } from '../proposals/permissions.js'
 import { jsonResponse, noContentResponse } from '../response.js'
 
-// Regex for auto-generated installer codes: I/i + 3 alphanumerics
-const CODE_REGEX = /^[Ii][A-Za-z0-9]{3}$/
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**

@@ -9,8 +9,6 @@
 import { resolveActor } from '../proposals/permissions.js'
 import { jsonResponse, noContentResponse } from '../response.js'
 
-// Regex for auto-generated consultant codes: C/c + 3 alphanumerics
-const CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**
