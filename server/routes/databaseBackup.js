@@ -6,10 +6,17 @@
 // intentionally identical to the originals.  handler.js imports and registers
 // this route via registerDatabaseBackupRoutes() so it continues to act as the
 // compatibility shim.
+//
+// Auth, rate-limiting, and error handling are centralised via the middleware
+// layer introduced in PR 17:
+//   registerDatabaseBackupRoutes → withErrorHandler(withRateLimit(withAuth(...)))
 
 import crypto from 'node:crypto'
 import { getDatabaseClient } from '../database/neonClient.js'
 import { resolveActor } from '../proposals/permissions.js'
+import { withAuth } from '../middleware/withAuth.js'
+import { withErrorHandler } from '../middleware/withErrorHandler.js'
+import { withRateLimit } from '../middleware/withRateLimit.js'
 
 const BACKUP_TABLE = 'db_backup_snapshots'
 const MAX_PLATFORM_BACKUPS_PER_USER = 20
@@ -407,23 +414,27 @@ async function persistPlatformBackup(sql, actor, payload, checksum) {
   `
 }
 
-export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) {
-  let actor
-  try {
-    actor = await resolveActor(req)
-  } catch {
-    sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
-    return
-  }
+export async function handleDatabaseBackupRequest(req, res, { sendJson, body, actor: injectedActor = null }) {
+  // Use the actor injected by withAuth middleware when present; fall back to
+  // resolving it internally for callers that do not use the middleware chain.
+  let actor = injectedActor
+  if (!actor) {
+    try {
+      actor = await resolveActor(req)
+    } catch {
+      sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+      return
+    }
 
-  if (!actor?.userId) {
-    sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
-    return
-  }
+    if (!actor?.userId) {
+      sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+      return
+    }
 
-  if (!actor.isAdmin && !actor.isOffice) {
-    sendJson(res, 403, { ok: false, error: 'Apenas perfis Admin e Office podem gerar backup.' })
-    return
+    if (!actor.isAdmin && !actor.isOffice) {
+      sendJson(res, 403, { ok: false, error: 'Apenas perfis Admin e Office podem gerar backup.' })
+      return
+    }
   }
 
   const db = getDatabaseClient()
@@ -482,6 +493,11 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
 /**
  * Registers the /api/admin/database-backup route on the given router.
  *
+ * Auth, rate-limiting, and error handling are composed via the middleware
+ * layer.  The outer route handler keeps the OPTIONS pre-flight and method
+ * guard inline so that these checks run before any auth or rate-limit
+ * overhead — consistent with the existing, backward-compatible behaviour.
+ *
  * @param {ReturnType<import('../router.js').createRouter>} router
  * @param {{
  *   sendJson:            (res: object, status: number, payload: object) => void,
@@ -493,13 +509,30 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
 export function registerDatabaseBackupRoutes(router, moduleCtx) {
   const { sendJson, sendNoContent, readJsonBody, isAdminRateLimited } = moduleCtx
 
+  // Compose the protected inner handler once at registration time.
+  // Execution order per request: error handler (wrapper) → rate limit → auth → handler body.
+  const protectedHandler = withErrorHandler(
+    withRateLimit(
+      withAuth(
+        async (req, res, reqCtx) => {
+          const body = await readJsonBody(req)
+          await handleDatabaseBackupRequest(req, res, { sendJson, body, actor: reqCtx.actor })
+        },
+        { roles: ['admin', 'office'] },
+      ),
+      { check: isAdminRateLimited },
+    ),
+  )
+
   // POST /api/admin/database-backup — secure DB snapshot export for admin/office
-  router.register('*', '/api/admin/database-backup', async (req, res, _reqCtx) => {
+  router.register('*', '/api/admin/database-backup', async (req, res, reqCtx) => {
     const method = req.method?.toUpperCase() ?? ''
+    // OPTIONS preflight: always respond without auth or rate-limit checks.
     if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    // Method guard runs before the composed middleware chain (rate-limit → auth → handler)
+    // to keep standard HTTP semantics and avoid disclosing auth requirements to callers
+    // that use an unsupported method.
     if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
-    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
-    const body = await readJsonBody(req)
-    await handleDatabaseBackupRequest(req, res, { sendJson, body })
+    await protectedHandler(req, res, reqCtx)
   })
 }
