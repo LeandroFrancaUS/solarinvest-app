@@ -48,7 +48,7 @@ export function registerAuthRoutes(router, moduleCtx) {
   // ── GET /api/auth/me ──────────────────────────────────────────────────────
   // Returns authenticated user info + internal authorization status.
   router.register('*', '/api/auth/me', async (req, res, _reqCtx) => {
-    const method = req.method?.toUpperCase() ?? 'GET'
+    const method = req.method?.toUpperCase() ?? ''
     const requestUrl = new URL(req.url, 'http://localhost')
     if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
     if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
@@ -59,7 +59,7 @@ export function registerAuthRoutes(router, moduleCtx) {
   // ── GET /api/authz/me ─────────────────────────────────────────────────────
   // Full authorization snapshot (role, capabilities, permissions).
   router.register('*', '/api/authz/me', async (req, res, _reqCtx) => {
-    const method = req.method?.toUpperCase() ?? 'GET'
+    const method = req.method?.toUpperCase() ?? ''
     if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
     if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
     if (isAuthRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
@@ -79,7 +79,7 @@ export function registerAuthRoutes(router, moduleCtx) {
   // ── POST /api/auth/logout ─────────────────────────────────────────────────
   // Clears the session cookie by setting Max-Age=0.
   router.register('*', '/api/auth/logout', (req, res, _reqCtx) => {
-    const method = req.method?.toUpperCase() ?? 'GET'
+    const method = req.method?.toUpperCase() ?? ''
     if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
     if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
     expireAuthCookie(req, res)
@@ -89,7 +89,7 @@ export function registerAuthRoutes(router, moduleCtx) {
   // ── POST /api/internal/auth/reconcile ────────────────────────────────────
   // Reconcile all users' DB roles against Stack Auth permissions (admin only).
   router.register('*', '/api/internal/auth/reconcile', async (req, res, _reqCtx) => {
-    const method = req.method?.toUpperCase() ?? 'GET'
+    const method = req.method?.toUpperCase() ?? ''
     if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
     if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
     if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
@@ -99,7 +99,7 @@ export function registerAuthRoutes(router, moduleCtx) {
   // ── GET /api/internal/rbac/inspect ───────────────────────────────────────
   // RBAC diagnostic endpoint — admin only.
   router.register('*', '/api/internal/rbac/inspect', async (req, res, _reqCtx) => {
-    const method = req.method?.toUpperCase() ?? 'GET'
+    const method = req.method?.toUpperCase() ?? ''
     const requestUrl = new URL(req.url, 'http://localhost')
     if (method === 'OPTIONS') { res.setHeader('Allow', 'GET,OPTIONS'); sendNoContent(res); return }
     if (method !== 'GET') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
