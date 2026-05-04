@@ -14,13 +14,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { MeResponse } from '../../lib/auth/access-types'
-import type { ConsultantEntry, ConsultantPickerEntry } from '../../lib/api/clientsApi'
+import type { ConsultantEntry } from '../../lib/api/clientsApi'
 import {
   ClientsApiError,
   listClients as listClientsFromApi,
   listConsultants as listConsultantsFromApi,
 } from '../../lib/api/clientsApi'
-import { fetchConsultantsForPicker, consultorDisplayName } from '../../services/personnelApi'
+import { fetchConsultantsForPicker, consultorDisplayName, type ConsultantPickerEntry } from '../../services/personnelApi'
 import {
   loadClientesFromOneDrive,
   OneDriveIntegrationMissingError,
@@ -47,7 +47,7 @@ import {
  * Minimal user shape required by the hook.
  * We keep this loose to avoid importing the full Stack Auth SDK type.
  */
-type AuthUserLike = { id?: string; primaryEmail?: string } | null | undefined
+type AuthUserLike = { id?: string; primaryEmail?: string | null } | null | undefined
 
 export interface UseClientStateOptions {
   /** Authentication state string from useAuthSession. */
@@ -71,7 +71,7 @@ export interface UseClientStateOptions {
    * Callback to display a toast notification.  The hook calls this when
    * fallback loading is activated due to an API error.
    */
-  adicionarNotificacao: (mensagem: string, tipo?: string) => void
+  adicionarNotificacao: (mensagem: string, tipo?: 'success' | 'info' | 'error') => void
 }
 
 // ---------------------------------------------------------------------------
@@ -692,7 +692,7 @@ export function useClientState(options: UseClientStateOptions): UseClientStateRe
       cancelado = true
       cleanup.then((cleanupFn) => cleanupFn()).catch(() => {})
     }
-  }, [user, authSyncKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, authSyncKey])
   // Note: me, cliente, updateClienteSync are intentionally excluded from deps
   // (matches original App.tsx behavior to avoid spurious re-runs)
 

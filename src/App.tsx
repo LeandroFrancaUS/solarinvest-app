@@ -35,7 +35,6 @@ import {
   persistClienteRegistroToOneDrive,
   persistContratoToOneDrive,
   type ClienteRegistroSyncPayload,
-  loadClientesFromOneDrive,
   loadPropostasFromOneDrive,
   isOneDriveIntegrationAvailable,
   OneDriveIntegrationMissingError,
@@ -283,12 +282,8 @@ import {
 } from './lib/api/proposalsApi'
 import {
   ClientsApiError,
-  type ConsultantEntry,
   deleteClientById,
   isClientNotFoundError,
-  listClients as listClientsFromApi,
-  listConsultants as listConsultantsFromApi,
-  type ClientRow,
   runConsultorBackfillSweep,
   upsertClientByDocument,
   updateClientById,
@@ -316,7 +311,7 @@ import { RevenueAndBillingPage } from './pages/RevenueAndBillingPage'
 import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
-import { fetchConsultantsForPicker, type ConsultantPickerEntry, consultorDisplayName } from './services/personnelApi'
+import type { ConsultantForResolution } from './domain/clients/consultant-resolution'
 import type { SimulacoesSection } from './types/navigation'
 import {
   SIMULACOES_SECTION_COPY,
@@ -381,31 +376,21 @@ import {
 // ── Extracted client state types, helpers, and hook ──────────────────────────
 import type {
   OrcamentoSnapshotData,
-  OrcamentoSnapshotBudgetState,
-  OrcamentoSnapshotMultiUcState,
   PageSharedSettings,
   ClienteRegistro,
-  ClientsSyncState,
-  ClientsSource,
-  PersistedClientReconciliation,
 } from './types/orcamentoTypes'
 import {
   CLIENTES_STORAGE_KEY,
-  CLIENTS_RECONCILIATION_KEY,
-  CONSULTORES_CACHE_KEY,
-  CLIENT_SERVER_ID_MAP_STORAGE_KEY,
   CLIENTE_ID_LENGTH,
   CLIENTE_ID_PATTERN,
   CLIENTE_INICIAL,
   isSyncedClienteField,
-  normalizeDistribuidoraName,
   getDistribuidoraValidationMessage,
   cloneClienteDados,
   ensureClienteHerdeiros,
   normalizeClienteHerdeiros,
   normalizeClienteIdCandidate,
   generateClienteId,
-  ensureClienteId,
   isQuotaExceededError,
   persistWithFallback,
   persistClientesToLocalStorage,
@@ -1596,7 +1581,6 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   const s: Partial<OrcamentoSnapshotData> = (snapshot && typeof snapshot === 'object') ? snapshot : {}
   return {
     ...(s as OrcamentoSnapshotData),
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
     cliente: cloneClienteDados((s as OrcamentoSnapshotData).cliente),
     clienteMensagens: s.clienteMensagens ? { ...s.clienteMensagens } : undefined,
     ucBeneficiarias: cloneUcBeneficiariasForm(Array.isArray(s.ucBeneficiarias) ? s.ucBeneficiarias : []),
@@ -2058,8 +2042,6 @@ const buildClientesCsv = (registros: ClienteRegistro[]): string => {
 
   return [header, ...rows].join('\n')
 }
-
-type NormalizeClienteRegistrosOptions = Parameters<typeof normalizeClienteRegistros>[1]
 
 const PROPOSAL_PDF_REMINDER_MESSAGE =
   'Integração de PDF não configurada. Configure o conector para salvar automaticamente ou utilize a opção “Imprimir” para gerar o PDF manualmente.'
@@ -3141,17 +3123,16 @@ export default function App() {
 
   // ── Client state via extracted hook ────────────────────────────────────────
   const {
-    cliente, setCliente,
+    cliente,
     clientesSalvos, setClientesSalvos,
     clientsSyncState, setClientsSyncState,
-    clientsSource, setClientsSource,
-    clientsLastLoadError, setClientsLastLoadError,
+    clientsSource,
+    clientsLastLoadError,
     clientsLastDeleteError, setClientsLastDeleteError,
-    lastSuccessfulApiLoadAt, setLastSuccessfulApiLoadAt,
+    lastSuccessfulApiLoadAt,
     lastDeleteReconciledAt, setLastDeleteReconciledAt,
-    reconciliationReady, setReconciliationReady,
-    allConsultores, setAllConsultores,
-    formConsultores, setFormConsultores,
+    allConsultores,
+    formConsultores,
     clienteEmEdicaoId, setClienteEmEdicaoId,
     originalClientData, setOriginalClientData,
     clientLastSaveStatus, setClientLastSaveStatus,
@@ -3159,9 +3140,7 @@ export default function App() {
     clienteRef,
     clienteEmEdicaoIdRef,
     lastSavedClienteRef,
-    clientsLoadInFlightRef,
     clientAutoSaveTimeoutRef,
-    clientsSyncStateRef,
     deletingClientIdsRef,
     deletedClientKeysRef,
     clientServerIdMapRef,
@@ -3173,7 +3152,6 @@ export default function App() {
     removeClientServerIdMapEntry,
     setClienteSync,
     updateClienteSync,
-    parseClientesSalvos,
     carregarClientesSalvos,
     getClientStableKey,
     persistDeletedClientKeys,
@@ -11234,7 +11212,7 @@ export default function App() {
             createdByUserId: registro.createdByUserId,
           } as Parameters<typeof convertClientToClosedDeal>[0]['clienteDados'],
           snapshot: (registro.propostaSnapshot ?? {}) as Parameters<typeof convertClientToClosedDeal>[0]['snapshot'],
-          consultants: formConsultores,
+          consultants: formConsultores as ConsultantForResolution[],
           ucBeneficiarias: ucBeneficiariasNums.filter((u): u is string => typeof u === 'string'),
         })
 

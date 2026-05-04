@@ -12,7 +12,6 @@
 import type { ClienteDados, PrintableProposalTipo } from '../../types/printableProposal'
 import type { FieldSyncKey } from '../../store/useFieldSyncStore'
 import type { KitBudgetState } from '../../app/config'
-import type { VendasConfig } from '../../types/vendasConfig'
 import type { VendaForm } from '../../lib/finance/roi'
 import type { ParsedVendaPdfData } from '../../lib/pdf/extractVendas'
 import type { VendaSnapshot } from '../../store/useVendaStore'
