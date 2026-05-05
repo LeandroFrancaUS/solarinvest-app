@@ -359,6 +359,8 @@ export const buildClientesCsv = (registros: ClienteRegistro[]): string => {
       uf: dados.uf ?? '',
       temIndicacao: dados.temIndicacao ? 'true' : 'false',
       indicacaoNome: dados.indicacaoNome ?? '',
+      consultorId: dados.consultorId ?? '',
+      consultorNome: dados.consultorNome ?? '',
       nomeSindico: dados.nomeSindico ?? '',
       cpfSindico: dados.cpfSindico ?? '',
       contatoSindico: dados.contatoSindico ?? '',
