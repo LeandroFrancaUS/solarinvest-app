@@ -160,6 +160,10 @@ import { useDisplayPreferences } from './hooks/useDisplayPreferences'
 import { useAdminSettingsDraft } from './hooks/useAdminSettingsDraft'
 import { useAneelTarifaState } from './features/simulacoes/useAneelTarifaState'
 import { useContractModalState } from './hooks/useContractModalState'
+import { useNotificacoes } from './hooks/useNotificacoes'
+import { usePropostaEnvioModal } from './hooks/usePropostaEnvioModal'
+import { useLeasingFinanciamentoState } from './features/simulacoes/useLeasingFinanciamentoState'
+import { usePrecheckNormativo } from './features/simulacoes/usePrecheckNormativo'
 import type { ClienteContratoPayload } from './types/contratoTypes'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import {
@@ -1971,35 +1975,8 @@ export default function App() {
     [updatePageSharedState],
   )
 
-  // ── Notification state (moved up — useClientState depends on adicionarNotificacao) ─────
-  const [notificacoes, setNotificacoes] = useState<Notificacao[]>([])
-  const notificacaoSequencialRef = useRef(0)
-  const notificacaoTimeoutsRef = useRef<Record<number, number>>({})
-
-  const removerNotificacao = useCallback((id: number) => {
-    setNotificacoes((prev) => prev.filter((item) => item.id !== id))
-
-    const timeoutId = notificacaoTimeoutsRef.current[id]
-    if (timeoutId && typeof window !== 'undefined') {
-      window.clearTimeout(timeoutId)
-    }
-    delete notificacaoTimeoutsRef.current[id]
-  }, [])
-
-  const adicionarNotificacao = useCallback(
-    (mensagem: string, tipo: NotificacaoTipo = 'info') => {
-      notificacaoSequencialRef.current += 1
-      const id = notificacaoSequencialRef.current
-
-      setNotificacoes((prev) => [...prev, { id, mensagem, tipo }])
-
-      if (typeof window !== 'undefined') {
-        const timeoutId = window.setTimeout(() => removerNotificacao(id), 5000)
-        notificacaoTimeoutsRef.current[id] = timeoutId
-      }
-    },
-    [removerNotificacao],
-  )
+  // ── Notification state ─────────────────────────────────────────────────────
+  const { notificacoes, adicionarNotificacao, removerNotificacao, clearNotificacoes } = useNotificacoes()
 
   const crmState = useCrm({ adicionarNotificacao })
   const {
@@ -3146,124 +3123,22 @@ export default function App() {
     [handlePotenciaInstaladaChange, handleTipoRedeSelection, mapTipoLigacaoToRede],
   )
 
-  const [precheckClienteCiente, setPrecheckClienteCiente] = useState(false)
-  const [precheckModalData, setPrecheckModalData] = useState<NormComplianceResult | null>(null)
-  const [precheckModalClienteCiente, setPrecheckModalClienteCiente] = useState(false)
-  const precheckDecisionResolverRef = useRef<((value: PrecheckDecision) => void) | null>(null)
-
-  const buildPrecheckObservationText = useCallback(
-    (params: {
-      result: NormComplianceResult
-      action: PrecheckDecisionAction
-      clienteCiente: boolean
-      potenciaAplicada?: number
-      tipoLigacaoAplicada?: TipoLigacaoNorma
-    }) => {
-      const { result, action: _action, clienteCiente: _clienteCiente, tipoLigacaoAplicada } = params
-      const tipoLabel = formatTipoLigacaoLabel(tipoLigacaoAplicada ?? result.tipoLigacao)
-      const upgradeLabel =
-        result.upgradeTo && result.upgradeTo !== result.tipoLigacao
-          ? formatTipoLigacaoLabel(result.upgradeTo)
-          : null
-
-      const formatKw = (value?: number | null) =>
-        value != null
-          ? formatNumberBRWithOptions(value, {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })
-          : '—'
-
-      const statusTextMap: Record<NormComplianceStatus, string> = {
-        OK: 'dentro do limite do padrão',
-        WARNING: 'regra provisória',
-        FORA_DA_NORMA: 'acima do limite do padrão',
-        LIMITADO: 'acima do limite mesmo com upgrade',
-      }
-
-      const recomendacao =
-        upgradeLabel && result.kwMaxUpgrade != null
-          ? `upgrade do padrão de entrada para ${upgradeLabel.toLowerCase()} (até ${formatKw(
-              result.kwMaxUpgrade,
-            )} kW)`
-          : 'sem upgrade sugerido para este caso'
-      return [
-        `Pré-check normativo (${result.uf}).`,
-        `Tipo de ligação informado: ${tipoLabel}.`,
-        `Potência informada: ${formatKw(result.potenciaInversorKw)} kW (limite do padrão: ${formatKw(
-          result.kwMaxPermitido,
-        )} kW).`,
-        `Situação: ${statusTextMap[result.status]}.`,
-        `Recomendação: ${recomendacao}.`,
-      ].join('\n')
-    },
-    [],
-  )
-
-  const isPrecheckObservationTextValid = useCallback((text: string) => {
-    const lines = text.split('\n')
-    if (lines.length > 5) return false
-    if (lines.some((line) => line.trim().length === 0)) return false
-    if (lines.some((line) => line.length > 120)) return false
-    if (/(\[PRECHECK|{|}|<|>|•)/.test(text)) return false
-    if (/cliente ciente/i.test(text)) return false
-    if (/[\u{1F300}-\u{1FAFF}]/u.test(text)) return false
-    return true
-  }, [])
-
-  const buildPrecheckObservationBlock = useCallback(
-    (params: {
-      result: NormComplianceResult
-      action: PrecheckDecisionAction
-      clienteCiente: boolean
-      potenciaAplicada?: number
-      tipoLigacaoAplicada?: TipoLigacaoNorma
-    }) => buildPrecheckObservationText(params),
-    [buildPrecheckObservationText],
-  )
-
-  const cleanPrecheckObservation = useCallback((value: string) => {
-    return value
-      .replace(/(^|\n)Pré-check normativo[\s\S]*?(?:\n{2,}|$)/g, '$1')
-      .split('\n')
-      .filter((line) => !/Pré-check normativo|\[PRECHECK|\{|\}|•|Cliente ciente/i.test(line))
-      .join('\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  }, [])
-
-  const upsertPrecheckObservation = useCallback(
-    (block: string) => {
-      setConfiguracaoUsinaObservacoes((prev) => {
-        const cleaned = cleanPrecheckObservation(prev)
-        if (!cleaned) {
-          return block
-        }
-        return `${cleaned}\n\n${block}`
-      })
-    },
-    [cleanPrecheckObservation, setConfiguracaoUsinaObservacoes],
-  )
-
-  const removePrecheckObservation = useCallback(() => {
-    setConfiguracaoUsinaObservacoes((prev) => cleanPrecheckObservation(prev))
-  }, [cleanPrecheckObservation, setConfiguracaoUsinaObservacoes])
-
-  const requestPrecheckDecision = useCallback(
-    (result: NormComplianceResult) =>
-      new Promise<PrecheckDecision>((resolve) => {
-        precheckDecisionResolverRef.current = resolve
-        setPrecheckModalData(result)
-        setPrecheckModalClienteCiente(precheckClienteCiente)
-      }),
-    [precheckClienteCiente],
-  )
-
-  const resolvePrecheckDecision = useCallback((decision: PrecheckDecision) => {
-    precheckDecisionResolverRef.current?.(decision)
-    precheckDecisionResolverRef.current = null
-    setPrecheckModalData(null)
-  }, [])
+  const {
+    precheckClienteCiente,
+    setPrecheckClienteCiente,
+    precheckModalData,
+    setPrecheckModalData,
+    precheckModalClienteCiente,
+    setPrecheckModalClienteCiente,
+    buildPrecheckObservationText,
+    isPrecheckObservationTextValid,
+    buildPrecheckObservationBlock,
+    cleanPrecheckObservation,
+    upsertPrecheckObservation,
+    removePrecheckObservation,
+    requestPrecheckDecision,
+    resolvePrecheckDecision,
+  } = usePrecheckNormativo({ setConfiguracaoUsinaObservacoes })
 
   const taxaMinimaCalculadaBase = useMemo(() => {
     const custosFixosPadrao = getCustosFixosContaEnergiaPadrao(cliente.cidade)
@@ -3791,34 +3666,40 @@ export default function App() {
     [applyVendaUpdates, vendaForm.modo_pagamento, vendaForm.n_boletos, vendaForm.n_debitos],
   )
 
-  const [jurosFinAa, setJurosFinAa] = useState(INITIAL_VALUES.jurosFinanciamentoAa)
-  const [prazoFinMeses, setPrazoFinMeses] = useState(
-    INITIAL_VALUES.prazoFinanciamentoMeses,
-  )
-  const [entradaFinPct, setEntradaFinPct] = useState(INITIAL_VALUES.entradaFinanciamentoPct)
-  const [mostrarFinanciamento, setMostrarFinanciamento] = useState(
-    INITIAL_VALUES.mostrarFinanciamento,
-  )
-  const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
-  const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
-  const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
-  const [cipEncargo, setCipEncargo] = useState(INITIAL_VALUES.cipEncargo)
-  const [entradaRs, setEntradaRs] = useState(INITIAL_VALUES.entradaRs)
-  const [entradaModo, setEntradaModo] = useState<EntradaModoLabel>(INITIAL_VALUES.entradaModo)
-  const [mostrarValorMercadoLeasing, setMostrarValorMercadoLeasing] = useState(
-    INITIAL_VALUES.mostrarValorMercadoLeasing,
-  )
-  const [mostrarTabelaParcelas, setMostrarTabelaParcelas] = useState(
-    INITIAL_VALUES.tabelaVisivel,
-  )
-  const [mostrarTabelaBuyout, setMostrarTabelaBuyout] = useState(INITIAL_VALUES.tabelaVisivel)
-  const [gerandoTabelaTransferencia, setGerandoTabelaTransferencia] = useState(false)
-  const [mostrarTabelaParcelasConfig, setMostrarTabelaParcelasConfig] = useState(
-    INITIAL_VALUES.tabelaVisivel,
-  )
-  const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
-    INITIAL_VALUES.tabelaVisivel,
-  )
+  const {
+    jurosFinAa,
+    setJurosFinAa,
+    prazoFinMeses,
+    setPrazoFinMeses,
+    entradaFinPct,
+    setEntradaFinPct,
+    mostrarFinanciamento,
+    setMostrarFinanciamento,
+    mostrarGrafico,
+    setMostrarGrafico,
+    prazoMeses,
+    setPrazoMeses,
+    bandeiraEncargo,
+    setBandeiraEncargo,
+    cipEncargo,
+    setCipEncargo,
+    entradaRs,
+    setEntradaRs,
+    entradaModo,
+    setEntradaModo,
+    mostrarValorMercadoLeasing,
+    setMostrarValorMercadoLeasing,
+    mostrarTabelaParcelas,
+    setMostrarTabelaParcelas,
+    mostrarTabelaBuyout,
+    setMostrarTabelaBuyout,
+    gerandoTabelaTransferencia,
+    setGerandoTabelaTransferencia,
+    mostrarTabelaParcelasConfig,
+    setMostrarTabelaParcelasConfig,
+    mostrarTabelaBuyoutConfig,
+    setMostrarTabelaBuyoutConfig,
+  } = useLeasingFinanciamentoState()
 
   // Late-bound ref for prepararDadosContratoCliente — assigned below after the
   // callback is declared (same TDZ-safe pattern used by applyVendaUpdatesRef).
@@ -6685,123 +6566,16 @@ export default function App() {
     }
   }, [adicionarNotificacao, carregarClientesPrioritarios, isAdmin, meAuthState])
 
-  useEffect(() => {
-    return () => {
-      if (typeof window === 'undefined') {
-        return
-      }
-
-      Object.values(notificacaoTimeoutsRef.current).forEach((timeoutId) => {
-        window.clearTimeout(timeoutId)
-      })
-    }
-  }, [])
-  const [isEnviarPropostaModalOpen, setIsEnviarPropostaModalOpen] = useState(false)
-  const [contatoEnvioSelecionadoId, setContatoEnvioSelecionadoId] = useState<string | null>(null)
-  const contatosEnvio = useMemo<PropostaEnvioContato[]>(() => {
-    const mapa = new Map<string, PropostaEnvioContato>()
-
-    const adicionarContato = (
-      contato: Omit<PropostaEnvioContato, 'id'> & { id?: string },
-    ) => {
-      const telefone = contato.telefone?.trim() ?? ''
-      const telefoneDigits = telefone ? normalizeNumbers(telefone) : ''
-      const chave = telefoneDigits ? `fone-${telefoneDigits}` : contato.id ?? ''
-      if (!chave) {
-        return
-      }
-
-      const existente = mapa.get(chave)
-      if (existente) {
-        const nome = contato.nome?.trim()
-        if (nome && !existente.nome) {
-          existente.nome = nome
-        }
-        if (telefone && !existente.telefone) {
-          existente.telefone = telefone
-        }
-        if (contato.email && !existente.email) {
-          existente.email = contato.email
-        }
-        return
-      }
-
-      mapa.set(chave, {
-        id: chave,
-        nome: contato.nome?.trim() || '',
-        telefone,
-        email: contato.email?.trim() || undefined,
-        origem: contato.origem,
-      })
-    }
-
-    const nomeAtual = cliente.nome?.trim()
-    const telefoneAtual = cliente.telefone?.trim()
-    const emailAtual = cliente.email?.trim()
-    if (nomeAtual || telefoneAtual || emailAtual) {
-      adicionarContato({
-        id: 'cliente-atual',
-        nome: nomeAtual || 'Cliente atual',
-        telefone: telefoneAtual || '',
-        email: emailAtual || undefined,
-        origem: 'cliente-atual',
-      })
-    }
-
-    clientesSalvos.forEach((registro) => {
-      const dados = registro.dados
-      const telefone = dados.telefone?.trim() ?? ''
-      const email = dados.email?.trim()
-      const nome = dados.nome?.trim()
-      if (nome || telefone || email) {
-        adicionarContato({
-          id: registro.id,
-          nome: nome || 'Cliente salvo',
-          telefone,
-          email: email || undefined,
-          origem: 'cliente-salvo',
-        })
-      }
-    })
-
-    crmDataset.leads.forEach((lead) => {
-      const nome = lead.nome?.trim()
-      const telefone = lead.telefone?.trim()
-      const email = lead.email?.trim()
-      if (nome || telefone || email) {
-        adicionarContato({
-          id: lead.id,
-          nome: nome || 'Lead sem nome',
-          telefone: telefone || '',
-          email: email || undefined,
-          origem: 'crm',
-        })
-      }
-    })
-
-    return Array.from(mapa.values())
-  }, [cliente, clientesSalvos, crmDataset.leads])
-
-  const contatoEnvioSelecionado = useMemo(() => {
-    if (!contatoEnvioSelecionadoId) {
-      return null
-    }
-    return contatosEnvio.find((contato) => contato.id === contatoEnvioSelecionadoId) ?? null
-  }, [contatoEnvioSelecionadoId, contatosEnvio])
-
-  useEffect(() => {
-    if (contatosEnvio.length === 0) {
-      setContatoEnvioSelecionadoId(null)
-      return
-    }
-
-    setContatoEnvioSelecionadoId((prev) => {
-      if (prev && contatosEnvio.some((contato) => contato.id === prev)) {
-        return prev
-      }
-      return contatosEnvio[0]?.id ?? null
-    })
-  }, [contatosEnvio])
+  const {
+    isEnviarPropostaModalOpen,
+    setIsEnviarPropostaModalOpen,
+    contatoEnvioSelecionadoId,
+    setContatoEnvioSelecionadoId,
+    contatosEnvio,
+    contatoEnvioSelecionado,
+    selecionarContatoEnvio,
+    fecharEnvioPropostaModal,
+  } = usePropostaEnvioModal({ cliente, clientesSalvos, crmLeads: crmDataset.leads })
 
   // Note: a proactive global notification used to be raised here every 15 days
   // when the PDF integration was missing. It surfaced as an out-of-context
@@ -10535,7 +10309,7 @@ export default function App() {
       lastSavedClienteRef.current = null
       setClienteEmEdicaoId(null)
       setActivePage('app')
-      setNotificacoes([])
+      clearNotificacoes()
       const novoBudgetId = createDraftBudgetId()
       if (import.meta.env.DEV) console.debug('[Nova Proposta] New budget ID created', novoBudgetId)
 
@@ -11705,14 +11479,6 @@ export default function App() {
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
-
-  const selecionarContatoEnvio = useCallback((id: string) => {
-    setContatoEnvioSelecionadoId(id)
-  }, [])
-
-  const fecharEnvioPropostaModal = useCallback(() => {
-    setIsEnviarPropostaModalOpen(false)
-  }, [])
 
   const abrirEnvioPropostaModal = useCallback(() => {
     setActivePage('app')
