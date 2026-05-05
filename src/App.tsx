@@ -159,6 +159,7 @@ import './styles/bulk-import.css'
 import './styles/backup-modal.css'
 import '@/styles/fix-fog-safari.css'
 import { AppRoutes } from './app/Routes'
+import { PageRenderer } from './app/PageRenderer'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
@@ -14484,178 +14485,184 @@ export default function App() {
             <PrintableProposal ref={printableRef} {...printableData} />
           </React.Suspense>
         </div>
-        {activePage === 'dashboard' ? (
-          <DashboardPage />
-        ) : activePage === 'crm' ? (
-          <CrmPage {...crmState} />
-        ) : activePage === 'consultar' ? (
-          <BudgetSearchPage
-            registros={orcamentosSalvos}
-            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
-            isProposalReadOnly={isProposalReadOnly}
-            onClose={fecharPesquisaOrcamentos}
+        <PageRenderer
+          activePage={activePage}
+          renderDashboard={() => <DashboardPage />}
+          renderCrm={() => <CrmPage {...crmState} />}
+          renderBudgetSearch={() => (
+            <BudgetSearchPage
+              registros={orcamentosSalvos}
+              isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+              isProposalReadOnly={isProposalReadOnly}
+              onClose={fecharPesquisaOrcamentos}
 
-            onCarregarOrcamento={carregarOrcamentoSalvo}
+              onCarregarOrcamento={carregarOrcamentoSalvo}
 
-            onAbrirOrcamento={abrirOrcamentoSalvo}
+              onAbrirOrcamento={abrirOrcamentoSalvo}
 
-            onConfirmarRemocao={confirmarRemocaoOrcamento}
-          />
-        ) : activePage === 'clientes' ? (
-          <ClientesPage
-            registros={clientesSalvos}
-            onClose={fecharClientesPainel}
-            onEditar={(r) => { void handleEditarCliente(r as unknown as ClienteRegistro) }}
-            onExcluir={(r) => { void handleExcluirCliente(r as unknown as ClienteRegistro) }}
-            onExportarCarteira={(r) => { void handleExportarParaCarteira(r as unknown as ClienteRegistro) }}
-            onExportarCsv={handleExportarClientesCsv}
-            onExportarJson={handleExportarClientesJson}
-            onImportar={handleClientesImportarClick}
-            onBackupCliente={handleBackupBancoDados}
-            isImportando={isImportandoClientes}
-            isGerandoBackupBanco={isGerandoBackupBanco}
-            canBackupBanco={isAdmin || isOffice}
-            isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
-            canExportarCarteira={isAdmin || isOffice}
-            allConsultores={allConsultores}
-            formConsultores={formConsultores}
-          />
-        ) : activePage === 'simulacoes' ? (
-          renderSimulacoesPage()
-        ) : activePage === 'settings' ? (
-          <SettingsPage
-            settingsTab={settingsTab}
-            setSettingsTab={setSettingsTab}
-            voltarParaPaginaPrincipal={voltarParaPaginaPrincipal}
-            canSeeUsersEffective={canSeeUsersEffective}
-            inflacaoAa={inflacaoAa}
-            setInflacaoAa={setInflacaoAa}
-            precoPorKwp={precoPorKwp}
-            setPrecoPorKwp={setPrecoPorKwp}
-            irradiacao={irradiacao}
-            eficiencia={eficiencia}
-            setEficiencia={setEficiencia}
-            handleEficienciaInput={handleEficienciaInput}
-            diasMes={diasMes}
-            setDiasMes={setDiasMes}
-            vendasConfig={vendasConfig}
-            tipoInstalacao={tipoInstalacao}
-            composicaoTelhadoCalculo={composicaoTelhadoCalculo}
-            composicaoSoloCalculo={composicaoSoloCalculo}
-            composicaoTelhado={composicaoTelhado}
-            composicaoSolo={composicaoSolo}
-            descontosValor={descontosValor}
-            aprovadoresResumo={aprovadoresResumo}
-            capexBaseResumoSettingsField={capexBaseResumoSettingsField}
-            capexBaseResumoValor={capexBaseResumoValor}
-            capexBaseManualValor={capexBaseManualValor}
-            margemOperacionalResumoSettingsField={margemOperacionalResumoSettingsField}
-            margemManualAtiva={margemManualAtiva}
-            impostosOverridesDraft={impostosOverridesDraft}
-            aprovadoresText={aprovadoresText}
-            custoImplantacaoReferencia={custoImplantacaoReferencia}
-            updateVendasConfig={updateVendasConfig}
-            onUpdateResumoProposta={(data) => vendaActions.updateResumoProposta(data)}
-            onComposicaoTelhadoChange={handleComposicaoTelhadoChange}
-            onComposicaoSoloChange={handleComposicaoSoloChange}
-            setImpostosOverridesDraft={setImpostosOverridesDraft}
-            setAprovadoresText={setAprovadoresText}
-            prazoMeses={prazoMeses}
-            setPrazoMeses={setPrazoMeses}
-            bandeiraEncargo={bandeiraEncargo}
-            setBandeiraEncargo={setBandeiraEncargo}
-            cipEncargo={cipEncargo}
-            setCipEncargo={setCipEncargo}
-            entradaModo={entradaModo}
-            setEntradaModo={setEntradaModo}
-            parcelasSolarInvest={parcelasSolarInvest}
-            mostrarTabelaParcelasConfig={mostrarTabelaParcelasConfig}
-            setMostrarTabelaParcelasConfig={setMostrarTabelaParcelasConfig}
-            jurosFinAa={jurosFinAa}
-            setJurosFinAa={setJurosFinAa}
-            prazoFinMeses={prazoFinMeses}
-            setPrazoFinMeses={setPrazoFinMeses}
-            entradaFinPct={entradaFinPct}
-            setEntradaFinPct={setEntradaFinPct}
-            cashbackPct={cashbackPct}
-            setCashbackPct={setCashbackPct}
-            depreciacaoAa={depreciacaoAa}
-            setDepreciacaoAa={setDepreciacaoAa}
-            inadimplenciaAa={inadimplenciaAa}
-            setInadimplenciaAa={setInadimplenciaAa}
-            tributosAa={tributosAa}
-            setTributosAa={setTributosAa}
-            ipcaAa={ipcaAa}
-            setIpcaAa={setIpcaAa}
-            custosFixosM={custosFixosM}
-            setCustosFixosM={setCustosFixosM}
-            opexM={opexM}
-            setOpexM={setOpexM}
-            seguroM={seguroM}
-            setSeguroM={setSeguroM}
-            duracaoMeses={duracaoMeses}
-            setDuracaoMeses={setDuracaoMeses}
-            pagosAcumAteM={pagosAcumAteM}
-            setPagosAcumAteM={setPagosAcumAteM}
-            mostrarTabelaBuyoutConfig={mostrarTabelaBuyoutConfig}
-            setMostrarTabelaBuyoutConfig={setMostrarTabelaBuyoutConfig}
-            buyoutReceitaRows={buyoutReceitaRows}
-            buyoutAceiteFinal={buyoutAceiteFinal}
-            buyoutMesAceiteFinal={buyoutMesAceiteFinal}
-            oemBase={oemBase}
-            setOemBase={setOemBase}
-            oemInflacao={oemInflacao}
-            setOemInflacao={setOemInflacao}
-            seguroReajuste={seguroReajuste}
-            setSeguroReajuste={setSeguroReajuste}
-            seguroModo={seguroModo}
-            setSeguroModo={setSeguroModo}
-            seguroValorA={seguroValorA}
-            setSeguroValorA={setSeguroValorA}
-            seguroPercentualB={seguroPercentualB}
-            setSeguroPercentualB={setSeguroPercentualB}
-            density={density}
-            setDensity={setDensity}
-            mostrarGrafico={mostrarGrafico}
-            setMostrarGrafico={setMostrarGrafico}
-            useBentoGridPdf={useBentoGridPdf}
-            setUseBentoGridPdf={setUseBentoGridPdf}
-            mostrarFinanciamento={mostrarFinanciamento}
-            setMostrarFinanciamento={setMostrarFinanciamento}
-            mobileSimpleView={mobileSimpleView}
-            setMobileSimpleView={setMobileSimpleView}
-            desktopSimpleView={desktopSimpleView}
-            setDesktopSimpleView={setDesktopSimpleView}
-          />
-        ) : activePage === 'admin-users' ? (
-          <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
-        ) : activePage === 'carteira' ? (
-          canSeePortfolioEffective
-            ? <ClientPortfolioPage
-                onBack={() => setActivePage(lastPrimaryPageRef.current)}
-                onClientRemovedFromPortfolio={() => {
-                  carregarClientesPrioritarios({ silent: true })
-                    .then((refreshed) => setClientesSalvos(refreshed))
-                    .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
-                }}
-                onOpenFinancialProject={(projectId) => {
-                  setPendingFinancialProjectId(projectId)
-                  setActivePage('financial-management')
-                }}
-              />
-            : null
-        ) : activePage === 'financial-management' ? (
-          canSeeFinancialManagementEffective
-            ? <RevenueAndBillingPage
-                onBack={() => setActivePage(lastPrimaryPageRef.current)}
-                initialProjectId={pendingFinancialProjectId}
-              />
-            : null
-        ) : activePage === 'operational-dashboard' ? (
-          canSeeDashboardEffective
-            ? <OperationalDashboardPage />
-            : null
-        ) : (
+              onConfirmarRemocao={confirmarRemocaoOrcamento}
+            />
+          )}
+          renderClientes={() => (
+            <ClientesPage
+              registros={clientesSalvos}
+              onClose={fecharClientesPainel}
+              onEditar={(r) => { void handleEditarCliente(r as unknown as ClienteRegistro) }}
+              onExcluir={(r) => { void handleExcluirCliente(r as unknown as ClienteRegistro) }}
+              onExportarCarteira={(r) => { void handleExportarParaCarteira(r as unknown as ClienteRegistro) }}
+              onExportarCsv={handleExportarClientesCsv}
+              onExportarJson={handleExportarClientesJson}
+              onImportar={handleClientesImportarClick}
+              onBackupCliente={handleBackupBancoDados}
+              isImportando={isImportandoClientes}
+              isGerandoBackupBanco={isGerandoBackupBanco}
+              canBackupBanco={isAdmin || isOffice}
+              isPrivilegedUser={isAdmin || isOffice || isFinanceiro}
+              canExportarCarteira={isAdmin || isOffice}
+              allConsultores={allConsultores}
+              formConsultores={formConsultores}
+            />
+          )}
+          renderSimulacoes={renderSimulacoesPage}
+          renderSettings={() => (
+            <SettingsPage
+              settingsTab={settingsTab}
+              setSettingsTab={setSettingsTab}
+              voltarParaPaginaPrincipal={voltarParaPaginaPrincipal}
+              canSeeUsersEffective={canSeeUsersEffective}
+              inflacaoAa={inflacaoAa}
+              setInflacaoAa={setInflacaoAa}
+              precoPorKwp={precoPorKwp}
+              setPrecoPorKwp={setPrecoPorKwp}
+              irradiacao={irradiacao}
+              eficiencia={eficiencia}
+              setEficiencia={setEficiencia}
+              handleEficienciaInput={handleEficienciaInput}
+              diasMes={diasMes}
+              setDiasMes={setDiasMes}
+              vendasConfig={vendasConfig}
+              tipoInstalacao={tipoInstalacao}
+              composicaoTelhadoCalculo={composicaoTelhadoCalculo}
+              composicaoSoloCalculo={composicaoSoloCalculo}
+              composicaoTelhado={composicaoTelhado}
+              composicaoSolo={composicaoSolo}
+              descontosValor={descontosValor}
+              aprovadoresResumo={aprovadoresResumo}
+              capexBaseResumoSettingsField={capexBaseResumoSettingsField}
+              capexBaseResumoValor={capexBaseResumoValor}
+              capexBaseManualValor={capexBaseManualValor}
+              margemOperacionalResumoSettingsField={margemOperacionalResumoSettingsField}
+              margemManualAtiva={margemManualAtiva}
+              impostosOverridesDraft={impostosOverridesDraft}
+              aprovadoresText={aprovadoresText}
+              custoImplantacaoReferencia={custoImplantacaoReferencia}
+              updateVendasConfig={updateVendasConfig}
+              onUpdateResumoProposta={(data) => vendaActions.updateResumoProposta(data)}
+              onComposicaoTelhadoChange={handleComposicaoTelhadoChange}
+              onComposicaoSoloChange={handleComposicaoSoloChange}
+              setImpostosOverridesDraft={setImpostosOverridesDraft}
+              setAprovadoresText={setAprovadoresText}
+              prazoMeses={prazoMeses}
+              setPrazoMeses={setPrazoMeses}
+              bandeiraEncargo={bandeiraEncargo}
+              setBandeiraEncargo={setBandeiraEncargo}
+              cipEncargo={cipEncargo}
+              setCipEncargo={setCipEncargo}
+              entradaModo={entradaModo}
+              setEntradaModo={setEntradaModo}
+              parcelasSolarInvest={parcelasSolarInvest}
+              mostrarTabelaParcelasConfig={mostrarTabelaParcelasConfig}
+              setMostrarTabelaParcelasConfig={setMostrarTabelaParcelasConfig}
+              jurosFinAa={jurosFinAa}
+              setJurosFinAa={setJurosFinAa}
+              prazoFinMeses={prazoFinMeses}
+              setPrazoFinMeses={setPrazoFinMeses}
+              entradaFinPct={entradaFinPct}
+              setEntradaFinPct={setEntradaFinPct}
+              cashbackPct={cashbackPct}
+              setCashbackPct={setCashbackPct}
+              depreciacaoAa={depreciacaoAa}
+              setDepreciacaoAa={setDepreciacaoAa}
+              inadimplenciaAa={inadimplenciaAa}
+              setInadimplenciaAa={setInadimplenciaAa}
+              tributosAa={tributosAa}
+              setTributosAa={setTributosAa}
+              ipcaAa={ipcaAa}
+              setIpcaAa={setIpcaAa}
+              custosFixosM={custosFixosM}
+              setCustosFixosM={setCustosFixosM}
+              opexM={opexM}
+              setOpexM={setOpexM}
+              seguroM={seguroM}
+              setSeguroM={setSeguroM}
+              duracaoMeses={duracaoMeses}
+              setDuracaoMeses={setDuracaoMeses}
+              pagosAcumAteM={pagosAcumAteM}
+              setPagosAcumAteM={setPagosAcumAteM}
+              mostrarTabelaBuyoutConfig={mostrarTabelaBuyoutConfig}
+              setMostrarTabelaBuyoutConfig={setMostrarTabelaBuyoutConfig}
+              buyoutReceitaRows={buyoutReceitaRows}
+              buyoutAceiteFinal={buyoutAceiteFinal}
+              buyoutMesAceiteFinal={buyoutMesAceiteFinal}
+              oemBase={oemBase}
+              setOemBase={setOemBase}
+              oemInflacao={oemInflacao}
+              setOemInflacao={setOemInflacao}
+              seguroReajuste={seguroReajuste}
+              setSeguroReajuste={setSeguroReajuste}
+              seguroModo={seguroModo}
+              setSeguroModo={setSeguroModo}
+              seguroValorA={seguroValorA}
+              setSeguroValorA={setSeguroValorA}
+              seguroPercentualB={seguroPercentualB}
+              setSeguroPercentualB={setSeguroPercentualB}
+              density={density}
+              setDensity={setDensity}
+              mostrarGrafico={mostrarGrafico}
+              setMostrarGrafico={setMostrarGrafico}
+              useBentoGridPdf={useBentoGridPdf}
+              setUseBentoGridPdf={setUseBentoGridPdf}
+              mostrarFinanciamento={mostrarFinanciamento}
+              setMostrarFinanciamento={setMostrarFinanciamento}
+              mobileSimpleView={mobileSimpleView}
+              setMobileSimpleView={setMobileSimpleView}
+              desktopSimpleView={desktopSimpleView}
+              setDesktopSimpleView={setDesktopSimpleView}
+            />
+          )}
+          renderAdminUsers={() => (
+            <AdminUsersPage onBack={() => setActivePage(lastPrimaryPageRef.current)} />
+          )}
+          renderCarteira={() => (
+            canSeePortfolioEffective
+              ? <ClientPortfolioPage
+                  onBack={() => setActivePage(lastPrimaryPageRef.current)}
+                  onClientRemovedFromPortfolio={() => {
+                    carregarClientesPrioritarios({ silent: true })
+                      .then((refreshed) => setClientesSalvos(refreshed))
+                      .catch((err: unknown) => console.warn('[portfolio] reload after remove failed', err))
+                  }}
+                  onOpenFinancialProject={(projectId) => {
+                    setPendingFinancialProjectId(projectId)
+                    setActivePage('financial-management')
+                  }}
+                />
+              : null
+          )}
+          renderFinancialManagement={() => (
+            canSeeFinancialManagementEffective
+              ? <RevenueAndBillingPage
+                  onBack={() => setActivePage(lastPrimaryPageRef.current)}
+                  initialProjectId={pendingFinancialProjectId}
+                />
+              : null
+          )}
+          renderOperationalDashboard={() => (
+            canSeeDashboardEffective
+              ? <OperationalDashboardPage />
+              : null
+          )}
+          renderApp={() => (
           <div className="page">
             <div className="app-main">
               <main className={`content page-content${activeTab === 'vendas' ? ' vendas' : ''}`}>
@@ -15634,7 +15641,8 @@ export default function App() {
               </main>
             </div>
           </div>
-        )}
+          )}
+        />
       </AppShell>
       <input
         ref={imagensUploadInputRef}
