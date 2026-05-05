@@ -33,6 +33,7 @@ Always preserve:
 - Sidebar and route stability
 - Deployment safety
 - Rollback ability
+- Add App.tsx anti-regression guardrails so the monolith does not grow again.
 
 Never declare a branch READY unless the required evidence exists.
 
@@ -92,6 +93,13 @@ If branch context is unclear:
 1. Inspect the repository first.
 2. Determine whether the current branch is `main`, a transition branch, or another feature branch.
 3. Default to Current Main Mode until proven otherwise.
+4. App.tsx is wiring/composition only
+5. New features must not add business logic to App.tsx
+6. New complex state must go into feature hooks or domain hooks.
+7. New UI blocks must go into feature components.
+8. New PDF/print logic must go into src/lib/pdf or dedicated print hooks.
+9. New storage logic must go into hooks/services.
+10. New API/backend logic must not be called directly from App.tsx.
 
 ---
 
@@ -190,6 +198,7 @@ Avoid:
 - breaking old records
 - breaking old proposal payloads
 - writing nulls because of wrong field mapping
+
 
 ---
 
