@@ -176,7 +176,6 @@ import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
   INITIAL_VALUES,
-  LEASING_PRAZO_OPCOES,
   PAINEL_OPCOES,
   UF_LABELS,
   createEmptyKitBudget,
@@ -189,7 +188,6 @@ import {
   type KitBudgetItemState,
   type KitBudgetMissingInfo,
   type KitBudgetState,
-  type LeasingPrazoAnos,
   type SeguroModo,
   type SettingsTabKey,
   type TabKey,
@@ -304,10 +302,9 @@ import { VendaConfiguracaoSection } from './components/VendaConfiguracaoSection'
 import { UcGeradoraTitularPanel } from './components/UcGeradoraTitularPanel'
 import { ClienteDadosSection } from './components/ClienteDadosSection'
 import { CondicoesPagamentoSection } from './components/CondicoesPagamentoSection'
-import { LeasingContratoSection } from './components/LeasingContratoSection'
 import { RetornoProjetadoSection } from './components/RetornoProjetadoSection'
 import { TusdParametersSection } from './components/TusdParametersSection'
-import { ParametrosPrincipaisSection } from './components/ParametrosPrincipaisSection'
+import { LeasingSections } from './features/simulador/leasing/LeasingSections'
 import type { ClienteMensagens } from './types/cliente'
 import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
 import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
@@ -441,13 +438,6 @@ function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
   return 'outros'
 }
 
-const formatLeasingPrazoAnos = (valor: number) => {
-  const fractionDigits = Number.isInteger(valor) ? 0 : 1
-  return formatNumberBRWithOptions(valor, {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  })
-}
 
 // --- DESATIVADO NA FASE 3 ---
 // const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
@@ -14862,336 +14852,135 @@ export default function App() {
                       onRemoveImagem={handleRemoverPropostaImagem}
                     />
               {activeTab === 'leasing' ? (
-                <>
-                  <ParametrosPrincipaisSection
-                    kcKwhMes={kcKwhMes}
-                    tipoRedeLabel={tipoRedeLabel}
-                    vendaForm={vendaForm}
-                    tarifaCheiaField={tarifaCheiaField}
-                    taxaMinimaInputEmpty={taxaMinimaInputEmpty}
-                    taxaMinima={taxaMinima}
-                    encargosFixosExtras={encargosFixosExtras}
-                    baseIrradiacao={baseIrradiacao}
-                    shouldHideSimpleViewItems={shouldHideSimpleViewItems}
-                    tusdPercent={tusdPercent}
-                    tusdTipoCliente={tusdTipoCliente}
-                    tusdSubtipo={tusdSubtipo}
-                    tusdSimultaneidade={tusdSimultaneidade}
-                    tusdTarifaRkwh={tusdTarifaRkwh}
-                    tusdAnoReferencia={tusdAnoReferencia}
-                    tusdOpcoesExpandidas={tusdOpcoesExpandidas}
-                    segmentoCliente={segmentoCliente}
-                    tipoEdificacaoOutro={tipoEdificacaoOutro}
-                    tusdOptionsTitleId={tusdOptionsTitleId}
-                    tusdOptionsToggleId={tusdOptionsToggleId}
-                    tusdOptionsContentId={tusdOptionsContentId}
-                    multiUcAtivo={multiUcAtivo}
-                    multiUcRateioModo={multiUcRateioModo}
-                    multiUcEnergiaGeradaKWh={multiUcEnergiaGeradaKWh}
-                    multiUcEnergiaGeradaTouched={multiUcEnergiaGeradaTouched}
-                    multiUcAnoVigencia={multiUcAnoVigencia}
-                    multiUcOverrideEscalonamento={multiUcOverrideEscalonamento}
-                    multiUcEscalonamentoCustomPercent={multiUcEscalonamentoCustomPercent}
-                    multiUcEscalonamentoPadrao={multiUcEscalonamentoPadrao}
-                    multiUcEscalonamentoPercentual={multiUcEscalonamentoPercentual}
-                    multiUcEscalonamentoTabela={multiUcEscalonamentoTabela}
-                    multiUcRows={multiUcRows}
-                    multiUcResultado={multiUcResultado}
-                    multiUcResultadoPorId={multiUcResultadoPorId}
-                    multiUcRateioPercentualTotal={multiUcRateioPercentualTotal}
-                    multiUcRateioManualTotal={multiUcRateioManualTotal}
-                    multiUcErrors={multiUcErrors}
-                    multiUcWarnings={multiUcWarnings}
-                    distribuidoraAneelEfetiva={distribuidoraAneelEfetiva}
-                    initialMultiUcAnoVigencia={INITIAL_VALUES.multiUcAnoVigencia}
-                    onSetKcKwhMes={setKcKwhMes}
-                    onApplyVendaUpdates={applyVendaUpdates}
-                    onNormalizeTaxaMinimaInputValue={normalizeTaxaMinimaInputValue}
-                    onSetEncargosFixosExtras={setEncargosFixosExtras}
-                    onTusdPercentChange={(normalized) => {
+                <LeasingSections
+                  parametrosPrincipaisProps={{
+                    kcKwhMes,
+                    tipoRedeLabel,
+                    vendaForm,
+                    tarifaCheiaField,
+                    taxaMinimaInputEmpty,
+                    taxaMinima,
+                    encargosFixosExtras,
+                    baseIrradiacao,
+                    shouldHideSimpleViewItems,
+                    tusdPercent,
+                    tusdTipoCliente,
+                    tusdSubtipo,
+                    tusdSimultaneidade,
+                    tusdTarifaRkwh,
+                    tusdAnoReferencia,
+                    tusdOpcoesExpandidas,
+                    segmentoCliente,
+                    tipoEdificacaoOutro,
+                    tusdOptionsTitleId,
+                    tusdOptionsToggleId,
+                    tusdOptionsContentId,
+                    multiUcAtivo,
+                    multiUcRateioModo,
+                    multiUcEnergiaGeradaKWh,
+                    multiUcEnergiaGeradaTouched,
+                    multiUcAnoVigencia,
+                    multiUcOverrideEscalonamento,
+                    multiUcEscalonamentoCustomPercent,
+                    multiUcEscalonamentoPadrao,
+                    multiUcEscalonamentoPercentual,
+                    multiUcEscalonamentoTabela,
+                    multiUcRows,
+                    multiUcResultado,
+                    multiUcResultadoPorId,
+                    multiUcRateioPercentualTotal,
+                    multiUcRateioManualTotal,
+                    multiUcErrors,
+                    multiUcWarnings,
+                    distribuidoraAneelEfetiva,
+                    initialMultiUcAnoVigencia: INITIAL_VALUES.multiUcAnoVigencia,
+                    onSetKcKwhMes: setKcKwhMes,
+                    onApplyVendaUpdates: applyVendaUpdates,
+                    onNormalizeTaxaMinimaInputValue: normalizeTaxaMinimaInputValue,
+                    onSetEncargosFixosExtras: setEncargosFixosExtras,
+                    onTusdPercentChange: (normalized) => {
                       setTusdPercent(normalized)
                       applyVendaUpdates({ tusd_percentual: normalized })
                       resetRetorno()
-                    }}
-                    onTusdTipoClienteChange={handleTusdTipoClienteChange}
-                    onTusdSubtipoChange={(value) => {
+                    },
+                    onTusdTipoClienteChange: handleTusdTipoClienteChange,
+                    onTusdSubtipoChange: (value) => {
                       setTusdSubtipo(value)
                       applyVendaUpdates({ tusd_subtipo: value || undefined })
                       resetRetorno()
-                    }}
-                    onTusdSimultaneidadeChange={(value) => {
+                    },
+                    onTusdSimultaneidadeChange: (value) => {
                       setTusdSimultaneidadeFromSource(value, 'manual')
                       resetRetorno()
-                    }}
-                    onTusdTarifaRkwhChange={(value) => {
+                    },
+                    onTusdTarifaRkwhChange: (value) => {
                       setTusdTarifaRkwh(value)
                       applyVendaUpdates({ tusd_tarifa_r_kwh: value ?? undefined })
                       resetRetorno()
-                    }}
-                    onTusdAnoReferenciaChange={(value) => {
+                    },
+                    onTusdAnoReferenciaChange: (value) => {
                       setTusdAnoReferencia(value)
                       applyVendaUpdates({ tusd_ano_referencia: value })
                       resetRetorno()
-                    }}
-                    onTusdOpcoesExpandidasChange={setTusdOpcoesExpandidas}
-                    onTipoEdificacaoOutroChange={setTipoEdificacaoOutro}
-                    onHandleMultiUcToggle={handleMultiUcToggle}
-                    onHandleMultiUcQuantidadeChange={handleMultiUcQuantidadeChange}
-                    onSetMultiUcEnergiaGeradaKWh={setMultiUcEnergiaGeradaKWh}
-                    onHandleMultiUcRateioModoChange={handleMultiUcRateioModoChange}
-                    onSetMultiUcAnoVigencia={setMultiUcAnoVigencia}
-                    onSetMultiUcOverrideEscalonamento={setMultiUcOverrideEscalonamento}
-                    onSetMultiUcEscalonamentoCustomPercent={setMultiUcEscalonamentoCustomPercent}
-                    onHandleMultiUcClasseChange={handleMultiUcClasseChange}
-                    onHandleMultiUcConsumoChange={handleMultiUcConsumoChange}
-                    onHandleMultiUcRateioPercentualChange={handleMultiUcRateioPercentualChange}
-                    onHandleMultiUcManualRateioChange={handleMultiUcManualRateioChange}
-                    onHandleMultiUcTeChange={handleMultiUcTeChange}
-                    onHandleMultiUcTusdTotalChange={handleMultiUcTusdTotalChange}
-                    onHandleMultiUcTusdFioBChange={handleMultiUcTusdFioBChange}
-                    onHandleMultiUcObservacoesChange={handleMultiUcObservacoesChange}
-                    onHandleMultiUcAdicionar={handleMultiUcAdicionar}
-                    onHandleMultiUcRecarregarTarifas={handleMultiUcRecarregarTarifas}
-                    onHandleMultiUcRemover={handleMultiUcRemover}
-                  />
-                  {renderConfiguracaoUsinaSection()}
-                  {shouldHideSimpleViewItems ? null : (
-                    <LeasingContratoSection
-                      leasingContrato={leasingContrato}
-                      leasingHomologacaoInputId={leasingHomologacaoInputId}
-                      clienteDiaVencimento={cliente.diaVencimento}
-                      onCampoChange={handleLeasingContratoCampoChange}
-                      onClienteDiaVencimentoChange={(value) => handleClienteChange('diaVencimento', value)}
-                      onProprietarioChange={handleLeasingContratoProprietarioChange}
-                      onAdicionarProprietario={handleAdicionarContratoProprietario}
-                      onRemoverProprietario={handleRemoverContratoProprietario}
-                    />
-                  )}
-                  <section className="card">
-                    <div className="card-header">
-                      <h2>SolarInvest Leasing</h2>
-                      <div className="card-actions">
-                        <button
-                          type="button"
-                          className="primary"
-                          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                          onClick={handleSalvarPropostaLeasing}
-                          disabled={!podeSalvarProposta || salvandoPropostaLeasing}
-                        >
-                          {salvandoPropostaLeasing ? 'Salvando…' : 'Salvar proposta'}
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost"
-                          // eslint-disable-next-line @typescript-eslint/no-misused-promises
-                          onClick={handleSalvarPropostaLeasing}
-                          disabled={salvandoPropostaLeasing}
-                        >
-                          Refresh
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid g3">
-                      <Field
-                        label={labelWithTooltip(
-                          'Entrada (R$)',
-                          'Entrada inicial do leasing. Pode gerar crédito mensal: Entrada ÷ Prazo contratual (meses).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          value={entradaRs}
-                          onChange={(e) => {
-                            const parsed = Number(e.target.value)
-                            setEntradaRs(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                          }}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Desconto contratual (%)',
-                          'Percentual aplicado sobre a tarifa cheia. Tarifa com desconto = Tarifa cheia × (1 - desconto).',
-                        )}
-                      >
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={desconto}
-                          onChange={(e) => setDesconto(Number(e.target.value) || 0)}
-                          onFocus={selectNumberInputOnFocus}
-                        />
-                      </Field>
-                      <Field
-                        label={labelWithTooltip(
-                          'Prazo do leasing',
-                          'Duração do contrato de leasing em anos. Prazo em meses = anos × 12.',
-                        )}
-                      >
-                        <select
-                          value={leasingPrazo}
-                          onChange={(e) => setLeasingPrazo(Number(e.target.value) as LeasingPrazoAnos)}
-                        >
-                          {LEASING_PRAZO_OPCOES.map((valor) => (
-                            <option key={valor} value={valor}>
-                              {`${formatLeasingPrazoAnos(valor)} anos`}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </div>
-
-                    <div className="info-inline">
-                      <span className="pill">
-                        <InfoTooltip text="Preço Mín. Saudável (Análise Financeira v1). Quando disponível, usa o preço mínimo saudável calculado pelo motor de análise. Caso contrário, usa o custo final projetado automático." />
-                        Valor atual de venda
-                        <strong>{currency(custoFinalProjetadoCanonico)}</strong>
-                      </span>
-                      <span className="pill">
-                        <InfoTooltip text="Tarifa com desconto = Tarifa cheia ajustada pelos reajustes anuais × (1 - desconto contratual)." />
-                        Tarifa c/ desconto
-                        <strong>{tarifaCurrency(parcelasSolarInvest.tarifaDescontadaBase)} / kWh</strong>
-                      </span>
-                      {shouldHideSimpleViewItems ? null : (
-                        <span className="pill">
-                          <InfoTooltip text="CAPEX (SolarInvest) = Valor atual de venda × 70%. Representa o capital investido pela SolarInvest para executar o projeto." />
-                          CAPEX (SolarInvest)
-                          <strong>{currency(capexSolarInvest)}</strong>
-                        </span>
-                      )}
-                      {modoEntradaNormalizado === 'REDUZ' ? (
-                        <span className="pill">
-                          Piso contratado ajustado
-                          <InfoTooltip text="Piso ajustado = Consumo contratado × (1 - min(1, Entrada ÷ (Consumo × Tarifa cheia × (1 - desconto) × Prazo)))." />
-                          :{' '}
-                          <strong>
-                            {`${formatNumberBRWithOptions(parcelasSolarInvest.kcAjustado, {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0,
-                            })} kWh`}
-                          </strong>
-                        </span>
-                      ) : null}
-                      {modoEntradaNormalizado === 'CREDITO' ? (
-                        <span className="pill">
-                          Crédito mensal da entrada:
-                          <InfoTooltip text="Crédito mensal = Valor de entrada ÷ Prazo contratual (em meses)." />
-                          <strong>{currency(parcelasSolarInvest.creditoMensal)}</strong>
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {!shouldHideSimpleViewItems ? (
-                    <div className="grid g3">
-                      <Field label=" ">
-                        <label className="inline-checkbox inline-checkbox--small flex items-center gap-2">
-                          <CheckboxSmall
-                            aria-label="Apresentar valor de mercado na proposta"
-                            checked={mostrarValorMercadoLeasing}
-                            onChange={(event) =>
-                              setMostrarValorMercadoLeasing(event.target.checked)
-                            }
-                          />
-                          <span>Apresentar valor de mercado na proposta</span>
-                        </label>
-                      </Field>
-                    </div>
-                    ) : null}
-
-                    <div className="table-controls">
-                      <button
-                        type="button"
-                        className="collapse-toggle"
-                        onClick={() => setMostrarTabelaParcelas((prev) => !prev)}
-                        aria-expanded={mostrarTabelaParcelas}
-                        aria-controls="parcelas-solarinvest-tabela"
-                      >
-                        {mostrarTabelaParcelas ? 'Ocultar tabela de parcelas' : 'Exibir tabela de parcelas'}
-                      </button>
-                    </div>
-                    {mostrarTabelaParcelas ? (
-                      <div className="table-wrapper">
-                        <table id="parcelas-solarinvest-tabela">
-                          <thead>
-                            <tr>
-                              <th>Mês</th>
-                              <th>Tarifa por kWh</th>
-                              <th>Tarifa c/ desconto (R$/kWh)</th>
-                              <th>MENSALIDADE CHEIA</th>
-                              <th>TUSD (R$)</th>
-                              <th>MENSALIDADE COM LEASING</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {parcelasSolarInvest.lista.length > 0 ? (
-                              parcelasSolarInvest.lista.map((row) => (
-                                <tr key={row.mes}>
-                                  <td>{row.mes}</td>
-                                  <td>{tarifaCurrency(row.tarifaCheia)}</td>
-                                  <td>{tarifaCurrency(row.tarifaDescontada)}</td>
-                                  <td>{currency(row.mensalidadeCheia)}</td>
-                                  <td>{currency(row.tusd)}</td>
-                                  <td>{currency(row.mensalidade)}</td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={6} className="muted">Defina um prazo contratual para gerar a projeção das parcelas.</td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : null}
-                  </section>
-
-            {shouldHideSimpleViewItems ? null : (
-            <div className="grid g2">
-              <section className="card">
-                <h2>Leasing — Mensalidades</h2>
-                <div className="list-col">
-                  {leasingMensalidades.map((valor, index) => (
-                    <div className="list-row" key={`leasing-m${index}`}>
-                      <span>Ano {index + 1}</span>
-                      <strong>{currency(valor)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="notice">
-                  <div className="dot" />
-                  <div>
-                    <p className="notice-title">Fim do prazo</p>
-                    <p className="notice-sub">
-                      Após {formatLeasingPrazoAnos(leasingPrazo)} anos a curva acelera: 100% do retorno fica com o cliente.
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-              <section className="card">
-                <div className="card-header">
-                  <h2>Financiamento — Mensalidades</h2>
-                  <span className="toggle-label">Coluna ativa: {mostrarFinanciamento ? 'Sim' : 'Não'}</span>
-                </div>
-                {mostrarFinanciamento ? (
-                  <div className="list-col">
-                    {financiamentoMensalidades.map((valor, index) => (
-                      <div className="list-row" key={`fin-m${index}`}>
-                        <span>Ano {index + 1}</span>
-                        <strong>{currency(valor)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="muted">Habilite nas configurações para comparar a coluna de financiamento.</p>
-                )}
-              </section>
-            </div>
-            )}
-
-          </>
-        ) : (
+                    },
+                    onTusdOpcoesExpandidasChange: setTusdOpcoesExpandidas,
+                    onTipoEdificacaoOutroChange: setTipoEdificacaoOutro,
+                    onHandleMultiUcToggle: handleMultiUcToggle,
+                    onHandleMultiUcQuantidadeChange: handleMultiUcQuantidadeChange,
+                    onSetMultiUcEnergiaGeradaKWh: setMultiUcEnergiaGeradaKWh,
+                    onHandleMultiUcRateioModoChange: handleMultiUcRateioModoChange,
+                    onSetMultiUcAnoVigencia: setMultiUcAnoVigencia,
+                    onSetMultiUcOverrideEscalonamento: setMultiUcOverrideEscalonamento,
+                    onSetMultiUcEscalonamentoCustomPercent: setMultiUcEscalonamentoCustomPercent,
+                    onHandleMultiUcClasseChange: handleMultiUcClasseChange,
+                    onHandleMultiUcConsumoChange: handleMultiUcConsumoChange,
+                    onHandleMultiUcRateioPercentualChange: handleMultiUcRateioPercentualChange,
+                    onHandleMultiUcManualRateioChange: handleMultiUcManualRateioChange,
+                    onHandleMultiUcTeChange: handleMultiUcTeChange,
+                    onHandleMultiUcTusdTotalChange: handleMultiUcTusdTotalChange,
+                    onHandleMultiUcTusdFioBChange: handleMultiUcTusdFioBChange,
+                    onHandleMultiUcObservacoesChange: handleMultiUcObservacoesChange,
+                    onHandleMultiUcAdicionar: handleMultiUcAdicionar,
+                    onHandleMultiUcRecarregarTarifas: handleMultiUcRecarregarTarifas,
+                    onHandleMultiUcRemover: handleMultiUcRemover,
+                  }}
+                  configuracaoUsinaSection={renderConfiguracaoUsinaSection()}
+                  leasingContratoProps={{
+                    leasingContrato,
+                    leasingHomologacaoInputId,
+                    clienteDiaVencimento: cliente.diaVencimento,
+                    onCampoChange: handleLeasingContratoCampoChange,
+                    onClienteDiaVencimentoChange: (value) => handleClienteChange('diaVencimento', value),
+                    onProprietarioChange: handleLeasingContratoProprietarioChange,
+                    onAdicionarProprietario: handleAdicionarContratoProprietario,
+                    onRemoverProprietario: handleRemoverContratoProprietario,
+                  }}
+                  shouldHideSimpleViewItems={shouldHideSimpleViewItems}
+                  leasingFormProps={{
+                    podeSalvarProposta,
+                    salvandoPropostaLeasing,
+                    onSalvarProposta: handleSalvarPropostaLeasing,
+                    entradaRs,
+                    onEntradaRsChange: setEntradaRs,
+                    desconto,
+                    onDescontoChange: setDesconto,
+                    leasingPrazo,
+                    onLeasingPrazoChange: setLeasingPrazo,
+                    custoFinalProjetadoCanonico,
+                    parcelasSolarInvest,
+                    shouldHideSimpleViewItems,
+                    capexSolarInvest,
+                    modoEntradaNormalizado,
+                    mostrarValorMercadoLeasing,
+                    onMostrarValorMercadoLeasingChange: setMostrarValorMercadoLeasing,
+                    mostrarTabelaParcelas,
+                    onMostrarTabelaParcelasChange: setMostrarTabelaParcelas,
+                    leasingMensalidades,
+                    financiamentoMensalidades,
+                    mostrarFinanciamento,
+                  }}
+                />
+              ) : (
           <>
             {modoOrcamento === 'auto' ? (
               <section className="card">
