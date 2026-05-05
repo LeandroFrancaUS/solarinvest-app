@@ -50,6 +50,8 @@ import {
   renderPrintableBuyoutTableToHtml,
   type PrintVariant,
 } from './lib/pdf/printRenderers'
+import { buildPrintableData, clonePrintableData } from './lib/pdf/buildPrintableData'
+import { usePrintOrchestration } from './lib/pdf/usePrintOrchestration'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
   analyzeEssentialInfo,
@@ -123,7 +125,6 @@ import {
 } from './lib/pricing/autoEligibility'
 import { ensureProposalId, normalizeProposalId } from './lib/ids'
 import {
-  calculateCapexFromState,
   getVendaSnapshot,
   hasVendaStateChanges,
   useVendaStore,
@@ -216,17 +217,11 @@ import type {
   MensalidadeRow,
   PrintableProposalProps,
   PrintableProposalTipo,
-  PrintableUcBeneficiaria,
-  PrintableUcGeradora,
-  PrintableUcGeradoraTitular,
   TipoInstalacao,
-  UfvComposicaoResumo,
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
-  UfvComposicaoConfiguracao,
 } from './types/printableProposal'
 import {
-  mapTipoBasicoToLabel,
   normalizeTipoBasico,
   NOVOS_TIPOS_TUSD,
   TIPO_BASICO_OPTIONS,
@@ -440,14 +435,6 @@ const normalizeTipoSistemaValue = (value: unknown): TipoSistema | undefined => {
   return undefined
 }
 
-const normalizeSegmentoClienteValue = (value: unknown): SegmentoCliente | undefined => {
-  if (typeof value === 'string' || value == null) {
-    return normalizeTipoBasico(value as string | null)
-  }
-
-  return undefined
-}
-
 function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
   if (!value) return 'fibrocimento'
   const v = value.toLowerCase()
@@ -459,11 +446,6 @@ function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
   if (v === 'solo') return 'solo'
 
   return 'outros'
-}
-
-function mapTipoToLabel(value: string, lista: { value: string; label: string }[]): string {
-  const item = lista.find((el) => el.value === value)
-  return item ? item.label : 'Outros (texto)'
 }
 
 const formatLeasingPrazoAnos = (valor: number) => {
@@ -1226,113 +1208,7 @@ const useTarifaInputField = (
   }
 }
 
-const clonePrintableData = (dados: PrintableProposalProps): PrintableProposalProps => {
-  const anos = Array.isArray(dados?.anos) ? dados.anos : []
-  const leasingROI = Array.isArray(dados?.leasingROI) ? dados.leasingROI : []
-  const financiamentoFluxo = Array.isArray(dados?.financiamentoFluxo) ? dados.financiamentoFluxo : []
-  const financiamentoROI = Array.isArray(dados?.financiamentoROI) ? dados.financiamentoROI : []
-  const tabelaBuyout = Array.isArray(dados?.tabelaBuyout) ? dados.tabelaBuyout : []
-  const parcelasLeasing = Array.isArray(dados?.parcelasLeasing) ? dados.parcelasLeasing : []
-  const clone: PrintableProposalProps = {
-    ...dados,
-    cliente: {
-      ...dados.cliente,
-      herdeiros: Array.isArray(dados.cliente.herdeiros)
-        ? [...dados.cliente.herdeiros]
-        : [''],
-    },
-    anos: [...anos],
-    leasingROI: [...leasingROI],
-    financiamentoFluxo: [...financiamentoFluxo],
-    financiamentoROI: [...financiamentoROI],
-    tabelaBuyout: tabelaBuyout.map((row) => ({ ...row })),
-    buyoutResumo: { ...dados.buyoutResumo },
-    parcelasLeasing: parcelasLeasing.map((row) => ({ ...row })),
-  }
-
-  if (dados.budgetId === undefined) {
-    delete clone.budgetId
-  }
-
-  if (dados.vendaResumo) {
-    clone.vendaResumo = {
-      form: { ...dados.vendaResumo.form },
-      retorno: dados.vendaResumo.retorno
-        ? {
-            ...dados.vendaResumo.retorno,
-            economia: [...dados.vendaResumo.retorno.economia],
-            pagamentoMensal: [...dados.vendaResumo.retorno.pagamentoMensal],
-            fluxo: [...dados.vendaResumo.retorno.fluxo],
-            saldo: [...dados.vendaResumo.retorno.saldo],
-          }
-        : null,
-    }
-  } else {
-    delete clone.vendaResumo
-  }
-
-  if (dados.parsedPdfVenda !== undefined) {
-    clone.parsedPdfVenda = dados.parsedPdfVenda ? { ...dados.parsedPdfVenda } : null
-  } else {
-    delete clone.parsedPdfVenda
-  }
-
-  if (dados.orcamentoItens) {
-    clone.orcamentoItens = dados.orcamentoItens.map((item) => ({ ...item }))
-  } else {
-    delete clone.orcamentoItens
-  }
-
-  if (dados.composicaoUfv) {
-    clone.composicaoUfv = {
-      telhado: { ...dados.composicaoUfv.telhado },
-      solo: { ...dados.composicaoUfv.solo },
-      totalTelhado: dados.composicaoUfv.totalTelhado,
-      totalSolo: dados.composicaoUfv.totalSolo,
-      valorOrcamento: dados.composicaoUfv.valorOrcamento,
-      valorVendaTelhado: dados.composicaoUfv.valorVendaTelhado,
-      valorVendaSolo: dados.composicaoUfv.valorVendaSolo,
-      tipoAtual: dados.composicaoUfv.tipoAtual,
-    }
-  } else {
-    delete clone.composicaoUfv
-  }
-
-  if (dados.multiUcResumo) {
-    clone.multiUcResumo = {
-      ...dados.multiUcResumo,
-      ucs: dados.multiUcResumo.ucs.map((uc) => ({ ...uc })),
-    }
-  } else {
-    delete clone.multiUcResumo
-  }
-
-  if (Array.isArray(dados.imagensInstalacao)) {
-    clone.imagensInstalacao = dados.imagensInstalacao.map((imagem) => ({ ...imagem }))
-  } else {
-    delete clone.imagensInstalacao
-  }
-
-  if (dados.ucGeradora) {
-    clone.ucGeradora = { ...dados.ucGeradora }
-  } else {
-    delete clone.ucGeradora
-  }
-
-  if (dados.ucGeradoraTitular) {
-    clone.ucGeradoraTitular = { ...dados.ucGeradoraTitular }
-  } else {
-    delete clone.ucGeradoraTitular
-  }
-
-  if (Array.isArray(dados.ucsBeneficiarias)) {
-    clone.ucsBeneficiarias = dados.ucsBeneficiarias.map((uc) => ({ ...uc }))
-  } else {
-    delete clone.ucsBeneficiarias
-  }
-
-  return clone
-}
+// clonePrintableData is now imported from ./lib/pdf/buildPrintableData
 
 const cloneBudgetUploadProgress = (
   progress: BudgetUploadProgress | null,
@@ -7272,8 +7148,7 @@ export default function App() {
     duracao: duracaoMeses,
   }
 
-  const printableRef = useRef<HTMLDivElement>(null)
-  const pendingPreviewDataRef = useRef<{ html: string; dados: PrintableProposalProps } | null>(null)
+  // printableRef and pendingPreviewDataRef are now owned by usePrintOrchestration (called below)
 
   const anosArray = useMemo(
     () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
@@ -7331,396 +7206,70 @@ export default function App() {
   }, [economiaEstimativaValorCalculado, isVendaDiretaTab, recalcularTick])
 
   const printableData = useMemo<PrintableProposalProps>(
-    () => {
-      const vendaSnapshot = getVendaSnapshot()
-      const capexFromStore = calculateCapexFromState(vendaSnapshot)
-      const capexPrintable = capexFromStore > 0 ? capexFromStore : capex
-      const potenciaInstaladaSnapshot = vendaSnapshot.configuracao.potencia_sistema_kwp
-      const potenciaInstaladaPrintable = isVendaDiretaTab
-        ? potenciaInstaladaSnapshot > 0
-          ? potenciaInstaladaSnapshot
-          : Number.isFinite(vendaForm.potencia_instalada_kwp)
-          ? Number(vendaForm.potencia_instalada_kwp)
-          : potenciaInstaladaKwp
-        : potenciaInstaladaKwp
-      const geracaoMensalSnapshot = vendaSnapshot.configuracao.geracao_estimada_kwh_mes
-      const geracaoMensalPrintable = isVendaDiretaTab
-        ? geracaoMensalSnapshot > 0
-          ? geracaoMensalSnapshot
-          : Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
-          ? Number(vendaForm.geracao_estimada_kwh_mes)
-          : geracaoMensalKwh
-        : geracaoMensalKwh
-      const numeroModulosSnapshot = vendaSnapshot.configuracao.n_modulos
-      const numeroModulosPrintable = isVendaDiretaTab
-        ? numeroModulosSnapshot > 0
-          ? numeroModulosSnapshot
-          : Number.isFinite(vendaForm.quantidade_modulos)
-          ? Math.max(0, Number(vendaForm.quantidade_modulos))
-          : numeroModulosEstimado
-        : numeroModulosEstimado
-      const potenciaSnapshotState: PropostaState = {
-        orcamento: {
-          modulo: { potenciaW: vendaSnapshot.configuracao.potencia_modulo_wp },
-        },
-      }
-      const potenciaAtualState: PropostaState = {
-        orcamento: { modulo: { potenciaW: potenciaModulo } },
-      }
-      const potenciaModuloSnapshot = getPotenciaModuloW(potenciaSnapshotState)
-      const potenciaModuloAtual = getPotenciaModuloW(potenciaAtualState)
-      const potenciaModuloPrintable = isVendaDiretaTab
-        ? potenciaModuloSnapshot > 0
-          ? potenciaModuloSnapshot
-          : potenciaModuloAtual
-        : potenciaModuloAtual
-      const tipoSistemaSnapshot = normalizeTipoSistemaValue(
-        vendaSnapshot.configuracao.tipo_sistema,
-      )
-      const tipoSistemaFromForm = isVendaDiretaTab
-        ? normalizeTipoSistemaValue(vendaForm.tipo_sistema)
-        : undefined
-      const tipoSistemaPrintable = tipoSistemaSnapshot ?? tipoSistemaFromForm ?? tipoSistema
-
-      const segmentoSnapshot = normalizeSegmentoClienteValue(
-        vendaSnapshot.configuracao.segmento,
-      )
-      const segmentoFromForm = isVendaDiretaTab
-        ? normalizeSegmentoClienteValue(vendaForm.segmento_cliente)
-        : undefined
-      const segmentoPrintable = segmentoSnapshot ?? segmentoFromForm ?? segmentoCliente
-
-      const vendaResumo = isVendaDiretaTab
-        ? {
-            form: { ...vendaForm },
-            retorno: vendaRetornoAuto,
-          }
-        : undefined
-      const sanitizedBudgetId = normalizeProposalId(currentBudgetId)
-      const sanitizeItemText = (valor?: string | null) => {
-        const trimmed = valor?.toString().trim() ?? ''
-        return trimmed && trimmed !== '—' ? trimmed : undefined
-      }
-      const printableBudgetItems = budgetStructuredItems.map((item) => ({
-        produto: sanitizeItemText(item.produto) ?? '',
-        descricao: sanitizeItemText(item.descricao) ?? '',
-        codigo: sanitizeItemText(item.codigo),
-        modelo: sanitizeItemText(item.modelo),
-        fabricante: sanitizeItemText(item.fabricante),
-        quantidade: Number.isFinite(item.quantidade) ? Number(item.quantidade) : null,
-        valorUnitario: Number.isFinite(item.precoUnitario) ? Number(item.precoUnitario) : null,
-        valorTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
-      }))
-
-      const composicaoConfiguracaoResumo: UfvComposicaoConfiguracao = {
-        comissaoTipo: vendasConfig.comissao_default_tipo,
-        comissaoBase: vendasConfig.comissao_percent_base,
-        margemPadraoPercent: vendasConfig.margem_operacional_padrao_percent,
-        margemManualValor: margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
-        margemManualAtiva,
-        descontos: toNumberSafe(descontosValor),
-        regime: vendasConfig.regime_tributario_default,
-        impostoRetidoAliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
-        incluirImpostosNoCapex: vendasConfig.incluirImpostosNoCAPEX_default,
-        precoMinimoPercent: vendasConfig.preco_minimo_percent_sobre_capex,
-        arredondarPasso: arredondarPasso,
-      }
-
-      const composicaoResumo: UfvComposicaoResumo = {
-        telhado: { ...composicaoTelhado },
-        solo: { ...composicaoSolo },
-        totalTelhado: composicaoTelhadoTotal,
-        totalSolo: composicaoSoloTotal,
-        valorOrcamento: valorOrcamentoConsiderado,
-        valorVendaTelhado,
-        valorVendaSolo,
-        tipoAtual: tipoInstalacao,
-        calculoTelhado: composicaoTelhadoCalculo
-          ? {
-              ...composicaoTelhadoCalculo,
-              regime_breakdown: composicaoTelhadoCalculo.regime_breakdown.map((item) => ({ ...item })),
-            }
-          : undefined,
-        calculoSolo: composicaoSoloCalculo
-          ? {
-              ...composicaoSoloCalculo,
-              regime_breakdown: composicaoSoloCalculo.regime_breakdown.map((item) => ({ ...item })),
-            }
-          : undefined,
-        configuracao: composicaoConfiguracaoResumo,
-      }
-
-      const printableVendasConfig = {
-        exibir_precos_unitarios: vendasConfig.exibir_precos_unitarios,
-        exibir_margem: vendasConfig.exibir_margem,
-        exibir_comissao: vendasConfig.exibir_comissao,
-        exibir_impostos: vendasConfig.exibir_impostos,
-        mostrar_quebra_impostos_no_pdf_cliente:
-          vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
-        observacao_padrao_proposta: vendasConfig.observacao_padrao_proposta,
-        validade_proposta_dias: vendasConfig.validade_proposta_dias,
-      }
-
-      const sanitizeNonNegativeNumber = (value: unknown): number | null =>
-        Number.isFinite(value) ? Math.max(0, Number(value)) : null
-
-      const sanitizeText = (value?: string | null): string | null => {
-        if (typeof value !== 'string') {
-          return null
-        }
-        const trimmed = value.trim()
-        return trimmed ? trimmed : null
-      }
-
-      const tarifaCheiaAtual = sanitizeNonNegativeNumber(tarifaCheia)
-      const tarifaFormulario = sanitizeNonNegativeNumber(vendaForm.tarifa_cheia_r_kwh)
-      const tarifaSnapshot = sanitizeNonNegativeNumber(vendaSnapshot.parametros.tarifa_r_kwh)
-
-      const energiaContratadaAtual = sanitizeNonNegativeNumber(kcKwhMes)
-      const energiaContratadaSnapshotResultado = sanitizeNonNegativeNumber(
-        vendaSnapshot.resultados.energia_contratada_kwh_mes,
-      )
-      const energiaContratadaSnapshotParametro = sanitizeNonNegativeNumber(
-        vendaSnapshot.parametros.consumo_kwh_mes,
-      )
-
-      const distribuidoraAtual = sanitizeText(distribuidoraAneelEfetiva)
-      const clienteDistribuidoraAtual = sanitizeText(cliente.distribuidora)
-      const distribuidoraSnapshot = sanitizeText(vendaSnapshot.parametros.distribuidora)
-
-      const formatClienteEnderecoCompleto = (): string => {
-        const enderecoPrincipal = sanitizeText(cliente.endereco)
-        const cidade = sanitizeText(cliente.cidade)
-        const uf = sanitizeText(cliente.uf)
-        const cep = sanitizeText(cliente.cep)
-        const partes: string[] = []
-        if (enderecoPrincipal) {
-          partes.push(enderecoPrincipal)
-        }
-        if (cidade || uf) {
-          if (cidade && uf) {
-            partes.push(`${cidade} / ${uf}`)
-          } else if (cidade) {
-            partes.push(cidade)
-          } else if (uf) {
-            partes.push(uf)
-          }
-        }
-        if (cep) {
-          partes.push(`CEP ${cep}`)
-        }
-        return partes.join(' • ')
-      }
-
-      const ucGeradoraTitularAtivo =
-        !isVendaDiretaTab &&
-        leasingContrato.ucGeradoraTitularDiferente &&
-        Boolean(leasingContrato.ucGeradoraTitular)
-      const ucGeradoraTitularEndereco = ucGeradoraTitularAtivo
-        ? sanitizeText(formatUcGeradoraTitularEndereco(leasingContrato.ucGeradoraTitular?.endereco))
-        : null
-      const ucGeradoraTitularPrintable: PrintableUcGeradoraTitular | null = ucGeradoraTitularAtivo
-        ? {
-            nomeCompleto: sanitizeText(leasingContrato.ucGeradoraTitular?.nomeCompleto) ?? '',
-            cpf: sanitizeText(leasingContrato.ucGeradoraTitular?.cpf) ?? '',
-            rg: sanitizeText(leasingContrato.ucGeradoraTitular?.rg) ?? '',
-            endereco: ucGeradoraTitularEndereco ?? '',
-          }
-        : null
-      const ucGeradoraNumero = sanitizeText(cliente.uc) ?? ''
-      const ucGeradoraEndereco = ucGeradoraTitularEndereco ?? formatClienteEnderecoCompleto()
-      const ucGeradoraPrintable: PrintableUcGeradora | null =
-        ucGeradoraNumero || ucGeradoraEndereco
-          ? { numero: ucGeradoraNumero, endereco: ucGeradoraEndereco }
-          : null
-
-      const normalizeRateioPercent = (valor: string): number | null => {
-        if (typeof valor !== 'string') {
-          return null
-        }
-        const trimmed = valor.trim()
-        if (!trimmed) {
-          return null
-        }
-        const normalized = trimmed.replace(/%/g, '').replace(',', '.')
-        const parsed = Number(normalized)
-        if (!Number.isFinite(parsed)) {
-          return null
-        }
-        return parsed
-      }
-
-      const normalizeConsumoKWh = (valor: string): number | null => {
-        if (typeof valor !== 'string') {
-          return null
-        }
-        const trimmed = valor.trim()
-        if (!trimmed) {
-          return null
-        }
-        const normalized = trimmed.replace(/\./g, '').replace(',', '.')
-        const parsed = Number(normalized)
-        if (!Number.isFinite(parsed)) {
-          return null
-        }
-        return parsed
-      }
-
-      const ucsBeneficiariasPrintable: PrintableUcBeneficiaria[] = (ucsBeneficiarias
-        .map((item) => {
-          const numero = sanitizeText(item.numero) ?? ''
-          const endereco = sanitizeText(item.endereco) ?? ''
-          const rateio = normalizeRateioPercent(item.rateioPercentual)
-          const consumo = normalizeConsumoKWh(item.consumoKWh)
-          if (!numero && !endereco && rateio == null && consumo == null) {
-            return null
-          }
-          return {
-            numero,
-            endereco,
-            consumoKWh: consumo,
-            rateioPercentual: rateio,
-          }
-        })
-        .filter(Boolean) as PrintableUcBeneficiaria[])
-
-      const tipoEdificacaoCodigo = segmentoPrintable ?? null
-      const tipoEdificacaoLabel =
-        segmentoPrintable != null ? mapTipoBasicoToLabel(segmentoPrintable) : null
-      const tipoEdificacaoOutroPrintable =
-        segmentoPrintable === 'outros' ? tipoEdificacaoOutro.trim() || null : null
-      const tusdTipoClienteCodigo = tusdTipoCliente ?? null
-      const tusdTipoClienteLabel = mapTipoBasicoToLabel(tusdTipoCliente)
-      const tusdTipoClienteOutro = tusdTipoCliente === 'outros' ? tusdSubtipo || null : null
-      const formatOutroDescricao = (
-        codigo: string | null | undefined,
-        outro: string | null | undefined,
-        label: string | null | undefined,
-      ) => {
-        if (codigo === 'outros') {
-          const outroTexto = (outro ?? '').trim()
-          return outroTexto ? `Outros (${outroTexto})` : 'Outros'
-        }
-        return label ?? '—'
-      }
-
-      const tipoInstalacaoLabel = mapTipoToLabel(tipoInstalacao, TIPOS_INSTALACAO)
-      const tipoInstalacaoOutroTrimmed = tipoInstalacaoOutro.trim()
-      const tipoInstalacaoOutroPrintable =
-        tipoInstalacao === 'outros' ? tipoInstalacaoOutroTrimmed || null : null
-      const tipoInstalacaoCompleto = formatOutroDescricao(
-        tipoInstalacao,
-        tipoInstalacaoOutroPrintable,
-        tipoInstalacaoLabel,
-      )
-      const tipoEdificacaoCompleto = formatOutroDescricao(
-        tipoEdificacaoCodigo,
-        tipoEdificacaoOutroPrintable,
-        tipoEdificacaoLabel,
-      )
-      const tusdTipoClienteCompleto = formatOutroDescricao(
-        tusdTipoClienteCodigo,
-        tusdTipoClienteOutro,
-        tusdTipoClienteLabel,
-      )
-
-      return {
-        cliente,
-        budgetId: sanitizedBudgetId,
-        anos: anosArray,
-        leasingROI,
-        financiamentoFluxo,
-        financiamentoROI,
-        mostrarFinanciamento,
-        tabelaBuyout,
-        buyoutResumo,
-        mostrarTabelaBuyout: true,
-        capex: capexPrintable,
-        tipoProposta: isVendaDiretaTab ? 'VENDA_DIRETA' : 'LEASING',
-        geracaoMensalKwh: geracaoMensalPrintable,
-        potenciaModulo: potenciaModuloPrintable,
-        numeroModulos: numeroModulosPrintable,
-        potenciaInstaladaKwp: potenciaInstaladaPrintable,
-        tipoInstalacao,
-        tipoInstalacaoCodigo: tipoInstalacao,
-        tipoInstalacaoLabel,
-        tipoInstalacaoOutro: tipoInstalacaoOutroPrintable,
-        tipoInstalacaoCompleto,
-        tipoSistema: tipoSistemaPrintable,
-        tipoRede,
-        segmentoCliente: segmentoPrintable,
-        tipoEdificacaoCodigo,
-        tipoEdificacaoLabel,
-        tipoEdificacaoOutro: tipoEdificacaoOutroPrintable,
-        tipoEdificacaoCompleto,
-        tusdTipoClienteCodigo,
-        tusdTipoClienteLabel,
-        tusdTipoClienteOutro,
-        tusdTipoClienteCompleto,
-        areaInstalacao,
-        descontoContratualPct: descontoConsiderado,
-        parcelasLeasing: isVendaDiretaTab ? [] : parcelasSolarInvest.lista,
-        leasingValorDeMercadoEstimado: isVendaDiretaTab
-          ? null
-          : leasingValorDeMercadoEstimado || 0,
-        mostrarValorMercadoLeasing: isVendaDiretaTab ? false : mostrarValorMercadoLeasing,
-        leasingPrazoContratualMeses: isVendaDiretaTab
-          ? null
-          : Math.max(0, Math.round(leasingPrazoConsiderado * 12)),
-        leasingValorInstalacaoCliente: isVendaDiretaTab ? null : 0,
-        leasingDataInicioOperacao: isVendaDiretaTab ? null : null,
-        leasingValorMercadoProjetado: isVendaDiretaTab ? null : buyoutResumo.valorBaseOriginalAtivo,
-        leasingInflacaoEnergiaAa: isVendaDiretaTab ? null : inflacaoAa,
-        leasingModeloInversor: isVendaDiretaTab
-          ? null
-          : sanitizeItemText(vendaForm.modelo_inversor) ?? null,
-        leasingModeloModulo: isVendaDiretaTab
-          ? null
-          : sanitizeItemText(vendaForm.modelo_modulo) ?? null,
-        distribuidoraTarifa:
-          distribuidoraAtual ?? clienteDistribuidoraAtual ?? distribuidoraSnapshot ?? '',
-        energiaContratadaKwh:
-          energiaContratadaAtual ??
-          energiaContratadaSnapshotResultado ??
-          energiaContratadaSnapshotParametro ??
-          0,
-        tarifaCheia:
-          tarifaCheiaAtual ??
-          tarifaFormulario ??
-          tarifaSnapshot ??
-          0,
-        vendaResumo,
-        parsedPdfVenda: parsedVendaPdf ? { ...parsedVendaPdf } : null,
-        orcamentoItens: printableBudgetItems,
-        composicaoUfv: composicaoResumo,
-        vendaSnapshot,
-        multiUcResumo: multiUcPrintableResumo,
-        vendasConfigSnapshot: printableVendasConfig,
-        informacoesImportantesObservacao: vendasConfig.observacao_padrao_proposta,
-        configuracaoUsinaObservacoes:
-          configuracaoUsinaObservacoes.trim()
-            ? configuracaoUsinaObservacoes.trim()
-            : null,
-        orcamentoModo: modoOrcamento,
-        orcamentoAutoCustoFinal: autoCustoFinal ?? null,
-        valorTotalProposta: valorTotalPropostaNormalizado ?? valorTotalPropostaState ?? null,
-        custoImplantacaoReferencia: (() => {
-          const snapshotValor = Number(vendaSnapshot.resumoProposta.custo_implantacao_referencia ?? 0)
-          if (Number.isFinite(snapshotValor) && snapshotValor > 0) {
-            return snapshotValor
-          }
-          const referenciaValor = Number(custoImplantacaoReferencia ?? 0)
-          if (Number.isFinite(referenciaValor) && referenciaValor > 0) {
-            return referenciaValor
-          }
-          return null
-        })(),
-        imagensInstalacao: propostaImagens.map((imagem) => ({ ...imagem })),
-        ucGeradora: ucGeradoraPrintable,
-        ucGeradoraTitular: ucGeradoraTitularPrintable,
-        ucsBeneficiarias: ucsBeneficiariasPrintable,
-      }
-    },
+    () => buildPrintableData({
+      vendaSnapshot: getVendaSnapshot(),
+      cliente,
+      currentBudgetId,
+      isVendaDiretaTab,
+      potenciaInstaladaKwp,
+      geracaoMensalKwh,
+      numeroModulosEstimado,
+      potenciaModulo,
+      tipoSistema,
+      tipoRede,
+      segmentoCliente,
+      tipoInstalacao,
+      tipoInstalacaoOutro,
+      tipoEdificacaoOutro,
+      tusdTipoCliente,
+      tusdSubtipo,
+      areaInstalacao,
+      capex,
+      descontoConsiderado,
+      kcKwhMes,
+      tarifaCheia,
+      distribuidoraAneelEfetiva,
+      valorOrcamentoConsiderado,
+      valorVendaTelhado,
+      valorVendaSolo,
+      margemManualAtiva,
+      margemManualValor,
+      descontosValor,
+      arredondarPasso,
+      valorTotalPropostaNormalizado,
+      valorTotalPropostaState,
+      custoImplantacaoReferencia,
+      parcelasSolarInvest,
+      leasingPrazoConsiderado,
+      leasingValorDeMercadoEstimado,
+      mostrarValorMercadoLeasing,
+      inflacaoAa,
+      leasingContrato,
+      leasingROI,
+      financiamentoFluxo,
+      financiamentoROI,
+      mostrarFinanciamento,
+      tabelaBuyout,
+      buyoutResumo,
+      composicaoTelhado,
+      composicaoSolo,
+      composicaoTelhadoTotal,
+      composicaoSoloTotal,
+      composicaoTelhadoCalculo,
+      composicaoSoloCalculo,
+      vendasConfig,
+      vendaForm,
+      vendaRetornoAuto,
+      parsedVendaPdf,
+      multiUcPrintableResumo,
+      ucsBeneficiarias,
+      budgetStructuredItems,
+      propostaImagens,
+      configuracaoUsinaObservacoes,
+      modoOrcamento,
+      autoCustoFinal,
+      anosArray,
+    }),
     [
       composicaoSolo,
       composicaoSoloTotal,
@@ -8080,45 +7629,7 @@ export default function App() {
     [resolvePreviewToolbarMessage],
   )
 
-  const prepararPropostaParaExportacao = useCallback(async (options?: { incluirTabelaBuyout?: boolean }) => {
-    const dadosParaImpressao = clonePrintableData(printableData)
-    if (options?.incluirTabelaBuyout === false) {
-      dadosParaImpressao.mostrarTabelaBuyout = false
-    }
-    let layoutHtml: string | null = null
-
-    try {
-      layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao, useBentoGridPdf)
-    } catch (error) {
-      console.error('Erro ao preparar a proposta para exportação.', error)
-    }
-
-    if (!layoutHtml) {
-      const node = printableRef.current
-      if (node) {
-        const clone = node.cloneNode(true) as HTMLElement
-        if (options?.incluirTabelaBuyout === false) {
-          clone.querySelectorAll('[data-print-section="buyout"]').forEach((element) => {
-            element.parentElement?.removeChild(element)
-          })
-        }
-        const codigoDd = clone.querySelector('.print-client-grid .print-client-field:first-child dd')
-        if (codigoDd && dadosParaImpressao.budgetId) {
-          codigoDd.textContent = dadosParaImpressao.budgetId
-        }
-        layoutHtml = clone.outerHTML
-      }
-    }
-
-    const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
-
-    if (!sanitizedLayoutHtml) {
-      return null
-    }
-
-    return { html: sanitizedLayoutHtml, dados: dadosParaImpressao }
-  }, [printableData, useBentoGridPdf])
-
+  // prepararPropostaParaExportacao is now owned by usePrintOrchestration (wired below at the hook call site)
 
   const mapClienteRegistroToSyncPayload = (
     registro: ClienteRegistro,
@@ -9896,6 +9407,34 @@ export default function App() {
     getActiveBudgetId,
   ])
 
+  // ── Print orchestration hook ──────────────────────────────────────────────
+  // Owns: printableRef, pendingPreviewDataRef, prepararPropostaParaExportacao,
+  //       handlePrint, handlePreviewActionRequest, window.__solarinvestOnPreviewAction
+  const _printOrch = usePrintOrchestration({
+    printableData,
+    isVendaDiretaTab,
+    activeTab,
+    clienteEmEdicaoId,
+    useBentoGridPdf,
+    callbacks: {
+      validatePropostaLeasingMinimal: () => validatePropostaLeasingMinimal(),
+      confirmarAlertasGerarProposta: () => confirmarAlertasGerarProposta(),
+      ensureNormativePrecheck: () => ensureNormativePrecheck(),
+      handleSalvarCliente: (opts) => handleSalvarCliente(opts),
+      openBudgetPreviewWindow: (html, opts) => openBudgetPreviewWindow(html, opts),
+      salvarOrcamentoLocalmente: (dados) => salvarOrcamentoLocalmente(dados),
+      switchBudgetId: (id) => switchBudgetId(id),
+      getActiveBudgetId: () => getActiveBudgetId(),
+      atualizarOrcamentoAtivo: (r) => atualizarOrcamentoAtivo(r),
+      adicionarNotificacao: (msg, type) => adicionarNotificacao(msg, type),
+      setProposalPdfIntegrationAvailable: (v) => setProposalPdfIntegrationAvailable(v),
+    },
+  })
+  const printableRef = _printOrch.printableRef
+  const prepararPropostaParaExportacao = (...args: Parameters<typeof _printOrch.prepararPropostaParaExportacao>) => _printOrch.prepararPropostaParaExportacao(...args)
+  const handlePrint = () => _printOrch.handlePrint()
+  const clearPendingPreview = () => _printOrch.clearPendingPreview()
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -10563,53 +10102,7 @@ export default function App() {
     }
     setEficiencia(valor)
   }
-  const handlePrint = async () => {
-    if (!validatePropostaLeasingMinimal()) {
-      return
-    }
-
-    if (!confirmarAlertasGerarProposta()) {
-      return
-    }
-
-    // Open the preview window synchronously here — before any await — so that Safari's
-    // popup policy (which only allows window.open() within a synchronous user-gesture
-    // handler) is satisfied.  All subsequent async work writes into this already-opened
-    // window via the preOpenedWindow option of openBudgetPreviewWindow.
-    const preOpenedWindow = window.open('', '_blank', 'width=1024,height=768')
-
-    if (!(await ensureNormativePrecheck())) {
-      preOpenedWindow?.close()
-      return
-    }
-
-    await handleSalvarCliente({ skipGuard: true, silent: true })
-
-    const resultado = await prepararPropostaParaExportacao({
-      incluirTabelaBuyout: isVendaDiretaTab,
-    })
-
-    if (!resultado) {
-      preOpenedWindow?.close()
-      window.alert('Não foi possível gerar a visualização para impressão. Tente novamente.')
-      return
-    }
-
-    const { html: layoutHtml, dados } = resultado
-    pendingPreviewDataRef.current = {
-      html: layoutHtml,
-      dados,
-    }
-    const nomeCliente = dados.cliente.nome?.trim() || 'SolarInvest'
-    const budgetId = normalizeProposalId(dados.budgetId)
-    openBudgetPreviewWindow(layoutHtml, {
-      nomeCliente,
-      budgetId,
-      actionMessage: 'Revise o conteúdo e utilize as ações para gerar o PDF.',
-      initialMode: 'preview',
-      preOpenedWindow,
-    })
-  }
+  // handlePrint is now owned by usePrintOrchestration (wired below)
 
   const handleImprimirTabelaTransferencia = useCallback(async () => {
     if (gerandoTabelaTransferencia) {
@@ -10655,7 +10148,7 @@ export default function App() {
       const nomeCliente = cliente.nome?.trim() || 'SolarInvest'
       const budgetIdNormalizado = normalizeProposalId(codigoOrcamentoImpressao)
 
-      pendingPreviewDataRef.current = null
+      clearPendingPreview()
 
       openBudgetPreviewWindow(sanitizedHtml, {
         nomeCliente,
@@ -10690,148 +10183,8 @@ export default function App() {
     buyoutResumo,
   ])
 
-  const handlePreviewActionRequest = useCallback(
-    async ({ action: _action }: PreviewActionRequest): Promise<PreviewActionResponse> => {
-      const previewData = pendingPreviewDataRef.current
-      const budgetIdAtual = normalizeProposalId(getActiveBudgetId())
-
-      if (!previewData) {
-        return { proceed: true }
-      }
-
-      const { dados } = previewData
-      const idExistente = normalizeProposalId(dados.budgetId ?? budgetIdAtual)
-      if (idExistente) {
-        const emissaoIso = new Date().toISOString().slice(0, 10)
-        switchBudgetId(idExistente)
-        vendaActions.updateCodigos({
-          codigo_orcamento_interno: idExistente,
-          data_emissao: emissaoIso,
-        })
-        return { proceed: true, budgetId: idExistente }
-      }
-
-      if (!clienteEmEdicaoId) {
-        return { proceed: true, budgetId: '' }
-      }
-
-      const confirmarSalvar = window.confirm(
-        'Deseja salvar este documento antes de imprimir ou baixar? Ele será armazenado no histórico do cliente.',
-      )
-      if (!confirmarSalvar) {
-        return { proceed: true, budgetId: '' }
-      }
-
-      try {
-        const registro = salvarOrcamentoLocalmente(dados)
-        if (!registro) {
-          return { proceed: false }
-        }
-
-        dados.budgetId = registro.id
-        const emissaoIso = new Date().toISOString().slice(0, 10)
-        switchBudgetId(registro.id)
-
-        vendaActions.updateCodigos({
-          codigo_orcamento_interno: registro.id,
-          data_emissao: emissaoIso,
-        })
-
-        atualizarOrcamentoAtivo(registro)
-
-        let htmlAtualizado = sanitizePrintableHtml(previewData.html) || ''
-        try {
-          const reprocessado = await renderPrintableProposalToHtml(dados, useBentoGridPdf)
-          if (reprocessado) {
-            const sanitized = sanitizePrintableHtml(reprocessado)
-            if (sanitized) {
-              htmlAtualizado = sanitized
-              previewData.html = sanitized
-            }
-          }
-        } catch (error) {
-          console.warn('Não foi possível atualizar o HTML antes da impressão.', error)
-        }
-
-        try {
-          const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
-            const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-            setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-            if (integracaoPdfDisponivel) {
-              try {
-                await persistProposalPdf({
-                  html: htmlAtualizado,
-                  budgetId: registro.id,
-                  clientName: dados.cliente.nome,
-                  proposalType,
-                })
-                adicionarNotificacao(
-                  'Proposta salva em PDF com sucesso. Uma cópia foi armazenada localmente.',
-                  'success',
-                )
-              } catch (error) {
-                if (error instanceof ProposalPdfIntegrationMissingError) {
-                  setProposalPdfIntegrationAvailable(false)
-                  adicionarNotificacao(
-                    'Proposta preparada, mas a integração para salvar PDF não está configurada.',
-                    'info',
-                  )
-                } else {
-                  console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
-                  window.alert('Não foi possível salvar a proposta em PDF. Tente novamente.')
-                  return { proceed: false }
-                }
-              }
-            } else {
-              adicionarNotificacao(
-                'Proposta preparada, mas a integração para salvar PDF não está configurada.',
-                'info',
-              )
-            }
-        } catch (error) {
-          console.error('Erro ao salvar a proposta em PDF durante a impressão.', error)
-          window.alert('Não foi possível salvar a proposta em PDF. Tente novamente.')
-          return { proceed: false }
-        }
-
-        previewData.dados = dados
-
-        return {
-          proceed: true,
-          budgetId: registro.id,
-          updatedHtml: htmlAtualizado,
-        }
-      } catch (error) {
-        console.error('Erro ao preparar o salvamento antes da impressão.', error)
-        window.alert('Não foi possível salvar o documento. Tente novamente.')
-        return { proceed: false }
-      }
-    },
-      [
-        activeTab,
-        adicionarNotificacao,
-        atualizarOrcamentoAtivo,
-        clienteEmEdicaoId,
-        getActiveBudgetId,
-        isProposalPdfIntegrationAvailable,
-        salvarOrcamentoLocalmente,
-        setProposalPdfIntegrationAvailable,
-        switchBudgetId,
-      ],
-    )
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    window.__solarinvestOnPreviewAction = handlePreviewActionRequest
-    return () => {
-      if (window.__solarinvestOnPreviewAction === handlePreviewActionRequest) {
-        delete window.__solarinvestOnPreviewAction
-      }
-    }
-  }, [handlePreviewActionRequest])
+  // handlePreviewActionRequest and window.__solarinvestOnPreviewAction are now owned by
+  // usePrintOrchestration (wired below at the hook call site)
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
