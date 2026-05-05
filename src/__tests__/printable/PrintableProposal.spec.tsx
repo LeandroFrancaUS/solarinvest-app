@@ -1,7 +1,7 @@
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { render } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import PrintableProposal from '../../components/print/PrintableProposal'
 import type { PrintableProposalProps } from '../../types/printableProposal'
@@ -96,6 +96,16 @@ const createPrintableProps = (overrides: Partial<PrintableProposalProps> = {}): 
 }) as PrintableProposalProps
 
 describe('printable proposal guard rails', () => {
+  beforeEach(() => {
+    // Pin the clock so snapshot dates are deterministic (component uses new Date())
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2025-06-15T12:00:00Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   test('printable proposal renders with minimal props', () => {
     const props = createPrintableProps({ mostrarFinanciamento: false })
     expect(() => renderToStaticMarkup(<PrintableProposal {...props} />)).not.toThrow()
