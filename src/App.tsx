@@ -67,7 +67,6 @@ import {
 import {
   computeROI,
   type PagamentoCondicao,
-  type RetornoProjetado,
   type SegmentoCliente,
   type TipoSistema,
   type VendaForm,
@@ -103,7 +102,6 @@ import {
   calcProjectedCostsByConsumption,
   formatBRL,
   getRedeByPotencia,
-  type Rede,
 } from './lib/pricing/pricingPorKwp'
 import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
 import {
@@ -167,6 +165,10 @@ import { useNavigationState } from './hooks/useNavigationState'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { useStorageHydration } from './hooks/useStorageHydration'
 import { useTheme } from './hooks/useTheme'
+import { useTusdState } from './features/simulacoes/useTusdState'
+import { useLeasingSimulacaoState } from './features/simulacoes/useLeasingSimulacaoState'
+import { useBudgetUploadState } from './features/simulacoes/useBudgetUploadState'
+import { useMultiUcState } from './features/simulacoes/useMultiUcState'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
   ANALISE_ANOS_PADRAO,
@@ -190,12 +192,7 @@ import {
   type SettingsTabKey,
   type TabKey,
   type TipoRede,
-  type MultiUcRowState,
-  type MultiUcRateioModo,
 } from './app/config'
-import { buscarTarifaPorClasse } from './utils/tarifasPorClasse'
-import { calcularMultiUc, type MultiUcCalculoResultado, type MultiUcCalculoUcResultado } from './utils/multiUc'
-import { type MultiUcClasse } from './types/multiUc'
 import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasConfigStore'
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
@@ -217,7 +214,6 @@ import type {
   ClienteDados,
   PrintableProposalImage,
   MensalidadeRow,
-  PrintableMultiUcResumo,
   PrintableProposalProps,
   PrintableProposalTipo,
   PrintableUcBeneficiaria,
@@ -2308,29 +2304,17 @@ export default function App() {
     setOneDriveIntegrationAvailable(isOneDriveIntegrationAvailable())
     setProposalPdfIntegrationAvailable(isProposalPdfIntegrationAvailable())
   }, [])
-  const budgetIdRef = useRef<string>(createDraftBudgetId())
-  const budgetIdTransitionRef = useRef(false)
-  const [currentBudgetId, setCurrentBudgetId] = useState<string>(budgetIdRef.current)
-  const [budgetStructuredItems, setBudgetStructuredItems] = useState<StructuredItem[]>([])
   const budgetUploadInputId = useId()
   const budgetTableContentId = useId()
   const tusdOptionsTitleId = useId()
   const tusdOptionsToggleId = useId()
   const tusdOptionsContentId = useId()
   const configuracaoUsinaObservacoesBaseId = useId()
-  const budgetUploadInputRef = useRef<HTMLInputElement | null>(null)
   const imagensUploadInputRef = useRef<HTMLInputElement | null>(null)
   const moduleQuantityInputRef = useRef<HTMLInputElement | null>(null)
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const editableContentRef = useRef<HTMLDivElement | null>(null)
   const leasingHomologacaoInputId = useId()
-  const [kitBudget, setKitBudget] = useState<KitBudgetState>(() => createEmptyKitBudget())
-  const [isBudgetProcessing, setIsBudgetProcessing] = useState(false)
-  const [budgetProcessingError, setBudgetProcessingError] = useState<string | null>(null)
-  const [budgetProcessingProgress, setBudgetProcessingProgress] =
-    useState<BudgetUploadProgress | null>(null)
-  const [ocrDpi, setOcrDpi] = useState(DEFAULT_OCR_DPI)
-  const [isBudgetTableCollapsed, setIsBudgetTableCollapsed] = useState(false)
   const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
@@ -2358,24 +2342,37 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
-  const [tusdPercent, setTusdPercent] = useState(INITIAL_VALUES.tusdPercent)
-  const [tusdTipoCliente, setTusdTipoCliente] = useState<TipoClienteTUSD>(() =>
-    normalizeTusdTipoClienteValue(INITIAL_VALUES.tusdTipoCliente),
-  )
-  const [tusdSubtipo, setTusdSubtipo] = useState(INITIAL_VALUES.tusdSubtipo)
-  const [tusdSimultaneidade, setTusdSimultaneidade] = useState<number | null>(
-    INITIAL_VALUES.tusdSimultaneidade,
-  )
-  const [tusdSimultaneidadeManualOverride, setTusdSimultaneidadeManualOverride] =
-    useState(false)
-  const [tusdTarifaRkwh, setTusdTarifaRkwh] = useState<number | null>(
-    INITIAL_VALUES.tusdTarifaRkwh,
-  )
-  const [tusdAnoReferencia, setTusdAnoReferencia] = useState(
-    INITIAL_VALUES.tusdAnoReferencia ?? DEFAULT_TUSD_ANO_REFERENCIA,
-  )
-  const [tusdOpcoesExpandidas, setTusdOpcoesExpandidas] = useState(false)
-  const [leasingPrazo, setLeasingPrazo] = useState<LeasingPrazoAnos>(INITIAL_VALUES.leasingPrazo)
+  // Late-bound ref so useTusdState can call applyVendaUpdates (declared later)
+  const applyVendaUpdatesRef = useRef<null | ((updates: Partial<VendaForm>) => void)>(null)
+  const {
+    tusdPercent, setTusdPercent,
+    tusdTipoCliente, setTusdTipoCliente,
+    tusdSubtipo, setTusdSubtipo,
+    tusdSimultaneidade, setTusdSimultaneidade,
+    setTusdSimultaneidadeManualOverride,
+    tusdTarifaRkwh, setTusdTarifaRkwh,
+    tusdAnoReferencia, setTusdAnoReferencia,
+    tusdOpcoesExpandidas, setTusdOpcoesExpandidas,
+    setTusdSimultaneidadeFromSource,
+  } = useTusdState({ applyVendaUpdatesRef })
+  const {
+    leasingPrazo, setLeasingPrazo,
+    precoPorKwp, setPrecoPorKwp,
+    irradiacao, setIrradiacao,
+    eficiencia, setEficiencia,
+    diasMes, setDiasMes,
+    inflacaoAa, setInflacaoAa,
+    vendaForm, setVendaForm,
+    vendaFormErrors, setVendaFormErrors,
+    retornoProjetado, setRetornoProjetado,
+    retornoStatus, setRetornoStatus,
+    retornoError, setRetornoError,
+    recalcularTick, setRecalcularTick,
+    valorTotalPropostaNormalizado,
+    resetRetorno,
+    applyVendaUpdates,
+  } = useLeasingSimulacaoState()
+  applyVendaUpdatesRef.current = applyVendaUpdates
   const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
   const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
     useState<UcGeradoraTitularErrors>({})
@@ -2399,33 +2396,6 @@ export default function App() {
     INITIAL_VALUES.tipoInstalacaoOutro,
   )
   const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
-  const [modoOrcamento, setModoOrcamento] = useState<'auto' | 'manual'>('auto')
-  const [autoKitValor, setAutoKitValor] = useState<number | null>(null)
-  const [autoCustoFinal, setAutoCustoFinal] = useState<number | null>(null)
-  const [autoPricingRede, setAutoPricingRede] = useState<Rede | null>(null)
-  const [autoPricingVersion, setAutoPricingVersion] = useState<string | null>(null)
-  const [autoBudgetReasonCode, setAutoBudgetReasonCode] = useState<string | null>(null)
-  const [autoBudgetReason, setAutoBudgetReason] = useState<string | null>(null)
-  const isManualBudgetForced = useMemo(
-    () =>
-      tipoInstalacao === 'solo' ||
-      tipoInstalacao === 'outros' ||
-      tipoSistema === 'HIBRIDO' ||
-      tipoSistema === 'OFF_GRID',
-    [tipoInstalacao, tipoSistema],
-  )
-  const manualBudgetForceReason = useMemo(() => {
-    const reasons: string[] = []
-    if (tipoInstalacao === 'solo' || tipoInstalacao === 'outros') {
-      reasons.push('instalações em solo ou outros formatos')
-    }
-    if (tipoSistema === 'HIBRIDO' || tipoSistema === 'OFF_GRID') {
-      reasons.push('sistemas híbridos ou off-grid')
-    }
-    return reasons.length > 0
-      ? `Modo automático indisponível para ${reasons.join(' ou ')}.`
-      : ''
-  }, [tipoInstalacao, tipoSistema])
   const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
     INITIAL_VALUES.segmentoCliente
       ? normalizeTipoBasico(INITIAL_VALUES.segmentoCliente)
@@ -2457,31 +2427,44 @@ export default function App() {
   const [impostosOverridesDraft, setImpostosOverridesDraft] = useState<
     Partial<ImpostosRegimeConfig>
   >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
+  const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
+  const {
+    budgetIdRef,
+    budgetIdTransitionRef,
+    currentBudgetId, setCurrentBudgetId,
+    budgetStructuredItems, setBudgetStructuredItems,
+    budgetUploadInputRef,
+    kitBudget, setKitBudget,
+    isBudgetProcessing, setIsBudgetProcessing,
+    budgetProcessingError, setBudgetProcessingError,
+    budgetProcessingProgress, setBudgetProcessingProgress,
+    ocrDpi, setOcrDpi,
+    isBudgetTableCollapsed, setIsBudgetTableCollapsed,
+    modoOrcamento, setModoOrcamento,
+    autoKitValor, setAutoKitValor,
+    autoCustoFinal, setAutoCustoFinal,
+    autoPricingRede, setAutoPricingRede,
+    autoPricingVersion, setAutoPricingVersion,
+    autoBudgetReasonCode, setAutoBudgetReasonCode,
+    autoBudgetReason, setAutoBudgetReason,
+    isManualBudgetForced,
+    manualBudgetForceReason,
+    valorOrcamentoConsiderado,
+    budgetMissingSummary,
+    kitBudgetTotal,
+    getActiveBudgetId,
+    switchBudgetId,
+    handleModoOrcamentoChange,
+    updateKitBudgetItem,
+    handleBudgetItemTextChange: _handleBudgetItemTextChange,
+    handleBudgetItemQuantityChange: _handleBudgetItemQuantityChange,
+    handleRemoveBudgetItem,
+    handleAddBudgetItem,
+    handleBudgetTotalValueChange,
+  } = useBudgetUploadState({ renameVendasSimulacao, tipoInstalacao, tipoSistema })
   const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
-  const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
-
-  const getActiveBudgetId = useCallback(() => budgetIdRef.current, [])
-
-  const switchBudgetId = useCallback(
-    (nextId: string) => {
-      const prevId = getActiveBudgetId()
-      if (!nextId || nextId === prevId) {
-        return
-      }
-
-      try {
-        renameVendasSimulacao(prevId, nextId)
-      } catch (error) {
-        console.warn('[switchBudgetId] rename failed', error)
-      }
-      budgetIdTransitionRef.current = true
-      budgetIdRef.current = nextId
-      setCurrentBudgetId(nextId)
-    },
-    [getActiveBudgetId, renameVendasSimulacao],
-  )
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -2501,12 +2484,6 @@ export default function App() {
     initializeVendasSimulacao(currentBudgetId)
   }, [currentBudgetId, initializeVendasSimulacao])
 
-  useEffect(() => {
-    if (isManualBudgetForced && modoOrcamento !== 'manual') {
-      setModoOrcamento('manual')
-    }
-  }, [isManualBudgetForced, modoOrcamento])
-
   const margemManualValorRaw = vendasSimulacao?.margemManualValor
   const margemManualAtiva =
     typeof margemManualValorRaw === 'number' && Number.isFinite(margemManualValorRaw)
@@ -2522,157 +2499,6 @@ export default function App() {
     }
     return vendasConfig.aprovadores.join(', ')
   }, [vendasConfig.aprovadores])
-  const valorOrcamentoConsiderado = useMemo(() => {
-    const total = kitBudget.total
-    return typeof total === 'number' && Number.isFinite(total) ? total : 0
-  }, [kitBudget.total])
-  const [multiUcAtivo, setMultiUcAtivo] = useState(INITIAL_VALUES.multiUcAtivo)
-  const [multiUcRows, setMultiUcRows] = useState<MultiUcRowState[]>(() =>
-    INITIAL_VALUES.multiUcUcs.map((uc, index) => ({
-      ...uc,
-      id: uc.id || `UC-${index + 1}`,
-    })),
-  )
-  const [multiUcRateioModo, setMultiUcRateioModo] = useState<MultiUcRateioModo>(
-    INITIAL_VALUES.multiUcRateioModo,
-  )
-  const [multiUcEnergiaGeradaKWh, setMultiUcEnergiaGeradaKWhState] = useState(
-    INITIAL_VALUES.multiUcEnergiaGeradaKWh,
-  )
-  const [multiUcEnergiaGeradaTouched, setMultiUcEnergiaGeradaTouched] = useState(false)
-  const [multiUcAnoVigencia, setMultiUcAnoVigencia] = useState(INITIAL_VALUES.multiUcAnoVigencia)
-  const [multiUcOverrideEscalonamento, setMultiUcOverrideEscalonamento] = useState(
-    INITIAL_VALUES.multiUcOverrideEscalonamento,
-  )
-  const [multiUcEscalonamentoCustomPercent, setMultiUcEscalonamentoCustomPercent] = useState<
-    number | null
-  >(INITIAL_VALUES.multiUcEscalonamentoCustomPercent)
-  const multiUcEscalonamentoPadrao = INITIAL_VALUES.multiUcEscalonamentoPadrao
-  const multiUcReferenciaData = useMemo(
-    () => new Date(Math.max(0, multiUcAnoVigencia), 0, 1),
-    [multiUcAnoVigencia],
-  )
-  const multiUcConsumoTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.consumoKWh), 0),
-    [multiUcRows],
-  )
-  const multiUcRateioPercentualTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.rateioPercentual || 0), 0),
-    [multiUcRows],
-  )
-  const multiUcRateioManualTotal = useMemo(
-    () => multiUcRows.reduce((acc, row) => acc + Math.max(0, row.manualRateioKWh ?? 0), 0),
-    [multiUcRows],
-  )
-  const multiUcEscalonamentoPercentual = useMemo(() => {
-    if (multiUcOverrideEscalonamento && multiUcEscalonamentoCustomPercent != null) {
-      return Math.max(0, multiUcEscalonamentoCustomPercent) / 100
-    }
-    const padrao = multiUcEscalonamentoPadrao[multiUcAnoVigencia] ?? 0
-    return Math.max(0, padrao) / 100
-  }, [
-    multiUcAnoVigencia,
-    multiUcEscalonamentoPadrao,
-    multiUcOverrideEscalonamento,
-    multiUcEscalonamentoCustomPercent,
-  ])
-  const multiUcEscalonamentoTabela = useMemo(
-    () =>
-      Object.entries(multiUcEscalonamentoPadrao)
-        .map(([ano, valor]) => ({ ano: Number(ano), valor }))
-        .sort((a, b) => a.ano - b.ano),
-    [multiUcEscalonamentoPadrao],
-  )
-  const multiUcResultado = useMemo<MultiUcCalculoResultado | null>(() => {
-    if (!multiUcAtivo) {
-      return null
-    }
-    return calcularMultiUc({
-      energiaGeradaTotalKWh: multiUcEnergiaGeradaKWh,
-      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
-      ucs: multiUcRows.map((row) => ({
-        id: row.id,
-        classe: row.classe,
-        consumoKWh: row.consumoKWh,
-        rateioPercentual: row.rateioPercentual,
-        manualRateioKWh: row.manualRateioKWh,
-        tarifas: {
-          TE: row.te,
-          TUSD_total: row.tusdTotal,
-          TUSD_FioB: row.tusdFioB,
-        },
-        observacoes: row.observacoes,
-      })),
-      parametrosMLGD: {
-        anoVigencia: multiUcAnoVigencia,
-        escalonamentoPadrao: multiUcEscalonamentoPadrao,
-        overrideEscalonamento: multiUcOverrideEscalonamento,
-        escalonamentoCustomPercent: multiUcEscalonamentoCustomPercent,
-      },
-    })
-  }, [
-    multiUcAtivo,
-    multiUcRows,
-    multiUcEnergiaGeradaKWh,
-    multiUcRateioModo,
-    multiUcAnoVigencia,
-    multiUcEscalonamentoPadrao,
-    multiUcOverrideEscalonamento,
-    multiUcEscalonamentoCustomPercent,
-  ])
-  const multiUcResultadoPorId = useMemo(() => {
-    const map = new Map<string, MultiUcCalculoUcResultado>()
-    if (multiUcResultado) {
-      multiUcResultado.ucs.forEach((uc) => {
-        map.set(uc.id, uc)
-      })
-    }
-    return map
-  }, [multiUcResultado])
-  const multiUcWarnings = multiUcResultado?.warnings ?? []
-  const multiUcErrors = multiUcResultado?.errors ?? []
-  const multiUcPrintableResumo = useMemo<PrintableMultiUcResumo | null>(() => {
-    if (!multiUcAtivo || !multiUcResultado || multiUcErrors.length > 0) {
-      return null
-    }
-    return {
-      energiaGeradaTotalKWh: multiUcResultado.energiaGeradaTotalKWh,
-      energiaGeradaUtilizadaKWh: multiUcResultado.energiaGeradaUtilizadaKWh,
-      sobraCreditosKWh: multiUcResultado.sobraCreditosKWh,
-      escalonamentoPercentual: multiUcResultado.escalonamentoPercentual,
-      totalTusd: multiUcResultado.totalTusd,
-      totalTe: multiUcResultado.totalTe,
-      totalContrato: multiUcResultado.totalContrato,
-      distribuicaoPorPercentual: multiUcRateioModo === 'percentual',
-      anoVigencia: multiUcAnoVigencia,
-      ucs: multiUcResultado.ucs.map((uc) => ({
-        id: uc.id,
-        classe: uc.classe,
-        consumoKWh: uc.consumoKWh,
-        rateioPercentual: uc.rateioPercentual,
-        manualRateioKWh: uc.manualRateioKWh ?? null,
-        creditosKWh: uc.creditosKWh,
-        kWhFaturados: uc.kWhFaturados,
-        kWhCompensados: uc.kWhCompensados,
-        te: uc.tarifas.TE,
-        tusdTotal: uc.tarifas.TUSD_total,
-        tusdFioB: uc.tarifas.TUSD_FioB,
-        tusdOutros: uc.tusdOutros,
-        tusdMensal: uc.tusdMensal,
-        teMensal: uc.teMensal,
-        totalMensal: uc.totalMensal,
-        observacoes: uc.observacoes ?? null,
-      })),
-    }
-  }, [
-    multiUcAtivo,
-    multiUcResultado,
-    multiUcErrors,
-    multiUcRateioModo,
-    multiUcAnoVigencia,
-  ])
-  const multiUcConsumoAnteriorRef = useRef<number | null>(null)
-  const multiUcIdCounterRef = useRef<number>(multiUcRows.length + 1)
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
@@ -2750,18 +2576,6 @@ export default function App() {
       })
     },
     [updatePageSharedState],
-  )
-
-  const setMultiUcEnergiaGeradaKWh = useCallback(
-    (value: number, origin: 'auto' | 'user' = 'auto') => {
-      const normalized = Number.isFinite(value) ? Math.max(0, value) : 0
-      if (origin === 'user') {
-        setMultiUcEnergiaGeradaTouched(true)
-      }
-      setMultiUcEnergiaGeradaKWhState((prev) => (prev === normalized ? prev : normalized))
-      return normalized
-    },
-    [],
   )
 
   const setTarifaCheia = useCallback(
@@ -3182,6 +2996,42 @@ export default function App() {
     ],
   )
   useEffect(() => { distribuidoraAneelEfetivaRef.current = distribuidoraAneelEfetiva }, [distribuidoraAneelEfetiva])
+  const {
+    multiUcAtivo, setMultiUcAtivo,
+    multiUcRows, setMultiUcRows,
+    multiUcRateioModo, setMultiUcRateioModo,
+    multiUcEnergiaGeradaKWh, setMultiUcEnergiaGeradaKWhState,
+    multiUcEnergiaGeradaTouched, setMultiUcEnergiaGeradaTouched,
+    multiUcAnoVigencia, setMultiUcAnoVigencia,
+    multiUcOverrideEscalonamento, setMultiUcOverrideEscalonamento,
+    multiUcEscalonamentoCustomPercent, setMultiUcEscalonamentoCustomPercent,
+    multiUcEscalonamentoPadrao,
+    multiUcConsumoAnteriorRef, multiUcIdCounterRef,
+    multiUcRateioPercentualTotal,
+    multiUcRateioManualTotal,
+    multiUcEscalonamentoPercentual,
+    multiUcEscalonamentoTabela,
+    multiUcResultado,
+    multiUcResultadoPorId,
+    multiUcWarnings,
+    multiUcErrors,
+    multiUcPrintableResumo,
+    applyTarifasAutomaticas,
+    setMultiUcEnergiaGeradaKWh,
+    handleMultiUcClasseChange,
+    handleMultiUcConsumoChange,
+    handleMultiUcRateioPercentualChange,
+    handleMultiUcManualRateioChange,
+    handleMultiUcTeChange,
+    handleMultiUcTusdTotalChange,
+    handleMultiUcTusdFioBChange,
+    handleMultiUcObservacoesChange,
+    handleMultiUcAdicionar,
+    handleMultiUcRemover,
+    handleMultiUcQuantidadeChange,
+    handleMultiUcRecarregarTarifas,
+    handleMultiUcRateioModoChange,
+  } = useMultiUcState({ distribuidoraAneelEfetiva, kcKwhMes, setKcKwhMes })
   const procuracaoUf = useMemo(() => {
     if (isTitularDiferente) {
       return (
@@ -3219,209 +3069,6 @@ export default function App() {
     disableTitularDistribuidora ||
     !ucGeradoraTitularUf ||
     ucGeradoraTitularDistribuidorasDisponiveis.length === 0
-
-  const applyTarifasAutomaticas = useCallback(
-    (row: MultiUcRowState, classe?: MultiUcClasse, force = false): MultiUcRowState => {
-      const classeFinal = classe ?? row.classe
-      const distribuidoraReferencia =
-        distribuidoraAneelEfetiva && distribuidoraAneelEfetiva.trim()
-          ? distribuidoraAneelEfetiva
-          : 'DEFAULT'
-      const sugestao = buscarTarifaPorClasse(distribuidoraReferencia, classeFinal, multiUcReferenciaData)
-
-      let next = row
-      if (classeFinal !== row.classe) {
-        next = { ...next, classe: classeFinal }
-      }
-
-      if (sugestao) {
-        if (force || row.teFonte === 'auto') {
-          next = { ...next, te: sugestao.TE, teFonte: 'auto' }
-        }
-        if (force || row.tusdTotalFonte === 'auto') {
-          next = { ...next, tusdTotal: sugestao.TUSD_total, tusdTotalFonte: 'auto' }
-        }
-        if (force || row.tusdFioBFonte === 'auto') {
-          next = { ...next, tusdFioB: sugestao.TUSD_FioB, tusdFioBFonte: 'auto' }
-        }
-      }
-
-      return next
-    },
-    [distribuidoraAneelEfetiva, multiUcReferenciaData],
-  )
-
-  const updateMultiUcRow = useCallback(
-    (id: string, updater: (prev: MultiUcRowState) => MultiUcRowState) => {
-      setMultiUcRows((prev) => {
-        let changed = false
-        const next = prev.map((row) => {
-          if (row.id !== id) {
-            return row
-          }
-          const updated = updater(row)
-          if (updated !== row) {
-            changed = true
-          }
-          return updated
-        })
-        return changed ? next : prev
-      })
-    },
-    [],
-  )
-
-  const handleMultiUcClasseChange = useCallback(
-    (id: string, classe: MultiUcClasse) => {
-      updateMultiUcRow(id, (row) =>
-        applyTarifasAutomaticas(
-          {
-            ...row,
-            teFonte: 'auto',
-            tusdTotalFonte: 'auto',
-            tusdFioBFonte: 'auto',
-          },
-          classe,
-          true,
-        ),
-      )
-    },
-    [applyTarifasAutomaticas, updateMultiUcRow],
-  )
-
-  const handleMultiUcConsumoChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, consumoKWh: normalizado }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcRateioPercentualChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, rateioPercentual: normalizado }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcManualRateioChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, manualRateioKWh: normalizado }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcTeChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, te: normalizado, teFonte: 'manual' }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcTusdTotalChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, tusdTotal: normalizado, tusdTotalFonte: 'manual' }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcTusdFioBChange = useCallback(
-    (id: string, valor: number) => {
-      const normalizado = Number.isFinite(valor) ? Math.max(0, valor) : 0
-      updateMultiUcRow(id, (row) => ({ ...row, tusdFioB: normalizado, tusdFioBFonte: 'manual' }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcObservacoesChange = useCallback(
-    (id: string, valor: string) => {
-      updateMultiUcRow(id, (row) => ({ ...row, observacoes: valor }))
-    },
-    [updateMultiUcRow],
-  )
-
-  const handleMultiUcAdicionar = useCallback(() => {
-    const novoId = multiUcIdCounterRef.current
-    multiUcIdCounterRef.current += 1
-    setMultiUcRows((prev) => {
-      const novo = applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true)
-      return [...prev, novo]
-    })
-  }, [applyTarifasAutomaticas])
-
-  const handleMultiUcRemover = useCallback((id: string) => {
-    setMultiUcRows((prev) => {
-      if (prev.length <= 1) {
-        return prev
-      }
-      const filtrado = prev.filter((row) => row.id !== id)
-      return filtrado.length > 0 ? filtrado : prev
-    })
-  }, [])
-
-  const handleMultiUcQuantidadeChange = useCallback(
-    (valor: number) => {
-      const alvo = Number.isFinite(valor) ? Math.max(1, Math.round(valor)) : 1
-      setMultiUcRows((prev) => {
-        if (alvo === prev.length) {
-          return prev
-        }
-        if (alvo < prev.length) {
-          return prev.slice(0, alvo)
-        }
-        const adicionais: MultiUcRowState[] = []
-        const faltantes = alvo - prev.length
-        for (let index = 0; index < faltantes; index += 1) {
-          const novoId = multiUcIdCounterRef.current
-          multiUcIdCounterRef.current += 1
-          adicionais.push(applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true))
-        }
-        return [...prev, ...adicionais]
-      })
-    },
-    [applyTarifasAutomaticas],
-  )
-
-  const handleMultiUcRecarregarTarifas = useCallback(() => {
-    setMultiUcRows((prev) =>
-      prev.map((row) =>
-        applyTarifasAutomaticas(
-          {
-            ...row,
-            teFonte: 'auto',
-            tusdTotalFonte: 'auto',
-            tusdFioBFonte: 'auto',
-          },
-          row.classe,
-          true,
-        ),
-      ),
-    )
-  }, [applyTarifasAutomaticas])
-
-  const handleMultiUcRateioModoChange = useCallback(
-    (modo: MultiUcRateioModo) => {
-      setMultiUcRateioModo(modo)
-      if (modo === 'manual') {
-        setMultiUcRows((prev) =>
-          prev.map((row) => {
-            if (row.manualRateioKWh != null) {
-              return row
-            }
-            const calculado = multiUcEnergiaGeradaKWh > 0
-              ? multiUcEnergiaGeradaKWh * (row.rateioPercentual / 100)
-              : 0
-            return { ...row, manualRateioKWh: Math.max(0, calculado) }
-          }),
-        )
-      }
-    },
-    [multiUcEnergiaGeradaKWh],
-  )
 
   const setPotenciaModulo = useCallback(
     (valueOrUpdater: number | ((prev: number) => number)) => {
@@ -3681,206 +3328,11 @@ export default function App() {
   const [estruturaTipoWarning, setEstruturaTipoWarning] =
     useState<EstruturaUtilizadaTipoWarning | null>(null)
 
-  const budgetItemsTotal = useMemo(
-    () => computeBudgetItemsTotalValue(kitBudget.items),
-    [kitBudget.items],
-  )
-
-  const budgetMissingSummary = useMemo(() => {
-    const info = kitBudget?.missingInfo
-    if (!info || !info.modules || !info.inverter || kitBudget.items.length === 0) {
-      return null
-    }
-    const fieldSet = new Set<string>()
-    const moduleFields = Array.isArray(info.modules.missingFields) ? info.modules.missingFields : []
-    const inverterFields = Array.isArray(info.inverter.missingFields) ? info.inverter.missingFields : []
-    moduleFields.forEach((field) => fieldSet.add(field))
-    inverterFields.forEach((field) => fieldSet.add(field))
-    if (fieldSet.size === 0) {
-      return null
-    }
-    const fieldsText = formatList(Array.from(fieldSet))
-    return { info, fieldsText }
-  }, [kitBudget.items.length, kitBudget.missingInfo])
-
-  useEffect(() => {
-    if (kitBudget.totalSource !== 'calculated') {
-      return
-    }
-    const nextTotal = budgetItemsTotal
-    const formatted = formatCurrencyInputValue(nextTotal)
-    if (numbersAreClose(nextTotal, kitBudget.total) && formatted === kitBudget.totalInput) {
-      return
-    }
-    setKitBudget((prev) => ({
-      ...prev,
-      total: nextTotal,
-      totalInput: formatted,
-    }))
-  }, [budgetItemsTotal, kitBudget.totalSource, kitBudget.total, kitBudget.totalInput])
-
-  const updateKitBudgetItem = useCallback(
-    (itemId: string, updater: (item: KitBudgetItemState) => KitBudgetItemState) => {
-      setKitBudget((prev) => {
-        const safeItems = Array.isArray(prev?.items) ? prev.items : []
-        const nextItems = safeItems.map((item) => (item.id === itemId ? updater(item) : item))
-        return {
-          ...prev,
-          items: nextItems,
-          missingInfo: computeBudgetMissingInfo(nextItems),
-        }
-      })
-    },
-    [],
-  )
-
-  const _handleBudgetItemTextChange = useCallback(
-    (itemId: string, field: 'productName' | 'description', value: string) => {
-      updateKitBudgetItem(itemId, (item) => ({ ...item, [field]: value }))
-    },
-    [updateKitBudgetItem],
-  )
-
-  const _handleBudgetItemQuantityChange = useCallback(
-    (itemId: string, value: string) => {
-      const parsed = parseNumericInput(value)
-      const isValidQuantity = typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0
-      updateKitBudgetItem(itemId, (item) => ({
-        ...item,
-        quantity: isValidQuantity ? Math.round(parsed) : null,
-        quantityInput: value,
-        wasQuantityInferred: !isValidQuantity,
-      }))
-    },
-    [updateKitBudgetItem],
-  )
-
-  const handleRemoveBudgetItem = useCallback((itemId: string) => {
-    setKitBudget((prev) => {
-      const nextItems = prev.items.filter((item) => item.id !== itemId)
-      return {
-        ...prev,
-        items: nextItems,
-        missingInfo: computeBudgetMissingInfo(nextItems),
-      }
-    })
-  }, [])
-
-  const handleAddBudgetItem = useCallback(() => {
-    const baseId = Date.now().toString(36)
-    setKitBudget((prev) => {
-      const nextItems = [
-        ...prev.items,
-        {
-          id: `manual-${baseId}-${prev.items.length + 1}`,
-          productName: '',
-          description: '',
-          quantity: null,
-          quantityInput: '',
-          unitPrice: null,
-          unitPriceInput: '',
-          wasQuantityInferred: true,
-        },
-      ]
-      return {
-        ...prev,
-        items: nextItems,
-        missingInfo: computeBudgetMissingInfo(nextItems),
-      }
-    })
-  }, [])
-
-  const handleBudgetTotalValueChange = useCallback(
-    (value: number | null) => {
-      setKitBudget((prev) => {
-        if (value === null) {
-          if (budgetItemsTotal !== null) {
-            const formattedCalculated = formatCurrencyInputValue(budgetItemsTotal)
-            if (
-              prev.totalSource === 'calculated' &&
-              numbersAreClose(prev.total, budgetItemsTotal) &&
-              prev.totalInput === formattedCalculated
-            ) {
-              return prev
-            }
-            return {
-              ...prev,
-              totalInput: formattedCalculated,
-              total: budgetItemsTotal,
-              totalSource: 'calculated',
-            }
-          }
-          const formattedZero = formatCurrencyInputValue(0)
-          if (
-            prev.totalSource === null &&
-            numbersAreClose(prev.total, 0) &&
-            prev.totalInput === formattedZero
-          ) {
-            return prev
-          }
-          return {
-            ...prev,
-            totalInput: formattedZero,
-            total: 0,
-            totalSource: null,
-          }
-        }
-
-        const normalized = normalizeCurrencyNumber(value)
-        if (normalized === null) {
-          const formattedZero = formatCurrencyInputValue(0)
-          if (
-            prev.totalSource === null &&
-            numbersAreClose(prev.total, 0) &&
-            prev.totalInput === formattedZero
-          ) {
-            return prev
-          }
-          return {
-            ...prev,
-            totalInput: formattedZero,
-            total: 0,
-            totalSource: null,
-          }
-        }
-
-        const formatted = formatCurrencyInputValue(normalized)
-        if (
-          prev.totalSource === 'explicit' &&
-          numbersAreClose(prev.total, normalized) &&
-          prev.totalInput === formatted
-        ) {
-          return prev
-        }
-        return {
-          ...prev,
-          totalInput: formatted,
-          total: normalized,
-          totalSource: 'explicit',
-        }
-      })
-    },
-    [budgetItemsTotal],
-  )
-
   const budgetTotalField = useBRNumberField({
     mode: 'money',
     value: kitBudget.total ?? null,
     onChange: handleBudgetTotalValueChange,
   })
-
-  const kitBudgetTotal = useMemo(() => {
-    if (kitBudget.totalSource === 'explicit') {
-      return kitBudget.total ?? 0
-    }
-    if (budgetItemsTotal != null) {
-      return budgetItemsTotal
-    }
-    if (kitBudget.total != null) {
-      return kitBudget.total
-    }
-    return 0
-  }, [budgetItemsTotal, kitBudget.total, kitBudget.totalSource])
 
   const handleComposicaoTelhadoChange = useCallback(
     (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
@@ -4076,22 +3528,6 @@ export default function App() {
     return errors
   }, [])
 
-  const [precoPorKwp, setPrecoPorKwp] = useState(INITIAL_VALUES.precoPorKwp)
-  const [irradiacao, setIrradiacao] = useState(IRRADIACAO_FALLBACK)
-  const [eficiencia, setEficiencia] = useState(INITIAL_VALUES.eficiencia)
-  const [diasMes, setDiasMes] = useState(INITIAL_VALUES.diasMes)
-  const [inflacaoAa, setInflacaoAa] = useState(INITIAL_VALUES.inflacaoAa)
-
-  const [vendaForm, setVendaForm] = useState<VendaForm>(() => createInitialVendaForm())
-  const [vendaFormErrors, setVendaFormErrors] = useState<Record<string, string>>({})
-  const [retornoProjetado, setRetornoProjetado] = useState<RetornoProjetado | null>(null)
-  const [retornoStatus, setRetornoStatus] = useState<'idle' | 'calculating'>('idle')
-  const [retornoError, setRetornoError] = useState<string | null>(null)
-  const [recalcularTick, setRecalcularTick] = useState(0)
-  const valorTotalPropostaNormalizado = Number.isFinite(vendaForm.capex_total)
-    ? Math.max(0, Number(vendaForm.capex_total))
-    : 0
-
   const buildRequiredClientFields = useCallback(
     (mode: 'venda' | 'leasing') => {
       const input = {
@@ -4242,12 +3678,6 @@ export default function App() {
     vendaActions.updateResumoProposta({ valor_total_proposta: valorTotalPropostaNormalizado })
   }, [isVendaDiretaTab, valorTotalPropostaNormalizado, recalcularTick])
 
-  const resetRetorno = useCallback(() => {
-    setRetornoProjetado(null)
-    setRetornoError(null)
-    setRetornoStatus('idle')
-  }, [])
-
   const handleRecalcularVendas = useCallback(() => {
     const mode = isVendaDiretaTab ? 'venda' : 'leasing'
     if (!guardClientFieldsOrReturn(mode)) {
@@ -4285,52 +3715,6 @@ export default function App() {
       roi_acumulado_30a: retornoProjetado ? retornoProjetado.roi : null,
     })
   }, [retornoProjetado, recalcularTick])
-
-  type VendaFormUpdates = { [K in keyof VendaForm]?: VendaForm[K] | undefined }
-
-  const applyVendaUpdates = useCallback(
-    (updates: VendaFormUpdates) => {
-      if (!updates || Object.keys(updates).length === 0) {
-        return
-      }
-      setVendaForm((prev) => {
-        let changed = false
-        const next: VendaForm = { ...prev }
-        const nextMutable = next as Record<keyof VendaForm, VendaForm[keyof VendaForm] | undefined>
-        Object.entries(updates).forEach(([rawKey, value]) => {
-          const key = rawKey as keyof VendaForm
-          if (value === undefined) {
-            if (next[key] !== undefined) {
-              nextMutable[key] = value as VendaForm[typeof key] | undefined
-              changed = true
-            }
-            return
-          }
-          if (next[key] !== value) {
-            nextMutable[key] = value as VendaForm[typeof key]
-            changed = true
-          }
-        })
-        return changed ? next : prev
-      })
-      setVendaFormErrors((prev) => {
-        if (!prev || Object.keys(prev).length === 0) {
-          return prev
-        }
-        let changed = false
-        const next = { ...prev }
-        Object.keys(updates).forEach((key) => {
-          if (key in next) {
-            delete next[key]
-            changed = true
-          }
-        })
-        return changed ? next : prev
-      })
-      resetRetorno()
-    },
-    [resetRetorno],
-  )
 
   const tarifaCheiaField = useTarifaInputField(tarifaCheia, setTarifaCheia)
   const tarifaCheiaVendaField = useTarifaInputField(
@@ -4591,50 +3975,6 @@ export default function App() {
     vendaForm.taxa_minima_r_mes,
   ])
 
-  const resolveDefaultTusdSimultaneidade = useCallback((tipo: TipoClienteTUSD): number | null => {
-    if (tipo === 'residencial') return 70
-    if (tipo === 'comercial') return 80
-    return null
-  }, [])
-
-  const setTusdSimultaneidadeFromSource = useCallback(
-    (value: number | null, source: 'auto' | 'manual') => {
-      const isManual = source === 'manual'
-      if (tusdSimultaneidade === value) {
-        setTusdSimultaneidadeManualOverride(isManual)
-        return
-      }
-      setTusdSimultaneidade(value)
-      setTusdSimultaneidadeManualOverride(isManual)
-      if (value == null) {
-        applyVendaUpdates({ tusd_simultaneidade: undefined })
-      } else {
-        applyVendaUpdates({ tusd_simultaneidade: value })
-      }
-    },
-    [applyVendaUpdates, tusdSimultaneidade],
-  )
-
-  useEffect(() => {
-    if (!tusdOpcoesExpandidas) {
-      if (tusdSimultaneidadeManualOverride) {
-        setTusdSimultaneidadeManualOverride(false)
-      }
-      return
-    }
-    if (tusdSimultaneidadeManualOverride) {
-      return
-    }
-    const defaultSimultaneidade = resolveDefaultTusdSimultaneidade(tusdTipoCliente)
-    setTusdSimultaneidadeFromSource(defaultSimultaneidade, 'auto')
-  }, [
-    resolveDefaultTusdSimultaneidade,
-    setTusdSimultaneidadeFromSource,
-    tusdOpcoesExpandidas,
-    tusdSimultaneidadeManualOverride,
-    tusdTipoCliente,
-  ])
-
   const updateSegmentoCliente = useCallback(
     (value: SegmentoCliente, options: { updateVenda?: boolean } = {}) => {
       const shouldUpdateVenda = options.updateVenda ?? true
@@ -4734,16 +4074,6 @@ export default function App() {
       applyVendaUpdates({ tipo_sistema: value })
     },
     [applyVendaUpdates, setTipoSistema],
-  )
-
-  const handleModoOrcamentoChange = useCallback(
-    (value: 'auto' | 'manual') => {
-      if (value === 'auto' && isManualBudgetForced) {
-        return
-      }
-      setModoOrcamento(value)
-    },
-    [isManualBudgetForced],
   )
 
   const autoFillVendaFromBudget = useCallback(
@@ -5525,59 +4855,6 @@ export default function App() {
   const [pagosAcumAteM, setPagosAcumAteM] = useState(INITIAL_VALUES.pagosAcumManual)
 
   const mesReferencia = mesReferenciaRef.current
-
-  useEffect(() => {
-    if (!multiUcAtivo) {
-      return
-    }
-    setMultiUcRows((prev) => {
-      if (prev.length > 0) {
-        return prev
-      }
-      const novoId = multiUcIdCounterRef.current
-      multiUcIdCounterRef.current += 1
-      return [applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true)]
-    })
-  }, [applyTarifasAutomaticas, multiUcAtivo])
-
-  useEffect(() => {
-    if (!multiUcAtivo) {
-      return
-    }
-    setMultiUcRows((prev) => {
-      let changed = false
-      const atualizadas = prev.map((row) => {
-        const proxima = applyTarifasAutomaticas(row, row.classe, false)
-        if (proxima !== row) {
-          changed = true
-        }
-        return proxima
-      })
-      return changed ? atualizadas : prev
-    })
-  }, [applyTarifasAutomaticas, multiUcAtivo])
-
-  useEffect(() => {
-    if (!multiUcAtivo) {
-      return
-    }
-    if (multiUcConsumoAnteriorRef.current == null) {
-      multiUcConsumoAnteriorRef.current = kcKwhMes
-    }
-    if (Math.abs(kcKwhMes - multiUcConsumoTotal) > 0.001) {
-      setKcKwhMes(multiUcConsumoTotal, 'auto')
-    }
-  }, [kcKwhMes, multiUcAtivo, multiUcConsumoTotal, setKcKwhMes])
-
-  useEffect(() => {
-    if (multiUcAtivo) {
-      return
-    }
-    if (multiUcConsumoAnteriorRef.current != null) {
-      setKcKwhMes(multiUcConsumoAnteriorRef.current, 'auto')
-      multiUcConsumoAnteriorRef.current = null
-    }
-  }, [multiUcAtivo, setKcKwhMes])
 
   useEffect(() => {
     if (distribuidoraTarifa === distribuidoraAneelEfetiva) {
