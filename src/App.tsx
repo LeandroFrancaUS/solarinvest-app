@@ -290,15 +290,8 @@ import { OperationalDashboardPage } from './pages/OperationalDashboardPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { convertClientToClosedDeal } from './services/deals/convert-client-to-closed-deal'
 import type { ConsultantForResolution } from './domain/clients/consultant-resolution'
-import type { SimulacoesSection } from './types/navigation'
-import {
-  SIMULACOES_SECTION_COPY,
-} from './features/simulacoes/simulacoesConstants'
 import { useAnaliseFinanceiraState } from './features/simulacoes/useAnaliseFinanceiraState'
-import { SimulacoesHeroCard } from './features/simulacoes/SimulacoesHeroCard'
-import { SimulacoesNav } from './features/simulacoes/SimulacoesNav'
-import { SimulacoesStaticModuleCard } from './features/simulacoes/SimulacoesStaticModuleCard'
-import { AnaliseFinanceiraSection } from './features/simulacoes/AnaliseFinanceiraSection'
+import { SimuladorPage } from './features/simulador/SimuladorPage'
 import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
@@ -408,7 +401,6 @@ const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
-const SimulacoesTab = React.lazy(() => import('./components/simulacoes/SimulacoesTab').then(m => ({ default: m.SimulacoesTab })))
 
 const TIPO_SISTEMA_VALUES: readonly TipoSistema[] = ['ON_GRID', 'HIBRIDO', 'OFF_GRID'] as const
 
@@ -13289,8 +13281,6 @@ export default function App() {
     voltarParaPaginaPrincipal()
   }
 
-  const isSimulacoesWorkspaceActive = simulacoesSection === 'nova' || simulacoesSection === 'salvas'
-
   const budgetCodeDisplay = useMemo(() => {
     return normalizeProposalId(printableData.budgetId) || null
   }, [printableData.budgetId])
@@ -14239,184 +14229,6 @@ export default function App() {
     : isDesktopSimpleEnabled
     ? desktopSimpleSidebarGroups
     : sidebarGroups
-  const renderSimulacoesPage = () => {
-    const sectionCopy = SIMULACOES_SECTION_COPY[simulacoesSection]
-    const isAnaliseMobileSimpleView = isMobileSimpleEnabled && simulacoesSection === 'analise'
-    const hiddenAnaliseMobileMenuIds = new Set<SimulacoesSection>([
-      'nova',
-      'salvas',
-      'ia',
-      'risco',
-      'packs',
-      'packs-inteligentes',
-    ])
-
-    return (
-      <div
-        className={`simulacoes-page${
-          isMobileViewport && simulacoesSection === 'analise'
-            ? ' simulacoes-page--analise-mobile'
-            : ''
-        }`}
-      >
-        <SimulacoesHeroCard
-          aprovacaoStatus={aprovacaoStatus}
-          ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-          onRegistrarDecisao={registrarDecisaoInterna}
-          isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-          sectionCopy={sectionCopy}
-        />
-
-        <SimulacoesNav
-          simulacoesSection={simulacoesSection}
-          hiddenAnaliseMobileMenuIds={isAnaliseMobileSimpleView ? hiddenAnaliseMobileMenuIds : new Set<SimulacoesSection>()}
-          onAbrirSimulacoes={abrirSimulacoes}
-        />
-
-        <div className="simulacoes-panels">
-          <section
-            className="simulacoes-main-card"
-            hidden={!isSimulacoesWorkspaceActive}
-            aria-hidden={!isSimulacoesWorkspaceActive}
-            style={{ display: isSimulacoesWorkspaceActive ? 'flex' : 'none' }}
-          >
-            <header>
-              <div>
-                <p className="simulacoes-tag ghost">Workspace</p>
-                <h3>{simulacoesSection === 'nova' ? 'Nova simulação' : 'Simulações salvas'}</h3>
-                <p className="simulacoes-description">
-                  Layout full-width para criação, comparação e duplicação de cenários com Monte Carlo e IA na mesma
-                  área.
-                </p>
-              </div>
-            </header>
-            <React.Suspense fallback={null}>
-              <SimulacoesTab
-                consumoKwhMes={kcKwhMes}
-                valorInvestimento={capexSolarInvest}
-                tipoSistema={tipoSistema}
-                prazoLeasingAnos={leasingPrazo}
-              />
-            </React.Suspense>
-          </section>
-
-          <SimulacoesStaticModuleCard section={simulacoesSection} />
-
-          {simulacoesSection === 'analise' ? (
-            <AnaliseFinanceiraSection
-              afModo={afModo}
-              setAfModo={setAfModo}
-              afConsumoOverride={afConsumoOverride}
-              setAfConsumoOverride={setAfConsumoOverride}
-              afNumModulosOverride={afNumModulosOverride}
-              setAfNumModulosOverride={setAfNumModulosOverride}
-              afModuloWpOverride={afModuloWpOverride}
-              setAfModuloWpOverride={setAfModuloWpOverride}
-              afIrradiacaoOverride={afIrradiacaoOverride}
-              setAfIrradiacaoOverride={setAfIrradiacaoOverride}
-              afPROverride={afPROverride}
-              setAfPROverride={setAfPROverride}
-              afDiasOverride={afDiasOverride}
-              setAfDiasOverride={setAfDiasOverride}
-              potenciaModulo={potenciaModulo}
-              baseIrradiacao={baseIrradiacao}
-              eficienciaNormalizada={eficienciaNormalizada}
-              diasMesNormalizado={diasMesNormalizado}
-              afCustoKitField={afCustoKitField}
-              afValorContratoField={afValorContratoField}
-              afFreteField={afFreteField}
-              afDescarregamentoField={afDescarregamentoField}
-              afMaterialCAField={afMaterialCAField}
-              afPlacaField={afPlacaField}
-              afProjetoField={afProjetoField}
-              afCreaField={afCreaField}
-              afHotelPousadaField={afHotelPousadaField}
-              afTransporteCombustivelField={afTransporteCombustivelField}
-              afOutrosField={afOutrosField}
-              afMensalidadeBaseField={afMensalidadeBaseField}
-              afAutoMaterialCA={afAutoMaterialCA}
-              setAfAutoMaterialCA={setAfAutoMaterialCA}
-              afMaterialCAOverride={afMaterialCAOverride}
-              setAfMaterialCAOverride={setAfMaterialCAOverride}
-              afProjetoOverride={afProjetoOverride}
-              setAfProjetoOverride={setAfProjetoOverride}
-              afCreaOverride={afCreaOverride}
-              setAfCreaOverride={setAfCreaOverride}
-              afCustoKit={afCustoKit}
-              setAfCustoKit={setAfCustoKit}
-              setAfCustoKitManual={setAfCustoKitManual}
-              afFrete={afFrete}
-              setAfFrete={setAfFrete}
-              setAfFreteManual={setAfFreteManual}
-              afDescarregamento={afDescarregamento}
-              setAfDescarregamento={setAfDescarregamento}
-              afHotelPousada={afHotelPousada}
-              setAfHotelPousada={setAfHotelPousada}
-              afTransporteCombustivel={afTransporteCombustivel}
-              setAfTransporteCombustivel={setAfTransporteCombustivel}
-              afOutros={afOutros}
-              setAfOutros={setAfOutros}
-              afValorContrato={afValorContrato}
-              setAfValorContrato={setAfValorContrato}
-              afPlaca={afPlaca}
-              setAfPlaca={setAfPlaca}
-              afMensalidadeBase={afMensalidadeBase}
-              setAfMensalidadeBase={setAfMensalidadeBase}
-              afMensalidadeBaseAuto={afMensalidadeBaseAuto}
-              afImpostosVenda={afImpostosVenda}
-              setAfImpostosVenda={setAfImpostosVenda}
-              afImpostosLeasing={afImpostosLeasing}
-              setAfImpostosLeasing={setAfImpostosLeasing}
-              afMargemLiquidaVenda={afMargemLiquidaVenda}
-              setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
-              afMargemLiquidaMinima={afMargemLiquidaMinima}
-              setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
-              afComissaoMinimaPercent={afComissaoMinimaPercent}
-              setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
-              afTaxaDesconto={afTaxaDesconto}
-              setAfTaxaDesconto={setAfTaxaDesconto}
-              afInadimplencia={afInadimplencia}
-              setAfInadimplencia={setAfInadimplencia}
-              afCustoOperacional={afCustoOperacional}
-              setAfCustoOperacional={setAfCustoOperacional}
-              afMesesProjecao={afMesesProjecao}
-              setAfMesesProjecao={setAfMesesProjecao}
-              afCidadeDestino={afCidadeDestino}
-              setAfCidadeDestino={setAfCidadeDestino}
-              afCidadeSuggestions={afCidadeSuggestions}
-              setAfCidadeSuggestions={setAfCidadeSuggestions}
-              afCidadeShowSuggestions={afCidadeShowSuggestions}
-              setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
-              afDeslocamentoStatus={afDeslocamentoStatus}
-              setAfDeslocamentoStatus={setAfDeslocamentoStatus}
-              afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
-              setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
-              afDeslocamentoKm={afDeslocamentoKm}
-              setAfDeslocamentoKm={setAfDeslocamentoKm}
-              afDeslocamentoRs={afDeslocamentoRs}
-              setAfDeslocamentoRs={setAfDeslocamentoRs}
-              afDeslocamentoErro={afDeslocamentoErro}
-              setAfDeslocamentoErro={setAfDeslocamentoErro}
-              afCidadeBlurTimerRef={afCidadeBlurTimerRef}
-              handleSelectCidade={handleSelectCidade}
-              analiseFinanceiraResult={analiseFinanceiraResult}
-              indicadorEficienciaProjeto={indicadorEficienciaProjeto}
-              vendasConfig={vendasConfig}
-              aprovacaoChecklist={aprovacaoChecklist}
-              toggleAprovacaoChecklist={toggleAprovacaoChecklist}
-              aprovacaoStatus={aprovacaoStatus}
-              ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
-              registrarDecisaoInterna={registrarDecisaoInterna}
-              afBaseInitializedRef={afBaseInitializedRef}
-              selectNumberInputOnFocus={selectNumberInputOnFocus}
-              kcKwhMes={kcKwhMes}
-              isAnaliseMobileSimpleView={isAnaliseMobileSimpleView}
-            />
-          ) : null}
-        </div>
-      </div>
-    )
-  }
 
   // If in print mode, render the Bento Grid print page
   if (isPrintMode) {
@@ -14523,7 +14335,122 @@ export default function App() {
               formConsultores={formConsultores}
             />
           )}
-          renderSimulacoes={renderSimulacoesPage}
+          renderSimulacoes={() => (
+            <SimuladorPage
+              simulacoesSection={simulacoesSection}
+              isMobileSimpleEnabled={isMobileSimpleEnabled}
+              isMobileViewport={isMobileViewport}
+              abrirSimulacoes={abrirSimulacoes}
+              capexSolarInvest={capexSolarInvest}
+              leasingPrazo={leasingPrazo}
+              tipoSistema={tipoSistema}
+              afModo={afModo}
+              setAfModo={setAfModo}
+              afConsumoOverride={afConsumoOverride}
+              setAfConsumoOverride={setAfConsumoOverride}
+              afNumModulosOverride={afNumModulosOverride}
+              setAfNumModulosOverride={setAfNumModulosOverride}
+              afModuloWpOverride={afModuloWpOverride}
+              setAfModuloWpOverride={setAfModuloWpOverride}
+              afIrradiacaoOverride={afIrradiacaoOverride}
+              setAfIrradiacaoOverride={setAfIrradiacaoOverride}
+              afPROverride={afPROverride}
+              setAfPROverride={setAfPROverride}
+              afDiasOverride={afDiasOverride}
+              setAfDiasOverride={setAfDiasOverride}
+              potenciaModulo={potenciaModulo}
+              baseIrradiacao={baseIrradiacao}
+              eficienciaNormalizada={eficienciaNormalizada}
+              diasMesNormalizado={diasMesNormalizado}
+              afCustoKitField={afCustoKitField}
+              afValorContratoField={afValorContratoField}
+              afFreteField={afFreteField}
+              afDescarregamentoField={afDescarregamentoField}
+              afMaterialCAField={afMaterialCAField}
+              afPlacaField={afPlacaField}
+              afProjetoField={afProjetoField}
+              afCreaField={afCreaField}
+              afHotelPousadaField={afHotelPousadaField}
+              afTransporteCombustivelField={afTransporteCombustivelField}
+              afOutrosField={afOutrosField}
+              afMensalidadeBaseField={afMensalidadeBaseField}
+              afAutoMaterialCA={afAutoMaterialCA}
+              setAfAutoMaterialCA={setAfAutoMaterialCA}
+              afMaterialCAOverride={afMaterialCAOverride}
+              setAfMaterialCAOverride={setAfMaterialCAOverride}
+              afProjetoOverride={afProjetoOverride}
+              setAfProjetoOverride={setAfProjetoOverride}
+              afCreaOverride={afCreaOverride}
+              setAfCreaOverride={setAfCreaOverride}
+              afCustoKit={afCustoKit}
+              setAfCustoKit={setAfCustoKit}
+              setAfCustoKitManual={setAfCustoKitManual}
+              afFrete={afFrete}
+              setAfFrete={setAfFrete}
+              setAfFreteManual={setAfFreteManual}
+              afDescarregamento={afDescarregamento}
+              setAfDescarregamento={setAfDescarregamento}
+              afHotelPousada={afHotelPousada}
+              setAfHotelPousada={setAfHotelPousada}
+              afTransporteCombustivel={afTransporteCombustivel}
+              setAfTransporteCombustivel={setAfTransporteCombustivel}
+              afOutros={afOutros}
+              setAfOutros={setAfOutros}
+              afValorContrato={afValorContrato}
+              setAfValorContrato={setAfValorContrato}
+              afPlaca={afPlaca}
+              setAfPlaca={setAfPlaca}
+              afMensalidadeBase={afMensalidadeBase}
+              setAfMensalidadeBase={setAfMensalidadeBase}
+              afMensalidadeBaseAuto={afMensalidadeBaseAuto}
+              afImpostosVenda={afImpostosVenda}
+              setAfImpostosVenda={setAfImpostosVenda}
+              afImpostosLeasing={afImpostosLeasing}
+              setAfImpostosLeasing={setAfImpostosLeasing}
+              afMargemLiquidaVenda={afMargemLiquidaVenda}
+              setAfMargemLiquidaVenda={setAfMargemLiquidaVenda}
+              afMargemLiquidaMinima={afMargemLiquidaMinima}
+              setAfMargemLiquidaMinima={setAfMargemLiquidaMinima}
+              afComissaoMinimaPercent={afComissaoMinimaPercent}
+              setAfComissaoMinimaPercent={setAfComissaoMinimaPercent}
+              afTaxaDesconto={afTaxaDesconto}
+              setAfTaxaDesconto={setAfTaxaDesconto}
+              afInadimplencia={afInadimplencia}
+              setAfInadimplencia={setAfInadimplencia}
+              afCustoOperacional={afCustoOperacional}
+              setAfCustoOperacional={setAfCustoOperacional}
+              afMesesProjecao={afMesesProjecao}
+              setAfMesesProjecao={setAfMesesProjecao}
+              afCidadeDestino={afCidadeDestino}
+              setAfCidadeDestino={setAfCidadeDestino}
+              afCidadeSuggestions={afCidadeSuggestions}
+              setAfCidadeSuggestions={setAfCidadeSuggestions}
+              afCidadeShowSuggestions={afCidadeShowSuggestions}
+              setAfCidadeShowSuggestions={setAfCidadeShowSuggestions}
+              afDeslocamentoStatus={afDeslocamentoStatus}
+              setAfDeslocamentoStatus={setAfDeslocamentoStatus}
+              afDeslocamentoCidadeLabel={afDeslocamentoCidadeLabel}
+              setAfDeslocamentoCidadeLabel={setAfDeslocamentoCidadeLabel}
+              afDeslocamentoKm={afDeslocamentoKm}
+              setAfDeslocamentoKm={setAfDeslocamentoKm}
+              afDeslocamentoRs={afDeslocamentoRs}
+              setAfDeslocamentoRs={setAfDeslocamentoRs}
+              afDeslocamentoErro={afDeslocamentoErro}
+              setAfDeslocamentoErro={setAfDeslocamentoErro}
+              afCidadeBlurTimerRef={afCidadeBlurTimerRef}
+              handleSelectCidade={handleSelectCidade}
+              analiseFinanceiraResult={analiseFinanceiraResult}
+              indicadorEficienciaProjeto={indicadorEficienciaProjeto}
+              vendasConfig={vendasConfig}
+              aprovacaoChecklist={aprovacaoChecklist}
+              toggleAprovacaoChecklist={toggleAprovacaoChecklist}
+              aprovacaoStatus={aprovacaoStatus}
+              ultimaDecisaoTimestamp={ultimaDecisaoTimestamp}
+              registrarDecisaoInterna={registrarDecisaoInterna}
+              afBaseInitializedRef={afBaseInitializedRef}
+              kcKwhMes={kcKwhMes}
+            />
+          )}
           renderSettings={() => (
             <SettingsPage
               settingsTab={settingsTab}
