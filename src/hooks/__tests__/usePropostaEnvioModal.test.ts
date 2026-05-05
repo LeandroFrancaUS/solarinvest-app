@@ -105,9 +105,7 @@ describe('usePropostaEnvioModal', () => {
     unmount = u
 
     expect(result.current.contatosEnvio).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.nome).toBe('João')
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.origem).toBe('cliente-atual')
   })
 
@@ -123,9 +121,7 @@ describe('usePropostaEnvioModal', () => {
     unmount = u
 
     expect(result.current.contatosEnvio).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.nome).toBe('Maria')
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.origem).toBe('cliente-salvo')
   })
 
@@ -139,9 +135,7 @@ describe('usePropostaEnvioModal', () => {
     unmount = u
 
     expect(result.current.contatosEnvio).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.nome).toBe('Pedro')
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.contatosEnvio[0]!.origem).toBe('crm')
   })
 

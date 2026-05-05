@@ -87,9 +87,7 @@ describe('useNotificacoes', () => {
     })
 
     expect(result.current.notificacoes).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.notificacoes[0]!.mensagem).toBe('Operação concluída')
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.notificacoes[0]!.tipo).toBe('success')
 
     unmount()
@@ -103,7 +101,6 @@ describe('useNotificacoes', () => {
       result.current.adicionarNotificacao('Mensagem padrão')
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(result.current.notificacoes[0]!.tipo).toBe('info')
 
     unmount()
@@ -133,7 +130,6 @@ describe('useNotificacoes', () => {
       result.current.adicionarNotificacao('Para remover', 'error')
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const id = result.current.notificacoes[0]!.id
 
     act(() => {

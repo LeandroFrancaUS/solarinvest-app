@@ -99,10 +99,6 @@ import {
 import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
 import {
   formatTipoLigacaoLabel,
-  type NormComplianceResult,
-  type NormComplianceStatus,
-  type PrecheckDecision,
-  type PrecheckDecisionAction,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
 import { lookupCep } from './shared/cepLookup'
@@ -178,7 +174,6 @@ import {
   createInitialVendaForm,
   createDefaultMultiUcRow,
   CONSUMO_MINIMO_FICTICIO,
-  type EntradaModoLabel,
   type KitBudgetMissingInfo,
   type KitBudgetState,
   type SeguroModo,
@@ -317,7 +312,6 @@ import {
 } from './components/modals/ConfirmDialog'
 import {
   EnviarPropostaModal,
-  type PropostaEnvioContato,
   type PropostaEnvioMetodo,
 } from './components/modals/EnviarPropostaModal'
 
@@ -494,12 +488,6 @@ type IbgeMunicipio = {
 
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
-
-type Notificacao = {
-  id: number
-  mensagem: string
-  tipo: NotificacaoTipo
-}
 
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
@@ -3130,10 +3118,8 @@ export default function App() {
     setPrecheckModalData,
     precheckModalClienteCiente,
     setPrecheckModalClienteCiente,
-    buildPrecheckObservationText,
     isPrecheckObservationTextValid,
     buildPrecheckObservationBlock,
-    cleanPrecheckObservation,
     upsertPrecheckObservation,
     removePrecheckObservation,
     requestPrecheckDecision,
@@ -6570,7 +6556,6 @@ export default function App() {
     isEnviarPropostaModalOpen,
     setIsEnviarPropostaModalOpen,
     contatoEnvioSelecionadoId,
-    setContatoEnvioSelecionadoId,
     contatosEnvio,
     contatoEnvioSelecionado,
     selecionarContatoEnvio,
