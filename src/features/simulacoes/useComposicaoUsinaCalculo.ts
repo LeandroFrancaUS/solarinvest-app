@@ -31,7 +31,7 @@ import type {
 } from '../../types/printableProposal'
 import type { VendasConfig } from '../../types/vendasConfig'
 import type { VendasSimulacao } from '../../store/useVendasSimulacoesStore'
-import { vendaActions } from '../../store/useVendaStore'
+import { vendaActions as vendaActionsModule } from '../../store/useVendaStore'
 import type { VendaForm } from '../../lib/finance/roi'
 
 // ── Local helpers (mirrors of module-level helpers in App.tsx) ────────────────
@@ -92,7 +92,7 @@ export interface UseComposicaoUsinaCalculoParams {
   modoOrcamento: string
   recalcularTick: number
   custoImplantacaoReferencia: number | null | undefined
-  vendaActions: typeof vendaActions
+  vendaActions: typeof vendaActionsModule
   currentBudgetId: string
   updateVendasSimulacao: (id: string, data: Partial<VendasSimulacao>) => void
   updateVendasConfig: (data: Partial<VendasConfig>) => void
@@ -166,7 +166,7 @@ export function useComposicaoUsinaCalculo(
     modoOrcamento,
     recalcularTick,
     custoImplantacaoReferencia,
-    vendaActions: vendaActionsParam,
+    vendaActions,
     currentBudgetId,
     updateVendasSimulacao,
     updateVendasConfig,
@@ -517,7 +517,7 @@ export function useComposicaoUsinaCalculo(
       regime_breakdown: [],
     }
 
-    vendaActionsParam.updateComposicao({
+    vendaActions.updateComposicao({
       ...valores,
       regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
       descontos: toNumberSafe(descontosValor),
@@ -526,7 +526,7 @@ export function useComposicaoUsinaCalculo(
       ? Number(valores.capex_total)
       : null
     if (custoImplantacaoReferencia == null) {
-      vendaActionsParam.updateResumoProposta({ custo_implantacao_referencia: custoReferencia })
+      vendaActions.updateResumoProposta({ custo_implantacao_referencia: custoReferencia })
     }
   }, [
     descontosValor,
@@ -535,7 +535,7 @@ export function useComposicaoUsinaCalculo(
     custoImplantacaoReferencia,
     tipoInstalacao,
     recalcularTick,
-    vendaActionsParam,
+    vendaActions,
   ])
 
   const composicaoTelhadoTotal = useMemo(() => {
