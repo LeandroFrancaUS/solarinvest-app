@@ -2215,6 +2215,7 @@ export default function App() {
     useState<LeasingCorresponsavel>(createEmptyCorresponsavel)
   const [corresponsavelErrors, setCorresponsavelErrors] = useState<CorresponsavelErrors>({})
   const {
+    // state
     isImportandoClientes,
     isGerandoBackupBanco,
     isBackupModalOpen,
@@ -2226,9 +2227,11 @@ export default function App() {
     bulkImportAutoMerge,
     setBulkImportAutoMerge,
     isBulkImportConfirming,
+    // refs
     pendingImportRawRowsRef,
     clientesImportInputRef,
     backupImportInputRef,
+    // handlers
     downloadClientesArquivo,
     buildClientesFileName,
     handleExportarClientesJson,
