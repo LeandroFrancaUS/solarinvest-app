@@ -17,18 +17,18 @@ import {
   isQuotaExceededError,
   persistClientesToLocalStorage,
   cloneClienteDados,
-  normalizeClienteRegistros as normalizeClienteRegistrosHelper,
 } from './clienteHelpers'
+import type { normalizeClienteRegistros as NormalizeClienteRegistros } from './clienteHelpers'
 import { parseClientesCsv, buildClientesCsv } from './clienteCsvHelpers'
 import { resolveApiUrl } from '../../utils/apiUrl'
 
 interface UseClientImportExportParams {
-  adicionarNotificacao: (mensagem: string, tipo: 'success' | 'error' | 'info' | 'warning') => void
+  adicionarNotificacao: (mensagem: string, tipo?: 'success' | 'error' | 'info') => void
   carregarClientesPrioritarios: (options?: { silent?: boolean }) => Promise<ClienteRegistro[]>
   carregarClientesSalvos: () => ClienteRegistro[]
   setClientesSalvos: (registros: ClienteRegistro[]) => void
   getAccessToken: () => Promise<string | null>
-  normalizeClienteRegistros: typeof normalizeClienteRegistrosHelper
+  normalizeClienteRegistros: typeof NormalizeClienteRegistros
 }
 
 export function useClientImportExport({

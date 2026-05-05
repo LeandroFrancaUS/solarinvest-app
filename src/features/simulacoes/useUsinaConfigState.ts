@@ -17,9 +17,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   INITIAL_VALUES,
-  TIPOS_REDE,
   type TipoRede,
 } from '../../app/config'
+import { TIPOS_REDE } from '../../constants/instalacao'
 import type { PageSharedSettings } from '../../types/orcamentoTypes'
 import type {
   TipoInstalacao,

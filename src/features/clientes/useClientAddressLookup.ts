@@ -28,15 +28,22 @@ interface UseClientAddressLookupParams {
   setClienteMensagens: React.Dispatch<React.SetStateAction<ClienteMensagens>>
   setCidadeBloqueadaPorCep: (value: boolean) => void
   ucGeradoraTitularDraft: LeasingUcGeradoraTitular | null | undefined
-  updateUcGeradoraTitularDraft: (patch: { endereco: Partial<LeasingEndereco> }) => void
+  /** Ref to `updateUcGeradoraTitularDraft` — late-bound so the hook can be
+   *  declared before the callback is defined in App.tsx. */
+  updateUcGeradoraTitularDraftRef: React.RefObject<
+    ((patch: { endereco: Partial<LeasingEndereco> }) => void) | null
+  >
 }
 
 interface UseClientAddressLookupResult {
   buscandoCep: boolean
   verificandoCidade: boolean
   ucGeradoraTitularBuscandoCep: boolean
+  setUcGeradoraTitularBuscandoCep: React.Dispatch<React.SetStateAction<boolean>>
   ucGeradoraTitularCepMessage: string | undefined
+  setUcGeradoraTitularCepMessage: React.Dispatch<React.SetStateAction<string | undefined>>
   ucGeradoraCidadeBloqueadaPorCep: boolean
+  setUcGeradoraCidadeBloqueadaPorCep: React.Dispatch<React.SetStateAction<boolean>>
   isApplyingCepRef: React.MutableRefObject<boolean>
   isEditingEnderecoRef: React.MutableRefObject<boolean>
   lastCepAppliedRef: React.MutableRefObject<string>
@@ -55,7 +62,7 @@ export function useClientAddressLookup({
   setClienteMensagens,
   setCidadeBloqueadaPorCep,
   ucGeradoraTitularDraft,
-  updateUcGeradoraTitularDraft,
+  updateUcGeradoraTitularDraftRef,
 }: UseClientAddressLookupParams): UseClientAddressLookupResult {
   const [buscandoCep, setBuscandoCep] = useState(false)
   const [verificandoCidade, setVerificandoCidade] = useState(false)
@@ -302,7 +309,7 @@ export function useClientAddressLookup({
           patchEndereco.uf = uf
         }
         if (Object.keys(patchEndereco).length > 0) {
-          updateUcGeradoraTitularDraft({ endereco: patchEndereco })
+          updateUcGeradoraTitularDraftRef.current?.({ endereco: patchEndereco })
         }
 
         lastUcGeradoraCepAppliedRef.current = cepNumeros
@@ -328,7 +335,7 @@ export function useClientAddressLookup({
       ativo = false
       controller.abort()
     }
-  }, [ensureIbgeMunicipios, ucGeradoraTitularDraft, updateUcGeradoraTitularDraft])
+  }, [ensureIbgeMunicipios, ucGeradoraTitularDraft])
 
   // Effect 3: cliente.cidade → IBGE municipios API validation
   useEffect(() => {
@@ -430,8 +437,11 @@ export function useClientAddressLookup({
     buscandoCep,
     verificandoCidade,
     ucGeradoraTitularBuscandoCep,
+    setUcGeradoraTitularBuscandoCep,
     ucGeradoraTitularCepMessage,
+    setUcGeradoraTitularCepMessage,
     ucGeradoraCidadeBloqueadaPorCep,
+    setUcGeradoraCidadeBloqueadaPorCep,
     isApplyingCepRef,
     isEditingEnderecoRef,
     lastCepAppliedRef,

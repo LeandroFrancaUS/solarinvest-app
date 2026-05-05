@@ -101,7 +101,6 @@ import {
   formatTipoLigacaoLabel,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
-import { lookupCep } from './shared/cepLookup'
 import {
   getAutoEligibility,
   normalizeInstallType,
@@ -247,17 +246,9 @@ import {
   updateClientById,
   type UpsertClientInput,
   type UpdateClientInput,
-  bulkImport,
-  type BulkImportRowInput,
 } from './lib/api/clientsApi'
-import {
-  analyzeImportRows,
-  type AnalyzedImportRow,
-  type SuggestedAction as ImportSuggestedAction,
-} from './lib/clients/deduplication'
 import { BulkImportPreviewModal } from './components/clients/BulkImportPreviewModal'
 import { BackupActionModal } from './components/clients/BackupActionModal'
-import type { BackupDestino } from './components/clients/BackupActionModal'
 import { isOnline as isConnectivityOnline } from './lib/connectivity'
 import { runSync } from './lib/sync/syncEngine'
 import { AdminUsersPage } from './features/admin-users/AdminUsersPage'
@@ -286,7 +277,6 @@ import { TusdParametersSection } from './components/TusdParametersSection'
 import { LeasingSections } from './features/simulador/leasing/LeasingSections'
 import { VendasSections } from './features/simulador/vendas/VendasSections'
 import { VendasForm } from './features/simulador/vendas/VendasForm'
-import type { ClienteMensagens } from './types/cliente'
 import type { UcBeneficiariaFormState } from './types/ucBeneficiaria'
 import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
 import { isSegmentoCondominio } from './utils/segmento'
@@ -471,23 +461,7 @@ const sumComposicaoValores = <T extends Record<string, number>>(valores: T): num
   )
 }
 
- const resolveStateUpdate = <T,>(input: T | ((prev: T) => T), prev: T): T => {
-    return typeof input === 'function' ? (input as (previous: T) => T)(prev) : input
-  }
-
 const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
-
-
-type IbgeMunicipio = {
-  nome?: string
-  microrregiao?: {
-    mesorregiao?: {
-      UF?: {
-        sigla?: string
-      }
-    }
-  }
-}
 
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
@@ -1450,6 +1424,11 @@ export default function App() {
       ]),
     ),
   )
+  // Late-bound ref for updateUcGeradoraTitularDraft: assigned after definition (~line 9598)
+  // so useClientAddressLookup can be called earlier without a TDZ dependency.
+  const updateUcGeradoraTitularDraftRef = useRef<
+    ((patch: { endereco: Partial<LeasingEndereco> }) => void) | null
+  >(null)
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
@@ -1917,6 +1896,30 @@ export default function App() {
   })
 
   const {
+    buscandoCep,
+    verificandoCidade,
+    ucGeradoraTitularBuscandoCep,
+    setUcGeradoraTitularBuscandoCep,
+    ucGeradoraTitularCepMessage,
+    setUcGeradoraTitularCepMessage,
+    ucGeradoraCidadeBloqueadaPorCep,
+    setUcGeradoraCidadeBloqueadaPorCep,
+    isEditingEnderecoRef,
+    cepCidadeAvisoRef,
+  } = useClientAddressLookup({
+    cliente,
+    clienteRef,
+    isHydratingRef,
+    distribuidorasPorUf,
+    ensureIbgeMunicipios,
+    updateClienteSync,
+    setClienteMensagens,
+    setCidadeBloqueadaPorCep,
+    ucGeradoraTitularDraft: leasingContrato.ucGeradoraTitularDraft,
+    updateUcGeradoraTitularDraftRef,
+  })
+
+  const {
     multiUcAtivo, setMultiUcAtivo,
     multiUcRows, setMultiUcRows,
     multiUcRateioModo, setMultiUcRateioModo,
@@ -2084,19 +2087,14 @@ export default function App() {
     isBackupModalOpen,
     setIsBackupModalOpen,
     bulkImportPreviewRows,
-    setBulkImportPreviewRows,
     isBulkImportPreviewOpen,
-    setIsBulkImportPreviewOpen,
     bulkImportAutoMerge,
     setBulkImportAutoMerge,
     isBulkImportConfirming,
     // refs
-    pendingImportRawRowsRef,
     clientesImportInputRef,
     backupImportInputRef,
     // handlers
-    downloadClientesArquivo,
-    buildClientesFileName,
     handleExportarClientesJson,
     handleExportarClientesCsv,
     handleClientesImportarClick,
@@ -9641,31 +9639,9 @@ export default function App() {
     },
     [leasingContrato.ucGeradoraTitularDraft],
   )
-
-  const {
-    buscandoCep,
-    verificandoCidade,
-    ucGeradoraTitularBuscandoCep,
-    ucGeradoraTitularCepMessage,
-    ucGeradoraCidadeBloqueadaPorCep,
-    isApplyingCepRef,
-    isEditingEnderecoRef,
-    lastCepAppliedRef,
-    isApplyingUcGeradoraCepRef,
-    lastUcGeradoraCepAppliedRef,
-    cepCidadeAvisoRef,
-  } = useClientAddressLookup({
-    cliente,
-    clienteRef,
-    isHydratingRef,
-    distribuidorasPorUf,
-    ensureIbgeMunicipios,
-    updateClienteSync,
-    setClienteMensagens,
-    setCidadeBloqueadaPorCep,
-    ucGeradoraTitularDraft: leasingContrato.ucGeradoraTitularDraft,
-    updateUcGeradoraTitularDraft,
-  })
+  // Wire the late-bound ref so useClientAddressLookup (called earlier) has access
+  // to the stable updateUcGeradoraTitularDraft callback once it's in scope.
+  updateUcGeradoraTitularDraftRef.current = updateUcGeradoraTitularDraft
 
   const handleUcGeradoraTitularUfChange = useCallback(
     (value: string) => {
