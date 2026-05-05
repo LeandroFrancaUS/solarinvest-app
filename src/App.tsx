@@ -102,7 +102,6 @@ import {
 import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
 import {
   formatTipoLigacaoLabel,
-  normalizeTipoLigacaoNorma,
   type NormComplianceResult,
   type NormComplianceStatus,
   type PrecheckDecision,
@@ -205,8 +204,6 @@ import type {
 } from './types/printableProposal'
 import {
   normalizeTipoBasico,
-  NOVOS_TIPOS_TUSD,
-  TIPO_BASICO_OPTIONS,
 } from './types/tipoBasico'
 import type { VendasConfig } from './types/vendasConfig'
 import {
@@ -357,10 +354,6 @@ import { useProposalSaveActions } from './features/propostas/useProposalSaveActi
 import { useProposalListActions } from './features/propostas/useProposalListActions'
 // ─────────────────────────────────────────────────────────────────────────────
 
-// NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
-const NOVOS_TIPOS_CLIENTE = TIPO_BASICO_OPTIONS
-const NOVOS_TIPOS_EDIFICACAO = NOVOS_TIPOS_CLIENTE
-
 
 const normalizeCidade = (value: string): string =>
   value
@@ -422,26 +415,6 @@ function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
 }
 
 
-// --- DESATIVADO NA FASE 3 ---
-// const TUSD_TIPO_OPTIONS: TipoClienteTUSD[] = [
-//   'residencial',
-//   'comercial',
-//   'cond_vertical',
-//   'cond_horizontal',
-//   'industrial',
-//   'outros',
-// ] as unknown as TipoClienteTUSD[]
-// const TUSD_TIPO_LABELS: Record<TipoClienteTUSD, string> = {
-//   residencial: 'Residencial',
-//   comercial: 'Comercial',
-//   cond_vertical: 'Cond. Vertical',
-//   cond_horizontal: 'Cond. Horizontal',
-//   industrial: 'Industrial',
-//   outros: 'Outros',
-// } as Record<TipoClienteTUSD, string>
-// --- FIM BLOCO DESATIVADO ---
-
-const _TUSD_TIPO_OPTIONS = NOVOS_TIPOS_TUSD.map(({ value }) => value)
 
 const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
   residencial: 'residencial' as SegmentoCliente,
@@ -462,31 +435,6 @@ const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
   outros: 'outros' as TipoClienteTUSD,
 } as Record<SegmentoCliente, TipoClienteTUSD>
 
-// --- DESATIVADO NA FASE 3 ---
-// const SEGMENTO_OPTIONS: SegmentoCliente[] = [
-//   'residencial',
-//   'comercial',
-//   'cond_vertical',
-//   'cond_horizontal',
-//   'industrial',
-//   'outros',
-// ] as unknown as SegmentoCliente[]
-
-// const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
-//   residencial: 'Residencial',
-//   comercial: 'Comercial',
-//   cond_vertical: 'Cond. Vertical',
-//   cond_horizontal: 'Cond. Horizontal',
-//   industrial: 'Industrial',
-//   outros: 'Outros',
-// } as Record<SegmentoCliente, string>
-// --- FIM BLOCO DESATIVADO ---
-
-const _SEGMENTO_OPTIONS = NOVOS_TIPOS_EDIFICACAO.map(({ value }) => value as SegmentoCliente)
-const _SEGMENTO_LABELS = NOVOS_TIPOS_EDIFICACAO.reduce(
-  (acc, { value, label }) => ({ ...acc, [value as SegmentoCliente]: label }),
-  { '': 'Selecione' } as Record<SegmentoCliente, string>,
-)
 
 const emailValido = (valor: string) => {
   if (!valor) {
@@ -529,34 +477,8 @@ const sumComposicaoValores = <T extends Record<string, number>>(valores: T): num
     return typeof input === 'function' ? (input as (previous: T) => T)(prev) : input
   }
 
-const sumComposicaoValoresExcluding = <T extends Record<string, number>>(
-  valores: T,
-  excludedKeys: (keyof T)[],
-): number => {
-  return (
-    Math.round(
-      Object.entries(valores).reduce((acc, [key, valor]) => {
-        if (excludedKeys.includes(key as keyof T)) {
-          return acc
-        }
-        return Number.isFinite(valor) ? acc + Number(valor) : acc
-      }, 0) * 100,
-    ) / 100
-  )
-}
-
-const LUCRO_BRUTO_PADRAO = 0.29
-const LUCRO_BRUTO_MULTIPLICADOR = LUCRO_BRUTO_PADRAO / (1 - LUCRO_BRUTO_PADRAO)
-
 const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
-const _calcularLucroBrutoPadrao = (valorOrcamento: number, subtotalSemLucro: number) => {
-  const base = Math.max(0, valorOrcamento + subtotalSemLucro)
-  if (!Number.isFinite(base) || base <= 0) {
-    return 0
-  }
-  return Math.round(base * LUCRO_BRUTO_MULTIPLICADOR * 100) / 100
-}
 
 type IbgeMunicipio = {
   nome?: string
@@ -1059,7 +981,6 @@ const useTarifaInputField = (
   }
 }
 
-// clonePrintableData is now imported from ./lib/pdf/buildPrintableData
 
 const cloneBudgetUploadProgress = (
   progress: BudgetUploadProgress | null,
@@ -1168,24 +1089,6 @@ const cloneSnapshotData = (snapshot: OrcamentoSnapshotData): OrcamentoSnapshotDa
   }
 }
 
-/** Safe JSON byte size estimate (using Blob for accuracy when available). */
-const _getJsonSizeBytes = (obj: unknown): number => {
-  try {
-    const str = JSON.stringify(obj) ?? ''
-    if (typeof Blob !== 'undefined') {
-      return new Blob([str]).size
-    }
-    return str.length * 2 // worst-case UTF-16 estimate
-  } catch {
-    return 0
-  }
-}
-
-/**
- * Conservative limit for a single key in the remote /api/storage.
- * Keeps us well below any typical 1 MB server body limit once JSON overhead is added.
- */
-const _SAFE_STORAGE_PAYLOAD_BYTES = 250_000
 
 const computeSnapshotSignature = (
   snapshot: OrcamentoSnapshotData,
@@ -2531,7 +2434,6 @@ export default function App() {
   const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
 
   const lastUfSelecionadaRef = useRef<string>(cliente.uf)
-  const _leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const corresponsavelAtivo = useMemo(() => {
     const corresponsavel = leasingContrato.corresponsavel
     if (!leasingContrato.temCorresponsavelFinanceiro || !corresponsavel) {
@@ -4597,7 +4499,6 @@ export default function App() {
     leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
     ufTarifa,
   ])
-  const _tipoLigacaoNorma = useMemo(() => normalizeTipoLigacaoNorma(tipoRede), [tipoRede])
   const precheckNormativo = useMemo(
     () =>
       calcularPrecheckNormativo({
@@ -4968,15 +4869,6 @@ export default function App() {
       return { ...item, rateioPercentual: percentualFormatado }
     })
   }
-
-  const _vendaQuantidadeModulos = useMemo(() => {
-    const quantidade = vendaForm.quantidade_modulos
-    if (!Number.isFinite(quantidade)) {
-      return null
-    }
-    const resolved = Number(quantidade)
-    return resolved > 0 ? resolved : null
-  }, [vendaForm.quantidade_modulos, recalcularTick])
 
   const vendaGeracaoParametros = useMemo(
     () => ({
@@ -5999,26 +5891,6 @@ export default function App() {
     return sumComposicaoValores(composicaoSolo)
   }, [composicaoSoloCalculo, composicaoSolo])
 
-  const _composicaoTelhadoSubtotalSemLucro = useMemo(
-    () =>
-      sumComposicaoValoresExcluding(composicaoTelhado, [
-        'lucroBruto',
-        'comissaoLiquida',
-        'impostoRetido',
-      ]),
-    [composicaoTelhado],
-  )
-
-  const _composicaoSoloSubtotalSemLucro = useMemo(
-    () =>
-      sumComposicaoValoresExcluding(composicaoSolo, [
-        'lucroBruto',
-        'comissaoLiquida',
-        'impostoRetido',
-      ]),
-    [composicaoSolo],
-  )
-
   const valorVendaTelhado = useMemo(() => {
     const capexBaseCalculadoValor = Number(composicaoTelhadoCalculo?.capex_base)
     const capexBaseFallback =
@@ -6557,13 +6429,6 @@ export default function App() {
     return Array.from({ length: anos }, () => Math.abs(pmt))
   }, [pmt, prazoFinMeses])
 
-  const parcelaMensalFin = useMemo(() => Math.abs(pmt), [pmt])
-  const _taxaMensalFinPct = useMemo(() => taxaMensalFin * 100, [taxaMensalFin])
-  const _totalPagoFinanciamento = useMemo(
-    () => entradaFin + parcelaMensalFin * Math.max(prazoFinMeses, 0),
-    [entradaFin, parcelaMensalFin, prazoFinMeses],
-  )
-
   const parcelasSolarInvest = useMemo(() => {
     const lista: MensalidadeRow[] = []
     let totalAcumulado = 0
@@ -6741,8 +6606,6 @@ export default function App() {
     ipca: ipcaAa,
     duracao: duracaoMeses,
   }
-
-  // printableRef and pendingPreviewDataRef are now owned by usePrintOrchestration (called below)
 
   const anosArray = useMemo(
     () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
@@ -7222,8 +7085,6 @@ export default function App() {
     },
     [resolvePreviewToolbarMessage],
   )
-
-  // prepararPropostaParaExportacao is now owned by usePrintOrchestration (wired below at the hook call site)
 
   const mapClienteRegistroToSyncPayload = (
     registro: ClienteRegistro,
@@ -9697,7 +9558,6 @@ export default function App() {
     }
     setEficiencia(valor)
   }
-  // handlePrint is now owned by usePrintOrchestration (wired below)
 
   const handleImprimirTabelaTransferencia = useCallback(async () => {
     if (gerandoTabelaTransferencia) {
@@ -9777,9 +9637,6 @@ export default function App() {
     tabelaBuyout,
     buyoutResumo,
   ])
-
-  // handlePreviewActionRequest and window.__solarinvestOnPreviewAction are now owned by
-  // usePrintOrchestration (wired below at the hook call site)
 
   const prepararDadosContratoCliente = useCallback((): ClienteContratoPayload | null => {
     const nomeCompleto = cliente.nome?.trim() ?? ''
