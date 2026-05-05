@@ -39,12 +39,9 @@ import {
   OneDriveIntegrationMissingError,
 } from './utils/onedrive'
 import {
-  persistProposalPdf,
   isProposalPdfIntegrationAvailable,
-  ProposalPdfIntegrationMissingError,
 } from './utils/proposalPdf'
 import {
-  renderPrintableProposalToHtml,
   sanitizePrintableHtml,
   buildProposalPdfDocument,
   renderPrintableBuyoutTableToHtml,
@@ -54,7 +51,6 @@ import { buildPrintableData, clonePrintableData } from './lib/pdf/buildPrintable
 import { usePrintOrchestration } from './lib/pdf/usePrintOrchestration'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
-  analyzeEssentialInfo,
   classifyBudgetItem,
   sumModuleQuantities,
   type EssentialInfoSummary,
@@ -93,8 +89,6 @@ import {
   type ParsedVendaPdfData,
 } from './lib/pdf/extractVendas'
 import {
-  formatMoneyBR,
-  formatNumberBR,
   formatNumberBRWithOptions,
   toNumberFlexible,
 } from './lib/locale/br-number'
@@ -123,10 +117,9 @@ import {
   type InstallType,
   type SystemType,
 } from './lib/pricing/autoEligibility'
-import { ensureProposalId, normalizeProposalId } from './lib/ids'
+import { normalizeProposalId } from './lib/ids'
 import {
   getVendaSnapshot,
-  hasVendaStateChanges,
   useVendaStore,
   vendaActions,
   vendaStore,
@@ -138,7 +131,6 @@ import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta
 import {
   getLeasingSnapshot,
   getInitialLeasingSnapshot,
-  hasLeasingStateChanges,
   leasingActions,
   useLeasingStore,
   useLeasingValorDeMercadoEstimado,
@@ -185,7 +177,6 @@ import {
   createDefaultMultiUcRow,
   CONSUMO_MINIMO_FICTICIO,
   type EntradaModoLabel,
-  type KitBudgetItemState,
   type KitBudgetMissingInfo,
   type KitBudgetState,
   type SeguroModo,
@@ -202,9 +193,6 @@ import {
   type Inputs as ComposicaoUFVInputs,
 } from './lib/venda/calcComposicaoUFV'
 import {
-  uploadBudgetFile,
-  BudgetUploadError,
-  MAX_FILE_SIZE_BYTES,
   DEFAULT_OCR_DPI,
   type BudgetUploadProgress,
 } from './app/services/budgetUpload'
@@ -215,7 +203,6 @@ import type {
   PrintableProposalImage,
   MensalidadeRow,
   PrintableProposalProps,
-  PrintableProposalTipo,
   TipoInstalacao,
   UfvComposicaoSoloValores,
   UfvComposicaoTelhadoValores,
@@ -361,7 +348,6 @@ import {
 } from './features/clientes/clienteHelpers'
 import { useClientState } from './features/clientes/useClientState'
 import {
-  type OrcamentoSalvo,
   tick,
   createDraftBudgetId as createDraftBudgetIdHelper,
   resolveConsumptionFromSnapshot,
@@ -371,6 +357,10 @@ import {
   buildProposalUpsertPayload,
 } from './features/propostas/proposalHelpers'
 import { useProposalOrchestration } from './features/propostas/useProposalOrchestration'
+import { useProposalImageActions } from './features/simulacoes/useProposalImageActions'
+import { useSimuladorTabActions } from './features/simulacoes/useSimuladorTabActions'
+import { useProposalSaveActions } from './features/propostas/useProposalSaveActions'
+import { useProposalListActions } from './features/propostas/useProposalListActions'
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NOVAS OPÇÕES — A SEREM USADAS COMO FONTES DOS SELECTS
@@ -598,20 +588,6 @@ type Notificacao = {
   tipo: NotificacaoTipo
 }
 
-const formatQuantityInputValue = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) {
-    return ''
-  }
-  return formatNumberBR(value)
-}
-
-const formatCurrencyInputValue = (value: number | null) => {
-  if (value === null || !Number.isFinite(value)) {
-    return ''
-  }
-  return formatMoneyBR(value)
-}
-
 const normalizeCurrencyNumber = (value: number | null) =>
   value === null ? null : Math.round(value * 100) / 100
 
@@ -673,48 +649,6 @@ const formatFileSize = (bytes?: number) => {
   }
   const formatted = unitIndex === 0 ? size.toString() : size.toFixed(size >= 100 ? 0 : 1)
   return `${formatted.replace('.', ',')} ${units[unitIndex]}`
-}
-
-const computeBudgetItemsTotalValue = (items: KitBudgetItemState[]): number | null => {
-  if (!items.length) {
-    return null
-  }
-  let total = 0
-  for (const item of items) {
-    if (item.wasQuantityInferred || item.quantity === null || item.unitPrice === null) {
-      return null
-    }
-    total += item.quantity * item.unitPrice
-  }
-  return Math.round(total * 100) / 100
-}
-
-const computeBudgetMissingInfo = (items: KitBudgetItemState[]): KitBudgetMissingInfo => {
-  if (!items.length) {
-    return null
-  }
-  return analyzeEssentialInfo(
-    items.map((item) => ({
-      id: item.id,
-      product: item.productName,
-      description: item.description,
-      quantity: item.wasQuantityInferred ? null : item.quantity,
-    })),
-  )
-}
-
-const formatList = (values: string[]): string => {
-  if (values.length === 0) {
-    return ''
-  }
-  if (values.length === 1) {
-    return values[0]!
-  }
-  if (values.length === 2) {
-    return `${values[0]!} e ${values[1]!}`
-  }
-  const [last, ...rest] = values.slice().reverse()
-  return `${rest.reverse().join(', ')} e ${last}`
 }
 
 const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
@@ -905,65 +839,6 @@ const normalizeUfForProcuracao = (value?: string | null): string => {
 const isProcuracaoUfSupported = (value?: string | null): boolean => {
   const normalized = normalizeUfForProcuracao(value)
   return normalized === 'DF' || normalized === 'GO'
-}
-
-const createPrintableImageId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `imagem-${crypto.randomUUID()}`
-  }
-
-  const aleatorio = Math.floor(Math.random() * 1_000_000)
-  return `imagem-${Date.now()}-${aleatorio.toString().padStart(6, '0')}`
-}
-
-const loadImageDimensions = (src: string): Promise<{ width: number | null; height: number | null }> =>
-  new Promise((resolve) => {
-    if (typeof Image === 'undefined') {
-      resolve({ width: null, height: null })
-      return
-    }
-
-    const img = new Image()
-    img.onload = () => {
-      resolve({ width: img.naturalWidth, height: img.naturalHeight })
-    }
-    img.onerror = () => {
-      resolve({ width: null, height: null })
-    }
-    img.src = src
-  })
-
-const readPrintableImageFromFile = (file: File): Promise<PrintableProposalImage | null> => {
-  if (typeof FileReader === 'undefined') {
-    return Promise.resolve(null)
-  }
-
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const result = reader.result
-      if (typeof result !== 'string') {
-        resolve(null)
-        return
-      }
-
-      const dimensions = await loadImageDimensions(result)
-      resolve({
-        id: createPrintableImageId(),
-        url: result,
-        fileName: file.name || null,
-        width: dimensions.width,
-        height: dimensions.height,
-      })
-    }
-    reader.onerror = () => resolve(null)
-    reader.onabort = () => resolve(null)
-    try {
-      reader.readAsDataURL(file)
-    } catch (_error) {
-      resolve(null)
-    }
-  })
 }
 
 const readBlobAsBase64 = (blob: Blob): Promise<string> => {
@@ -2286,6 +2161,8 @@ export default function App() {
     Partial<ImpostosRegimeConfig>
   >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
+  // Late-bound ref so useBudgetUploadState can call autoFillVendaFromBudget (declared later)
+  const autoFillVendaFromBudgetRef = useRef<((structured: StructuredBudget, totalValue?: number | null, plainText?: string | null) => void) | null>(null)
   const {
     budgetIdRef,
     budgetIdTransitionRef,
@@ -2319,10 +2196,23 @@ export default function App() {
     handleRemoveBudgetItem,
     handleAddBudgetItem,
     handleBudgetTotalValueChange,
-  } = useBudgetUploadState({ renameVendasSimulacao, tipoInstalacao, tipoSistema })
+    handleBudgetFileChange,
+    handleMissingInfoManualEdit,
+    handleMissingInfoUploadClick,
+  } = useBudgetUploadState({
+    renameVendasSimulacao,
+    tipoInstalacao,
+    tipoSistema,
+    autoFillVendaFromBudgetRef,
+    moduleQuantityInputRef,
+    inverterModelInputRef,
+  })
   const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
   const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
   const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
+
+  const { handleAbrirUploadImagens, handleImagensSelecionadas, handleRemoverPropostaImagem } =
+    useProposalImageActions({ imagensUploadInputRef, setPropostaImagens })
 
   const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
   const capexBaseManualValor =
@@ -4231,6 +4121,7 @@ export default function App() {
       setEstruturaTipoWarning,
     ],
   )
+  autoFillVendaFromBudgetRef.current = autoFillVendaFromBudget
 
   const handleCondicaoPagamentoChange = useCallback(
     (nextCondicao: PagamentoCondicao) => {
@@ -4292,237 +4183,6 @@ export default function App() {
     },
     [applyVendaUpdates, vendaForm.modo_pagamento, vendaForm.n_boletos, vendaForm.n_debitos],
   )
-
-  const handleBudgetFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file) {
-        return
-      }
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setBudgetProcessingError('O arquivo excede o limite de 40MB.')
-        if (budgetUploadInputRef.current) {
-          budgetUploadInputRef.current.value = ''
-        }
-        return
-      }
-      setBudgetProcessingError(null)
-      setBudgetProcessingProgress({
-        stage: 'carregando',
-        page: 0,
-        totalPages: 0,
-        progress: 0,
-        message: 'Preparando arquivo para processamento',
-      })
-      setIsBudgetProcessing(true)
-      try {
-        const result = await uploadBudgetFile(file, {
-          dpi: ocrDpi,
-          onProgress: (progress) => {
-            setBudgetProcessingProgress(progress)
-          },
-        })
-        const timestamp = Date.now().toString(36)
-        const quantityWarnings: string[] = []
-        const extractedItems: KitBudgetItemState[] = result.json.itens.map((item, index) => {
-          const rawQuantity =
-            typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
-              ? Math.round(item.quantidade)
-              : null
-          const hasValidQuantity = rawQuantity !== null && rawQuantity > 0
-          const resolvedQuantity = hasValidQuantity ? rawQuantity : 1
-          const wasQuantityInferred = !hasValidQuantity
-          if (wasQuantityInferred) {
-            const label = (item.produto ?? '').trim() || `Item ${index + 1}`
-            quantityWarnings.push(label)
-          }
-          const unitPrice = normalizeCurrencyNumber(item.precoUnitario)
-          const description = item.descricao?.trim() ?? ''
-          return {
-            id: `budget-${timestamp}-${index}`,
-            productName: (item.produto ?? '').trim(),
-            description,
-            quantity: resolvedQuantity,
-            quantityInput: formatQuantityInputValue(resolvedQuantity),
-            unitPrice,
-            unitPriceInput: formatCurrencyInputValue(unitPrice),
-            wasQuantityInferred,
-          }
-        })
-        const missingInfo = computeBudgetMissingInfo(extractedItems)
-        const devMode =
-          typeof import.meta !== 'undefined' &&
-          Boolean((import.meta as unknown as { env?: Record<string, unknown> }).env?.DEV)
-        if (
-          devMode &&
-          missingInfo &&
-          (missingInfo.modules.missingFields.length > 0 ||
-            missingInfo.inverter.missingFields.length > 0)
-        ) {
-          console.warn('Orçamento sem informações essenciais identificadas:', missingInfo)
-        }
-        const explicitTotal = normalizeCurrencyNumber(result.json.resumo.valorTotal)
-        const calculatedTotal = computeBudgetItemsTotalValue(extractedItems)
-        const warnings: string[] = [...(result.structured.warnings ?? [])]
-        if (quantityWarnings.length) {
-          const formatted = formatList(quantityWarnings.slice(0, 3))
-          const suffix = quantityWarnings.length > 3 ? ' e outros' : ''
-          warnings.push(
-            `Alguns itens tiveram a quantidade assumida como 1 por não constar no documento: ${formatted}${suffix}.`,
-          )
-        }
-        let totalSource: 'explicit' | 'calculated' | null = null
-        let totalValue: number | null = null
-        if (explicitTotal !== null) {
-          totalSource = 'explicit'
-          totalValue = explicitTotal
-        } else if (calculatedTotal !== null) {
-          totalSource = 'calculated'
-          totalValue = calculatedTotal
-          warnings.push(
-            'O valor total do orçamento foi calculado a partir da soma dos itens porque não foi identificado no documento.',
-          )
-        }
-        if (!result.structured.itens.length) {
-          warnings.push(
-            'Nenhum item de orçamento foi identificado automaticamente. Revise o arquivo ou preencha manualmente.',
-          )
-        }
-        if (result.usedOcr) {
-          warnings.push(
-            'Foi necessário utilizar OCR em parte do documento. Revise os dados extraídos antes de continuar.',
-          )
-        }
-        setKitBudget({
-          items: extractedItems,
-          total: totalValue,
-          totalSource,
-          totalInput: formatCurrencyInputValue(totalValue),
-          warnings,
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          missingInfo,
-          ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
-        })
-        setBudgetStructuredItems(result.structured.itens)
-        switchBudgetId(createDraftBudgetId())
-        autoFillVendaFromBudget(result.structured, totalValue, result.plainText)
-      } catch (error) {
-        console.error('Erro ao processar orçamento', error)
-        if (error instanceof BudgetUploadError) {
-          if (error.code === 'unsupported-format') {
-            setBudgetProcessingError('Formato não suportado. Envie um arquivo PDF ou imagem (PNG/JPG).')
-          } else if (error.code === 'file-too-large') {
-            setBudgetProcessingError('O arquivo excede o limite de 40MB.')
-          } else {
-            setBudgetProcessingError('Não foi possível concluir o processamento do orçamento. Tente novamente.')
-          }
-        } else {
-          setBudgetProcessingError(
-            'Não foi possível processar o orçamento. Verifique o arquivo e tente novamente.',
-          )
-        }
-      } finally {
-        setIsBudgetProcessing(false)
-        setBudgetProcessingProgress(null)
-        if (budgetUploadInputRef.current) {
-          budgetUploadInputRef.current.value = ''
-        }
-      }
-    },
-    [autoFillVendaFromBudget, ocrDpi],
-  )
-
-  const handleMissingInfoManualEdit = useCallback(() => {
-    if (typeof document === 'undefined') {
-      return
-    }
-    const info = kitBudget?.missingInfo ?? null
-    const focusBudgetField = (
-      itemId: string,
-      fields: ('product' | 'description' | 'quantity')[],
-    ): boolean => {
-      for (const field of fields) {
-        const element = document.querySelector<HTMLElement>(
-          `[data-budget-item-id="${itemId}"][data-field="${field}"]`,
-        )
-        if (!element) {
-          continue
-        }
-        if ('focus' in element && typeof element.focus === 'function') {
-          element.focus()
-          if (
-            ('select' in element && typeof (element as HTMLInputElement | HTMLTextAreaElement).select === 'function')
-          ) {
-            ;(element as HTMLInputElement | HTMLTextAreaElement).select()
-          }
-          return true
-        }
-      }
-      return false
-    }
-
-    const tryFocusCategory = (categoryInfo: EssentialInfoSummary['modules']): boolean => {
-      if (!categoryInfo.firstMissingId) {
-        return false
-      }
-      const target = kitBudget.items.find((item) => item.id === categoryInfo.firstMissingId)
-      if (!target) {
-        return false
-      }
-      const missingFields: ('product' | 'description' | 'quantity')[] = []
-      if (!target.productName.trim()) {
-        missingFields.push('product')
-      }
-      if (!target.description.trim()) {
-        missingFields.push('description')
-      }
-      const quantityOk = Number.isFinite(target.quantity) && (target.quantity ?? 0) > 0
-      if (!quantityOk) {
-        missingFields.push('quantity')
-      }
-      if (missingFields.length === 0) {
-        missingFields.push('product', 'description', 'quantity')
-      }
-      return focusBudgetField(categoryInfo.firstMissingId, missingFields)
-    }
-
-    const modulesMissingFields = Array.isArray(info?.modules?.missingFields) ? info.modules.missingFields : []
-    const inverterMissingFields = Array.isArray(info?.inverter?.missingFields) ? info.inverter.missingFields : []
-
-    if (info) {
-      if (modulesMissingFields.length > 0 && tryFocusCategory(info.modules)) {
-        return
-      }
-      if (inverterMissingFields.length > 0 && tryFocusCategory(info.inverter)) {
-        return
-      }
-    }
-
-    const modulesMissing = info ? modulesMissingFields.length > 0 : true
-    if (modulesMissing && moduleQuantityInputRef.current) {
-      moduleQuantityInputRef.current.focus()
-      moduleQuantityInputRef.current.select?.()
-      return
-    }
-    if (info && inverterMissingFields.length > 0 && inverterModelInputRef.current) {
-      inverterModelInputRef.current.focus()
-      inverterModelInputRef.current.select?.()
-      return
-    }
-    if (!modulesMissing && moduleQuantityInputRef.current) {
-      moduleQuantityInputRef.current.focus()
-      moduleQuantityInputRef.current.select?.()
-    }
-    if (!info && inverterModelInputRef.current) {
-      inverterModelInputRef.current.focus()
-      inverterModelInputRef.current.select?.()
-    }
-  }, [kitBudget.items, kitBudget.missingInfo])
-
-  const handleMissingInfoUploadClick = useCallback(() => {
-    budgetUploadInputRef.current?.click()
-  }, [])
 
   const [jurosFinAa, setJurosFinAa] = useState(INITIAL_VALUES.jurosFinanciamentoAa)
   const [prazoFinMeses, setPrazoFinMeses] = useState(
@@ -4637,8 +4297,6 @@ export default function App() {
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
-  const [salvandoPropostaLeasing, setSalvandoPropostaLeasing] = useState(false)
-  const [salvandoPropostaPdf, setSalvandoPropostaPdf] = useState(false)
   const [gerandoContratos, setGerandoContratos] = useState(false)
   const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
   const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
@@ -9417,6 +9075,53 @@ export default function App() {
   const handlePrint = () => _printOrch.handlePrint()
   const clearPendingPreview = () => _printOrch.clearPendingPreview()
 
+  // Late-bound ref so useProposalListActions can call hasUnsavedChanges (declared later)
+  const hasUnsavedChangesRef = useRef<() => boolean>(() => false)
+
+  const {
+    salvandoPropostaLeasing,
+    setSalvandoPropostaLeasing,
+    salvandoPropostaPdf,
+    setSalvandoPropostaPdf,
+    handleSalvarPropostaLeasing,
+    handleSalvarPropostaPdf,
+  } = useProposalSaveActions({
+    isVendaDiretaTab,
+    activeTab,
+    useBentoGridPdf,
+    validatePropostaLeasingMinimal,
+    ensureNormativePrecheck,
+    coletarAlertasProposta,
+    handleSalvarCliente,
+    prepararPropostaParaExportacao,
+    salvarOrcamentoLocalmente,
+    atualizarOrcamentoAtivo,
+    switchBudgetId,
+    scheduleMarkStateAsSaved,
+    requestSaveDecision,
+    adicionarNotificacao,
+    isProposalPdfIntegrationAvailable,
+    setProposalPdfIntegrationAvailable,
+    proposalServerIdMapRef,
+  })
+
+  const { abrirOrcamentoSalvo, confirmarRemocaoOrcamento, carregarOrcamentoSalvo } =
+    useProposalListActions({
+      useBentoGridPdf,
+      printableDataTipoProposta: printableData.tipoProposta,
+      leasingPrazo,
+      removerOrcamentoSalvo,
+      carregarOrcamentoParaEdicao,
+      carregarOrcamentosPrioritarios,
+      requestConfirmDialog,
+      requestSaveDecision,
+      hasUnsavedChangesRef,
+      handleSalvarPropostaPdf,
+      computeSnapshotSignature,
+      computeSignatureRef,
+      openBudgetPreviewWindow,
+    })
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -10021,52 +9726,6 @@ export default function App() {
       mergeSnapshotWithDefaults,
       setOriginalClientData,
     ],
-  )
-
-  const handleAbrirUploadImagens = useCallback(() => {
-    imagensUploadInputRef.current?.click()
-  }, [])
-
-  const handleImagensSelecionadas = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const arquivos = Array.from(event.target.files ?? [])
-      if (!arquivos.length) {
-        event.target.value = ''
-        return
-      }
-
-      const imagens = await Promise.all(arquivos.map((arquivo) => readPrintableImageFromFile(arquivo)))
-      const imagensValidas = imagens.filter(
-        (imagem): imagem is PrintableProposalImage => Boolean(imagem && imagem.url),
-      )
-      if (imagensValidas.length > 0) {
-        setPropostaImagens((prev) => [...prev, ...imagensValidas])
-      }
-      event.target.value = ''
-    },
-    [setPropostaImagens],
-  )
-
-  const handleRemoverPropostaImagem = useCallback(
-    (imagemId: string, fallbackIndex: number) => {
-      setPropostaImagens((prevImagens) => {
-        if (prevImagens.length === 0) {
-          return prevImagens
-        }
-
-        const filtradas = prevImagens.filter((imagem) => imagem.id !== imagemId)
-        if (filtradas.length !== prevImagens.length) {
-          return filtradas
-        }
-
-        if (fallbackIndex >= 0 && fallbackIndex < prevImagens.length) {
-          return prevImagens.filter((_, index) => index !== fallbackIndex)
-        }
-
-        return prevImagens
-      })
-    },
-    [setPropostaImagens],
   )
 
   const handleEficienciaInput = (valor: number) => {
@@ -11297,252 +10956,6 @@ export default function App() {
     salvarContratoNoOneDrive,
   ])
 
-  const confirmarAlertasAntesDeSalvar = useCallback(async (): Promise<boolean> => {
-    const alertas = coletarAlertasProposta()
-
-    if (alertas.length === 0) {
-      return true
-    }
-
-    const descricao = `${
-      alertas.length === 1
-        ? 'Encontramos um alerta que precisa de atenção antes de salvar:'
-        : 'Encontramos alguns alertas que precisam de atenção antes de salvar:'
-    } ${alertas.map((texto) => `• ${texto}`).join(' ')}`
-
-    const choice = await requestSaveDecision({
-      title: 'Resolver alertas antes de salvar?',
-      description: descricao,
-      confirmLabel: 'Continuar',
-      discardLabel: 'Voltar',
-    })
-
-    return choice === 'save'
-  }, [coletarAlertasProposta, requestSaveDecision])
-
-  const handleSalvarPropostaLeasing = useCallback(async (): Promise<boolean> => {
-    if (salvandoPropostaLeasing) {
-      return false
-    }
-
-    if (!validatePropostaLeasingMinimal()) {
-      return false
-    }
-
-    if (!(await ensureNormativePrecheck())) {
-      return false
-    }
-
-    const confirmouAlertas = await confirmarAlertasAntesDeSalvar()
-    if (!confirmouAlertas) {
-      return false
-    }
-
-    await handleSalvarCliente({ skipGuard: true, silent: true })
-
-    setSalvandoPropostaLeasing(true)
-
-    try {
-      const resultado = await prepararPropostaParaExportacao({
-        incluirTabelaBuyout: isVendaDiretaTab,
-      })
-
-      if (!resultado) {
-        window.alert('Não foi possível preparar a proposta para salvar. Tente novamente.')
-        return false
-      }
-
-      const { dados } = resultado
-      const registroSalvo = salvarOrcamentoLocalmente(dados)
-      if (!registroSalvo) {
-        return false
-      }
-
-      const emissaoIso = new Date().toISOString().slice(0, 10)
-      switchBudgetId(registroSalvo.id)
-
-      vendaActions.updateCodigos({
-        codigo_orcamento_interno: registroSalvo.id,
-        data_emissao: emissaoIso,
-      })
-
-      atualizarOrcamentoAtivo(registroSalvo)
-      scheduleMarkStateAsSaved()
-
-      adicionarNotificacao(
-        'Proposta de leasing salva localmente. Para persistência oficial, certifique-se de salvar via servidor.',
-        'success',
-      )
-
-      return true
-    } catch (error) {
-      console.error('Erro ao salvar proposta de leasing.', error)
-      adicionarNotificacao(
-        'Não foi possível salvar a proposta de leasing. Tente novamente após corrigir os alertas.',
-        'error',
-      )
-      return false
-    } finally {
-      setSalvandoPropostaLeasing(false)
-    }
-  }, [
-    adicionarNotificacao,
-    atualizarOrcamentoAtivo,
-    confirmarAlertasAntesDeSalvar,
-    ensureNormativePrecheck,
-    handleSalvarCliente,
-    isVendaDiretaTab,
-    prepararPropostaParaExportacao,
-    salvarOrcamentoLocalmente,
-    salvandoPropostaLeasing,
-    scheduleMarkStateAsSaved,
-    setClientesSalvos,
-    switchBudgetId,
-    validatePropostaLeasingMinimal,
-    vendaActions,
-  ])
-
-  const handleSalvarPropostaPdf = useCallback(async (): Promise<boolean> => {
-    if (salvandoPropostaPdf) {
-      return false
-    }
-
-    if (!validatePropostaLeasingMinimal()) {
-      return false
-    }
-
-    if (!(await ensureNormativePrecheck())) {
-      return false
-    }
-
-    console.info('[client-save] proceeding to proposal save', { proposalId: proposalServerIdMapRef.current })
-
-    const clienteSalvoComSucesso = await handleSalvarCliente({ skipGuard: true, silent: true })
-    if (!clienteSalvoComSucesso) {
-      console.warn('[client-save] client mutation did not succeed — proposal will still be saved, but client data may not be updated in DB')
-    }
-
-    setSalvandoPropostaPdf(true)
-
-    let salvouLocalmente = false
-    let sucesso = false
-
-    try {
-      const resultado = await prepararPropostaParaExportacao({
-        incluirTabelaBuyout: isVendaDiretaTab,
-      })
-
-      if (!resultado) {
-        window.alert('Não foi possível preparar a proposta para salvar em PDF. Tente novamente.')
-        return false
-      }
-
-      const { html, dados } = resultado
-      const registroSalvo = salvarOrcamentoLocalmente(dados)
-      if (!registroSalvo) {
-        return false
-      }
-
-      salvouLocalmente = true
-      dados.budgetId = registroSalvo.id
-
-      const emissaoIso = new Date().toISOString().slice(0, 10)
-      switchBudgetId(registroSalvo.id)
-
-      vendaActions.updateCodigos({
-        codigo_orcamento_interno: registroSalvo.id,
-        data_emissao: emissaoIso,
-      })
-
-      atualizarOrcamentoAtivo(registroSalvo)
-
-      let htmlComCodigo = sanitizePrintableHtml(html) || ''
-      try {
-        const atualizado = await renderPrintableProposalToHtml(dados, useBentoGridPdf)
-        if (atualizado) {
-          const sanitized = sanitizePrintableHtml(atualizado)
-          if (sanitized) {
-            htmlComCodigo = sanitized
-          }
-        }
-      } catch (error) {
-        console.warn('Não foi possível atualizar o HTML com o código do orçamento.', error)
-      }
-
-      const proposalType = activeTab === 'vendas' ? 'VENDA_DIRETA' : 'LEASING'
-
-      const integracaoPdfDisponivel = isProposalPdfIntegrationAvailable()
-      setProposalPdfIntegrationAvailable(integracaoPdfDisponivel)
-      if (!integracaoPdfDisponivel) {
-        const mensagemLocal = clienteSalvoComSucesso
-          ? 'Cliente e proposta armazenados localmente. Configure a integração de PDF para gerar o arquivo automaticamente.'
-          : 'Proposta armazenada localmente. Os dados do cliente não foram atualizados no servidor.'
-        adicionarNotificacao(mensagemLocal, 'info')
-        sucesso = true
-      } else {
-        await persistProposalPdf({
-          html: htmlComCodigo,
-          budgetId: registroSalvo.id,
-          clientName: dados.cliente.nome,
-          proposalType,
-        })
-
-        const mensagemSucesso = clienteSalvoComSucesso
-          ? (salvouLocalmente
-            ? 'Cliente e proposta salvos com sucesso. Uma cópia foi armazenada localmente.'
-            : 'Cliente e proposta salvos com sucesso.')
-          : (salvouLocalmente
-            ? 'Proposta salva em PDF. Os dados do cliente não foram atualizados no servidor.'
-            : 'Proposta salva em PDF. Os dados do cliente não foram atualizados no servidor.')
-        adicionarNotificacao(mensagemSucesso, clienteSalvoComSucesso ? 'success' : 'info')
-        sucesso = true
-      }
-    } catch (error) {
-      if (error instanceof ProposalPdfIntegrationMissingError) {
-        setProposalPdfIntegrationAvailable(false)
-        adicionarNotificacao(
-          'Proposta armazenada localmente, mas a integração de PDF não está configurada.',
-          'info',
-        )
-        sucesso = salvouLocalmente
-      } else {
-        console.error('Erro ao salvar a proposta em PDF.', error)
-        const mensagem =
-          error instanceof Error && error.message
-            ? error.message
-            : 'Não foi possível salvar a proposta em PDF. Tente novamente.'
-        const mensagemComFallback = salvouLocalmente
-          ? `${mensagem} Uma cópia foi armazenada localmente no histórico de orçamentos.`
-          : mensagem
-        adicionarNotificacao(mensagemComFallback, 'error')
-        sucesso = salvouLocalmente
-      }
-    } finally {
-      setSalvandoPropostaPdf(false)
-    }
-
-    if (sucesso) {
-      scheduleMarkStateAsSaved()
-    }
-    return sucesso
-  }, [
-    activeTab,
-    adicionarNotificacao,
-    ensureNormativePrecheck,
-    handleSalvarCliente,
-    isProposalPdfIntegrationAvailable,
-    isVendaDiretaTab,
-    prepararPropostaParaExportacao,
-    salvarOrcamentoLocalmente,
-    salvandoPropostaPdf,
-    atualizarOrcamentoAtivo,
-    setProposalPdfIntegrationAvailable,
-    scheduleMarkStateAsSaved,
-    setClientesSalvos,
-    switchBudgetId,
-    validatePropostaLeasingMinimal,
-  ])
-
   const hasUnsavedChanges = useCallback(() => {
     if (!userInteractedSinceSaveRef.current) {
       return false
@@ -11554,6 +10967,7 @@ export default function App() {
 
     return computeSignatureRef.current() !== lastSavedSignatureRef.current
   }, [])
+  hasUnsavedChangesRef.current = hasUnsavedChanges
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -12018,6 +11432,13 @@ export default function App() {
     setCurrentBudgetId,
   ])
 
+  const { handleNavigateToProposalTab } = useSimuladorTabActions({
+    activeTabRef,
+    runWithUnsavedChangesGuard,
+    iniciarNovaProposta,
+    setActiveTab,
+  })
+
   const handleNovaProposta = useCallback(async () => {
     if (hasUnsavedChanges()) {
       const choice = await requestSaveDecision({
@@ -12044,28 +11465,6 @@ export default function App() {
     iniciarNovaProposta,
     requestSaveDecision,
   ])
-
-  /**
-   * Navega para uma aba de proposta (Leasing ou Vendas) com reset completo do estado.
-   *
-   * Implementa A.1 do padrão de controle de estado:
-   * - Sempre inicia a página com valores default.
-   * - Exibe guarda de alterações não salvas antes de resetar.
-   */
-  const handleNavigateToProposalTab = useCallback(
-    async (targetTab: 'leasing' | 'vendas') => {
-      await runWithUnsavedChangesGuard(async () => {
-        // Atualiza a ref ANTES de iniciarNovaProposta para que buildEmptySnapshotForNewProposal
-        // (linha 17646 aprox.) use a aba correta ao construir o snapshot vazio inicial.
-        // Se não atualizarmos aqui, o snapshot seria gerado para a aba anterior e
-        // snapshot.activeTab ficaria inconsistente com a aba que o usuário selecionou.
-        activeTabRef.current = targetTab
-        await iniciarNovaProposta()
-        setActiveTab(targetTab)
-      })
-    },
-    [runWithUnsavedChangesGuard, iniciarNovaProposta, setActiveTab],
-  )
 
   const duplicarOrcamentoAtual = () => {
     const registroParaDuplicar = orcamentoRegistroBase ?? orcamentoDisponivelParaDuplicar
@@ -13114,153 +12513,6 @@ export default function App() {
     }
   }, [cliente.cidade, cliente.uf])
 
-  const abrirOrcamentoSalvo = useCallback(
-    async (registro: OrcamentoSalvo, modo: 'preview' | 'print' | 'download') => {
-      // Open the preview window synchronously before any await (required for Safari popup policy).
-      const preOpenedWindow = window.open('', '_blank', 'width=1024,height=768')
-      try {
-        const dadosParaImpressao: PrintableProposalProps = {
-          ...registro.dados,
-          budgetId: ensureProposalId(registro.dados.budgetId ?? registro.id),
-          tipoProposta:
-            registro.dados.tipoProposta === 'VENDA_DIRETA' ? 'VENDA_DIRETA' : 'LEASING',
-        }
-        const layoutHtml = await renderPrintableProposalToHtml(dadosParaImpressao, useBentoGridPdf)
-        const sanitizedLayoutHtml = sanitizePrintableHtml(layoutHtml)
-
-        if (!sanitizedLayoutHtml) {
-          preOpenedWindow?.close()
-          window.alert('Não foi possível preparar o orçamento selecionado. Tente novamente.')
-          return
-        }
-
-        const nomeCliente = registro.dados.cliente.nome?.trim() || 'SolarInvest'
-        let actionMessage = 'Revise o conteúdo e utilize as ações para gerar o PDF.'
-        if (modo === 'print') {
-          actionMessage = 'A janela de impressão será aberta automaticamente. Verifique as preferências antes de confirmar.'
-        } else if (modo === 'download') {
-          actionMessage =
-            'Escolha a opção "Salvar como PDF" na janela de impressão para baixar o orçamento.'
-        }
-
-        openBudgetPreviewWindow(sanitizedLayoutHtml, {
-          nomeCliente,
-          budgetId: registro.id,
-          actionMessage,
-          autoPrint: modo !== 'preview',
-          closeAfterPrint: modo === 'download',
-          initialMode: modo === 'download' ? 'download' : modo === 'print' ? 'print' : 'preview',
-          preOpenedWindow,
-        })
-      } catch (error) {
-        preOpenedWindow?.close()
-        console.error('Erro ao abrir orçamento salvo.', error)
-        window.alert('Não foi possível abrir o orçamento selecionado. Tente novamente.')
-      }
-    },
-    [openBudgetPreviewWindow, useBentoGridPdf],
-  )
-
-  const confirmarRemocaoOrcamento = useCallback(
-    async (registro: OrcamentoSalvo) => {
-      if (typeof window === 'undefined') {
-        return
-      }
-
-      const nomeCliente = registro.clienteNome || registro.dados.cliente.nome || 'este cliente'
-      const confirmado = await requestConfirmDialog({
-        title: 'Excluir orçamento',
-        description: `Deseja realmente excluir o orçamento ${registro.id} de ${nomeCliente}? Essa ação não poderá ser desfeita.`,
-        confirmLabel: 'Excluir',
-        cancelLabel: 'Cancelar',
-      })
-
-      if (!confirmado) {
-        return
-      }
-
-      await removerOrcamentoSalvo(registro.id)
-    },
-    [removerOrcamentoSalvo, requestConfirmDialog],
-  )
-
-  const limparDadosModalidade = useCallback((tipo: PrintableProposalTipo) => {
-    fieldSyncActions.reset()
-    if (tipo === 'VENDA_DIRETA') {
-      vendaStore.reset()
-    } else {
-      leasingActions.reset()
-      // Re-sync prazoContratualMeses immediately after reset so the store
-      // never stays at 0 while leasingPrazo hasn't changed (effect wouldn't re-fire)
-      leasingActions.update({ prazoContratualMeses: leasingPrazo * 12 })
-    }
-  }, [leasingPrazo])
-
-  const carregarOrcamentoSalvo = useCallback(
-    async (registroInicial: OrcamentoSalvo) => {
-      let registro = registroInicial
-
-      if (!registro.snapshot) {
-        void carregarOrcamentoParaEdicao(registro)
-        return
-      }
-
-      const assinaturaAtual = computeSignatureRef.current()
-      const assinaturaRegistro = computeSnapshotSignature(registro.snapshot, registro.dados)
-
-      if (assinaturaRegistro === assinaturaAtual) {
-        void carregarOrcamentoParaEdicao(registro, {
-          notificationMessage:
-            'Os dados desta proposta já estavam carregados. A versão salva foi reaplicada.',
-        })
-        return
-      }
-
-      if (hasUnsavedChanges()) {
-        const choice = await requestSaveDecision({
-          title: 'Salvar alterações atuais?',
-          description:
-            'Existem alterações não salvas. Deseja salvar a proposta atual antes de carregar a selecionada?',
-        })
-
-        if (choice === 'save') {
-          const salvou = await handleSalvarPropostaPdf()
-          if (!salvou) {
-            return
-          }
-
-          limparDadosModalidade(printableData.tipoProposta)
-
-          const registrosAtualizados = await carregarOrcamentosPrioritarios()
-          const atualizado = registrosAtualizados.find((item) => item.id === registro.id)
-          if (atualizado?.snapshot) {
-            registro = atualizado
-          }
-        } else {
-          limparDadosModalidade(printableData.tipoProposta)
-        }
-      }
-
-      const tipoRegistro = registro.dados.tipoProposta
-      const possuiDadosPreenchidos =
-        tipoRegistro === 'VENDA_DIRETA' ? hasVendaStateChanges() : hasLeasingStateChanges()
-
-      if (possuiDadosPreenchidos) {
-        limparDadosModalidade(tipoRegistro)
-      }
-
-      void carregarOrcamentoParaEdicao(registro)
-    },
-    [
-      carregarOrcamentoParaEdicao,
-      carregarOrcamentosPrioritarios,
-      handleSalvarPropostaPdf,
-      hasUnsavedChanges,
-      requestSaveDecision,
-      limparDadosModalidade,
-      printableData.tipoProposta,
-    ],
-  )
 
   const voltarParaPaginaPrincipal = useCallback(() => {
     setActivePage(lastPrimaryPageRef.current)

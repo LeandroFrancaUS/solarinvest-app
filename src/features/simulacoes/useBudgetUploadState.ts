@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type React from 'react'
 import {
   createEmptyKitBudget,
   type KitBudgetItemState,
@@ -23,16 +24,20 @@ import {
   type KitBudgetState,
 } from '../../app/config'
 import {
+  uploadBudgetFile,
+  BudgetUploadError,
+  MAX_FILE_SIZE_BYTES,
   DEFAULT_OCR_DPI,
   type BudgetUploadProgress,
 } from '../../app/services/budgetUpload'
 import { analyzeEssentialInfo } from '../../utils/moduleDetection'
+import type { EssentialInfoSummary } from '../../utils/moduleDetection'
 import { parseNumericInput } from '../../utils/vendasHelpers'
-import { formatMoneyBR } from '../../lib/locale/br-number'
+import { formatMoneyBR, formatNumberBR } from '../../lib/locale/br-number'
 import { createDraftBudgetId as createDraftBudgetIdHelper } from '../../features/propostas/proposalHelpers'
 import type { TipoInstalacao } from '../../shared/ufvComposicao'
 import type { TipoSistema } from '../../lib/finance/roi'
-import type { StructuredItem } from '../../utils/structuredBudgetParser'
+import type { StructuredBudget, StructuredItem } from '../../utils/structuredBudgetParser'
 import type { Rede } from '../../lib/pricing/pricingPorKwp'
 
 // ---------------------------------------------------------------------------
@@ -53,6 +58,11 @@ const numbersAreClose = (
 const formatCurrencyInputValue = (value: number | null): string => {
   if (value === null || !Number.isFinite(value)) return ''
   return formatMoneyBR(value)
+}
+
+const formatQuantityInputValue = (value: number | null): string => {
+  if (value === null || !Number.isFinite(value)) return ''
+  return formatNumberBR(value)
 }
 
 const normalizeCurrencyNumber = (value: number | null): number | null =>
@@ -98,12 +108,18 @@ export interface UseBudgetUploadStateParams {
   renameVendasSimulacao: (prevId: string, nextId: string) => void
   tipoInstalacao: TipoInstalacao
   tipoSistema: TipoSistema
+  autoFillVendaFromBudgetRef: React.MutableRefObject<((structured: StructuredBudget, totalValue?: number | null, plainText?: string | null) => void) | null>
+  moduleQuantityInputRef: React.RefObject<HTMLInputElement | null>
+  inverterModelInputRef: React.RefObject<HTMLInputElement | null>
 }
 
 export function useBudgetUploadState({
   renameVendasSimulacao,
   tipoInstalacao,
   tipoSistema,
+  autoFillVendaFromBudgetRef,
+  moduleQuantityInputRef,
+  inverterModelInputRef,
 }: UseBudgetUploadStateParams) {
   // Budget identity tracking
   const budgetIdRef = useRef<string>(createDraftBudgetIdHelper())
@@ -399,6 +415,241 @@ export function useBudgetUploadState({
     return 0
   }, [kitBudget.totalSource, kitBudget.total, budgetItemsTotal])
 
+  // -------------------------------------------------------------------------
+  // Budget file upload handlers (moved from App.tsx)
+  // -------------------------------------------------------------------------
+
+  const handleBudgetFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (!file) {
+        return
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setBudgetProcessingError('O arquivo excede o limite de 40MB.')
+        if (budgetUploadInputRef.current) {
+          budgetUploadInputRef.current.value = ''
+        }
+        return
+      }
+      setBudgetProcessingError(null)
+      setBudgetProcessingProgress({
+        stage: 'carregando',
+        page: 0,
+        totalPages: 0,
+        progress: 0,
+        message: 'Preparando arquivo para processamento',
+      })
+      setIsBudgetProcessing(true)
+      try {
+        const result = await uploadBudgetFile(file, {
+          dpi: ocrDpi,
+          onProgress: (progress) => {
+            setBudgetProcessingProgress(progress)
+          },
+        })
+        const timestamp = Date.now().toString(36)
+        const quantityWarnings: string[] = []
+        const extractedItems: KitBudgetItemState[] = result.json.itens.map((item, index) => {
+          const rawQuantity =
+            typeof item.quantidade === 'number' && Number.isFinite(item.quantidade)
+              ? Math.round(item.quantidade)
+              : null
+          const hasValidQuantity = rawQuantity !== null && rawQuantity > 0
+          const resolvedQuantity = hasValidQuantity ? rawQuantity : 1
+          const wasQuantityInferred = !hasValidQuantity
+          if (wasQuantityInferred) {
+            const label = (item.produto ?? '').trim() || `Item ${index + 1}`
+            quantityWarnings.push(label)
+          }
+          const unitPrice = normalizeCurrencyNumber(item.precoUnitario)
+          const description = item.descricao?.trim() ?? ''
+          return {
+            id: `budget-${timestamp}-${index}`,
+            productName: (item.produto ?? '').trim(),
+            description,
+            quantity: resolvedQuantity,
+            quantityInput: formatQuantityInputValue(resolvedQuantity),
+            unitPrice,
+            unitPriceInput: formatCurrencyInputValue(unitPrice),
+            wasQuantityInferred,
+          }
+        })
+        const missingInfo = computeBudgetMissingInfo(extractedItems)
+        const devMode =
+          typeof import.meta !== 'undefined' &&
+          Boolean((import.meta as unknown as { env?: Record<string, unknown> }).env?.DEV)
+        if (
+          devMode &&
+          missingInfo &&
+          (missingInfo.modules.missingFields.length > 0 ||
+            missingInfo.inverter.missingFields.length > 0)
+        ) {
+          console.warn('Orçamento sem informações essenciais identificadas:', missingInfo)
+        }
+        const explicitTotal = normalizeCurrencyNumber(result.json.resumo.valorTotal)
+        const calculatedTotal = computeBudgetItemsTotalValue(extractedItems)
+        const warnings: string[] = [...(result.structured.warnings ?? [])]
+        if (quantityWarnings.length) {
+          const formatted = formatList(quantityWarnings.slice(0, 3))
+          const suffix = quantityWarnings.length > 3 ? ' e outros' : ''
+          warnings.push(
+            `Alguns itens tiveram a quantidade assumida como 1 por não constar no documento: ${formatted}${suffix}.`,
+          )
+        }
+        let totalSource: 'explicit' | 'calculated' | null = null
+        let totalValue: number | null = null
+        if (explicitTotal !== null) {
+          totalSource = 'explicit'
+          totalValue = explicitTotal
+        } else if (calculatedTotal !== null) {
+          totalSource = 'calculated'
+          totalValue = calculatedTotal
+          warnings.push(
+            'O valor total do orçamento foi calculado a partir da soma dos itens porque não foi identificado no documento.',
+          )
+        }
+        if (!result.structured.itens.length) {
+          warnings.push(
+            'Nenhum item de orçamento foi identificado automaticamente. Revise o arquivo ou preencha manualmente.',
+          )
+        }
+        if (result.usedOcr) {
+          warnings.push(
+            'Foi necessário utilizar OCR em parte do documento. Revise os dados extraídos antes de continuar.',
+          )
+        }
+        setKitBudget({
+          items: extractedItems,
+          total: totalValue,
+          totalSource,
+          totalInput: formatCurrencyInputValue(totalValue),
+          warnings,
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          missingInfo,
+          ignoredByNoise: result.structured.meta?.ignoredByNoise ?? 0,
+        })
+        setBudgetStructuredItems(result.structured.itens)
+        switchBudgetId(createDraftBudgetIdHelper())
+        autoFillVendaFromBudgetRef.current?.(result.structured, totalValue, result.plainText)
+      } catch (error) {
+        console.error('Erro ao processar orçamento', error)
+        if (error instanceof BudgetUploadError) {
+          if (error.code === 'unsupported-format') {
+            setBudgetProcessingError('Formato não suportado. Envie um arquivo PDF ou imagem (PNG/JPG).')
+          } else if (error.code === 'file-too-large') {
+            setBudgetProcessingError('O arquivo excede o limite de 40MB.')
+          } else {
+            setBudgetProcessingError('Não foi possível concluir o processamento do orçamento. Tente novamente.')
+          }
+        } else {
+          setBudgetProcessingError(
+            'Não foi possível processar o orçamento. Verifique o arquivo e tente novamente.',
+          )
+        }
+      } finally {
+        setIsBudgetProcessing(false)
+        setBudgetProcessingProgress(null)
+        if (budgetUploadInputRef.current) {
+          budgetUploadInputRef.current.value = ''
+        }
+      }
+    },
+    [autoFillVendaFromBudgetRef, ocrDpi, switchBudgetId],
+  )
+
+  const handleMissingInfoManualEdit = useCallback(() => {
+    if (typeof document === 'undefined') {
+      return
+    }
+    const info = kitBudget?.missingInfo ?? null
+    const focusBudgetField = (
+      itemId: string,
+      fields: ('product' | 'description' | 'quantity')[],
+    ): boolean => {
+      for (const field of fields) {
+        const element = document.querySelector<HTMLElement>(
+          `[data-budget-item-id="${itemId}"][data-field="${field}"]`,
+        )
+        if (!element) {
+          continue
+        }
+        if ('focus' in element && typeof element.focus === 'function') {
+          element.focus()
+          if (
+            ('select' in element && typeof (element as HTMLInputElement | HTMLTextAreaElement).select === 'function')
+          ) {
+            ;(element as HTMLInputElement | HTMLTextAreaElement).select()
+          }
+          return true
+        }
+      }
+      return false
+    }
+
+    const tryFocusCategory = (categoryInfo: EssentialInfoSummary['modules']): boolean => {
+      if (!categoryInfo.firstMissingId) {
+        return false
+      }
+      const target = kitBudget.items.find((item) => item.id === categoryInfo.firstMissingId)
+      if (!target) {
+        return false
+      }
+      const missingFields: ('product' | 'description' | 'quantity')[] = []
+      if (!target.productName.trim()) {
+        missingFields.push('product')
+      }
+      if (!target.description.trim()) {
+        missingFields.push('description')
+      }
+      const quantityOk = Number.isFinite(target.quantity) && (target.quantity ?? 0) > 0
+      if (!quantityOk) {
+        missingFields.push('quantity')
+      }
+      if (missingFields.length === 0) {
+        missingFields.push('product', 'description', 'quantity')
+      }
+      return focusBudgetField(categoryInfo.firstMissingId, missingFields)
+    }
+
+    const modulesMissingFields = Array.isArray(info?.modules?.missingFields) ? info.modules.missingFields : []
+    const inverterMissingFields = Array.isArray(info?.inverter?.missingFields) ? info.inverter.missingFields : []
+
+    if (info) {
+      if (modulesMissingFields.length > 0 && tryFocusCategory(info.modules)) {
+        return
+      }
+      if (inverterMissingFields.length > 0 && tryFocusCategory(info.inverter)) {
+        return
+      }
+    }
+
+    const modulesMissing = info ? modulesMissingFields.length > 0 : true
+    if (modulesMissing && moduleQuantityInputRef.current) {
+      moduleQuantityInputRef.current.focus()
+      moduleQuantityInputRef.current.select?.()
+      return
+    }
+    if (info && inverterMissingFields.length > 0 && inverterModelInputRef.current) {
+      inverterModelInputRef.current.focus()
+      inverterModelInputRef.current.select?.()
+      return
+    }
+    if (!modulesMissing && moduleQuantityInputRef.current) {
+      moduleQuantityInputRef.current.focus()
+      moduleQuantityInputRef.current.select?.()
+    }
+    if (!info && inverterModelInputRef.current) {
+      inverterModelInputRef.current.focus()
+      inverterModelInputRef.current.select?.()
+    }
+  }, [kitBudget.items, kitBudget.missingInfo, moduleQuantityInputRef, inverterModelInputRef])
+
+  const handleMissingInfoUploadClick = useCallback(() => {
+    budgetUploadInputRef.current?.click()
+  }, [])
+
   return {
     // Budget identity
     budgetIdRef,
@@ -457,5 +708,8 @@ export function useBudgetUploadState({
     handleRemoveBudgetItem,
     handleAddBudgetItem,
     handleBudgetTotalValueChange,
+    handleBudgetFileChange,
+    handleMissingInfoManualEdit,
+    handleMissingInfoUploadClick,
   }
 }
