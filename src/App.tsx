@@ -160,6 +160,7 @@ import { useNotificacoes } from './hooks/useNotificacoes'
 import { usePropostaEnvioModal } from './hooks/usePropostaEnvioModal'
 import { useLeasingFinanciamentoState } from './features/simulacoes/useLeasingFinanciamentoState'
 import { usePrecheckNormativo } from './features/simulacoes/usePrecheckNormativo'
+import { useUsinaConfigState } from './features/simulacoes/useUsinaConfigState'
 import type { ClienteContratoPayload } from './types/contratoTypes'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import {
@@ -1458,45 +1459,9 @@ export default function App() {
     INITIAL_VALUES.encargosFixosExtras,
   )
 
-  const [consumoManual, setConsumoManualState] = useState(false)
-  const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
-
   const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
   const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
     useState<UcGeradoraTitularErrors>({})
-  const [potenciaModulo, setPotenciaModuloState] = useState(INITIAL_VALUES.potenciaModulo)
-  const [tipoRede, setTipoRede] = useState<TipoRede>(INITIAL_VALUES.tipoRede ?? 'nenhum')
-  const [tipoRedeControle, setTipoRedeControle] = useState<'auto' | 'manual'>('auto')
-  const tipoRedeLabel = useMemo(
-    () => TIPOS_REDE.find((rede) => rede.value === tipoRede)?.label ?? tipoRede,
-    [tipoRede],
-  )
-  const [potenciaModuloDirty, setPotenciaModuloDirtyState] = useState(false)
-  const initialTipoInstalacao = normalizeTipoInstalacao(INITIAL_VALUES.tipoInstalacao)
-  const [tipoInstalacao, setTipoInstalacaoState] = useState<TipoInstalacao>(
-    () => initialTipoInstalacao,
-  )
-  const [tipoInstalacaoOutro, setTipoInstalacaoOutroState] = useState(
-    INITIAL_VALUES.tipoInstalacaoOutro,
-  )
-  const [tipoSistema, setTipoSistemaState] = useState<TipoSistema>(INITIAL_VALUES.tipoSistema)
-  const [segmentoCliente, setSegmentoClienteState] = useState<SegmentoCliente>(() =>
-    INITIAL_VALUES.segmentoCliente
-      ? normalizeTipoBasico(INITIAL_VALUES.segmentoCliente)
-      : '',
-  )
-  const [tipoEdificacaoOutro, setTipoEdificacaoOutro] = useState(
-    INITIAL_VALUES.tipoEdificacaoOutro,
-  )
-  const [tipoInstalacaoDirty, setTipoInstalacaoDirtyState] = useState(false)
-  const [numeroModulosManual, setNumeroModulosManualState] = useState<number | ''>(
-    INITIAL_VALUES.numeroModulosManual,
-  )
-  const [configuracaoUsinaObservacoes, setConfiguracaoUsinaObservacoes] = useState(
-    INITIAL_VALUES.configuracaoUsinaObservacoes,
-  )
-  const [configuracaoUsinaObservacoesExpanded, setConfiguracaoUsinaObservacoesExpanded] =
-    useState(false)
   const configuracaoUsinaObservacoesLeasingId = `${configuracaoUsinaObservacoesBaseId}-leasing`
   const configuracaoUsinaObservacoesVendaId = `${configuracaoUsinaObservacoesBaseId}-venda`
   const configuracaoUsinaObservacoesLeasingContainerId = `${configuracaoUsinaObservacoesBaseId}-leasing-container`
@@ -1545,18 +1510,49 @@ export default function App() {
     [],
   )
 
-  const setConsumoManual = useCallback(
-    (value: boolean) => {
-      setConsumoManualState(value)
-      updatePageSharedState((current) => {
-        if (current.consumoManual === value) {
-          return current
-        }
-        return { ...current, consumoManual: value }
-      })
-    },
-    [updatePageSharedState],
-  )
+  const {
+    consumoManual,
+    potenciaFonteManual,
+    potenciaModulo,
+    tipoRede,
+    tipoRedeControle,
+    tipoRedeLabel,
+    potenciaModuloDirty,
+    tipoInstalacao,
+    tipoInstalacaoOutro,
+    tipoSistema,
+    segmentoCliente,
+    tipoEdificacaoOutro,
+    tipoInstalacaoDirty,
+    numeroModulosManual,
+    configuracaoUsinaObservacoes,
+    configuracaoUsinaObservacoesExpanded,
+    setConsumoManual,
+    setPotenciaFonteManual,
+    setPotenciaModulo,
+    setPotenciaModuloDirty,
+    setTipoInstalacao,
+    setTipoInstalacaoOutro,
+    setTipoSistema,
+    setTipoInstalacaoDirty,
+    setSegmentoCliente,
+    setNumeroModulosManual,
+    setTipoRede,
+    setTipoRedeControle,
+    setTipoEdificacaoOutro,
+    setConfiguracaoUsinaObservacoes,
+    setConfiguracaoUsinaObservacoesExpanded,
+    setPotenciaModuloRaw,
+    setNumeroModulosManualRaw,
+    setSegmentoClienteRaw,
+    setTipoInstalacaoRaw,
+    setTipoInstalacaoOutroRaw,
+    setTipoSistemaRaw,
+    setConsumoManualRaw,
+    setPotenciaFonteManualRaw,
+    setPotenciaModuloDirtyRaw,
+    setTipoInstalacaoDirtyRaw,
+  } = useUsinaConfigState({ updatePageSharedState })
 
   const setKcKwhMes = useCallback(
     (value: number, origin: 'auto' | 'user' = 'auto') => {
@@ -1572,19 +1568,6 @@ export default function App() {
       return normalized
     },
     [setConsumoManual, setKcKwhMesState, updatePageSharedState],
-  )
-
-  const setPotenciaFonteManual = useCallback(
-    (value: boolean) => {
-      setPotenciaFonteManualState(value)
-      updatePageSharedState((current) => {
-        if (current.potenciaFonteManual === value) {
-          return current
-        }
-        return { ...current, potenciaFonteManual: value }
-      })
-    },
-    [updatePageSharedState],
   )
 
   // ── Notification state ─────────────────────────────────────────────────────
@@ -2007,116 +1990,6 @@ export default function App() {
     !ucGeradoraTitularUf ||
     ucGeradoraTitularDistribuidorasDisponiveis.length === 0
 
-  const setPotenciaModulo = useCallback(
-    (valueOrUpdater: number | ((prev: number) => number)) => {
-      const nextRaw = resolveStateUpdate(valueOrUpdater, potenciaModulo)
-      const normalized = Number.isFinite(nextRaw) ? nextRaw : INITIAL_VALUES.potenciaModulo
-      setPotenciaModuloState(normalized)
-      updatePageSharedState((current) => {
-        if (current.potenciaModulo === normalized) {
-          return current
-        }
-        return { ...current, potenciaModulo: normalized }
-      })
-    },
-    [potenciaModulo, updatePageSharedState],
-  )
-
-  const setPotenciaModuloDirty = useCallback(
-    (value: boolean) => {
-      setPotenciaModuloDirtyState(value)
-      updatePageSharedState((current) => {
-        if (current.potenciaModuloDirty === value) {
-          return current
-        }
-        return { ...current, potenciaModuloDirty: value }
-      })
-    },
-    [updatePageSharedState],
-  )
-
-  const setTipoInstalacao = useCallback(
-    (value: TipoInstalacao) => {
-      setTipoInstalacaoState(value)
-      updatePageSharedState((current) => {
-        if (current.tipoInstalacao === value) {
-          return current
-        }
-        return { ...current, tipoInstalacao: value }
-      })
-    },
-    [updatePageSharedState],
-  )
-
-  const setTipoInstalacaoOutro = useCallback(
-    (value: string) => {
-      setTipoInstalacaoOutroState(value)
-      updatePageSharedState((current) => {
-        if (current.tipoInstalacaoOutro === value) {
-          return current
-        }
-        return { ...current, tipoInstalacaoOutro: value }
-      })
-    },
-    [updatePageSharedState],
-  )
-
-  const setTipoSistema = useCallback(
-    (valueOrUpdater: TipoSistema | ((prev: TipoSistema) => TipoSistema)) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, tipoSistema)
-      const normalized = normalizeTipoSistemaValue(nextValue) ?? tipoSistema
-      setTipoSistemaState(normalized)
-      updatePageSharedState((current) => {
-        if (current.tipoSistema === normalized) {
-          return current
-        }
-        return { ...current, tipoSistema: normalized }
-      })
-    },
-    [tipoSistema, updatePageSharedState],
-  )
-
-  const setTipoInstalacaoDirty = useCallback(
-    (value: boolean) => {
-      setTipoInstalacaoDirtyState(value)
-      updatePageSharedState((current) => {
-        if (current.tipoInstalacaoDirty === value) {
-          return current
-        }
-        return { ...current, tipoInstalacaoDirty: value }
-      })
-    },
-    [updatePageSharedState],
-  )
-
-  const setSegmentoCliente = useCallback(
-    (valueOrUpdater: SegmentoCliente | ((prev: SegmentoCliente) => SegmentoCliente)) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, segmentoCliente)
-      setSegmentoClienteState(nextValue)
-      updatePageSharedState((current) => {
-        if (current.segmentoCliente === nextValue) {
-          return current
-        }
-        return { ...current, segmentoCliente: nextValue }
-      })
-    },
-    [segmentoCliente, updatePageSharedState],
-  )
-
-  const setNumeroModulosManual = useCallback(
-    (valueOrUpdater: number | '' | ((prev: number | '') => number | '')) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, numeroModulosManual)
-      setNumeroModulosManualState(nextValue)
-      updatePageSharedState((current) => {
-        if (current.numeroModulosManual === nextValue) {
-          return current
-        }
-        return { ...current, numeroModulosManual: nextValue }
-      })
-    },
-    [numeroModulosManual, updatePageSharedState],
-  )
-
   useEffect(() => {
     const snapshot = pageSharedState
 
@@ -2128,27 +2001,27 @@ export default function App() {
     setDistribuidoraTarifaState((prev) =>
       prev === snapshot.distribuidoraTarifa ? prev : snapshot.distribuidoraTarifa,
     )
-    setPotenciaModuloState((prev) => (prev === snapshot.potenciaModulo ? prev : snapshot.potenciaModulo))
-    setNumeroModulosManualState((prev) =>
+    setPotenciaModuloRaw((prev) => (prev === snapshot.potenciaModulo ? prev : snapshot.potenciaModulo))
+    setNumeroModulosManualRaw((prev) =>
       prev === snapshot.numeroModulosManual ? prev : snapshot.numeroModulosManual,
     )
-    setSegmentoClienteState((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
-    setTipoInstalacaoState((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
-    setTipoInstalacaoOutroState((prev) =>
+    setSegmentoClienteRaw((prev) => (prev === snapshot.segmentoCliente ? prev : snapshot.segmentoCliente))
+    setTipoInstalacaoRaw((prev) => (prev === snapshot.tipoInstalacao ? prev : snapshot.tipoInstalacao))
+    setTipoInstalacaoOutroRaw((prev) =>
       prev === snapshot.tipoInstalacaoOutro ? prev : snapshot.tipoInstalacaoOutro,
     )
-    setTipoSistemaState((prev) => {
+    setTipoSistemaRaw((prev) => {
       const normalized = normalizeTipoSistemaValue(snapshot.tipoSistema) ?? prev
       return prev === normalized ? prev : normalized
     })
-    setConsumoManualState((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
-    setPotenciaFonteManualState((prev) =>
+    setConsumoManualRaw((prev) => (prev === snapshot.consumoManual ? prev : snapshot.consumoManual))
+    setPotenciaFonteManualRaw((prev) =>
       prev === snapshot.potenciaFonteManual ? prev : snapshot.potenciaFonteManual,
     )
-    setPotenciaModuloDirtyState((prev) =>
+    setPotenciaModuloDirtyRaw((prev) =>
       prev === snapshot.potenciaModuloDirty ? prev : snapshot.potenciaModuloDirty,
     )
-    setTipoInstalacaoDirtyState((prev) =>
+    setTipoInstalacaoDirtyRaw((prev) =>
       prev === snapshot.tipoInstalacaoDirty ? prev : snapshot.tipoInstalacaoDirty,
     )
   }, [activeTab, pageSharedState])
