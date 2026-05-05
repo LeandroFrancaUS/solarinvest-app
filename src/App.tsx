@@ -155,14 +155,10 @@ import { PageRenderer } from './app/PageRenderer'
 import { AppShell } from './layout/AppShell'
 import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
-import { useNavigationState } from './hooks/useNavigationState'
 import { useRouteGuard } from './hooks/useRouteGuard'
-import { useStorageHydration } from './hooks/useStorageHydration'
 import { useTheme } from './hooks/useTheme'
-import { useTusdState } from './features/simulacoes/useTusdState'
-import { useLeasingSimulacaoState } from './features/simulacoes/useLeasingSimulacaoState'
-import { useBudgetUploadState } from './features/simulacoes/useBudgetUploadState'
 import { useMultiUcState } from './features/simulacoes/useMultiUcState'
+import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import { CHART_THEME } from './helpers/ChartTheme'
 import {
   ANALISE_ANOS_PADRAO,
@@ -346,7 +342,6 @@ import {
   persistClientesToLocalStorage,
   normalizeClienteRegistros,
 } from './features/clientes/clienteHelpers'
-import { useClientState } from './features/clientes/useClientState'
 import {
   tick,
   createDraftBudgetId as createDraftBudgetIdHelper,
@@ -356,7 +351,6 @@ import {
   normalizeTusdTipoClienteValue,
   buildProposalUpsertPayload,
 } from './features/propostas/proposalHelpers'
-import { useProposalOrchestration } from './features/propostas/useProposalOrchestration'
 import { useProposalImageActions } from './features/simulacoes/useProposalImageActions'
 import { useSimuladorTabActions } from './features/simulacoes/useSimuladorTabActions'
 import { useProposalSaveActions } from './features/propostas/useProposalSaveActions'
@@ -1896,45 +1890,6 @@ export default function App() {
   }, [])
 
   const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
-  // Stable ref for runWithUnsavedChangesGuard — defined later in this file.
-  // The hook reads guardRef.current each time a nav callback is invoked so it
-  // always uses the latest guard without re-declaring the hook.
-  const runWithUnsavedChangesGuardRef = useRef<((action: () => void | Promise<void>) => Promise<boolean>) | null>(null)
-  const {
-    activePage,
-    setActivePage,
-    activeTab,
-    setActiveTab,
-    activeTabRef,
-    simulacoesSection,
-    pendingFinancialProjectId,
-    setPendingFinancialProjectId,
-    lastPrimaryPageRef,
-    isSidebarCollapsed,
-    isSidebarMobileOpen,
-    isMobileViewport,
-    handleSidebarMenuToggle,
-    handleSidebarNavigate,
-    handleSidebarClose,
-    activeSidebarItem,
-    abrirDashboard,
-    abrirCarteira,
-    abrirCrmCentral,
-    abrirGestaoFinanceira,
-    abrirSimulacoes,
-    abrirDashboardOperacional,
-  } = useNavigationState({
-    canSeePortfolioEffective,
-    canSeeFinancialManagementEffective,
-    canSeeDashboardEffective,
-    canSeeFinancialAnalysisEffective,
-    guardRef: runWithUnsavedChangesGuardRef,
-  })
-  const isVendaDiretaTab = activeTab === 'vendas'
-  useEffect(() => {
-    const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
-    vendaActions.updateResumoProposta({ modo_venda: modo })
-  }, [isVendaDiretaTab])
   // NOTE: kcKwhMes must be declared here — before effects that use it in their
   // dependency arrays. Declaring it any later causes a Temporal Dead Zone (TDZ)
   // crash in production builds.
@@ -1942,21 +1897,6 @@ export default function App() {
   const vendasConfig = useVendasConfigStore(vendasConfigSelectors.config)
   const updateVendasConfig = useVendasConfigStore((state) => state.update)
 
-  // Guard protected pages: redirect unauthorized users away from 'settings',
-  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
-  // have been resolved. The isRbacLoading check prevents premature redirects.
-  useRouteGuard({
-    activePage,
-    simulacoesSection,
-    isRbacLoading,
-    isAdmin,
-    canSeeFinancialAnalysisEffective,
-    canSeeUsersEffective,
-    canSeeDashboardEffective,
-    canSeePortfolioEffective,
-    canSeeFinancialManagementEffective,
-    setActivePage,
-  })
   const [propostaImagens, setPropostaImagens] = useState<PrintableProposalImage[]>([])
   const lastSavedSignatureRef = useRef<string | null>(null)
   const userInteractedSinceSaveRef = useRef(false)
@@ -2075,37 +2015,6 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
-  // Late-bound ref so useTusdState can call applyVendaUpdates (declared later)
-  const applyVendaUpdatesRef = useRef<null | ((updates: Partial<VendaForm>) => void)>(null)
-  const {
-    tusdPercent, setTusdPercent,
-    tusdTipoCliente, setTusdTipoCliente,
-    tusdSubtipo, setTusdSubtipo,
-    tusdSimultaneidade, setTusdSimultaneidade,
-    setTusdSimultaneidadeManualOverride,
-    tusdTarifaRkwh, setTusdTarifaRkwh,
-    tusdAnoReferencia, setTusdAnoReferencia,
-    tusdOpcoesExpandidas, setTusdOpcoesExpandidas,
-    setTusdSimultaneidadeFromSource,
-  } = useTusdState({ applyVendaUpdatesRef })
-  const {
-    leasingPrazo, setLeasingPrazo,
-    precoPorKwp, setPrecoPorKwp,
-    irradiacao, setIrradiacao,
-    eficiencia, setEficiencia,
-    diasMes, setDiasMes,
-    inflacaoAa, setInflacaoAa,
-    vendaForm, setVendaForm,
-    vendaFormErrors, setVendaFormErrors,
-    retornoProjetado, setRetornoProjetado,
-    retornoStatus, setRetornoStatus,
-    retornoError, setRetornoError,
-    recalcularTick, setRecalcularTick,
-    valorTotalPropostaNormalizado,
-    resetRetorno,
-    applyVendaUpdates,
-  } = useLeasingSimulacaoState()
-  applyVendaUpdatesRef.current = applyVendaUpdates
   const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
   const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
     useState<UcGeradoraTitularErrors>({})
@@ -2161,82 +2070,7 @@ export default function App() {
     Partial<ImpostosRegimeConfig>
   >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
-  // Late-bound ref so useBudgetUploadState can call autoFillVendaFromBudget (declared later)
-  const autoFillVendaFromBudgetRef = useRef<((structured: StructuredBudget, totalValue?: number | null, plainText?: string | null) => void) | null>(null)
-  const {
-    budgetIdRef,
-    budgetIdTransitionRef,
-    currentBudgetId, setCurrentBudgetId,
-    budgetStructuredItems, setBudgetStructuredItems,
-    budgetUploadInputRef,
-    kitBudget, setKitBudget,
-    isBudgetProcessing, setIsBudgetProcessing,
-    budgetProcessingError, setBudgetProcessingError,
-    budgetProcessingProgress, setBudgetProcessingProgress,
-    ocrDpi, setOcrDpi,
-    isBudgetTableCollapsed, setIsBudgetTableCollapsed,
-    modoOrcamento, setModoOrcamento,
-    autoKitValor, setAutoKitValor,
-    autoCustoFinal, setAutoCustoFinal,
-    autoPricingRede, setAutoPricingRede,
-    autoPricingVersion, setAutoPricingVersion,
-    autoBudgetReasonCode, setAutoBudgetReasonCode,
-    autoBudgetReason, setAutoBudgetReason,
-    isManualBudgetForced,
-    manualBudgetForceReason,
-    valorOrcamentoConsiderado,
-    budgetMissingSummary,
-    kitBudgetTotal,
-    getActiveBudgetId,
-    switchBudgetId,
-    handleModoOrcamentoChange,
-    updateKitBudgetItem,
-    handleBudgetItemTextChange: _handleBudgetItemTextChange,
-    handleBudgetItemQuantityChange: _handleBudgetItemQuantityChange,
-    handleRemoveBudgetItem,
-    handleAddBudgetItem,
-    handleBudgetTotalValueChange,
-    handleBudgetFileChange,
-    handleMissingInfoManualEdit,
-    handleMissingInfoUploadClick,
-  } = useBudgetUploadState({
-    renameVendasSimulacao,
-    tipoInstalacao,
-    tipoSistema,
-    autoFillVendaFromBudgetRef,
-    moduleQuantityInputRef,
-    inverterModelInputRef,
-  })
-  const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
-  const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
-  const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
-
-  const { handleAbrirUploadImagens, handleImagensSelecionadas, handleRemoverPropostaImagem } =
-    useProposalImageActions({ imagensUploadInputRef, setPropostaImagens })
-
-  const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
-  const capexBaseManualValor =
-    typeof capexBaseManualValorRaw === 'number' && Number.isFinite(capexBaseManualValorRaw)
-      ? Math.max(0, capexBaseManualValorRaw)
-      : undefined
-
-  useEffect(() => {
-    setAprovadoresText(vendasConfig.aprovadores.join('\n'))
-  }, [vendasConfig.aprovadores])
-
-  useEffect(() => {
-    setImpostosOverridesDraft(cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
-  }, [vendasConfig.impostosRegime_overrides])
-
-  useEffect(() => {
-    initializeVendasSimulacao(currentBudgetId)
-  }, [currentBudgetId, initializeVendasSimulacao])
-
-  const margemManualValorRaw = vendasSimulacao?.margemManualValor
-  const margemManualAtiva =
-    typeof margemManualValorRaw === 'number' && Number.isFinite(margemManualValorRaw)
-  const margemManualValor = margemManualAtiva ? Number(margemManualValorRaw) : undefined
-  const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
+  // NOTE: arredondarPasso and aprovadoresResumo are placed here to remain after vendasConfig
   const arredondarPasso = useMemo(() => {
     const raw = Number(vendasConfig.arredondar_venda_para)
     return raw === 1 || raw === 10 || raw === 50 || raw === 100 ? (raw) : 100
@@ -2437,22 +2271,127 @@ export default function App() {
     crmDataset,
   } = crmState
 
-  // ─── Storage hydration ─────────────────────────────────────────────────────
-  // Ref that points to the current `aplicarSnapshot` function. Updated in the
-  // render body after `aplicarSnapshot` is declared (further below). The async
-  // draft-loader inside the hook reads this ref so it always calls the latest
-  // version without needing `aplicarSnapshot` in the effect's deps array.
-  const applyDraftRef = useRef<((data: unknown) => void) | null>(null)
-  const { authSyncKey, isHydratingRef, setIsHydrating } = useStorageHydration({
-    userId,
-    getAccessToken,
-    applyDraftRef,
-    onNotify: adicionarNotificacao,
-  })
-  // ──────────────────────────────────────────────────────────────────────────
+  // ── State and refs that live in App.tsx but feed into / depend on the controller ──
 
-  // ── Client state via extracted hook ────────────────────────────────────────
+  const leasingContrato = useLeasingStore((state) => state.contrato)
+  const isApplyingCepRef = useRef(false)
+  const isEditingEnderecoRef = useRef(false)
+  const lastCepAppliedRef = useRef<string>('')
+  const isApplyingUcGeradoraCepRef = useRef(false)
+  const lastUcGeradoraCepAppliedRef = useRef<string>('')
+  const cepCidadeAvisoRef = useRef<string | null>(null)
+  const budgetIdMismatchLoggedRef = useRef(false)
+  /** Timestamp (ms) of the last budget-id-mismatch warn log. Used to throttle spam. */
+  const budgetIdMismatchWarnedAtRef = useRef(0)
+  const novaPropostaEmAndamentoRef = useRef(false)
+  // Refs to prevent stale closures in getCurrentSnapshot
+  const kcKwhMesRef = useRef(kcKwhMes)
+  const pageSharedStateRef = useRef(pageSharedState)
+  const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
+  const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
+  const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
+  const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
+  const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
+  const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
+  const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
+  // ucsBeneficiarias is declared before the controller so it can be passed as a param
+  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const {
+    // Late-binding refs (App.tsx assigns .current after declaring their targets)
+    runWithUnsavedChangesGuardRef,
+    applyDraftRef,
+    autoFillVendaFromBudgetRef,
+    procuracaoUfRef,
+    distribuidoraAneelEfetivaRef,
+    // Navigation
+    activePage,
+    setActivePage,
+    activeTab,
+    setActiveTab,
+    activeTabRef,
+    simulacoesSection,
+    pendingFinancialProjectId,
+    setPendingFinancialProjectId,
+    lastPrimaryPageRef,
+    isSidebarCollapsed,
+    isSidebarMobileOpen,
+    isMobileViewport,
+    handleSidebarMenuToggle,
+    handleSidebarNavigate,
+    handleSidebarClose,
+    activeSidebarItem,
+    abrirDashboard,
+    abrirCarteira,
+    abrirCrmCentral,
+    abrirGestaoFinanceira,
+    abrirSimulacoes,
+    abrirDashboardOperacional,
+    // TUSD
+    tusdPercent, setTusdPercent,
+    tusdTipoCliente, setTusdTipoCliente,
+    tusdSubtipo, setTusdSubtipo,
+    tusdSimultaneidade, setTusdSimultaneidade,
+    setTusdSimultaneidadeManualOverride,
+    tusdTarifaRkwh, setTusdTarifaRkwh,
+    tusdAnoReferencia, setTusdAnoReferencia,
+    tusdOpcoesExpandidas, setTusdOpcoesExpandidas,
+    setTusdSimultaneidadeFromSource,
+    // Leasing / venda simulation
+    leasingPrazo, setLeasingPrazo,
+    precoPorKwp, setPrecoPorKwp,
+    irradiacao, setIrradiacao,
+    eficiencia, setEficiencia,
+    diasMes, setDiasMes,
+    inflacaoAa, setInflacaoAa,
+    vendaForm, setVendaForm,
+    vendaFormErrors, setVendaFormErrors,
+    retornoProjetado, setRetornoProjetado,
+    retornoStatus, setRetornoStatus,
+    retornoError, setRetornoError,
+    recalcularTick, setRecalcularTick,
+    valorTotalPropostaNormalizado,
+    resetRetorno,
+    applyVendaUpdates,
+    // Budget upload
+    budgetIdRef,
+    budgetIdTransitionRef,
+    currentBudgetId, setCurrentBudgetId,
+    budgetStructuredItems, setBudgetStructuredItems,
+    budgetUploadInputRef,
+    kitBudget, setKitBudget,
+    isBudgetProcessing, setIsBudgetProcessing,
+    budgetProcessingError, setBudgetProcessingError,
+    budgetProcessingProgress, setBudgetProcessingProgress,
+    ocrDpi, setOcrDpi,
+    isBudgetTableCollapsed, setIsBudgetTableCollapsed,
+    modoOrcamento, setModoOrcamento,
+    autoKitValor, setAutoKitValor,
+    autoCustoFinal, setAutoCustoFinal,
+    autoPricingRede, setAutoPricingRede,
+    autoPricingVersion, setAutoPricingVersion,
+    autoBudgetReasonCode, setAutoBudgetReasonCode,
+    autoBudgetReason, setAutoBudgetReason,
+    isManualBudgetForced,
+    manualBudgetForceReason,
+    valorOrcamentoConsiderado,
+    budgetMissingSummary,
+    kitBudgetTotal,
+    getActiveBudgetId,
+    switchBudgetId,
+    handleModoOrcamentoChange,
+    updateKitBudgetItem,
+    handleBudgetItemTextChange: _handleBudgetItemTextChange,
+    handleBudgetItemQuantityChange: _handleBudgetItemQuantityChange,
+    handleRemoveBudgetItem,
+    handleAddBudgetItem,
+    handleBudgetTotalValueChange,
+    handleBudgetFileChange,
+    handleMissingInfoManualEdit,
+    handleMissingInfoUploadClick,
+    // Storage hydration
+    isHydratingRef,
+    setIsHydrating,
+    // Client state
     cliente,
     clientesSalvos, setClientesSalvos,
     clientsSyncState, setClientsSyncState,
@@ -2486,48 +2425,7 @@ export default function App() {
     getClientStableKey,
     persistDeletedClientKeys,
     carregarClientesPrioritarios,
-  } = useClientState({
-    meAuthState,
-    authSyncKey,
-    user,
-    me,
-    isAdmin,
-    isOffice,
-    isFinanceiro,
-    adicionarNotificacao,
-  })
-  // ──────────────────────────────────────────────────────────────────────────
-
-  const procuracaoUfRef = useRef<string | null>(null)
-  const distribuidoraAneelEfetivaRef = useRef<string>('')
-
-  const isApplyingCepRef = useRef(false)
-  const isEditingEnderecoRef = useRef(false)
-  const lastCepAppliedRef = useRef<string>('')
-  const isApplyingUcGeradoraCepRef = useRef(false)
-  const lastUcGeradoraCepAppliedRef = useRef<string>('')
-  const cepCidadeAvisoRef = useRef<string | null>(null)
-  const budgetIdMismatchLoggedRef = useRef(false)
-  /** Timestamp (ms) of the last budget-id-mismatch warn log. Used to throttle spam. */
-  const budgetIdMismatchWarnedAtRef = useRef(0)
-  const novaPropostaEmAndamentoRef = useRef(false)
-  const lastUfSelecionadaRef = useRef<string>(cliente.uf)
-
-  // Refs to prevent stale closures in getCurrentSnapshot
-  const kcKwhMesRef = useRef(kcKwhMes)
-  const pageSharedStateRef = useRef(pageSharedState)
-
-  const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
-  const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
-  const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
-  const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
-  const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
-  const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
-  const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
-  const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
-
-  // ── Proposal orchestration hook ────────────────────────────────────────────
-  const {
+    // Proposal orchestration
     orcamentosSalvos,
     setOrcamentosSalvos,
     proposalsSyncState,
@@ -2545,38 +2443,91 @@ export default function App() {
     getCurrentSnapshotRef,
     aplicarSnapshotRef,
     proposalServerIdMapRef,
-  } = useProposalOrchestration({
+  } = useSolarInvestAppController({
+    // Navigation flags
+    canSeePortfolioEffective,
+    canSeeFinancialManagementEffective,
+    canSeeDashboardEffective,
+    canSeeFinancialAnalysisEffective,
+    // Auth / user
+    userId,
+    getAccessToken,
     meAuthState,
-    authSyncKey,
-    activeTabRef,
-    isHydratingRef,
-    setIsHydrating,
-    clienteEmEdicaoIdRef,
-    runWithUnsavedChangesGuardRef,
-    getActiveBudgetId,
-    switchBudgetId,
-    setActivePage,
+    user,
+    me,
+    isAdmin,
+    isOffice,
+    isFinanceiro,
     adicionarNotificacao,
-    carregarClientesSalvos,
+    // Budget upload
+    renameVendasSimulacao,
+    tipoInstalacao,
+    tipoSistema,
+    moduleQuantityInputRef,
+    inverterModelInputRef,
+    // Proposal orchestration
     scheduleMarkStateAsSaved,
-    procuracaoUfRef,
-    distribuidoraAneelEfetivaRef,
-    clonePrintableData,
     cloneSnapshotData,
     computeSnapshotSignature,
     createBudgetFingerprint,
-    cliente,
     kcKwhMes,
     tarifaCheia,
     potenciaModulo,
     numeroModulosManual,
-    activeTab,
     ucsBeneficiarias,
-    budgetStructuredItems,
   })
   // ──────────────────────────────────────────────────────────────────────────
 
-  const leasingContrato = useLeasingStore((state) => state.contrato)
+  // ── Code that depends on controller results ───────────────────────────────
+  // (Previously placed between individual hook calls; now grouped here where
+  //  all hook results are guaranteed to be in scope.)
+
+  const isVendaDiretaTab = activeTab === 'vendas'
+  useEffect(() => {
+    const modo: ModoVenda = isVendaDiretaTab ? 'direta' : 'leasing'
+    vendaActions.updateResumoProposta({ modo_venda: modo })
+  }, [isVendaDiretaTab])
+
+  // Guard protected pages: redirect unauthorized users away from 'settings',
+  // 'simulacoes/analise', 'admin-users', and 'dashboard' once RBAC permissions
+  // have been resolved. The isRbacLoading check prevents premature redirects.
+  useRouteGuard({
+    activePage,
+    simulacoesSection,
+    isRbacLoading,
+    isAdmin,
+    canSeeFinancialAnalysisEffective,
+    canSeeUsersEffective,
+    canSeeDashboardEffective,
+    canSeePortfolioEffective,
+    canSeeFinancialManagementEffective,
+    setActivePage,
+  })
+
+  const vendasSimulacao = useVendasSimulacoesStore((state) => state.simulations[currentBudgetId])
+  const initializeVendasSimulacao = useVendasSimulacoesStore((state) => state.initialize)
+  const updateVendasSimulacao = useVendasSimulacoesStore((state) => state.update)
+
+  const { handleAbrirUploadImagens, handleImagensSelecionadas, handleRemoverPropostaImagem } =
+    useProposalImageActions({ imagensUploadInputRef, setPropostaImagens })
+
+  useEffect(() => {
+    initializeVendasSimulacao(currentBudgetId)
+  }, [currentBudgetId, initializeVendasSimulacao])
+
+  const capexBaseManualValorRaw = vendasSimulacao?.capexBaseManual
+  const capexBaseManualValor =
+    typeof capexBaseManualValorRaw === 'number' && Number.isFinite(capexBaseManualValorRaw)
+      ? Math.max(0, capexBaseManualValorRaw)
+      : undefined
+
+  const margemManualValorRaw = vendasSimulacao?.margemManualValor
+  const margemManualAtiva =
+    typeof margemManualValorRaw === 'number' && Number.isFinite(margemManualValorRaw)
+  const margemManualValor = margemManualAtiva ? Number(margemManualValorRaw) : undefined
+  const descontosValor = Math.max(0, vendasSimulacao?.descontos ?? 0)
+
+  const lastUfSelecionadaRef = useRef<string>(cliente.uf)
   const _leasingPrazoContratualMeses = useLeasingStore((state) => state.prazoContratualMeses)
   const corresponsavelAtivo = useMemo(() => {
     const corresponsavel = leasingContrato.corresponsavel
