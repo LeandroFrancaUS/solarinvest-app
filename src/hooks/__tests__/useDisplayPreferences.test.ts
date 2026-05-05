@@ -17,7 +17,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   useDisplayPreferences,
   type UseDisplayPreferencesOptions,

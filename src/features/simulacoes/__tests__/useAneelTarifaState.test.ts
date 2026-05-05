@@ -72,11 +72,11 @@ const INITIAL_PAGE_SHARED: PageSharedSettings = {
   ufTarifa: 'GO',
   distribuidoraTarifa: 'Equatorial Goiás',
   potenciaModulo: 550,
-  numeroModulosManual: null,
+  numeroModulosManual: '',
   segmentoCliente: 'residencial',
-  tipoInstalacao: 'telhado_fibrocimento',
+  tipoInstalacao: 'fibrocimento',
   tipoInstalacaoOutro: '',
-  tipoSistema: 'on-grid',
+  tipoSistema: 'ON_GRID',
   consumoManual: false,
   potenciaFonteManual: false,
   potenciaModuloDirty: false,
@@ -172,7 +172,7 @@ describe('useAneelTarifaState', () => {
 
   it('3. setTarifaCheia does not update pageSharedState when value unchanged', () => {
     const opts = makeOptions({ tarifaCheia: 1.14 })
-    const captured = (opts as ReturnType<typeof makeOptions>).capturedPageShared
+    const captured = opts.capturedPageShared
     const { result, unmount: u } = renderHook(opts)
     unmount = u
     const snapBefore = captured.tarifaCheia
@@ -221,7 +221,7 @@ describe('useAneelTarifaState', () => {
 
   it('8. setUfTarifa calls setUfTarifaState and updates pageSharedState', () => {
     const opts = makeOptions({ ufTarifa: 'GO' })
-    const captured = (opts as ReturnType<typeof makeOptions>).capturedPageShared
+    const captured = opts.capturedPageShared
     const { result, unmount: u } = renderHook(opts)
     unmount = u
     act(() => { result.current.setUfTarifa('SP') })
@@ -231,7 +231,7 @@ describe('useAneelTarifaState', () => {
 
   it('9. setDistribuidoraTarifa calls setDistribuidoraTarifaState and updates pageSharedState', () => {
     const opts = makeOptions({ distribuidoraTarifa: 'Equatorial Goiás' })
-    const captured = (opts as ReturnType<typeof makeOptions>).capturedPageShared
+    const captured = opts.capturedPageShared
     const { result, unmount: u } = renderHook(opts)
     unmount = u
     act(() => { result.current.setDistribuidoraTarifa('CPFL') })
@@ -293,11 +293,14 @@ describe('useAneelTarifaState', () => {
     await act(async () => {})
     // The auto-select effect calls setDistribuidoraTarifaState with an updater function
     // or with 'Equatorial Goiás' directly when lista.length === 1
-    const calls = (opts.setDistribuidoraTarifaState as ReturnType<typeof vi.fn>).mock.calls
-    const hasAutoSelect = calls.some((args: unknown[]) => {
+    const calls = vi.mocked(opts.setDistribuidoraTarifaState).mock.calls
+    const hasAutoSelect = calls.some((args) => {
       const arg = args[0]
       if (typeof arg === 'string') return arg === 'Equatorial Goiás'
-      if (typeof arg === 'function') return arg('') === 'Equatorial Goiás'
+      if (typeof arg === 'function') {
+        const fn = arg as (prev: string) => string
+        return fn('') === 'Equatorial Goiás'
+      }
       return false
     })
     expect(hasAutoSelect).toBe(true)

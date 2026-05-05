@@ -249,14 +249,17 @@ describe('useContractModalState', () => {
     // Mock fetch for carregarTemplatesContrato
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ templates: ['contrato-a.docx'] }),
+      json: () => Promise.resolve({ templates: ['contrato-a.docx'] }),
       headers: { get: () => 'application/json' },
     }))
 
     const { result, unmount: u } = renderHook(makeOpts({ prepararDados }))
     unmount = u
 
-    await act(async () => { result.current.abrirSelecaoContratos('vendas') })
+    await act(async () => {
+      await result.current.carregarTemplatesContrato('vendas')
+      result.current.abrirSelecaoContratos('vendas')
+    })
 
     expect(result.current.isContractTemplatesModalOpen).toBe(true)
     expect(result.current.contractTemplatesCategory).toBe('vendas')
@@ -268,7 +271,7 @@ describe('useContractModalState', () => {
   it('13. carregarTemplatesContrato success path — populates contractTemplates', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ templates: ['a.docx', 'b.docx'] }),
+      json: () => Promise.resolve({ templates: ['a.docx', 'b.docx'] }),
       headers: { get: () => 'application/json' },
     }))
 
@@ -291,8 +294,8 @@ describe('useContractModalState', () => {
       ok: false,
       status: 500,
       headers: { get: () => 'application/json' },
-      json: async () => ({ error: 'Serviço indisponível' }),
-      text: async () => '',
+      json: () => Promise.resolve({ error: 'Serviço indisponível' }),
+      text: () => Promise.resolve(''),
     }))
 
     const { result, unmount: u } = renderHook(makeOpts())
