@@ -26,9 +26,7 @@ import {
   type EntradaModo,
 } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
-import { getMesReajusteFromANEEL } from './utils/reajusteAneel'
-import { getTarifaCheia } from './utils/tarifaAneel'
-import { getDistribuidorasFallback, loadDistribuidorasAneel } from './utils/distribuidorasAneel'
+import { getDistribuidorasFallback } from './utils/distribuidorasAneel'
 import { selectNumberInputOnFocus } from './utils/focusHandlers'
 import { resolveApiUrl } from './utils/apiUrl'
 import {
@@ -78,7 +76,6 @@ import { buildRequiredFieldsVenda } from './lib/validation/buildRequiredFieldsVe
 import { validateRequiredFields } from './lib/validation/validateRequiredFields'
 import {
   validateClientReadinessForContract,
-  type ValidationIssue,
 } from './lib/validation/clientReadiness'
 import { ClientReadinessErrorModal } from './components/validation/ClientReadinessErrorModal'
 import { validateProposalReadinessForClosing } from './lib/services/closeProposalPipeline'
@@ -141,7 +138,6 @@ import {
   type LeasingUcGeradoraTitular,
 } from './store/useLeasingStore'
 import { applyFieldSyncChange, fieldSyncActions, type FieldSyncKey } from './store/useFieldSyncStore'
-import { DEFAULT_DENSITY, DENSITY_STORAGE_KEY, isDensityMode, type DensityMode } from './constants/ui'
 import { printStyles, simplePrintStyles } from './styles/printTheme'
 import { TIPOS_REDE } from './constants/instalacao'
 import './styles/config-page.css'
@@ -160,6 +156,11 @@ import { useModalPrompts } from './hooks/useModalPrompts'
 import { useSystemColorScheme } from './hooks/useSystemColorScheme'
 import { useIbgeMunicipios } from './hooks/useIbgeMunicipios'
 import { useMultiUcState } from './features/simulacoes/useMultiUcState'
+import { useDisplayPreferences } from './hooks/useDisplayPreferences'
+import { useAdminSettingsDraft } from './hooks/useAdminSettingsDraft'
+import { useAneelTarifaState } from './features/simulacoes/useAneelTarifaState'
+import { useContractModalState } from './hooks/useContractModalState'
+import type { ClienteContratoPayload } from './types/contratoTypes'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import {
   ANALISE_ANOS_PADRAO,
@@ -186,7 +187,6 @@ import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
   calcularComposicaoUFV,
-  type ImpostosRegimeConfig,
   type Inputs as ComposicaoUFVInputs,
 } from './lib/venda/calcComposicaoUFV'
 import {
@@ -292,12 +292,10 @@ import type { UcGeradoraTitularErrors } from './types/ucGeradoraTitular'
 import { isSegmentoCondominio } from './utils/segmento'
 import {
   ContractTemplatesModal,
-  type ContractTemplateCategory,
 } from './components/modals/ContractTemplatesModal'
 import {
   LeasingContractsModal,
   type LeasingAnexoId,
-  LEASING_ANEXOS_CONFIG,
   getDefaultLeasingAnexos,
   ensureRequiredLeasingAnexos,
 } from './components/modals/LeasingContractsModal'
@@ -1524,19 +1522,7 @@ const createClienteComparisonData = (dados: ClienteDados) => {
   }
 }
 
-type ClienteContratoPayload = {
-  nomeCompleto: string
-  cpfCnpj: string
-  enderecoCompleto: string
-  unidadeConsumidora: string
-  kWhContratado?: string
-  uf?: string
-  telefone?: string
-  email?: string
-  endereco?: string
-  cidade?: string
-  cep?: string
-}
+// ClienteContratoPayload is now exported from ./types/contratoTypes
 
 type PrintMode = 'preview' | 'print' | 'download'
 
@@ -1817,8 +1803,21 @@ export default function App() {
   const inverterModelInputRef = useRef<HTMLInputElement | null>(null)
   const editableContentRef = useRef<HTMLDivElement | null>(null)
   const leasingHomologacaoInputId = useId()
-  const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(INITIAL_VALUES.settingsTab)
   const mesReferenciaRef = useRef(new Date().getMonth() + 1)
+
+  // ── Cluster B: Admin settings draft state ──────────────────────────────────
+  const {
+    settingsTab, setSettingsTab,
+    aprovadoresText, setAprovadoresText,
+    impostosOverridesDraft, setImpostosOverridesDraft,
+    arredondarPasso,
+    aprovadoresResumo,
+  } = useAdminSettingsDraft({ vendasConfig })
+
+  // ANEEL/tariff raw state — declared here (before controller) so tarifaCheia
+  // is available for the proposal snapshot orchestration inside the controller.
+  // The effects, wrapper setters, and derived memos are managed by
+  // useAneelTarifaState called after distribuidoraAneelEfetiva is computed.
   const [ufTarifa, setUfTarifaState] = useState(INITIAL_VALUES.ufTarifa)
   const [distribuidoraTarifa, setDistribuidoraTarifaState] = useState(INITIAL_VALUES.distribuidoraTarifa)
   const [ufsDisponiveis, setUfsDisponiveis] = useState<string[]>(() => [...distribuidorasFallback.ufs])
@@ -1831,12 +1830,6 @@ export default function App() {
     ),
   )
   const [mesReajuste, setMesReajuste] = useState(INITIAL_VALUES.mesReajuste)
-
-  // kcKwhMes is declared earlier (before the useEffect that uses it in its dep array)
-  // to avoid a Temporal Dead Zone (TDZ) crash in production builds.  See the comment
-  // above that declaration for the full explanation.
-  const [consumoManual, setConsumoManualState] = useState(false)
-  const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
   const [tarifaCheia, setTarifaCheiaState] = useState(INITIAL_VALUES.tarifaCheia)
   const [desconto, setDesconto] = useState(INITIAL_VALUES.desconto)
   const [taxaMinima, setTaxaMinimaState] = useState(INITIAL_VALUES.taxaMinima)
@@ -1844,6 +1837,10 @@ export default function App() {
   const [encargosFixosExtras, setEncargosFixosExtras] = useState(
     INITIAL_VALUES.encargosFixosExtras,
   )
+
+  const [consumoManual, setConsumoManualState] = useState(false)
+  const [potenciaFonteManual, setPotenciaFonteManualState] = useState(false)
+
   const [ucGeradoraTitularPanelOpen, setUcGeradoraTitularPanelOpen] = useState(false)
   const [ucGeradoraTitularErrors, setUcGeradoraTitularErrors] =
     useState<UcGeradoraTitularErrors>({})
@@ -1894,22 +1891,7 @@ export default function App() {
   const [composicaoSolo, setComposicaoSolo] = useState<UfvComposicaoSoloValores>(() =>
     createInitialComposicaoSolo(),
   )
-  const [aprovadoresText, setAprovadoresText] = useState(() => vendasConfig.aprovadores.join('\n'))
-  const [impostosOverridesDraft, setImpostosOverridesDraft] = useState<
-    Partial<ImpostosRegimeConfig>
-  >(() => cloneImpostosOverrides(vendasConfig.impostosRegime_overrides))
   const renameVendasSimulacao = useVendasSimulacoesStore((state) => state.rename)
-  // NOTE: arredondarPasso and aprovadoresResumo are placed here to remain after vendasConfig
-  const arredondarPasso = useMemo(() => {
-    const raw = Number(vendasConfig.arredondar_venda_para)
-    return raw === 1 || raw === 10 || raw === 50 || raw === 100 ? (raw) : 100
-  }, [vendasConfig.arredondar_venda_para])
-  const aprovadoresResumo = useMemo(() => {
-    if (!Array.isArray(vendasConfig.aprovadores) || vendasConfig.aprovadores.length === 0) {
-      return ''
-    }
-    return vendasConfig.aprovadores.join(', ')
-  }, [vendasConfig.aprovadores])
   const consumoAnteriorRef = useRef(kcKwhMes)
 
   const createPageSharedSettings = useCallback((): PageSharedSettings => ({
@@ -1987,82 +1969,6 @@ export default function App() {
       })
     },
     [updatePageSharedState],
-  )
-
-  const setTarifaCheia = useCallback(
-    (valueOrUpdater: number | ((prev: number) => number)) => {
-      const nextRaw = resolveStateUpdate(valueOrUpdater, tarifaCheia)
-      const normalized = Number.isFinite(nextRaw) ? Math.max(0, nextRaw) : 0
-      setTarifaCheiaState(normalized)
-      updatePageSharedState((current) => {
-        if (current.tarifaCheia === normalized) {
-          return current
-        }
-        return { ...current, tarifaCheia: normalized }
-      })
-    },
-    [tarifaCheia, updatePageSharedState],
-  )
-
-  const setTaxaMinima = useCallback(
-    (valueOrUpdater: number | ((prev: number) => number)) => {
-      const nextRaw = resolveStateUpdate(valueOrUpdater, taxaMinima)
-      const normalized = Number.isFinite(nextRaw) ? Math.max(0, nextRaw) : 0
-      setTaxaMinimaState(normalized)
-      setTaxaMinimaInputEmpty((prev) => (normalized === 0 ? prev : false))
-      updatePageSharedState((current) => {
-        if (current.taxaMinima === normalized) {
-          return current
-        }
-        return { ...current, taxaMinima: normalized }
-      })
-    },
-    [setTaxaMinimaInputEmpty, taxaMinima, updatePageSharedState],
-  )
-
-  const normalizeTaxaMinimaInputValue = useCallback(
-    (rawValue: string) => {
-      if (rawValue === '') {
-        setTaxaMinimaInputEmpty(true)
-        setTaxaMinima(0)
-        return 0
-      }
-
-      const parsed = Number(rawValue)
-      const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0
-      setTaxaMinimaInputEmpty(false)
-      setTaxaMinima(normalized)
-      return normalized
-    },
-    [setTaxaMinima, setTaxaMinimaInputEmpty],
-  )
-
-  const setUfTarifa = useCallback(
-    (valueOrUpdater: string | ((prev: string) => string)) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, ufTarifa)
-      setUfTarifaState(nextValue)
-      updatePageSharedState((current) => {
-        if (current.ufTarifa === nextValue) {
-          return current
-        }
-        return { ...current, ufTarifa: nextValue }
-      })
-    },
-    [ufTarifa, updatePageSharedState],
-  )
-
-  const setDistribuidoraTarifa = useCallback(
-    (valueOrUpdater: string | ((prev: string) => string)) => {
-      const nextValue = resolveStateUpdate(valueOrUpdater, distribuidoraTarifa)
-      setDistribuidoraTarifaState(nextValue)
-      updatePageSharedState((current) => {
-        if (current.distribuidoraTarifa === nextValue) {
-          return current
-        }
-        return { ...current, distribuidoraTarifa: nextValue }
-      })
-    },
-    [distribuidoraTarifa, updatePageSharedState],
   )
 
   // ── Notification state (moved up — useClientState depends on adicionarNotificacao) ─────
@@ -2299,6 +2205,18 @@ export default function App() {
     numeroModulosManual,
     ucsBeneficiarias,
   })
+
+  // ── Cluster A: Display preferences ────────────────────────────────────────
+  const {
+    useBentoGridPdf, setUseBentoGridPdf,
+    density, setDensity,
+    mobileSimpleView, setMobileSimpleView,
+    desktopSimpleView, setDesktopSimpleView,
+    isMobileSimpleEnabled,
+    isDesktopSimpleEnabled,
+    shouldHideSimpleViewItems,
+  } = useDisplayPreferences({ isMobileViewport })
+
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Code that depends on controller results ───────────────────────────────
@@ -2362,16 +2280,55 @@ export default function App() {
     return Boolean(corresponsavel.nome?.trim() && corresponsavel.cpf?.trim())
   }, [leasingContrato.corresponsavel, leasingContrato.temCorresponsavelFinanceiro])
 
-  const distribuidorasDisponiveis = useMemo(() => {
-    if (!ufTarifa) return [] as string[]
-    return distribuidorasPorUf[ufTarifa] ?? []
-  }, [distribuidorasPorUf, ufTarifa])
-
   const clienteUf = cliente.uf
-  const clienteDistribuidorasDisponiveis = useMemo(() => {
-    if (!clienteUf) return [] as string[]
-    return distribuidorasPorUf[clienteUf] ?? []
-  }, [clienteUf, distribuidorasPorUf])
+  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
+  const distribuidoraAneelEfetiva = useMemo(
+    () =>
+      getDistribuidoraAneelEfetiva({
+        clienteDistribuidoraAneel: cliente.distribuidora,
+        clienteUf: cliente.uf,
+        titularUcGeradoraDistribuidoraAneel:
+          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
+      }),
+    [
+      cliente.distribuidora,
+      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
+      leasingContrato.ucGeradoraTitularDiferente,
+    ],
+  )
+  useEffect(() => { distribuidoraAneelEfetivaRef.current = distribuidoraAneelEfetiva }, [distribuidoraAneelEfetiva])
+
+  // ── Cluster C: ANEEL tariff state manager ──────────────────────────────────
+  // Raw useState lives above (before controller) so tarifaCheia is available
+  // for proposal orchestration. This hook manages effects, wrapper setters, and
+  // derived memos — calling it here after distribuidoraAneelEfetiva is in scope.
+  const {
+    setTarifaCheia,
+    setTaxaMinima,
+    setUfTarifa,
+    setDistribuidoraTarifa,
+    normalizeTaxaMinimaInputValue,
+    distribuidorasDisponiveis,
+    clienteDistribuidorasDisponiveis,
+  } = useAneelTarifaState({
+    ufTarifa,
+    distribuidoraTarifa,
+    distribuidorasPorUf,
+    tarifaCheia,
+    taxaMinima,
+    setUfTarifaState,
+    setDistribuidoraTarifaState,
+    setUfsDisponiveis,
+    setDistribuidorasPorUf,
+    setMesReajuste,
+    setTarifaCheiaState,
+    setTaxaMinimaState,
+    setTaxaMinimaInputEmpty,
+    distribuidoraAneelEfetiva,
+    clienteUf,
+    updatePageSharedState,
+  })
 
   // IBGE municipality state, city-search dropdown, and derived city lists.
   // Extracted into useIbgeMunicipios; cidadeBloqueadaPorCep is owned by the hook
@@ -2394,23 +2351,6 @@ export default function App() {
     setUfsDisponiveis,
   })
 
-  const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
-  const distribuidoraAneelEfetiva = useMemo(
-    () =>
-      getDistribuidoraAneelEfetiva({
-        clienteDistribuidoraAneel: cliente.distribuidora,
-        clienteUf: cliente.uf,
-        titularUcGeradoraDistribuidoraAneel:
-          leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-        titularUcGeradoraDiferente: leasingContrato.ucGeradoraTitularDiferente,
-      }),
-    [
-      cliente.distribuidora,
-      leasingContrato.ucGeradoraTitularDistribuidoraAneel,
-      leasingContrato.ucGeradoraTitularDiferente,
-    ],
-  )
-  useEffect(() => { distribuidoraAneelEfetivaRef.current = distribuidoraAneelEfetiva }, [distribuidoraAneelEfetiva])
   const {
     multiUcAtivo, setMultiUcAtivo,
     multiUcRows, setMultiUcRows,
@@ -3860,91 +3800,6 @@ export default function App() {
     INITIAL_VALUES.mostrarFinanciamento,
   )
   const [mostrarGrafico, setMostrarGrafico] = useState(INITIAL_VALUES.mostrarGrafico)
-  const [useBentoGridPdf, setUseBentoGridPdf] = useState(() => {
-    if (typeof window === 'undefined') {
-      return INITIAL_VALUES.useBentoGridPdf
-    }
-    const stored = window.localStorage.getItem('useBentoGridPdf')
-    return stored !== null ? stored === 'true' : INITIAL_VALUES.useBentoGridPdf
-  })
-  const [density, setDensity] = useState<DensityMode>(() => {
-    if (typeof window === 'undefined') {
-      return DEFAULT_DENSITY
-    }
-
-    const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY)
-    return stored && isDensityMode(stored) ? stored : DEFAULT_DENSITY
-  })
-
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.documentElement.dataset.density = density
-    }
-
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    try {
-      window.localStorage.setItem(DENSITY_STORAGE_KEY, density)
-    } catch (error) {
-      console.warn('Não foi possível persistir a densidade da interface.', error)
-    }
-  }, [density])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    try {
-      window.localStorage.setItem('useBentoGridPdf', useBentoGridPdf.toString())
-    } catch (error) {
-      console.warn('Não foi possível persistir a preferência de Bento Grid PDF.', error)
-    }
-  }, [useBentoGridPdf])
-
-  const [mobileSimpleView, setMobileSimpleView] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-    const stored = window.localStorage.getItem('mobileSimpleView')
-    return stored !== null ? stored === 'true' : true
-  })
-  const [desktopSimpleView, setDesktopSimpleView] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-    const stored = window.localStorage.getItem('desktopSimpleView')
-    return stored !== null ? stored === 'true' : true
-  })
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      window.localStorage.setItem('mobileSimpleView', mobileSimpleView.toString())
-    } catch (error) {
-      console.warn('Não foi possível persistir a preferência Mobile view simples.', error)
-    }
-  }, [mobileSimpleView])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    try {
-      window.localStorage.setItem('desktopSimpleView', desktopSimpleView.toString())
-    } catch (error) {
-      console.warn('Não foi possível persistir a preferência Desktop view simples.', error)
-    }
-  }, [desktopSimpleView])
-
-  const isMobileSimpleEnabled = isMobileViewport && mobileSimpleView
-  const isDesktopSimpleEnabled = !isMobileViewport && desktopSimpleView
-  const shouldHideSimpleViewItems = isMobileSimpleEnabled || isDesktopSimpleEnabled
-
   const [prazoMeses, setPrazoMeses] = useState(INITIAL_VALUES.prazoMeses)
   const [bandeiraEncargo, setBandeiraEncargo] = useState(INITIAL_VALUES.bandeiraEncargo)
   const [cipEncargo, setCipEncargo] = useState(INITIAL_VALUES.cipEncargo)
@@ -3964,52 +3819,41 @@ export default function App() {
   const [mostrarTabelaBuyoutConfig, setMostrarTabelaBuyoutConfig] = useState(
     INITIAL_VALUES.tabelaVisivel,
   )
-  const [gerandoContratos, setGerandoContratos] = useState(false)
-  const [isContractTemplatesModalOpen, setIsContractTemplatesModalOpen] = useState(false)
-  const [isLeasingContractsModalOpen, setIsLeasingContractsModalOpen] = useState(false)
-  const [clientReadinessErrors, setClientReadinessErrors] = useState<ValidationIssue[] | null>(null)
-  const [leasingAnexosSelecionados, setLeasingAnexosSelecionados] = useState<LeasingAnexoId[]>(() =>
-    getDefaultLeasingAnexos(leasingContrato.tipoContrato, { corresponsavelAtivo }),
-  )
-  const [leasingAnexosAvailability, setLeasingAnexosAvailability] = useState<
-    Record<LeasingAnexoId, boolean>
-  >({} as Record<LeasingAnexoId, boolean>)
-  const [leasingAnexosLoading, setLeasingAnexosLoading] = useState(false)
-  const [contractTemplatesCategory, setContractTemplatesCategory] =
-    useState<ContractTemplateCategory>('vendas')
-  const [contractTemplates, setContractTemplates] = useState<string[]>([])
-  const [selectedContractTemplates, setSelectedContractTemplates] = useState<string[]>([])
-  const [contractTemplatesLoading, setContractTemplatesLoading] = useState(false)
-  const [contractTemplatesError, setContractTemplatesError] = useState<string | null>(null)
-  const contratoClientePayloadRef = useRef<ClienteContratoPayload | null>(null)
 
-  useEffect(() => {
-    setLeasingAnexosSelecionados((prev) => {
-      const anexosValidos = new Set(
-        LEASING_ANEXOS_CONFIG.filter((anexo) =>
-          anexo.tipos.includes(leasingContrato.tipoContrato),
-        ).map((anexo) => anexo.id),
-      )
-      const filtrados = prev.filter((id) => anexosValidos.has(id))
-      const baseSelecionados = filtrados.length > 0
-        ? filtrados
-        : getDefaultLeasingAnexos(leasingContrato.tipoContrato, { corresponsavelAtivo })
-      return ensureRequiredLeasingAnexos(baseSelecionados, leasingContrato.tipoContrato, {
-        corresponsavelAtivo,
-      })
-    })
-  }, [corresponsavelAtivo, leasingContrato.tipoContrato])
+  // Late-bound ref for prepararDadosContratoCliente — assigned below after the
+  // callback is declared (same TDZ-safe pattern used by applyVendaUpdatesRef).
+  const prepararDadosRef = useRef<(() => ClienteContratoPayload | null) | null>(null)
 
-  useEffect(() => {
-    setLeasingAnexosSelecionados((prev) => {
-      if (!corresponsavelAtivo) {
-        return prev.filter((id) => id !== 'ANEXO_X')
-      }
-      return ensureRequiredLeasingAnexos(prev, leasingContrato.tipoContrato, {
-        corresponsavelAtivo,
-      })
-    })
-  }, [corresponsavelAtivo, leasingContrato.tipoContrato])
+  // ── Cluster D: Contract modal state ─────────────────────────────────────────
+  const {
+    gerandoContratos, setGerandoContratos,
+    isContractTemplatesModalOpen, setIsContractTemplatesModalOpen,
+    isLeasingContractsModalOpen, setIsLeasingContractsModalOpen,
+    clientReadinessErrors, setClientReadinessErrors,
+    leasingAnexosSelecionados, setLeasingAnexosSelecionados,
+    leasingAnexosAvailability,
+    leasingAnexosLoading,
+    contractTemplatesCategory,
+    contractTemplates,
+    selectedContractTemplates,
+    contractTemplatesLoading,
+    contractTemplatesError,
+    contratoClientePayloadRef,
+    carregarDisponibilidadeAnexos,
+    handleToggleContractTemplate,
+    handleSelectAllContractTemplates,
+    handleToggleLeasingAnexo,
+    handleSelectAllLeasingAnexos,
+    handleFecharModalContratos,
+    handleFecharLeasingContractsModal,
+    abrirSelecaoContratos,
+  } = useContractModalState({
+    tipoContrato: leasingContrato.tipoContrato,
+    corresponsavelAtivo,
+    clienteUf,
+    adicionarNotificacao,
+    prepararDadosRef,
+  })
 
   const [oemBase, setOemBase] = useState(INITIAL_VALUES.oemBase)
   const [oemInflacao, setOemInflacao] = useState(INITIAL_VALUES.oemInflacao)
@@ -4038,111 +3882,6 @@ export default function App() {
   const [pagosAcumAteM, setPagosAcumAteM] = useState(INITIAL_VALUES.pagosAcumManual)
 
   const mesReferencia = mesReferenciaRef.current
-
-  useEffect(() => {
-    if (distribuidoraTarifa === distribuidoraAneelEfetiva) {
-      return
-    }
-    setDistribuidoraTarifa(distribuidoraAneelEfetiva)
-  }, [distribuidoraAneelEfetiva, distribuidoraTarifa, setDistribuidoraTarifa])
-
-  useEffect(() => {
-    let cancelado = false
-    const uf = ufTarifa.trim()
-    const dist = distribuidoraAneelEfetiva.trim()
-
-    if (!uf || !dist) {
-      setMesReajuste(6)
-      return () => {
-        cancelado = true
-      }
-    }
-
-    void getMesReajusteFromANEEL(uf, dist)
-      .then((mes) => {
-        if (cancelado) return
-        const normalizado = Number.isFinite(mes) ? Math.round(mes) : 6
-        const ajustado = Math.min(Math.max(normalizado || 6, 1), 12)
-        setMesReajuste(ajustado)
-      })
-      .catch((error) => {
-        console.warn('[ANEEL] não foi possível atualizar mês de reajuste:', error)
-        if (!cancelado) setMesReajuste(6)
-      })
-
-    return () => {
-      cancelado = true
-    }
-  }, [distribuidoraAneelEfetiva, ufTarifa])
-
-  useEffect(() => {
-    const ufAtual = (ufTarifa || clienteUf || '').trim()
-    if (!ufAtual) {
-      return undefined
-    }
-
-    const distribuidoraAtual = distribuidoraAneelEfetiva.trim()
-    let cancelado = false
-
-    void getTarifaCheia({ uf: ufAtual, distribuidora: distribuidoraAtual || undefined })
-      .then((valor) => {
-        if (cancelado) return
-        if (!Number.isFinite(valor)) return
-
-        setTarifaCheia((atual) => {
-          if (!Number.isFinite(atual)) {
-            return valor
-          }
-          return Math.abs(atual - valor) < 0.0005 ? atual : valor
-        })
-      })
-      .catch((error) => {
-        if (cancelado) return
-        if (import.meta.env.DEV) console.warn('[Tarifa] Não foi possível atualizar tarifa cheia automaticamente:', error)
-      })
-
-    return () => {
-      cancelado = true
-    }
-  }, [clienteUf, distribuidoraAneelEfetiva, ufTarifa])
-
-  useEffect(() => {
-    let cancelado = false
-
-    void loadDistribuidorasAneel()
-      .then((dados) => {
-        if (cancelado) return
-        setUfsDisponiveis(dados.ufs)
-        setDistribuidorasPorUf(dados.distribuidorasPorUf)
-      })
-      .catch((error) => {
-        console.warn('[ANEEL] não foi possível atualizar lista de distribuidoras:', error)
-      })
-
-    return () => {
-      cancelado = true
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!ufTarifa) {
-      setDistribuidoraTarifa('')
-      return
-    }
-
-    const lista = distribuidorasPorUf?.[ufTarifa]
-    if (!lista || lista.length === 0) {
-      setDistribuidoraTarifa('')
-      return
-    }
-
-    setDistribuidoraTarifa((atual) => {
-      if (lista.length === 1) {
-        return lista[0]!
-      }
-      return lista.includes(atual) ? atual : ''
-    })
-  }, [distribuidorasPorUf, ufTarifa])
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -9544,6 +9283,8 @@ export default function App() {
     distribuidoraAneelEfetiva,
     kcKwhMes,
   ])
+  // Wire the late-bound ref so useContractModalState can call prepararDados without TDZ
+  prepararDadosRef.current = prepararDadosContratoCliente
 
   const prepararPayloadContratosLeasing = useCallback(() => {
     if (!validateConsumoMinimoLeasing('Informe o Consumo (kWh/mês) para gerar os documentos.')) {
@@ -9818,170 +9559,7 @@ export default function App() {
     validateTipoRedeLeasing,
   ])
 
-  const carregarTemplatesContrato = useCallback(
-    async (category: ContractTemplateCategory) => {
-      setContractTemplatesLoading(true)
-      setContractTemplatesError(null)
-      try {
-        const params = new URLSearchParams({ categoria: category })
-        const response = await fetch(
-          resolveApiUrl(`/api/contracts/templates?${params.toString()}`),
-        )
-        if (!response.ok) {
-          let mensagemErro = 'Não foi possível listar os templates de contrato.'
-          const contentType = response.headers.get('content-type') ?? ''
-          try {
-            if (contentType.includes('application/json')) {
-              const data = (await response.json()) as { error?: string } | undefined
-              if (data?.error) {
-                mensagemErro = data.error
-              }
-            } else {
-              const texto = await response.text()
-              if (texto.trim()) {
-                mensagemErro = texto.trim()
-              }
-            }
-          } catch (error) {
-            console.warn('Não foi possível interpretar o erro ao listar templates.', error)
-          }
-          throw new Error(mensagemErro)
-        }
-
-        const payload = (await response.json()) as { templates?: unknown }
-        const listaBruta = Array.isArray(payload.templates) ? payload.templates : []
-        const nomes = listaBruta
-          .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-          .map((item) => item.trim())
-        if (nomes.length === 0) {
-          setContractTemplates([])
-          setSelectedContractTemplates([])
-          setContractTemplatesError(
-            `Nenhum template de contrato disponível para ${category}.`,
-          )
-          return
-        }
-
-        const unicos = Array.from(new Set(nomes))
-        setContractTemplates(unicos)
-        setSelectedContractTemplates((prev) => {
-          const ativos = prev.filter((item) => unicos.includes(item))
-          return ativos.length > 0 ? ativos : unicos
-        })
-      } catch (error) {
-        const mensagem =
-          error instanceof Error && error.message
-            ? error.message
-            : 'Não foi possível listar os templates de contrato.'
-        console.error('Não foi possível carregar os templates de contrato.', error)
-        setContractTemplatesError(mensagem)
-        setContractTemplates([])
-        setSelectedContractTemplates([])
-        adicionarNotificacao(mensagem, 'error')
-      } finally {
-        setContractTemplatesLoading(false)
-      }
-    },
-    [adicionarNotificacao],
-  )
-
-  const carregarDisponibilidadeAnexos = useCallback(async () => {
-    setLeasingAnexosLoading(true)
-    try {
-      const params = new URLSearchParams({
-        tipoContrato: leasingContrato.tipoContrato,
-        uf: cliente.uf || '',
-      })
-      const response = await fetch(
-        resolveApiUrl(`/api/contracts/leasing/availability?${params.toString()}`),
-      )
-      if (!response.ok) {
-        console.error('Não foi possível verificar disponibilidade dos anexos.')
-        // Set all as available by default if check fails
-        setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
-        return
-      }
-
-      const payload = (await response.json()) as { availability?: Record<string, boolean> }
-      const availability = payload.availability || {}
-      setLeasingAnexosAvailability(availability as Record<LeasingAnexoId, boolean>)
-      setLeasingAnexosSelecionados((prev) => {
-        const filtrados = prev.filter((anexoId) => availability[anexoId] !== false)
-        return ensureRequiredLeasingAnexos(filtrados, leasingContrato.tipoContrato, {
-          corresponsavelAtivo,
-        })
-      })
-    } catch (error) {
-      console.error('Erro ao verificar disponibilidade dos anexos:', error)
-      // Set all as available by default if check fails
-      setLeasingAnexosAvailability({} as Record<LeasingAnexoId, boolean>)
-    } finally {
-      setLeasingAnexosLoading(false)
-    }
-  }, [corresponsavelAtivo, leasingContrato.tipoContrato, cliente.uf])
-
-  const handleToggleContractTemplate = useCallback((template: string) => {
-    setSelectedContractTemplates((prev) => {
-      if (prev.includes(template)) {
-        return prev.filter((item) => item !== template)
-      }
-      return [...prev, template]
-    })
-  }, [])
-
-  const handleSelectAllContractTemplates = useCallback(
-    (selectAll: boolean) => {
-      setSelectedContractTemplates(selectAll ? contractTemplates : [])
-    },
-    [contractTemplates],
-  )
-
-  const handleToggleLeasingAnexo = useCallback((anexoId: LeasingAnexoId) => {
-    const config = LEASING_ANEXOS_CONFIG.find((item) => item.id === anexoId)
-    if (config?.autoInclude || (corresponsavelAtivo && anexoId === 'ANEXO_X')) {
-      return
-    }
-    setLeasingAnexosSelecionados((prev) => {
-      if (prev.includes(anexoId)) {
-        return prev.filter((item) => item !== anexoId)
-      }
-      return [...prev, anexoId]
-    })
-  }, [corresponsavelAtivo])
-
-  const handleSelectAllLeasingAnexos = useCallback(
-    (selectAll: boolean) => {
-    if (!selectAll) {
-      setLeasingAnexosSelecionados(
-        ensureRequiredLeasingAnexos([], leasingContrato.tipoContrato, { corresponsavelAtivo }),
-      )
-      return
-    }
-    const disponiveis = LEASING_ANEXOS_CONFIG.filter(
-      (config) =>
-        config.tipos.includes(leasingContrato.tipoContrato) &&
-        !(config.autoInclude || (corresponsavelAtivo && config.id === 'ANEXO_X')) &&
-        leasingAnexosAvailability[config.id] !== false,
-    ).map((config) => config.id)
-    setLeasingAnexosSelecionados(
-      ensureRequiredLeasingAnexos(disponiveis, leasingContrato.tipoContrato, {
-        corresponsavelAtivo,
-      }),
-    )
-  },
-    [corresponsavelAtivo, leasingContrato.tipoContrato, leasingAnexosAvailability],
-  )
-
-  const handleFecharModalContratos = useCallback(() => {
-    setIsContractTemplatesModalOpen(false)
-    contratoClientePayloadRef.current = null
-  }, [])
-
-  const handleFecharLeasingContractsModal = useCallback(() => {
-    setIsLeasingContractsModalOpen(false)
-  }, [])
-
-  const salvarContratoNoOneDrive = useCallback(
+    const salvarContratoNoOneDrive = useCallback(
     async (fileName: string, blob: Blob, contentType?: string) => {
       try {
         const base64 = await readBlobAsBase64(blob)
@@ -10008,26 +9586,6 @@ export default function App() {
       }
     },
     [adicionarNotificacao],
-  )
-
-  const abrirSelecaoContratos = useCallback(
-    (category: ContractTemplateCategory) => {
-      if (gerandoContratos) {
-        return
-      }
-
-      const payload = prepararDadosContratoCliente()
-      if (!payload) {
-        return
-      }
-
-      contratoClientePayloadRef.current = payload
-      setContractTemplatesCategory(category)
-      setIsContractTemplatesModalOpen(true)
-      setContractTemplatesError(null)
-      void carregarTemplatesContrato(category)
-    },
-    [carregarTemplatesContrato, gerandoContratos, prepararDadosContratoCliente],
   )
 
   const handleGerarContratoLeasing = useCallback(async () => {
