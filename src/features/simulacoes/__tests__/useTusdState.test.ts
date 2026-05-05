@@ -16,9 +16,9 @@
 // @ts-expect-error React 18 act env flag
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-import React, { act, useRef } from 'react'
+import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { INITIAL_VALUES } from '../../../app/config'
 import { useTusdState, type UseTusdStateReturn } from '../useTusdState'
 import type { VendaForm } from '../../../lib/finance/roi'

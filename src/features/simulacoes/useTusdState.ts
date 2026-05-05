@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_TUSD_ANO_REFERENCIA } from '../../lib/finance/tusd'
 import type { TipoClienteTUSD } from '../../lib/finance/tusd'
 import type { VendaForm } from '../../lib/finance/roi'
-import { normalizeTusdTipoClienteValue } from '../../features/propostas/proposalHelpers'
+import { normalizeTusdTipoClienteValue } from '../propostas/proposalHelpers'
 import { INITIAL_VALUES } from '../../app/config'
 
 // Minimal type for the subset of VendaForm updates used here.
@@ -134,3 +134,6 @@ export function useTusdState({ applyVendaUpdatesRef }: UseTusdStateParams) {
     setTusdSimultaneidadeFromSource,
   }
 }
+
+/** Convenience type alias for the hook's return value. */
+export type UseTusdStateReturn = ReturnType<typeof useTusdState>
