@@ -156,9 +156,11 @@ import type { SidebarGroup } from './layout/Sidebar'
 import { buildSidebarGroups } from './config/sidebarConfig'
 import { useRouteGuard } from './hooks/useRouteGuard'
 import { useTheme } from './hooks/useTheme'
+import { useModalPrompts } from './hooks/useModalPrompts'
+import { useSystemColorScheme } from './hooks/useSystemColorScheme'
+import { useIbgeMunicipios } from './hooks/useIbgeMunicipios'
 import { useMultiUcState } from './features/simulacoes/useMultiUcState'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
-import { CHART_THEME } from './helpers/ChartTheme'
 import {
   ANALISE_ANOS_PADRAO,
   DIAS_MES_PADRAO,
@@ -306,13 +308,10 @@ import {
 } from './components/modals/CorresponsavelModal'
 import {
   SaveChangesDialog,
-  type SaveDecisionChoice,
   type SaveDecisionPromptRequest,
-  type SaveDecisionPromptState,
 } from './components/modals/SaveChangesDialog'
 import {
   ConfirmDialog,
-  type ConfirmDialogState,
 } from './components/modals/ConfirmDialog'
 import {
   EnviarPropostaModal,
@@ -489,10 +488,6 @@ type IbgeMunicipio = {
       }
     }
   }
-}
-
-type IbgeEstado = {
-  sigla?: string
 }
 
 
@@ -1697,13 +1692,10 @@ export default function App() {
   )
   const vendaSnapshotSignal = useVendaStore((state) => state)
   const leasingSnapshotSignal = useLeasingStore((state) => state)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return 'light'
-    }
-
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-  })
+  // System colour-scheme (light/dark) and derived chart tokens.
+  // Extracted into useSystemColorScheme; the hook owns the matchMedia listener
+  // and sets data-theme / colorScheme on documentElement.
+  const { theme, chartTheme } = useSystemColorScheme()
   // Stable primitive derived from the Stack Auth user identity.
   // Using user.id (string | null) instead of the user object avoids re-running
   // the bootstrap effect when the SDK replaces the user object reference during
@@ -1769,30 +1761,6 @@ export default function App() {
       })
     }
   }, [])
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    if (typeof window.matchMedia !== 'function') {
-      return
-    }
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const applyTheme = (matches: boolean) => {
-      const nextTheme: 'light' | 'dark' = matches ? 'dark' : 'light'
-      document.documentElement.setAttribute('data-theme', nextTheme)
-      document.documentElement.style.colorScheme = nextTheme
-      setTheme(nextTheme)
-    }
-
-    applyTheme(mediaQuery.matches)
-    const handleChange = (event: MediaQueryListEvent) => applyTheme(event.matches)
-    mediaQuery.addEventListener('change', handleChange)
-    return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [])
-
-  const chartTheme = useMemo(() => CHART_THEME[theme], [theme])
   // NOTE: kcKwhMes must be declared here — before effects that use it in their
   // dependency arrays. Declaring it any later causes a Temporal Dead Zone (TDZ)
   // crash in production builds.
@@ -1817,58 +1785,16 @@ export default function App() {
       lastSavedSignatureRef.current = computeSignatureRef.current()
     }, 0)
   }, [])
-  const [saveDecisionPrompt, setSaveDecisionPrompt] = useState<SaveDecisionPromptState | null>(null)
-
-  const requestSaveDecision = useCallback(
-    (options: SaveDecisionPromptRequest): Promise<SaveDecisionChoice> => {
-      if (typeof window === 'undefined') {
-        return Promise.resolve('discard')
-      }
-
-      return new Promise<SaveDecisionChoice>((resolve) => {
-        setSaveDecisionPrompt({
-          ...options,
-          resolve,
-        })
-      })
-    },
-    [],
-  )
-
-  const resolveSaveDecisionPrompt = useCallback((choice: SaveDecisionChoice) => {
-    setSaveDecisionPrompt((current) => {
-      if (current) {
-        current.resolve(choice)
-      }
-
-      return null
-    })
-  }, [])
-
-  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null)
-
-  const requestConfirmDialog = useCallback(
-    (options: Omit<ConfirmDialogState, 'resolve'>): Promise<boolean> => {
-      if (typeof window === 'undefined') {
-        return Promise.resolve(false)
-      }
-
-      return new Promise<boolean>((resolve) => {
-        setConfirmDialog({ ...options, resolve })
-      })
-    },
-    [],
-  )
-
-  const resolveConfirmDialog = useCallback((confirmed: boolean) => {
-    setConfirmDialog((current) => {
-      if (current) {
-        current.resolve(confirmed)
-      }
-
-      return null
-    })
-  }, [])
+  // Modal prompts: save-decision + confirm dialog.
+  // Extracted into useModalPrompts; same API as before.
+  const {
+    saveDecisionPrompt,
+    requestSaveDecision,
+    resolveSaveDecisionPrompt,
+    confirmDialog,
+    requestConfirmDialog,
+    resolveConfirmDialog,
+  } = useModalPrompts()
 
   const [oneDriveIntegrationAvailable, setOneDriveIntegrationAvailable] = useState(() =>
     isOneDriveIntegrationAvailable(),
@@ -2190,13 +2116,7 @@ export default function App() {
   // Refs to prevent stale closures in getCurrentSnapshot
   const kcKwhMesRef = useRef(kcKwhMes)
   const pageSharedStateRef = useRef(pageSharedState)
-  const [cidadeBloqueadaPorCep, setCidadeBloqueadaPorCep] = useState(false)
   const [ucGeradoraCidadeBloqueadaPorCep, setUcGeradoraCidadeBloqueadaPorCep] = useState(false)
-  const [ibgeMunicipiosPorUf, setIbgeMunicipiosPorUf] = useState<Record<string, string[]>>({})
-  const [ibgeMunicipiosLoading, setIbgeMunicipiosLoading] = useState<Record<string, boolean>>({})
-  const ibgeMunicipiosInFlightRef = useRef(new Map<string, Promise<string[]>>())
-  const [cidadeSearchTerm, setCidadeSearchTerm] = useState('')
-  const [cidadeSelectOpen, setCidadeSelectOpen] = useState(false)
   // ucsBeneficiarias is declared before the controller so it can be passed as a param
   const [ucsBeneficiarias, setUcsBeneficiarias] = useState<UcBeneficiariaFormState[]>([])
   const {
@@ -2447,142 +2367,33 @@ export default function App() {
     return distribuidorasPorUf[ufTarifa] ?? []
   }, [distribuidorasPorUf, ufTarifa])
 
-  const ensureIbgeMunicipios = useCallback(
-    async (uf: string, signal?: AbortSignal): Promise<string[]> => {
-      const normalizedUf = uf.trim().toUpperCase()
-      if (!normalizedUf) {
-        return []
-      }
-      if (ibgeMunicipiosPorUf[normalizedUf]?.length) {
-        return ibgeMunicipiosPorUf[normalizedUf]
-      }
-      const inflight = ibgeMunicipiosInFlightRef.current.get(normalizedUf)
-      if (inflight) {
-        return inflight
-      }
-      const promise = (async () => {
-        setIbgeMunicipiosLoading((prev) => ({ ...prev, [normalizedUf]: true }))
-        try {
-          const response = await fetch(
-            `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalizedUf}/municipios`,
-            signal !== undefined ? { signal } : undefined,
-          )
-          if (!response.ok) {
-            throw new Error('Falha ao buscar municípios no IBGE.')
-          }
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const data: IbgeMunicipio[] = await response.json()
-          const municipios = Array.isArray(data)
-            ? data
-                .map((item) => item?.nome?.trim())
-                .filter((item): item is string => Boolean(item))
-                .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-            : []
-          setIbgeMunicipiosPorUf((prev) => ({
-            ...prev,
-            [normalizedUf]: municipios,
-          }))
-          return municipios
-        } catch (error) {
-          if (!(error instanceof DOMException) || error.name !== 'AbortError') {
-            console.warn('[IBGE] Não foi possível carregar municípios:', error)
-          }
-          setIbgeMunicipiosPorUf((prev) => ({
-            ...prev,
-            [normalizedUf]: prev[normalizedUf] ?? [],
-          }))
-          return ibgeMunicipiosPorUf[normalizedUf] ?? []
-        } finally {
-          ibgeMunicipiosInFlightRef.current.delete(normalizedUf)
-          setIbgeMunicipiosLoading((prev) => ({ ...prev, [normalizedUf]: false }))
-        }
-      })()
-      ibgeMunicipiosInFlightRef.current.set(normalizedUf, promise)
-      return promise
-    },
-    [ibgeMunicipiosPorUf],
-  )
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const carregarEstadosIbge = async () => {
-      try {
-        const response = await fetch(
-          'https://servicodados.ibge.gov.br/api/v1/localidades/estados',
-          { signal: controller.signal },
-        )
-        if (!response.ok) {
-          throw new Error('Falha ao buscar estados no IBGE.')
-        }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const data: IbgeEstado[] = await response.json()
-        const estados = Array.isArray(data)
-          ? data
-              .map((item) => item?.sigla?.trim().toUpperCase())
-              .filter((item): item is string => Boolean(item))
-              .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-          : []
-        if (estados.length > 0) {
-          setUfsDisponiveis(estados)
-        }
-      } catch (error) {
-        if (!(error instanceof DOMException) || error.name !== 'AbortError') {
-          console.warn('[IBGE] Não foi possível carregar estados:', error)
-        }
-      }
-    }
-
-    void carregarEstadosIbge()
-
-    return () => {
-      controller.abort()
-    }
-  }, [setUfsDisponiveis])
-
   const clienteUf = cliente.uf
   const clienteDistribuidorasDisponiveis = useMemo(() => {
     if (!clienteUf) return [] as string[]
     return distribuidorasPorUf[clienteUf] ?? []
   }, [clienteUf, distribuidorasPorUf])
-  const clienteUfNormalizada = cliente.uf.trim().toUpperCase()
-  const cidadesDisponiveis = useMemo(() => {
-    if (!clienteUfNormalizada) return [] as string[]
-    return ibgeMunicipiosPorUf[clienteUfNormalizada] ?? []
-  }, [clienteUfNormalizada, ibgeMunicipiosPorUf])
-  const cidadesCarregando = Boolean(
-    clienteUfNormalizada && ibgeMunicipiosLoading[clienteUfNormalizada],
-  )
-  const cidadesFiltradas = useMemo(() => {
-    const termo = normalizeText(cidadeSearchTerm.trim())
-    if (!termo) {
-      return cidadesDisponiveis
-    }
-    return cidadesDisponiveis.filter((cidade) => normalizeText(cidade).includes(termo))
-  }, [cidadeSearchTerm, cidadesDisponiveis])
-  const cidadeManualDigitada = cidadeSearchTerm.trim()
-  const cidadeManualDisponivel =
-    Boolean(cidadeManualDigitada) &&
-    !cidadesDisponiveis.some(
-      (cidade) => normalizeText(cidade) === normalizeText(cidadeManualDigitada),
-    )
 
-  useEffect(() => {
-    if (!clienteUfNormalizada) {
-      return
-    }
-    const controller = new AbortController()
-    void ensureIbgeMunicipios(clienteUfNormalizada, controller.signal)
-    return () => {
-      controller.abort()
-    }
-  }, [clienteUfNormalizada, ensureIbgeMunicipios])
+  // IBGE municipality state, city-search dropdown, and derived city lists.
+  // Extracted into useIbgeMunicipios; cidadeBloqueadaPorCep is owned by the hook
+  // and its setter is exposed so the CEP lookup effects (below) can update it.
+  const clienteUfNormalizada = clienteUf.trim().toUpperCase()
+  const {
+    cidadeBloqueadaPorCep,
+    setCidadeBloqueadaPorCep,
+    cidadeSearchTerm,
+    setCidadeSearchTerm,
+    cidadeSelectOpen,
+    setCidadeSelectOpen,
+    cidadesCarregando,
+    cidadesFiltradas,
+    cidadeManualDigitada,
+    cidadeManualDisponivel,
+    ensureIbgeMunicipios,
+  } = useIbgeMunicipios({
+    clienteUfNormalizada,
+    setUfsDisponiveis,
+  })
 
-  useEffect(() => {
-    if (cidadeBloqueadaPorCep) {
-      setCidadeSelectOpen(false)
-      setCidadeSearchTerm('')
-    }
-  }, [cidadeBloqueadaPorCep])
   const isTitularDiferente = leasingContrato.ucGeradoraTitularDiferente === true
   const distribuidoraAneelEfetiva = useMemo(
     () =>
