@@ -20,7 +20,7 @@ describe('useSolarInvestAppController', () => {
     expect(typeof useSolarInvestAppController).toBe('function')
   })
 
-  it('exports a UseSolarInvestAppControllerParams type (compile-time check)', () => {
+  it('has expected parameter interface fields', () => {
     // This test validates the type is importable and structurally correct.
     // A compile error here means the interface is missing required fields.
     type RequiredNavFields = Pick<

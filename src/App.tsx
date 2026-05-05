@@ -2511,6 +2511,9 @@ export default function App() {
   const { handleAbrirUploadImagens, handleImagensSelecionadas, handleRemoverPropostaImagem } =
     useProposalImageActions({ imagensUploadInputRef, setPropostaImagens })
 
+  // Initializes the vendas simulation entry for the active budget. Kept in
+  // App.tsx because it bridges the vendasSimulacao store (separate from the
+  // budget-upload hook) with currentBudgetId from the controller.
   useEffect(() => {
     initializeVendasSimulacao(currentBudgetId)
   }, [currentBudgetId, initializeVendasSimulacao])

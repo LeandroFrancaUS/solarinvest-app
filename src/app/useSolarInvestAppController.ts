@@ -33,6 +33,8 @@ import { useTusdState } from '../features/simulacoes/useTusdState'
 import { useLeasingSimulacaoState } from '../features/simulacoes/useLeasingSimulacaoState'
 import { useBudgetUploadState } from '../features/simulacoes/useBudgetUploadState'
 import { useProposalOrchestration } from '../features/propostas/useProposalOrchestration'
+// clonePrintableData is a pure utility imported here so callers don't need
+// to pass it as a param; it is forwarded directly to useProposalOrchestration.
 import { clonePrintableData } from '../lib/pdf/buildPrintableData'
 
 import type { MeResponse } from '../lib/auth/access-types'
