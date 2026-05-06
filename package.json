@@ -17,6 +17,7 @@
     "deploy:safety-check": "node scripts/deploy/migration-safety-check.mjs",
     "deploy:snapshot": "node scripts/deploy/pre-deploy-snapshot.mjs",
     "deploy:verify": "node scripts/deploy/post-deploy-verify.mjs",
+    "smoke:api": "node scripts/smoke-api.mjs",
     "test": "vitest run",
     "test:server": "vitest run --config vitest.server.config.ts",
     "lint": "eslint --max-warnings=0 .",
