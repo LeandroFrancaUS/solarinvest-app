@@ -115,7 +115,7 @@ export interface UseSimulationOutputStateParams {
 
   // TUSD params
   tusdPercent: number
-  tusdTipoCliente: TipoClienteTUSD | null
+  tusdTipoCliente: TipoClienteTUSD
   tusdSubtipo: string
   tusdSimultaneidade: number | null
   tusdTarifaRkwh: number | null

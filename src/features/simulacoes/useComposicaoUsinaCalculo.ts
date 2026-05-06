@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import type React from 'react'
 import {
   calcularComposicaoUFV,
+  type ArredondarPasso,
   type Inputs as ComposicaoUFVInputs,
 } from '../../lib/venda/calcComposicaoUFV'
 import { calcProjectedCostsByConsumption } from '../../lib/pricing/pricingPorKwp'
@@ -77,7 +78,7 @@ export interface UseComposicaoUsinaCalculoParams {
   capexManualOverride: boolean
   setCapexManualOverride: React.Dispatch<React.SetStateAction<boolean>>
   capexBaseManualValor: number | null | undefined
-  arredondarPasso: number
+  arredondarPasso: ArredondarPasso
   vendasConfig: VendasConfig
   margemManualAtiva: boolean
   margemManualValor: number | undefined
@@ -123,8 +124,8 @@ export interface UseComposicaoUsinaCalculoReturn {
   handleCapexBaseResumoChange: (valor: number | null) => void
   handleMargemOperacionalResumoChange: (valor: number | null) => void
   // Calculations
-  composicaoTelhadoCalculo: ReturnType<typeof calcularComposicaoUFV> | undefined
-  composicaoSoloCalculo: ReturnType<typeof calcularComposicaoUFV> | undefined
+  composicaoTelhadoCalculo: ReturnType<typeof calcularComposicaoUFV>
+  composicaoSoloCalculo: ReturnType<typeof calcularComposicaoUFV>
   capexBaseResumoValor: number
   margemOperacionalResumoValor: number | null
   capexBaseResumoField: ReturnType<typeof useBRNumberField>
