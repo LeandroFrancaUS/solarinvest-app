@@ -101,6 +101,14 @@ If branch context is unclear:
 9. New storage logic must go into hooks/services.
 10. New API/backend logic must not be called directly from App.tsx.
 
+Permanent rules:
+- No direct business logic in App.tsx
+- No new route logic in server/handler.js
+- No SQL inside routes when a repository should exist
+- No destructive migrations without SAFETY-APPROVED
+- No new storage key or payload_json changes without compatibility review
+- Every PR must pass all gates before merge
+- Every feature must live under src/features/*, src/hooks/*, src/domain/*, or server/routes/*
 ---
 
 ## Existing vs Target Infrastructure
