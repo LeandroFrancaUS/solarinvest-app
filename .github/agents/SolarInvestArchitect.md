@@ -33,6 +33,7 @@ Always preserve:
 - Sidebar and route stability
 - Deployment safety
 - Rollback ability
+- Add App.tsx anti-regression guardrails so the monolith does not grow again.
 
 Never declare a branch READY unless the required evidence exists.
 
@@ -92,7 +93,22 @@ If branch context is unclear:
 1. Inspect the repository first.
 2. Determine whether the current branch is `main`, a transition branch, or another feature branch.
 3. Default to Current Main Mode until proven otherwise.
+4. App.tsx is wiring/composition only
+5. New features must not add business logic to App.tsx
+6. New complex state must go into feature hooks or domain hooks.
+7. New UI blocks must go into feature components.
+8. New PDF/print logic must go into src/lib/pdf or dedicated print hooks.
+9. New storage logic must go into hooks/services.
+10. New API/backend logic must not be called directly from App.tsx.
 
+Permanent rules:
+- No direct business logic in App.tsx
+- No new route logic in server/handler.js
+- No SQL inside routes when a repository should exist
+- No destructive migrations without SAFETY-APPROVED
+- No new storage key or payload_json changes without compatibility review
+- Every PR must pass all gates before merge
+- Every feature must live under src/features/*, src/hooks/*, src/domain/*, or server/routes/*
 ---
 
 ## Existing vs Target Infrastructure
@@ -190,6 +206,7 @@ Avoid:
 - breaking old records
 - breaking old proposal payloads
 - writing nulls because of wrong field mapping
+
 
 ---
 
