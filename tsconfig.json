@@ -8,7 +8,6 @@
       "DOM.Iterable"
     ],
     "module": "ESNext",
-    "baseUrl": ".",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -27,9 +26,15 @@
       "./src/types"
     ],
     "paths": {
-      "@/*": ["./src/*"],
-      "react-window": ["./src/lib/react-window"],
-      "@testing-library/react": ["./src/test-utils/testing-library-react"]
+      "@/*": [
+        "./src/*"
+      ],
+      "react-window": [
+        "./src/lib/react-window"
+      ],
+      "@testing-library/react": [
+        "./src/test-utils/testing-library-react"
+      ]
     }
   },
   "include": [
