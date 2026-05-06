@@ -31,7 +31,7 @@ import type {
 } from '../../types/printableProposal'
 import type { VendasConfig } from '../../types/vendasConfig'
 import type { VendasSimulacao } from '../../store/useVendasSimulacoesStore'
-import { vendaActions as vendaActionsModule } from '../../store/useVendaStore'
+import type { vendaActions as vendaActionsModule } from '../../store/useVendaStore'
 import type { VendaForm } from '../../lib/finance/roi'
 
 // ── Local helpers (mirrors of module-level helpers in App.tsx) ────────────────

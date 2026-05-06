@@ -43,7 +43,6 @@ import type {
   PrintableMultiUcResumo,
   UfvComposicaoTelhadoValores,
   UfvComposicaoSoloValores,
-  PrintableUcBeneficiaria,
 } from '../../types/printableProposal'
 import { ANALISE_ANOS_PADRAO } from '../../app/config'
 import type { VendasConfig } from '../../types/vendasConfig'

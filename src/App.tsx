@@ -9,20 +9,7 @@ import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 
 import {
-  selectCreditoMensal,
-  selectInflacaoMensal,
-  selectBuyoutLinhas,
-  selectKcAjustado,
-  selectMensalidades,
-  selectTarifaDescontada,
-  selectMensalidadesPorAno,
-  type SimulationState,
-  type BuyoutLinha,
-} from './selectors'
-import {
   calcularTaxaMinima,
-  tarifaDescontada as tarifaDescontadaCalc,
-  tarifaProjetadaCheia,
   type EntradaModo,
 } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
@@ -45,7 +32,7 @@ import {
   renderPrintableBuyoutTableToHtml,
   type PrintVariant,
 } from './lib/pdf/printRenderers'
-import { buildPrintableData, clonePrintableData } from './lib/pdf/buildPrintableData'
+import { clonePrintableData } from './lib/pdf/buildPrintableData'
 import { usePrintOrchestration } from './lib/pdf/usePrintOrchestration'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
@@ -67,7 +54,7 @@ import {
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
+import { DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
@@ -109,7 +96,6 @@ import {
   getInitialLeasingSnapshot,
   leasingActions,
   useLeasingStore,
-  useLeasingValorDeMercadoEstimado,
   type LeasingCorresponsavel,
   type LeasingContratoDados,
   type LeasingContratoProprietario,
@@ -149,7 +135,6 @@ import { useUsinaConfigState } from './features/simulacoes/useUsinaConfigState'
 import type { ClienteContratoPayload } from './types/contratoTypes'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import {
-  ANALISE_ANOS_PADRAO,
   INITIAL_VALUES,
   PAINEL_OPCOES,
   UF_LABELS,
@@ -170,19 +155,12 @@ import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasCo
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
-  calcularComposicaoUFV,
-  type Inputs as ComposicaoUFVInputs,
-} from './lib/venda/calcComposicaoUFV'
-import {
   DEFAULT_OCR_DPI,
   type BudgetUploadProgress,
 } from './app/services/budgetUpload'
 import type {
-  BuyoutResumo,
-  BuyoutRow,
   ClienteDados,
   PrintableProposalImage,
-  MensalidadeRow,
   PrintableProposalProps,
   TipoInstalacao,
   UfvComposicaoSoloValores,
@@ -248,7 +226,7 @@ import { convertClientToClosedDeal } from './services/deals/convert-client-to-cl
 import type { ConsultantForResolution } from './domain/clients/consultant-resolution'
 import { useAnaliseFinanceiraState } from './features/simulacoes/useAnaliseFinanceiraState'
 import { SimuladorPage } from './features/simulador/SimuladorPage'
-import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
+import { cloneImpostosOverrides } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
@@ -433,21 +411,10 @@ const numbersAreClose = (
   return Math.abs(a - b) <= tolerance
 }
 
-const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
-  return (
-    Math.round(
-      Object.values(valores).reduce((acc, valor) => (Number.isFinite(valor) ? acc + Number(valor) : acc), 0) * 100,
-    ) / 100
-  )
-}
-
 const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
-
-const normalizeCurrencyNumber = (value: number | null) =>
-  value === null ? null : Math.round(value * 100) / 100
 
 const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   if (!progress) {
@@ -3487,13 +3454,9 @@ export default function App() {
   const {
     handleComposicaoTelhadoChange,
     handleComposicaoSoloChange,
-    handleMargemManualInput,
-    handleCapexBaseResumoChange,
-    handleMargemOperacionalResumoChange,
     composicaoTelhadoCalculo,
     composicaoSoloCalculo,
     capexBaseResumoValor,
-    margemOperacionalResumoValor,
     capexBaseResumoField,
     capexBaseResumoSettingsField,
     margemOperacionalResumoField,
@@ -3502,7 +3465,6 @@ export default function App() {
     composicaoSoloTotal,
     valorVendaTelhado,
     valorVendaSolo,
-    valorVendaAtual,
     capex,
     custoFinalProjetadoCanonico,
     capexSolarInvest,
@@ -3549,21 +3511,7 @@ export default function App() {
   })
 
   const {
-    simulationState,
-    vm0,
-    inflacaoMensal,
-    mensalidades,
-    mensalidadesPorAno,
-    creditoEntradaMensal,
-    kcAjustado,
-    buyoutLinhas,
-    leasingBeneficios,
     leasingROI,
-    taxaMensalFin,
-    entradaFin,
-    valorFinanciado,
-    pmt,
-    financiamentoFluxo,
     financiamentoROI,
     financiamentoMensalidades,
     parcelasSolarInvest,
@@ -3572,11 +3520,8 @@ export default function App() {
     buyoutResumo,
     buyoutAceiteFinal,
     buyoutReceitaRows,
-    duracaoMesesNormalizada,
     buyoutMesAceiteFinal,
     duracaoMesesExibicao,
-    anosArray,
-    vendaRetornoAuto,
     economiaEstimativaValorCalculado,
     printableData,
   } = useSimulationOutputState({
