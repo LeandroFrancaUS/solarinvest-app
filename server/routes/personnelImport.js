@@ -12,6 +12,11 @@
 
 import { resolveActor } from '../proposals/permissions.js'
 import { jsonResponse, noContentResponse } from '../response.js'
+import {
+  searchImportableUsers,
+  getUserProfiles,
+  searchImportableClients,
+} from '../personnel-import/repository.js'
 
 function requireAdmin(actor, sendJson) {
   if (!actor) {
@@ -48,51 +53,15 @@ export async function handlePersonnelImportableUsers(req, res, { sendJson, getSc
     return
   }
 
-  let rows
-  try {
-    if (q) {
-      const pattern = `%${q.toLowerCase()}%`
-      rows = await sql`
-        SELECT id, full_name, email
-        FROM public.app_user_access
-        WHERE is_active = true
-          AND can_access_app = true
-          AND (lower(full_name) LIKE ${pattern} OR lower(email) LIKE ${pattern})
-        ORDER BY lower(full_name) ASC
-        LIMIT 30
-      `
-    } else {
-      rows = await sql`
-        SELECT id, full_name, email
-        FROM public.app_user_access
-        WHERE is_active = true
-          AND can_access_app = true
-        ORDER BY lower(full_name) ASC
-        LIMIT 30
-      `
-    }
-  } catch (err) {
-    if (err?.code === '42P01') {
-      sendJson(200, { users: [] })
-      return
-    }
-    throw err
+  const rows = await searchImportableUsers(sql, q ? q.toLowerCase() : '')
+  if (rows === null) {
+    sendJson(200, { users: [] })
+    return
   }
 
   // Enrich with phone from app_user_profiles if the table exists
-  let profiles = []
-  try {
-    const ids = rows.map((r) => r.id)
-    if (ids.length > 0) {
-      profiles = await sql`
-        SELECT user_access_id, phone
-        FROM public.app_user_profiles
-        WHERE user_access_id = ANY(${ids})
-      `
-    }
-  } catch {
-    // app_user_profiles may not exist in all environments — silently ignore
-  }
+  const ids = rows.map((r) => r.id)
+  const profiles = ids.length > 0 ? await getUserProfiles(sql, ids) : []
 
   const phoneMap = new Map(profiles.map((p) => [p.user_access_id, p.phone ?? '']))
 
@@ -130,38 +99,10 @@ export async function handlePersonnelImportableClients(req, res, { sendJson, get
     return
   }
 
-  let rows
-  try {
-    if (q) {
-      const pattern = `%${q.toLowerCase()}%`
-      rows = await sql`
-        SELECT id, name, email, phone, document, state, city
-        FROM public.clients
-        WHERE deleted_at IS NULL
-          AND (
-            lower(name)     LIKE ${pattern} OR
-            lower(email)    LIKE ${pattern} OR
-            lower(document) LIKE ${pattern} OR
-            lower(phone)    LIKE ${pattern}
-          )
-        ORDER BY lower(name) ASC
-        LIMIT 30
-      `
-    } else {
-      rows = await sql`
-        SELECT id, name, email, phone, document, state, city
-        FROM public.clients
-        WHERE deleted_at IS NULL
-        ORDER BY lower(name) ASC
-        LIMIT 30
-      `
-    }
-  } catch (err) {
-    if (err?.code === '42P01') {
-      sendJson(200, { clients: [] })
-      return
-    }
-    throw err
+  const rows = await searchImportableClients(sql, q ? q.toLowerCase() : '')
+  if (rows === null) {
+    sendJson(200, { clients: [] })
+    return
   }
 
   const clients = rows.map((c) => ({

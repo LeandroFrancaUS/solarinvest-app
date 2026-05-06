@@ -173,3 +173,28 @@ export const formatUcGeradoraTitularEndereco = (
   ].filter(Boolean)
   return partes.join(' — ')
 }
+
+/** Retorna true quando `valor` é vazio ou corresponde a um e-mail válido. */
+export const emailValido = (valor: string): boolean => {
+  if (!valor) {
+    return true
+  }
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return regex.test(valor)
+}
+
+/** Formata um número de bytes para exibição legível (B, KB, MB, GB). */
+export const formatFileSize = (bytes?: number): string => {
+  if (!bytes || !Number.isFinite(bytes)) {
+    return ''
+  }
+  const units = ['B', 'KB', 'MB', 'GB'] as const
+  let size = bytes
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  const formatted = unitIndex === 0 ? size.toString() : size.toFixed(size >= 100 ? 0 : 1)
+  return `${formatted.replace('.', ',')} ${units[unitIndex]}`
+}

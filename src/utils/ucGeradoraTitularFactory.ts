@@ -1,4 +1,4 @@
-import type { LeasingEndereco, LeasingUcGeradoraTitular } from '../store/useLeasingStore'
+import type { LeasingCorresponsavel, LeasingEndereco, LeasingUcGeradoraTitular } from '../store/useLeasingStore'
 
 export const createEmptyUcGeradoraTitularEndereco = (): LeasingEndereco => ({
   logradouro: '',
@@ -22,4 +22,14 @@ export const cloneUcGeradoraTitular = (
 ): LeasingUcGeradoraTitular => ({
   ...input,
   endereco: { ...input.endereco },
+})
+
+export const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
+  nome: '',
+  nacionalidade: '',
+  estadoCivil: '',
+  cpf: '',
+  endereco: createEmptyUcGeradoraTitularEndereco(),
+  email: '',
+  telefone: '',
 })
