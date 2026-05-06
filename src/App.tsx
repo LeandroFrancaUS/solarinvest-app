@@ -179,16 +179,20 @@ import {
   formatUcGeradoraTitularEndereco,
   normalizeNumbers,
   tarifaCurrency,
+  emailValido,
+  formatFileSize,
 } from './utils/formatters'
 import { normalizeText } from './utils/textUtils'
 import {
-  createEmptyUcGeradoraTitularEndereco,
   createEmptyUcGeradoraTitular,
   cloneUcGeradoraTitular,
+  createEmptyCorresponsavel,
 } from './utils/ucGeradoraTitularFactory'
+import { createEmptyUcBeneficiaria } from './utils/ucBeneficiariaFactory'
 import {
   getDistribuidoraDefaultForUf,
   resolveUfForDistribuidora,
+  getCustosFixosContaEnergiaPadrao,
 } from './utils/distribuidoraHelpers'
 import { Switch } from './components/ui/switch'
 import { useStackUser } from './app/stack-context'
@@ -308,22 +312,6 @@ import { useClientAddressLookup } from './features/clientes/useClientAddressLook
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-const normalizeCidade = (value: string): string =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-
-const getCustosFixosContaEnergiaPadrao = (cidade?: string | null): number | null => {
-  const normalized = normalizeCidade(cidade ?? '')
-  if (!normalized) return null
-  if (normalized.includes('goiania')) return 15
-  if (normalized.includes('brasilia')) return 10
-  if (normalized.includes('anapolis')) return 6
-  return null
-}
-
 const PrintableProposal = React.lazy(() => import('./components/print/PrintableProposal'))
 const PrintPageLeasing = React.lazy(() => import('./pages/PrintPageLeasing').then(m => ({ default: m.PrintPageLeasing })))
 const LeasingBeneficioChart = React.lazy(() => import('./components/leasing/LeasingBeneficioChart').then(m => ({ default: m.LeasingBeneficioChart })))
@@ -381,15 +369,6 @@ const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
   outros: 'outros' as TipoClienteTUSD,
 } as Record<SegmentoCliente, TipoClienteTUSD>
 
-
-const emailValido = (valor: string) => {
-  if (!valor) {
-    return true
-  }
-
-  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return regex.test(valor)
-}
 
 const numbersAreClose = (
   a: number | null | undefined,
@@ -461,21 +440,6 @@ const resolvePotenciaModuloFromBudget = (
   return INITIAL_VALUES.potenciaModulo
 }
 
-const formatFileSize = (bytes?: number) => {
-  if (!bytes || !Number.isFinite(bytes)) {
-    return ''
-  }
-  const units = ['B', 'KB', 'MB', 'GB'] as const
-  let size = bytes
-  let unitIndex = 0
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex += 1
-  }
-  const formatted = unitIndex === 0 ? size.toString() : size.toFixed(size >= 100 ? 0 : 1)
-  return `${formatted.replace('.', ',')} ${units[unitIndex]}`
-}
-
 const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
   success: '✔',
   info: 'ℹ',
@@ -483,28 +447,6 @@ const iconeNotificacaoPorTipo: Record<NotificacaoTipo, string> = {
 }
 
 const createDraftBudgetId = () => createDraftBudgetIdHelper()
-
-const createUcBeneficiariaId = () => `UCB-${Math.random().toString(36).slice(2, 10).toUpperCase()}`
-
-const createEmptyUcBeneficiaria = (): UcBeneficiariaFormState => ({
-  id: createUcBeneficiariaId(),
-  numero: '',
-  endereco: '',
-  consumoKWh: '',
-  rateioPercentual: '',
-})
-
-
-const createEmptyCorresponsavel = (): LeasingCorresponsavel => ({
-  nome: '',
-  nacionalidade: '',
-  estadoCivil: '',
-  cpf: '',
-  endereco: createEmptyUcGeradoraTitularEndereco(),
-  email: '',
-  telefone: '',
-})
-
 
 type DistribuidoraAneelState = {
   clienteDistribuidoraAneel?: string | null
