@@ -248,19 +248,20 @@ export function closeProposalAndHydrateClientPortfolio(
     .map((item) => (typeof item === 'string' ? item.trim() : ''))
     .filter((item) => item.length > 0)
 
+  const ucBeneficiaria = clienteDados.ucBeneficiaria ?? normalizedBeneficiarias[0]
   const payload = mapProposalDataToPortfolioFields(snapshot, {
     ...clienteDados,
-    ucBeneficiaria: clienteDados.ucBeneficiaria ?? normalizedBeneficiarias[0],
+    ...(ucBeneficiaria !== undefined ? { ucBeneficiaria } : undefined),
     ucBeneficiarias: clienteDados.ucBeneficiarias ?? normalizedBeneficiarias,
   })
 
   // Table name → payload group map for logging and tablesPopulated derivation
   const tablePayloadMap: Record<string, Record<string, unknown>> = {
-    clients: payload.clients,
-    client_usina_config: payload.usinaConfig,
-    client_contracts: payload.contract,
-    client_energy_profile: payload.energyProfile,
-    client_billing_profile: payload.billingProfile,
+    clients: payload.clients as Record<string, unknown>,
+    client_usina_config: payload.usinaConfig as Record<string, unknown>,
+    client_contracts: payload.contract as Record<string, unknown>,
+    client_energy_profile: payload.energyProfile as Record<string, unknown>,
+    client_billing_profile: payload.billingProfile as Record<string, unknown>,
   }
   const logNames: Record<string, string> = {
     clients: 'mapping_clients',

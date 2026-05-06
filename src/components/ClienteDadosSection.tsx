@@ -375,7 +375,7 @@ export function ClienteDadosSection({
                       onClearCepAviso()
                       onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                       onClearFieldHighlight(
-                        document.querySelector('[data-field="cliente-cidade"]'),
+                        document.querySelector<HTMLElement>('[data-field="cliente-cidade"]'),
                       )
                     }}
                   >
@@ -402,11 +402,11 @@ export function ClienteDadosSection({
                           onClearCepAviso()
                           onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                           onClearFieldHighlight(
-                            document.querySelector('[data-field="cliente-cidade"]'),
+                            document.querySelector<HTMLElement>('[data-field="cliente-cidade"]'),
                           )
                           if (cliente.uf.trim()) {
                             onClearFieldHighlight(
-                              document.querySelector('[data-field="cliente-uf"]'),
+                              document.querySelector<HTMLElement>('[data-field="cliente-uf"]'),
                             )
                           }
                         }}
@@ -433,11 +433,11 @@ export function ClienteDadosSection({
                       onClearCepAviso()
                       onSetClienteMensagens((prev) => ({ ...prev, cidade: undefined }))
                       onClearFieldHighlight(
-                        document.querySelector('[data-field="cliente-cidade"]'),
+                        document.querySelector<HTMLElement>('[data-field="cliente-cidade"]'),
                       )
                       if (cliente.uf.trim()) {
                         onClearFieldHighlight(
-                          document.querySelector('[data-field="cliente-uf"]'),
+                          document.querySelector<HTMLElement>('[data-field="cliente-uf"]'),
                         )
                       }
                     }}

@@ -56,13 +56,13 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
-function buildUrl(path: string, params?: Record<string, string | undefined>): string {
+function buildUrl(path: string, params?: PeriodParams): string {
   const resolved = resolveApiUrl(path)
   const url = new URL(resolved, window.location.origin)
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== '') {
-        url.searchParams.set(key, value)
+        url.searchParams.set(key, value as string)
       }
     }
   }

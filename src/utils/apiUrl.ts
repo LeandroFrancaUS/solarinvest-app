@@ -19,7 +19,7 @@ const sanitizeBaseUrl = (value: unknown): string => {
 const resolveEnvBaseUrl = (): string => {
   // Quando executado no browser via Vite, import.meta.env estará disponível.
   if (typeof import.meta !== 'undefined' && typeof import.meta.env !== 'undefined') {
-    const env = import.meta.env as Record<string, string | undefined>
+    const env = import.meta.env as unknown as Record<string, string | undefined>
     if (Object.prototype.hasOwnProperty.call(env, 'VITE_API_URL')) {
       const sanitized = sanitizeBaseUrl(env.VITE_API_URL)
       if (sanitized) {

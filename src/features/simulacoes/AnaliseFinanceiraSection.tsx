@@ -3,8 +3,6 @@
 // Renders the full Análise Financeira block when simulacoesSection === 'analise'.
 
 import type React from 'react'
-import { Field } from '../../components/ui/Field'
-import { MONEY_INPUT_PLACEHOLDER } from '../../lib/locale/useBRNumberField'
 import type { CidadeDB } from '../../data/cidades'
 import type { AnaliseFinanceiraOutput } from '../../types/analiseFinanceira'
 import type { VendasConfig } from '../../types/vendasConfig'
@@ -13,6 +11,7 @@ import { AfCustosDiretosPanel } from './AfCustosDiretosPanel'
 import { AfResultadosVendaPanel } from './AfResultadosVendaPanel'
 import { AfResultadosLeasingPanel } from './AfResultadosLeasingPanel'
 import { AfAprovacaoGrid } from './AfAprovacaoGrid'
+import type { AprovacaoStatus, AprovacaoChecklistKey } from './simulacoesConstants'
 import type { MoneyFieldHandle } from './simulacoesTypes'
 
 export interface AnaliseFinanceiraSectionProps {

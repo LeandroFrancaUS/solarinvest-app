@@ -168,6 +168,40 @@ const isTableTerminator = (normalizedLine: string): boolean => {
 const collectEstruturaContext = (lines: string[], start: number, count = 8): string[] =>
   lines.slice(start, Math.min(lines.length, start + count)).map((line) => line.trim())
 
+/**
+ * For a linearized (single-space-separated) row, extract the TIPO value as all
+ * text tokens before the first numeric token. This handles rows like:
+ *   "Laje Concreto Impermeabilizada 2 5 Norte"
+ * where the fallback regex would incorrectly assign col0 = "Laje" (lazy match).
+ */
+const extractTipoBeforeFirstNumber = (line: string): string | null => {
+  const words = line.trim().split(/\s+/)
+  const tipoWords: string[] = []
+  for (const word of words) {
+    if (/^\d/.test(word)) break
+    tipoWords.push(word)
+  }
+  const tipo = tipoWords.join(' ').trim()
+  return tipo || null
+}
+
+/**
+ * Given a candidate tipo and the raw combined row, return the best tipo value.
+ * When the row has no multi-space / tab separators (linearized), prefer the longer
+ * extraction from extractTipoBeforeFirstNumber.
+ */
+const resolveTipoCandidate = (candidate: string | undefined, combinedRow: string): string | null => {
+  const trimmed = candidate?.trim() ?? null
+  if (!trimmed) return null
+  if (!combinedRow.includes('  ') && !combinedRow.includes('\t')) {
+    const linear = extractTipoBeforeFirstNumber(combinedRow)
+    if (linear && linear.length > trimmed.length) {
+      return linear
+    }
+  }
+  return trimmed
+}
+
 const extractEstruturaUtilizadaTipo = (text: string): EstruturaTipoExtractionResult => {
   const lines = text.split(/\r?\n/)
   const anchorIndex = lines.findIndex((line) => normalizeForSearch(line).includes('ESTRUTURA UTILIZADA'))
@@ -239,7 +273,7 @@ const extractEstruturaUtilizadaTipo = (text: string): EstruturaTipoExtractionRes
     const combined = dataLines.join(' ')
     const columns = splitEstruturaColumnsFlexible(combined)
     if (columns.length >= columnCount) {
-      const tipoCandidate = columns[tipoIndex]?.trim()
+      const tipoCandidate = resolveTipoCandidate(columns[tipoIndex], combined)
       if (tipoCandidate) {
         return {
           tipo: tipoCandidate,
@@ -263,7 +297,7 @@ const extractEstruturaUtilizadaTipo = (text: string): EstruturaTipoExtractionRes
 
   const combinedRow = dataLines.join(' ')
   const columns = splitEstruturaColumnsFlexible(combinedRow)
-  const tipoCandidate = columns[tipoIndex]?.trim()
+  const tipoCandidate = resolveTipoCandidate(columns[tipoIndex], combinedRow)
 
   if (tipoCandidate) {
     return {
@@ -522,7 +556,7 @@ export function parseVendaPdfText(text: string): ParsedVendaPdfData {
   if (potencia_da_placa_wp == null) {
     const fallbackMatch = text.match(/m[óo]dulo[^\n]*?(\d{3,4})\s*(?:wp|w)\b/i)
     if (fallbackMatch) {
-      const numeric = fallbackMatch[1].replace(/\D+/g, '')
+      const numeric = fallbackMatch[1]!.replace(/\D+/g, '')
       if (numeric) {
         const parsed = toNumberFlexible(numeric)
         if (typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0) {

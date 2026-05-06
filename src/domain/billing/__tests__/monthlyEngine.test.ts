@@ -117,11 +117,11 @@ describe('generateInstallments', () => {
     })
 
     expect(installments).toHaveLength(3)
-    expect(installments[0].numero).toBe(1)
-    expect(installments[0].data_vencimento.getDate()).toBe(10)
-    expect(installments[0].valor).toBe(250)
-    expect(installments[1].numero).toBe(2)
-    expect(installments[2].numero).toBe(3)
+    expect(installments[0]!.numero).toBe(1)
+    expect(installments[0]!.data_vencimento.getDate()).toBe(10)
+    expect(installments[0]!.valor).toBe(250)
+    expect(installments[1]!.numero).toBe(2)
+    expect(installments[2]!.numero).toBe(3)
   })
 
   it('returns empty array for zero prazo', () => {
@@ -174,17 +174,17 @@ describe('generateInstallments', () => {
       valor_mensalidade: 912,
     })
     // #1 → 22/04/2026 (exact)
-    expect(installments[0].data_vencimento.getFullYear()).toBe(2026)
-    expect(installments[0].data_vencimento.getMonth()).toBe(3) // April
-    expect(installments[0].data_vencimento.getDate()).toBe(22)
+    expect(installments[0]!.data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[0]!.data_vencimento.getMonth()).toBe(3) // April
+    expect(installments[0]!.data_vencimento.getDate()).toBe(22)
     // #2 → 05/05/2026
-    expect(installments[1].data_vencimento.getFullYear()).toBe(2026)
-    expect(installments[1].data_vencimento.getMonth()).toBe(4) // May
-    expect(installments[1].data_vencimento.getDate()).toBe(5)
+    expect(installments[1]!.data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[1]!.data_vencimento.getMonth()).toBe(4) // May
+    expect(installments[1]!.data_vencimento.getDate()).toBe(5)
     // #3 → 05/06/2026
-    expect(installments[2].data_vencimento.getFullYear()).toBe(2026)
-    expect(installments[2].data_vencimento.getMonth()).toBe(5) // June
-    expect(installments[2].data_vencimento.getDate()).toBe(5)
+    expect(installments[2]!.data_vencimento.getFullYear()).toBe(2026)
+    expect(installments[2]!.data_vencimento.getMonth()).toBe(5) // June
+    expect(installments[2]!.data_vencimento.getDate()).toBe(5)
   })
 
   it('acceptance: 22/04/2026 + dueDay 5 + 60 parcelas → #1=22/04, #2=05/05, #60=05/03/2031', () => {
@@ -197,17 +197,17 @@ describe('generateInstallments', () => {
     })
     expect(installments).toHaveLength(60)
     // #1
-    const first = installments[0].data_vencimento
+    const first = installments[0]!.data_vencimento
     expect(first.getFullYear()).toBe(2026)
     expect(first.getMonth()).toBe(3)  // April
     expect(first.getDate()).toBe(22)
     // #2
-    const second = installments[1].data_vencimento
+    const second = installments[1]!.data_vencimento
     expect(second.getFullYear()).toBe(2026)
     expect(second.getMonth()).toBe(4) // May
     expect(second.getDate()).toBe(5)
     // #60
-    const last = installments[59].data_vencimento
+    const last = installments[59]!.data_vencimento
     expect(last.getFullYear()).toBe(2031)
     expect(last.getMonth()).toBe(2)   // March
     expect(last.getDate()).toBe(5)
@@ -223,17 +223,17 @@ describe('generateInstallments', () => {
     })
     expect(installments).toHaveLength(60)
     // #1
-    const first = installments[0].data_vencimento
+    const first = installments[0]!.data_vencimento
     expect(first.getFullYear()).toBe(2026)
     expect(first.getMonth()).toBe(3)  // April
     expect(first.getDate()).toBe(5)
     // #2
-    const second = installments[1].data_vencimento
+    const second = installments[1]!.data_vencimento
     expect(second.getFullYear()).toBe(2026)
     expect(second.getMonth()).toBe(4) // May
     expect(second.getDate()).toBe(5)
     // #60
-    const last = installments[59].data_vencimento
+    const last = installments[59]!.data_vencimento
     expect(last.getFullYear()).toBe(2031)
     expect(last.getMonth()).toBe(2)   // March
     expect(last.getDate()).toBe(5)

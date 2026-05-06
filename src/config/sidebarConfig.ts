@@ -16,16 +16,16 @@ export interface SidebarConfigParams {
   canSeeFinancialAnalysisEffective: boolean
   isAdmin: boolean
   // Handlers
-  abrirDashboard: () => void
-  abrirClientesPainel: () => void
-  abrirCarteira: () => void
-  abrirGestaoFinanceira: () => void
-  abrirDashboardOperacional: () => void
-  handleNavigateToProposalTab: (tab: 'leasing' | 'vendas') => void
-  abrirSimulacoes: (section: SimulacoesSection) => void
-  handleGerarContratosComConfirmacao: () => void
-  abrirEnvioPropostaModal: () => void
-  abrirPesquisaOrcamentos: () => void
+  abrirDashboard: () => unknown
+  abrirClientesPainel: () => unknown
+  abrirCarteira: () => unknown
+  abrirGestaoFinanceira: () => unknown
+  abrirDashboardOperacional: () => unknown
+  handleNavigateToProposalTab: (tab: 'leasing' | 'vendas') => unknown
+  abrirSimulacoes: (section: SimulacoesSection) => unknown
+  handleGerarContratosComConfirmacao: () => unknown
+  abrirEnvioPropostaModal: () => unknown
+  abrirPesquisaOrcamentos: () => unknown
   setActivePage: (page: ActivePage) => void
   crmItems: SidebarItem[]
   // State
@@ -188,13 +188,12 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
                       label: 'Enviar proposta',
                       icon: '📨',
                       onSelect: () => {
-                        abrirEnvioPropostaModal()
+                        void abrirEnvioPropostaModal()
                       },
                       disabled: contatosEnvio.length === 0,
-                      title:
-                        contatosEnvio.length === 0
-                          ? 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.'
-                          : undefined,
+                      ...(contatosEnvio.length === 0
+                        ? { title: 'Cadastre um cliente ou lead com telefone para compartilhar a proposta.' }
+                        : {}),
                     },
                   ]
                 : []),
@@ -316,9 +315,7 @@ export function buildSidebarGroups(params: SidebarConfigParams): SidebarGroup[] 
     {
       id: 'configuracoes',
       label: '',
-      items: [
-        // Portfolio and Financial Management moved to top - removed from here
-      ],
+      items: [] as SidebarItem[],
     },
   ]
 }

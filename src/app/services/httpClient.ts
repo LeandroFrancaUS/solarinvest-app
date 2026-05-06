@@ -11,9 +11,9 @@ function readCookie(name: string): string | null {
   if (!match) return null
   const [, value] = match.split('=')
   try {
-    return decodeURIComponent(value)
+    return decodeURIComponent(value ?? '')
   } catch (_error) {
-    return value
+    return value ?? null
   }
 }
 
@@ -31,7 +31,9 @@ export interface ApiError extends Error {
 
 function buildApiError(message: string, status?: number, details?: unknown): ApiError {
   const error = new Error(message) as ApiError
-  error.status = status
+  if (status !== undefined) {
+    error.status = status
+  }
   error.details = details
   return error
 }

@@ -631,7 +631,7 @@ function ClientesPanel({
                         (
                           item,
                         ): item is { key: string; label: string; value: string; href?: string | null; title?: string } =>
-                          Boolean(item) && !CLIENT_ROW_SUMMARY_FIELDS.has(item.key),
+                          item !== null && !CLIENT_ROW_SUMMARY_FIELDS.has(item.key),
                       )
                       // Total columns: 6 fixed + 1 if privileged (Consultor) + 1 Ações = 7 or 8
                       const colSpanTotal = isPrivilegedUser ? 8 : 7

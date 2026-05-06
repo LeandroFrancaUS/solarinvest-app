@@ -1777,7 +1777,7 @@ function PrintableProposalInner(
             )}
           </section>
 
-          <PrintableProposalImages images={imagensInstalacao} />
+          <PrintableProposalImages images={imagensInstalacao ?? null} />
 
           {configuracaoUsinaObservacoesParagrafos.length > 0 ? (
             <section

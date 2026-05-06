@@ -1,6 +1,6 @@
 // src/domain/payments/clientPaymentStatusV2.ts
 
-import type { PortfolioClientRow } from '../../types/clientPortfolio'
+import type { PortfolioClientRow, InstallmentPayment } from '../../types/clientPortfolio'
 import {
   getLandingPaymentStatus,
   type LandingPaymentStatus,
@@ -20,14 +20,14 @@ export const CLIENT_PAYMENT_STATUS_V2_LABELS: Record<ClientPaymentStatusV2, stri
     Object.entries(LANDING_PAYMENT_STATUS_META).map(([k, v]) => [k, v.label]),
   ) as Record<ClientPaymentStatusV2, string>
 
-function parseInstallments(raw: unknown): any[] {
+function parseInstallments(raw: unknown): InstallmentPayment[] {
   if (!raw) return []
-  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw)) return raw as InstallmentPayment[]
 
   if (typeof raw === 'string') {
     try {
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? parsed : []
+      const parsed: unknown = JSON.parse(raw)
+      return Array.isArray(parsed) ? (parsed as InstallmentPayment[]) : []
     } catch {
       return []
     }
@@ -64,10 +64,10 @@ function resolveDueDate(client: PortfolioClientRow, index: number): string | nul
 function toCharges(client: PortfolioClientRow): MonthlyChargeLike[] {
   const installments = parseInstallments(client.installments_json)
 
-  return installments.map((inst: any, i: number) => ({
+  return installments.map((inst: InstallmentPayment, i: number) => ({
     dueDate: resolveDueDate(client, inst.number ? inst.number - 1 : i),
-    status: inst.status ?? inst.payment_status,
-    paidAt: inst.paid_at ?? inst.paidAt ?? inst.payment_date ?? null,
+    status: inst.status ?? null,
+    paidAt: inst.paid_at ?? null,
   }))
 }
 

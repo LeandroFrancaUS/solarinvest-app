@@ -183,7 +183,7 @@ describe('Auditoria GF×AF — 10 simulações venda', () => {
 
       // GF KPIs must match the reference computation exactly
       expect(gfKpis.payback_meses).toBe(refKpis.payback_meses)
-      expect(gfKpis.roi_pct).toBeCloseTo(refKpis.roi_percent!, 6)
+      expect(gfKpis.roi_pct).toBeCloseTo(refKpis.roi_percent, 6)
       expect(gfKpis.tir_pct).toBeCloseTo(refKpis.tir_anual_percent!, 4)
       expect(gfKpis.vpl).toBe(null) // no taxa_desconto provided → VPL null
 
@@ -242,7 +242,7 @@ describe('Auditoria GF×AF — 10 simulações venda', () => {
         expect(afResult.payback_meses).toBe(gfKpis.payback_meses)
       }
       if (gfKpis.tir_pct !== null) {
-        expect(afResult.tir_anual_percent).toBeCloseTo(gfKpis.tir_pct!, 3)
+        expect(afResult.tir_anual_percent).toBeCloseTo(gfKpis.tir_pct, 3)
       }
 
       // ── 4. Sanity checks ─────────────────────────────────────────────────────
@@ -317,9 +317,9 @@ describe('Auditoria GF×AF — 10 simulações leasing', () => {
       if (refKpis.payback_meses !== null) {
         expect(gfKpis.payback_meses).toBe(refKpis.payback_meses)
       }
-      expect(gfKpis.roi_pct).toBeCloseTo(refKpis.roi_percent!, 4)
+      expect(gfKpis.roi_pct).toBeCloseTo(refKpis.roi_percent, 4)
       if (refKpis.tir_anual_percent !== null) {
-        expect(gfKpis.tir_pct).toBeCloseTo(refKpis.tir_anual_percent!, 3)
+        expect(gfKpis.tir_pct).toBeCloseTo(refKpis.tir_anual_percent, 3)
       }
       expect(gfKpis.vpl).toBe(null) // no taxa_desconto → VPL null
 

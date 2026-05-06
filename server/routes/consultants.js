@@ -7,9 +7,24 @@
 // the proposal form to populate the consultant dropdown).
 
 import { resolveActor } from '../proposals/permissions.js'
+import { jsonResponse, noContentResponse } from '../response.js'
+import {
+  listConsultants,
+  listConsultantsPicker,
+  isDocumentTaken,
+  isCodeTaken,
+  createConsultant,
+  updateConsultant,
+  deactivateConsultant,
+  findConsultantById,
+  findOtherConsultantWithUser,
+  linkConsultant,
+  unlinkConsultant,
+  findConsultantByUserId,
+  findConsultantByEmail,
+  findConsultantByName,
+} from '../consultants/repository.js'
 
-// Regex for auto-generated consultant codes: C/c + 3 alphanumerics
-const CODE_REGEX = /^[Cc][A-Za-z0-9]{3}$/
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 /**
@@ -91,47 +106,10 @@ export async function handleConsultantsListRequest(req, res, { sendJson, getScop
   const urlObj = typeof url === 'string' ? new URL(url, 'http://localhost') : url
   const activeOnly = urlObj ? urlObj.searchParams.get('active') === 'true' : false
 
-  let rows
-  try {
-    rows = activeOnly
-      ? await sql`
-          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
-          WHERE is_active = true
-          ORDER BY LOWER(full_name) ASC
-        `
-      : await sql`
-          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
-          ORDER BY LOWER(full_name) ASC
-        `
-  } catch (err) {
-    // consultants table does not exist yet → return empty list
-    if (err?.code === '42P01') {
-      sendJson(200, { consultants: [] })
-      return
-    }
-    // apelido column does not exist yet (migration 0042 pending) → retry without it
-    if (err?.code === '42703') {
-      rows = activeOnly
-        ? await sql`
-            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
-                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
-            FROM public.consultants
-            WHERE is_active = true
-            ORDER BY LOWER(full_name) ASC
-          `
-        : await sql`
-            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
-                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
-            FROM public.consultants
-            ORDER BY LOWER(full_name) ASC
-          `
-    } else {
-      throw err
-    }
+  const rows = await listConsultants(sql, activeOnly)
+  if (rows === null) {
+    sendJson(200, { consultants: [] })
+    return
   }
 
   console.info('[consultants][list]', { count: rows.length, activeOnly })
@@ -159,30 +137,10 @@ export async function handleConsultantsPickerRequest(req, res, { sendJson, getSc
     return
   }
 
-  let rows
-  try {
-    rows = await sql`
-      SELECT id, full_name, apelido, email, linked_user_id
-      FROM public.consultants
-      WHERE is_active = true
-      ORDER BY LOWER(full_name) ASC
-    `
-  } catch (err) {
-    if (err?.code === '42P01') {
-      sendJson(200, { consultants: [] })
-      return
-    }
-    // apelido column does not exist yet (migration 0042 pending) → retry without it
-    if (err?.code === '42703') {
-      rows = await sql`
-        SELECT id, full_name, NULL AS apelido, email, linked_user_id
-        FROM public.consultants
-        WHERE is_active = true
-        ORDER BY LOWER(full_name) ASC
-      `
-    } else {
-      throw err
-    }
+  const rows = await listConsultantsPicker(sql)
+  if (rows === null) {
+    sendJson(200, { consultants: [] })
+    return
   }
 
   sendJson(200, { consultants: rows })
@@ -215,10 +173,7 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
 
   // Check document uniqueness
   const docStr = String(body.document).trim()
-  const docExisting = await sql`
-    SELECT id FROM public.consultants WHERE document = ${docStr}
-  `.catch(() => [])
-  if (docExisting.length > 0) {
+  if (await isDocumentTaken(sql, docStr)) {
     sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
     return
   }
@@ -227,8 +182,8 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
   let consultantCode = null
   for (let attempt = 0; attempt < 10; attempt++) {
     const candidate = generateConsultantCode()
-    const exists = await sql`SELECT id FROM public.consultants WHERE consultant_code = ${candidate}`.catch(() => [])
-    if (exists.length === 0) {
+    const taken = await isCodeTaken(sql, candidate)
+    if (!taken) {
       consultantCode = candidate
       break
     }
@@ -251,59 +206,20 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
   const apelidoRaw = body.apelido != null ? String(body.apelido).trim() : null
   const apelidoValue = apelidoRaw !== null && apelidoRaw !== '' ? apelidoRaw : (fullNameTrimmed.split(' ')[0] ?? fullNameTrimmed)
 
-  let rows
-  try {
-    rows = await sql`
-      INSERT INTO public.consultants (
-        consultant_code, full_name, apelido, phone, email, document, regions,
-        linked_user_id, is_active, created_by_user_id, updated_by_user_id,
-        created_at, updated_at
-      ) VALUES (
-        ${consultantCode},
-        ${fullNameTrimmed},
-        ${apelidoValue},
-        ${String(body.phone).trim()},
-        ${String(body.email).trim().toLowerCase()},
-        ${docStr},
-        ${regions},
-        ${body.linked_user_id ?? null},
-        true,
-        ${actor.userId ?? null},
-        ${actor.userId ?? null},
-        now(), now()
-      )
-      RETURNING *
-    `
-  } catch (err) {
-    // apelido column does not exist yet (migration 0042 pending) → insert without it
-    if (err?.code === '42703') {
-      rows = await sql`
-        INSERT INTO public.consultants (
-          consultant_code, full_name, phone, email, document, regions,
-          linked_user_id, is_active, created_by_user_id, updated_by_user_id,
-          created_at, updated_at
-        ) VALUES (
-          ${consultantCode},
-          ${fullNameTrimmed},
-          ${String(body.phone).trim()},
-          ${String(body.email).trim().toLowerCase()},
-          ${docStr},
-          ${regions},
-          ${body.linked_user_id ?? null},
-          true,
-          ${actor.userId ?? null},
-          ${actor.userId ?? null},
-          now(), now()
-        )
-        RETURNING *
-      `
-    } else {
-      throw err
-    }
-  }
+  const row = await createConsultant(sql, {
+    consultantCode,
+    fullName: fullNameTrimmed,
+    apelido: apelidoValue,
+    phone: String(body.phone).trim(),
+    email: String(body.email).trim().toLowerCase(),
+    document: docStr,
+    regions,
+    linkedUserId: body.linked_user_id ?? null,
+    createdByUserId: actor.userId ?? null,
+  })
 
-  console.info('[consultants][create]', { id: rows[0]?.id, code: consultantCode })
-  sendJson(201, { consultant: rows[0] })
+  console.info('[consultants][create]', { id: row?.id, code: consultantCode })
+  sendJson(201, { consultant: row })
 }
 
 /**
@@ -338,58 +254,29 @@ export async function handleConsultantsUpdateRequest(req, res, { sendJson, getSc
   const docStr = String(body.document).trim()
 
   // Check document uniqueness (excluding current record)
-  const docExisting = await sql`
-    SELECT id FROM public.consultants WHERE document = ${docStr} AND id != ${consultantId}
-  `.catch(() => [])
-  if (docExisting.length > 0) {
+  if (await isDocumentTaken(sql, docStr, consultantId)) {
     sendJson(409, { error: { code: 'DUPLICATE_DOCUMENT', message: 'Já existe um consultor cadastrado com este CPF/CNPJ.' } })
     return
   }
 
-  let rows
-  try {
-    rows = await sql`
-      UPDATE public.consultants SET
-        full_name          = ${String(body.full_name).trim()},
-        apelido            = ${body.apelido != null ? String(body.apelido).trim() || null : null},
-        phone              = ${String(body.phone).trim()},
-        email              = ${String(body.email).trim().toLowerCase()},
-        document           = ${docStr},
-        regions            = ${regions},
-        linked_user_id     = ${body.linked_user_id ?? null},
-        updated_by_user_id = ${actor.userId ?? null},
-        updated_at         = now()
-      WHERE id = ${consultantId}
-      RETURNING *
-    `
-  } catch (err) {
-    // apelido column does not exist yet (migration 0042 pending) → update without it
-    if (err?.code === '42703') {
-      rows = await sql`
-        UPDATE public.consultants SET
-          full_name          = ${String(body.full_name).trim()},
-          phone              = ${String(body.phone).trim()},
-          email              = ${String(body.email).trim().toLowerCase()},
-          document           = ${docStr},
-          regions            = ${regions},
-          linked_user_id     = ${body.linked_user_id ?? null},
-          updated_by_user_id = ${actor.userId ?? null},
-          updated_at         = now()
-        WHERE id = ${consultantId}
-        RETURNING *
-      `
-    } else {
-      throw err
-    }
-  }
+  const row = await updateConsultant(sql, consultantId, {
+    fullName: String(body.full_name).trim(),
+    apelido: body.apelido != null ? String(body.apelido).trim() || null : null,
+    phone: String(body.phone).trim(),
+    email: String(body.email).trim().toLowerCase(),
+    document: docStr,
+    regions,
+    linkedUserId: body.linked_user_id ?? null,
+    updatedByUserId: actor.userId ?? null,
+  })
 
-  if (rows.length === 0) {
+  if (!row) {
     sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
     return
   }
 
   console.info('[consultants][update]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  sendJson(200, { consultant: row })
 }
 
 /**
@@ -401,23 +288,15 @@ export async function handleConsultantsDeactivateRequest(req, res, { sendJson, g
   if (!requireAdmin(actor, sendJson)) return
 
   const sql = await getScopedSql(actor)
+  const row = await deactivateConsultant(sql, consultantId, actor.userId ?? null)
 
-  const rows = await sql`
-    UPDATE public.consultants SET
-      is_active          = false,
-      updated_by_user_id = ${actor.userId ?? null},
-      updated_at         = now()
-    WHERE id = ${consultantId}
-    RETURNING *
-  `
-
-  if (rows.length === 0) {
+  if (!row) {
     sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
     return
   }
 
   console.info('[consultants][deactivate]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  sendJson(200, { consultant: row })
 }
 
 /**
@@ -446,41 +325,29 @@ export async function handleConsultantsLinkRequest(req, res, { sendJson, getScop
   const sql = await getScopedSql(actor)
 
   // Check if consultant exists
-  const consultant = await sql`
-    SELECT id FROM public.consultants WHERE id = ${consultantId}
-  `
-  if (consultant.length === 0) {
+  const consultant = await findConsultantById(sql, consultantId)
+  if (!consultant) {
     sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
     return
   }
 
   // Check if the user is already linked to a different consultant
-  const existingLink = await sql`
-    SELECT id, full_name FROM public.consultants
-    WHERE linked_user_id = ${body.userId} AND id != ${consultantId}
-  `
-  if (existingLink.length > 0) {
+  const existingLink = await findOtherConsultantWithUser(sql, body.userId, consultantId)
+  if (existingLink) {
     sendJson(409, {
       error: {
         code: 'USER_ALREADY_LINKED',
-        message: `Este usuário já está vinculado ao consultor "${existingLink[0].full_name}". Desvincule primeiro.`
+        message: `Este usuário já está vinculado ao consultor "${existingLink.full_name}". Desvincule primeiro.`
       }
     })
     return
   }
 
   // Link the consultant to the user
-  const rows = await sql`
-    UPDATE public.consultants SET
-      linked_user_id     = ${body.userId},
-      updated_by_user_id = ${actor.userId ?? null},
-      updated_at         = now()
-    WHERE id = ${consultantId}
-    RETURNING *
-  `
+  const row = await linkConsultant(sql, consultantId, body.userId, actor.userId ?? null)
 
   console.info('[consultants][link]', { id: consultantId, userId: body.userId })
-  sendJson(200, { consultant: rows[0] })
+  sendJson(200, { consultant: row })
 }
 
 /**
@@ -492,23 +359,15 @@ export async function handleConsultantsUnlinkRequest(req, res, { sendJson, getSc
   if (!requireAdmin(actor, sendJson)) return
 
   const sql = await getScopedSql(actor)
+  const row = await unlinkConsultant(sql, consultantId, actor.userId ?? null)
 
-  const rows = await sql`
-    UPDATE public.consultants SET
-      linked_user_id     = NULL,
-      updated_by_user_id = ${actor.userId ?? null},
-      updated_at         = now()
-    WHERE id = ${consultantId}
-    RETURNING *
-  `
-
-  if (rows.length === 0) {
+  if (!row) {
     sendJson(404, { error: { code: 'NOT_FOUND', message: 'Consultor não encontrado.' } })
     return
   }
 
   console.info('[consultants][unlink]', { id: consultantId })
-  sendJson(200, { consultant: rows[0] })
+  sendJson(200, { consultant: row })
 }
 
 /**
@@ -536,68 +395,25 @@ export async function handleConsultantsAutoDetectRequest(req, res, { sendJson, g
   }
 
   // First, try to find by linked_user_id (highest priority)
-  let rows
-  try {
-    rows = await sql`
-      SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
-             linked_user_id, is_active, created_at, updated_at, created_by_user_id
-      FROM public.consultants
-      WHERE linked_user_id = ${actor.userId} AND is_active = true
-      LIMIT 1
-    `
-  } catch (err) {
-    if (err?.code === '42P01') {
-      sendJson(200, { consultant: null })
-      return
-    }
-    // apelido column does not exist yet (migration 0042 pending) → retry without it
-    if (err?.code === '42703') {
-      rows = await sql`
-        SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
-               linked_user_id, is_active, created_at, updated_at, created_by_user_id
-        FROM public.consultants
-        WHERE linked_user_id = ${actor.userId} AND is_active = true
-        LIMIT 1
-      `
-    } else {
-      throw err
-    }
+  const byUserId = await findConsultantByUserId(sql, actor.userId)
+  if (byUserId === undefined) {
+    // Table doesn't exist — return gracefully
+    sendJson(200, { consultant: null })
+    return
   }
-
-  if (rows.length > 0) {
-    console.info('[consultants][auto-detect] found by linked_user_id', { consultantId: rows[0].id, userId: actor.userId })
-    sendJson(200, { consultant: rows[0], matchType: 'linked_user_id' })
+  if (byUserId) {
+    console.info('[consultants][auto-detect] found by linked_user_id', { consultantId: byUserId.id, userId: actor.userId })
+    sendJson(200, { consultant: byUserId, matchType: 'linked_user_id' })
     return
   }
 
   // Second, try to find by email match (case-insensitive)
   if (actor.email) {
     const userEmail = actor.email.toLowerCase().trim()
-    try {
-      rows = await sql`
-        SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
-               linked_user_id, is_active, created_at, updated_at, created_by_user_id
-        FROM public.consultants
-        WHERE LOWER(email) = ${userEmail} AND is_active = true
-        LIMIT 1
-      `
-    } catch (err) {
-      if (err?.code === '42703') {
-        rows = await sql`
-          SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
-          WHERE LOWER(email) = ${userEmail} AND is_active = true
-          LIMIT 1
-        `
-      } else {
-        throw err
-      }
-    }
-
-    if (rows.length > 0) {
-      console.info('[consultants][auto-detect] found by email', { consultantId: rows[0].id, email: userEmail })
-      sendJson(200, { consultant: rows[0], matchType: 'email' })
+    const byEmail = await findConsultantByEmail(sql, userEmail)
+    if (byEmail) {
+      console.info('[consultants][auto-detect] found by email', { consultantId: byEmail.id, email: userEmail })
+      sendJson(200, { consultant: byEmail, matchType: 'email' })
       return
     }
   }
@@ -608,36 +424,10 @@ export async function handleConsultantsAutoDetectRequest(req, res, { sendJson, g
     if (nameParts.length >= 2) {
       const firstName = nameParts[0].toLowerCase()
       const lastName = nameParts[nameParts.length - 1].toLowerCase()
-
-      try {
-        rows = await sql`
-          SELECT id, consultant_code, full_name, apelido, phone, email, document, regions,
-                 linked_user_id, is_active, created_at, updated_at, created_by_user_id
-          FROM public.consultants
-          WHERE is_active = true
-            AND LOWER(SPLIT_PART(full_name, ' ', 1)) = ${firstName}
-            AND LOWER(SPLIT_PART(full_name, ' ', ARRAY_LENGTH(STRING_TO_ARRAY(full_name, ' '), 1))) = ${lastName}
-          LIMIT 1
-        `
-      } catch (err) {
-        if (err?.code === '42703') {
-          rows = await sql`
-            SELECT id, consultant_code, full_name, NULL AS apelido, phone, email, document, regions,
-                   linked_user_id, is_active, created_at, updated_at, created_by_user_id
-            FROM public.consultants
-            WHERE is_active = true
-              AND LOWER(SPLIT_PART(full_name, ' ', 1)) = ${firstName}
-              AND LOWER(SPLIT_PART(full_name, ' ', ARRAY_LENGTH(STRING_TO_ARRAY(full_name, ' '), 1))) = ${lastName}
-            LIMIT 1
-          `
-        } else {
-          throw err
-        }
-      }
-
-      if (rows.length > 0) {
-        console.info('[consultants][auto-detect] found by name', { consultantId: rows[0].id, firstName, lastName })
-        sendJson(200, { consultant: rows[0], matchType: 'name' })
+      const byName = await findConsultantByName(sql, firstName, lastName)
+      if (byName) {
+        console.info('[consultants][auto-detect] found by name', { consultantId: byName.id, firstName, lastName })
+        sendJson(200, { consultant: byName, matchType: 'name' })
         return
       }
     }
@@ -648,3 +438,99 @@ export async function handleConsultantsAutoDetectRequest(req, res, { sendJson, g
   sendJson(200, { consultant: null })
 }
 
+
+/**
+ * Registers all /api/consultants routes on the given router.
+ *
+ * Exact-path routes (/picker, /auto-detect, /consultants) are registered first;
+ * parameterised routes (/:id, /:id/deactivate, /:id/link) follow.  The router's
+ * two-pass matching guarantees exact routes always win over patterns.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   getScopedSql:  (actor: object) => Promise<object>,
+ *   readJsonBody:  (req: object)   => Promise<object>,
+ * }} moduleCtx
+ */
+export function registerConsultantsRoutes(router, moduleCtx) {
+  const { getScopedSql, readJsonBody } = moduleCtx
+
+  // ── GET /api/consultants/picker ──────────────────────────────────────────
+  // Lightweight list for form dropdowns — any authenticated user.
+  router.register('*', '/api/consultants/picker', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsPickerRequest(req, res, { sendJson, getScopedSql })
+  })
+
+  // ── GET /api/consultants/auto-detect ─────────────────────────────────────
+  // Auto-detect linked consultant for the current user — any authenticated user.
+  router.register('*', '/api/consultants/auto-detect', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,OPTIONS' }); return }
+    if (method !== 'GET') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsAutoDetectRequest(req, res, { sendJson, getScopedSql })
+  })
+
+  // ── GET,POST /api/consultants ────────────────────────────────────────────
+  // GET  — list consultants (privileged read)
+  // POST — create consultant (admin only)
+  router.register('*', '/api/consultants', async (req, res, _reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const url = new URL(req.url, 'http://localhost')
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'GET,POST,OPTIONS' }); return }
+    if (method === 'GET') {
+      await handleConsultantsListRequest(req, res, { sendJson, getScopedSql, url })
+    } else if (method === 'POST') {
+      await handleConsultantsCreateRequest(req, res, { sendJson, getScopedSql, readJsonBody })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── PUT /api/consultants/:id ─────────────────────────────────────────────
+  // Update consultant — admin only.
+  router.register('*', '/api/consultants/:id', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PUT,OPTIONS' }); return }
+    if (method !== 'PUT') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsUpdateRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId })
+  })
+
+  // ── PATCH /api/consultants/:id/deactivate ────────────────────────────────
+  // Deactivate consultant — admin only.
+  router.register('*', '/api/consultants/:id/deactivate', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'PATCH,OPTIONS' }); return }
+    if (method !== 'PATCH') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await handleConsultantsDeactivateRequest(req, res, { sendJson, getScopedSql, consultantId })
+  })
+
+  // ── POST,DELETE /api/consultants/:id/link ────────────────────────────────
+  // POST   — link consultant to a user account (admin only)
+  // DELETE — unlink consultant from a user account (admin only)
+  router.register('*', '/api/consultants/:id/link', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    const sendJson = (s, b) => jsonResponse(res, s, b)
+    const consultantId = Number(reqCtx.params?.id)
+    if (!Number.isFinite(consultantId) || consultantId < 1) { jsonResponse(res, 404, { error: 'Not found.' }); return }
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,DELETE,OPTIONS' }); return }
+    if (method === 'POST') {
+      await handleConsultantsLinkRequest(req, res, { sendJson, getScopedSql, readJsonBody, consultantId })
+    } else if (method === 'DELETE') {
+      await handleConsultantsUnlinkRequest(req, res, { sendJson, getScopedSql, consultantId })
+    } else {
+      jsonResponse(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+}

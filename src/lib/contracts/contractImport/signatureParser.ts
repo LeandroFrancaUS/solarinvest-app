@@ -1,4 +1,4 @@
-import type { ParsedSignature } from './types'
+import type { ParsedSignature, SignatureRoleHint } from './types'
 import { brDateTimeToISO, formatCpfCnpj, normalizeDocument } from './normalizers'
 
 const RE_SIGNER_BLOCK =
@@ -7,7 +7,7 @@ const RE_SIGNER_BLOCK =
 const RE_SIGNER_NAME_LINE = /Assinado eletronicamente por\s+([A-Za-zÀ-ÿ\s]+)\s+Data:/i
 const RE_SIGNER_DOC = /([0-9]{3}\.[0-9]{3}\.[0-9]{3}\-[0-9]{2}|[0-9]{2}\.[0-9]{3}\.[0-9]{3}\/[0-9]{4}\-[0-9]{2})/i
 
-function inferRole(rawBlock: string): ParsedSignature['roleHint'] {
+function inferRole(rawBlock: string): SignatureRoleHint {
   const normalized = rawBlock.toLowerCase()
   if (normalized.includes('correspons')) return 'corresponsavel'
   if (normalized.includes('propriet')) return 'proprietario'

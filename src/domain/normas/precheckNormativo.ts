@@ -63,6 +63,16 @@ export function calcularPrecheckNormativo(input: PrecheckNormativoInput): Preche
     potenciaInversorKw: potencia,
   })
 
+  if (!compliance) {
+    return {
+      status: 'INDETERMINADO',
+      observacoes,
+      limites: {},
+      acoesSugeridas: { podeAjustarAutomatico: false },
+      compliance: null,
+    }
+  }
+
   const limites = {
     potenciaMaxKw: compliance.kwMaxPermitido ?? null,
     upgradeTo: compliance.upgradeTo,

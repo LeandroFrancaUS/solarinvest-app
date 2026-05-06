@@ -7,7 +7,7 @@ import type { AppTheme } from '../hooks/useTheme'
 export interface AppShellProps {
   topbar: TopbarProps
   sidebar: SidebarProps
-  content: ContentProps
+  content: Omit<ContentProps, 'children'>
   children: ReactNode
   mobileMenuButton?: {
     onToggle: () => void
@@ -18,7 +18,7 @@ export interface AppShellProps {
   theme?: AppTheme
   onCycleTheme?: () => void
   onOpenPreferences?: () => void
-  onLogout?: () => void
+  onLogout?: () => unknown
   isLoggingOut?: boolean
 }
 
@@ -51,7 +51,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton,
     }
   }, [sidebar.mobileOpen])
 
-  const contentProps: ContentProps = { ...content }
+  const contentProps: ContentProps = { ...content, children: null }
   if (sidebar.mobileOpen && sidebar.onCloseMobile) {
     const originalDismiss = content.onInteractOutsideSidebar
     contentProps.onInteractOutsideSidebar = () => {
@@ -67,7 +67,7 @@ export function AppShell({ topbar, sidebar, content, children, mobileMenuButton,
         {...(theme !== undefined ? { theme } : {})}
         {...(onCycleTheme !== undefined ? { onCycleTheme } : {})}
         {...(onOpenPreferences !== undefined ? { onOpenPreferences } : {})}
-        {...(onLogout !== undefined ? { onLogout } : {})}
+        {...(onLogout !== undefined ? { onLogout: () => { void onLogout() } } : {})}
         {...(isLoggingOut !== undefined ? { isLoggingOut } : {})}
       />
       <div className={bodyClasses.join(' ')}>

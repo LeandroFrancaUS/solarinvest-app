@@ -15,6 +15,9 @@ function rec(overrides: Partial<AnalyticsRecord> = {}): AnalyticsRecord {
     state: null,
     region: null,
     contractValue: null,
+    saleContractValue: null,
+    leasingMonthlyValue: null,
+    contractType: 'unknown',
     consumption: null,
     isClosed: false,
     isActive: false,
@@ -26,8 +29,8 @@ describe('computeDashboardSnapshot', () => {
   it('returns a complete snapshot', () => {
     invalidateSnapshotCache()
     const records = [
-      rec({ id: '1', isClosed: true, contractValue: 1000, closedAt: '2025-06-01T00:00:00Z' }),
-      rec({ id: '2', isClosed: true, contractValue: 2000, closedAt: '2025-06-15T00:00:00Z' }),
+      rec({ id: '1', isClosed: true, contractType: 'sale', contractValue: 1000, closedAt: '2025-06-01T00:00:00Z' }),
+      rec({ id: '2', isClosed: true, contractType: 'sale', contractValue: 2000, closedAt: '2025-06-15T00:00:00Z' }),
       rec({ id: '3', isClosed: false }),
     ]
     const snap = computeDashboardSnapshot(records, defaultFilters())

@@ -117,7 +117,9 @@ export function normalizePortfolio(row: Record<string, unknown>): AnalyticsRecor
   const contractType = normalizeContractType(row.contract_type)
   const leasingMonthlyValue = num(row.valor_mensalidade ?? row.mensalidade)
   const saleContractValue = num(row.buyout_amount_reference ?? row.contract_value ?? row.valordemercado)
-  const contractValue = contractType === 'leasing' ? leasingMonthlyValue : saleContractValue
+  const contractValue = contractType === 'leasing'
+    ? leasingMonthlyValue
+    : (saleContractValue ?? leasingMonthlyValue)
   const lifecycleStatus = str(row.lifecycle_status) ?? ''
   const activatedAt = str(row.exported_to_portfolio_at ?? row.contract_start_date ?? row.client_created_at)
   const isActive =

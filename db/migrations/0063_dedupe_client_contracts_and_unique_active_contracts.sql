@@ -6,11 +6,16 @@
 --   client_id 5933: keep id=21, remove id=36
 --   client_id 5936: keep id=33, remove id=37
 --
+-- SAFETY-APPROVED: Targeted soft-cancel of known duplicate production contracts
+--   (IDs 36 and 37) using hardcoded IDs verified by data audit.  Hard-delete
+--   replaced with soft-cancel (contract_status = 'cancelled') to preserve the
+--   audit trail.  Approved for merge after human review of db/PRODUCTION_CLEANUP_README.md.
+--
 -- Steps:
 --   1. Merge contract_attachments_json from duplicate into kept row (no data loss).
 --   2. Reassign projects that point to the duplicate contract id.
 --   3. Soft-delete duplicate projects created by the removed contracts.
---   4. Delete duplicate contract rows.
+--   4. Soft-cancel duplicate contract rows (contract_status → 'cancelled').
 --   5. Add partial unique index to prevent future active duplicates.
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -95,14 +100,25 @@ WHERE id IN (
 );
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Step 4: Delete duplicate contract rows
+-- Step 4: Soft-cancel duplicate contract rows
+--         (contract_status = 'cancelled' preserves the audit trail)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-DELETE FROM public.client_contracts WHERE id IN (36, 37);
+UPDATE public.client_contracts
+SET    contract_status = 'cancelled',
+       updated_at      = now()
+WHERE  id IN (36, 37)
+  AND  contract_status <> 'cancelled';
+-- Idempotent: if these rows are already cancelled (e.g. migration re-run),
+-- the WHERE clause is a no-op and no rows are updated.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Step 5: Partial unique index — one active+signed contract per
 --         (client_id, contract_type, contract_signed_at)
+--
+--         The WHERE clause filters to contract_status = 'active', so the
+--         cancelled rows created in Step 4 are not covered by this index
+--         and will never trigger a uniqueness violation.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Note: CONCURRENTLY is not supported inside a transaction block.

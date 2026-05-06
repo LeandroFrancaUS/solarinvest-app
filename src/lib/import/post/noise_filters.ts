@@ -64,7 +64,7 @@ export function hasNoise(text: string): boolean {
 
 export function sanitizeNoiseText(text: string): string {
   return text
-    .normalize('NFKC')
+    .normalize('NFC')
     .replace(/\u00a0/g, ' ')
     .replace(/[•·●▪︎◦]/g, ' ')
     .replace(/\s+/g, ' ')

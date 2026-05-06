@@ -1,6 +1,23 @@
+// server/routes/databaseBackup.js
+// /api/admin/database-backup route handler, extracted from the inline if-chain
+// in handler.js as part of the route registry migration (PR 15).
+//
+// Response shapes, status codes, auth behaviour, and rate-limiting are
+// intentionally identical to the originals.  handler.js imports and registers
+// this route via registerDatabaseBackupRoutes() so it continues to act as the
+// compatibility shim.
+//
+// Auth, rate-limiting, and error handling are centralised via the middleware
+// layer introduced in PR 17:
+//   registerDatabaseBackupRoutes → withErrorHandler(withRateLimit(withAuth(...)))
+
 import crypto from 'node:crypto'
 import { getDatabaseClient } from '../database/neonClient.js'
 import { resolveActor } from '../proposals/permissions.js'
+import { withAuth } from '../middleware/withAuth.js'
+import { withErrorHandler } from '../middleware/withErrorHandler.js'
+import { withRateLimit } from '../middleware/withRateLimit.js'
+import { jsonResponse, noContentResponse } from '../response.js'
 
 const BACKUP_TABLE = 'db_backup_snapshots'
 const MAX_PLATFORM_BACKUPS_PER_USER = 20
@@ -398,28 +415,32 @@ async function persistPlatformBackup(sql, actor, payload, checksum) {
   `
 }
 
-export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) {
-  let actor
-  try {
-    actor = await resolveActor(req)
-  } catch {
-    sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
-    return
-  }
+export async function handleDatabaseBackupRequest(req, res, { body, actor: injectedActor = null }) {
+  // Use the actor injected by withAuth middleware when present; fall back to
+  // resolving it internally for callers that do not use the middleware chain.
+  let actor = injectedActor
+  if (!actor) {
+    try {
+      actor = await resolveActor(req)
+    } catch {
+      jsonResponse(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+      return
+    }
 
-  if (!actor?.userId) {
-    sendJson(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
-    return
-  }
+    if (!actor?.userId) {
+      jsonResponse(res, 401, { ok: false, error: 'Autenticação obrigatória.' })
+      return
+    }
 
-  if (!actor.isAdmin && !actor.isOffice) {
-    sendJson(res, 403, { ok: false, error: 'Apenas perfis Admin e Office podem gerar backup.' })
-    return
+    if (!actor.isAdmin && !actor.isOffice) {
+      jsonResponse(res, 403, { ok: false, error: 'Apenas perfis Admin e Office podem gerar backup.' })
+      return
+    }
   }
 
   const db = getDatabaseClient()
   if (!db?.sql) {
-    sendJson(res, 503, { ok: false, error: 'Banco de dados não configurado.' })
+    jsonResponse(res, 503, { ok: false, error: 'Banco de dados não configurado.' })
     return
   }
 
@@ -430,7 +451,7 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
     if (action === 'import') {
       console.log(`[backup-import] request received user=${actor.userId}`)
       const importResult = await restoreBackupPayload(db.sql, body?.payload, actor)
-      sendJson(res, 200, {
+      jsonResponse(res, 200, {
         ok: true,
         action: 'import',
         importedClients: importResult.importedClients,
@@ -451,7 +472,7 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
     }
 
     console.log(`[backup-export] success user=${actor.userId} checksum=${checksum.slice(0, 12)}`)
-    sendJson(res, 200, {
+    jsonResponse(res, 200, {
       ok: true,
       destination,
       fileName: `solarinvest-backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
@@ -462,10 +483,55 @@ export async function handleDatabaseBackupRequest(req, res, { sendJson, body }) 
   } catch (error) {
     const phase = action === 'import' ? 'import' : 'export'
     console.error(`[backup-${phase}] failed user=${actor?.userId ?? 'unknown'}:`, error.message, error.stack)
-    sendJson(res, 500, {
+    jsonResponse(res, 500, {
       ok: false,
       error: error.message?.startsWith('Payload') ? error.message : `Falha ao ${phase === 'import' ? 'carregar' : 'gerar'} backup do banco.`,
       detail: process.env.NODE_ENV !== 'production' ? error.message : undefined,
     })
   }
+}
+
+/**
+ * Registers the /api/admin/database-backup route on the given router.
+ *
+ * Auth, rate-limiting, and error handling are composed via the middleware
+ * layer.  The outer route handler keeps the OPTIONS pre-flight and method
+ * guard inline so that these checks run before any auth or rate-limit
+ * overhead — consistent with the existing, backward-compatible behaviour.
+ *
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   readJsonBody:        (req: object) => Promise<object>,
+ *   isAdminRateLimited:  (req: object) => boolean,
+ * }} moduleCtx
+ */
+export function registerDatabaseBackupRoutes(router, moduleCtx) {
+  const { readJsonBody, isAdminRateLimited } = moduleCtx
+
+  // Compose the protected inner handler once at registration time.
+  // Execution order per request: error handler (wrapper) → rate limit → auth → handler body.
+  const protectedHandler = withErrorHandler(
+    withRateLimit(
+      withAuth(
+        async (req, res, reqCtx) => {
+          const body = await readJsonBody(req)
+          await handleDatabaseBackupRequest(req, res, { body, actor: reqCtx.actor })
+        },
+        { roles: ['admin', 'office'] },
+      ),
+      { check: isAdminRateLimited },
+    ),
+  )
+
+  // POST /api/admin/database-backup — secure DB snapshot export for admin/office
+  router.register('*', '/api/admin/database-backup', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? ''
+    // OPTIONS preflight: always respond without auth or rate-limit checks.
+    if (method === 'OPTIONS') { noContentResponse(res, { Allow: 'POST,OPTIONS' }); return }
+    // Method guard runs before the composed middleware chain (rate-limit → auth → handler)
+    // to keep standard HTTP semantics and avoid disclosing auth requirements to callers
+    // that use an unsupported method.
+    if (method !== 'POST') { jsonResponse(res, 405, { error: 'Método não suportado.' }); return }
+    await protectedHandler(req, res, reqCtx)
+  })
 }

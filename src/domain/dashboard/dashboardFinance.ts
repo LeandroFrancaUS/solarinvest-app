@@ -72,8 +72,8 @@ function normalizeInstallments(raw: unknown): InstallmentPayment[] {
   if (Array.isArray(raw)) return raw as InstallmentPayment[]
   if (typeof raw !== 'string') return []
   try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as InstallmentPayment[]) : []
   } catch {
     return []
   }
@@ -89,9 +89,8 @@ function buildCharges(row: PortfolioClientRow): Array<MonthlyChargeLike & { valu
       return {
         number,
         dueDate: dueDateForInstallment(row, number),
-        status: inst.status,
-        paid_at: inst.paid_at,
-        paidAt: inst.paid_at,
+        ...(inst.status !== undefined ? { status: inst.status } : undefined),
+        ...(inst.paid_at !== undefined ? { paid_at: inst.paid_at, paidAt: inst.paid_at } : undefined),
         value: toNumber(inst.valor_override ?? monthlyValue),
       }
     })

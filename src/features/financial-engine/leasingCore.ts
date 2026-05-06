@@ -41,8 +41,8 @@ export function computeLeasingFinancialSummary(
   pv: ProjectPvData | null,
 ): LeasingFinancialSummary {
   // Resolve field aliases — the schema has evolved; prefer the newer column names.
-  const mensalidade = client.mensalidade ?? client.valor_mensalidade ?? null
-  const prazo = client.contractual_term_months ?? client.prazo_meses ?? null
+  const mensalidade: number | null = client.mensalidade ?? (client.valor_mensalidade != null ? Number(client.valor_mensalidade) : null)
+  const prazo: number | null = client.contractual_term_months != null ? Number(client.contractual_term_months) : (client.prazo_meses != null ? Number(client.prazo_meses) : null)
   const kwh = client.kwh_mes_contratado ?? client.kwh_contratado ?? null
   const desconto = client.desconto_percentual ?? null
   const tarifa = client.tarifa_atual ?? null

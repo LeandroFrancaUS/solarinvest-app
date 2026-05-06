@@ -80,7 +80,10 @@ const parseDate = (value: unknown): Date | null => {
   if (Number.isFinite(iso.getTime())) return iso
   const parts = trimmed.split(/[\/-]/)
   if (parts.length >= 3) {
-    const [d, m, y] = parts.map((part) => parseInt(part, 10))
+    const mapped = parts.map((part) => parseInt(part, 10))
+    const d = mapped[0] ?? NaN
+    const m = mapped[1] ?? NaN
+    const y = mapped[2] ?? NaN
     if (Number.isFinite(d) && Number.isFinite(m) && Number.isFinite(y) && m >= 1 && m <= 12) {
       const dt = new Date(y < 100 ? 2000 + y : y, m - 1, d)
       if (Number.isFinite(dt.getTime())) return dt
@@ -198,8 +201,9 @@ const fetchFromCsv = async (uf: string, distribuidora: string): Promise<number |
     const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
     if (!lines.length) return null
 
-    const delimiter = lines[0].includes(';') ? ';' : ','
-    const headerCells = parseCsvLine(lines[0], delimiter)
+    const firstLine = lines[0] ?? ''
+    const delimiter = firstLine.includes(';') ? ';' : ','
+    const headerCells = parseCsvLine(firstLine, delimiter)
 
     const idxUF = headerCells.findIndex((cell) => norm(cell) === 'UF')
     const idxDist = headerCells.findIndex((cell) =>
@@ -217,13 +221,13 @@ const fetchFromCsv = async (uf: string, distribuidora: string): Promise<number |
     let melhorData: Date | null = null
 
     for (let i = 1; i < lines.length; i += 1) {
-      const cells = parseCsvLine(lines[i], delimiter)
+      const cells = parseCsvLine(lines[i] ?? '', delimiter)
       if (cells.length <= Math.max(idxUF, idxDist, idxData)) continue
 
-      if (norm(cells[idxUF]) !== UF) continue
-      if (!norm(cells[idxDist]).includes(DIST)) continue
+      if (norm(cells[idxUF] ?? '') !== UF) continue
+      if (!norm(cells[idxDist] ?? '').includes(DIST)) continue
 
-      const data = parseDate(cells[idxData])
+      const data = parseDate(cells[idxData] ?? '')
       if (!data) continue
 
       if (!melhorData || data > melhorData) {

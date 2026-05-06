@@ -130,7 +130,7 @@ export const calcularMultiUc = ({
   ucs.forEach((uc, index) => {
     const consumo = Math.max(0, clampNumero(uc.consumoKWh))
     const tarifa = normalizarTarifa(uc.tarifas)
-    const rateioPercentual = Math.max(0, percentuais[index])
+    const rateioPercentual = Math.max(0, percentuais[index] ?? 0)
     const rateioManualKWh = Math.max(0, clampNumero(uc.manualRateioKWh ?? 0))
 
     let creditosKWh: number

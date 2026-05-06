@@ -8,12 +8,107 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  # --------------------------------------------------------------------------
+  # staging — Runs automatically after CI passes on main.
+  # Validates migration safety, clones a Neon staging branch and runs
+  # migrations against it, builds a Vercel preview deployment, and runs
+  # smoke tests against it.  No production gate is required for this job.
+  # --------------------------------------------------------------------------
+  staging:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push')
+    permissions:
+      contents: read
+      deployments: write
+    outputs:
+      preview_url: ${{ steps.deploy_preview.outputs.preview_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Run migration safety check
+        run: npm run deploy:safety-check
+
+      # ── Neon staging branch ──────────────────────────────────────────────
+      # Create a temporary branch off the production Neon database, run all
+      # pending migrations against it, then delete it.  This validates that
+      # migrations apply cleanly before production is touched.
+      - name: Create Neon staging branch
+        id: neon_staging
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: staging/deploy-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Run migrations on Neon staging branch
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ steps.neon_staging.outputs.db_url }}
+
+      - name: Delete Neon staging branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: staging/deploy-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      # ── End Neon staging branch ──────────────────────────────────────────
+
+      - name: Pull Vercel preview environment
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build preview
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel preview
+        id: deploy_preview
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "preview_url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "Preview deployed to: ${URL}"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Run contracts/leasing smoke tests against preview
+        run: node scripts/smoke-contracts-leasing.mjs
+        env:
+          BASE_URL: ${{ steps.deploy_preview.outputs.preview_url }}
+
+      - name: Run API smoke tests against preview
+        run: npm run smoke:api
+        env:
+          BASE_URL: ${{ steps.deploy_preview.outputs.preview_url }}
+
+  # --------------------------------------------------------------------------
+  # deploy-production — Runs only after staging passes.
+  # Requires approval through the GitHub "production" environment gate.
+  # Captures a pre-deploy snapshot, runs migrations, deploys, then verifies.
+  # --------------------------------------------------------------------------
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [staging]
     environment: production
     permissions:
       contents: read
@@ -30,7 +125,7 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel environment
+      - name: Pull Vercel production environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -39,13 +134,18 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Capture pre-deploy snapshot
+        run: npm run deploy:snapshot
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
       - name: Run database migrations
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
           NEON_DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
-      - name: Build
+      - name: Build production
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -56,3 +156,8 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Run post-deploy verification
+        run: npm run deploy:verify
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}

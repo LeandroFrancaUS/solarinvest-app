@@ -72,7 +72,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
 
   // Load invoices
   useEffect(() => {
-    loadInvoices()
+    void loadInvoices()
   }, [client.id])
 
   async function loadInvoices() {
@@ -186,7 +186,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
     const firstBillingDate = client.first_billing_date ?? client.inicio_da_mensalidade
     const dueDay = client.due_day
 
-    if (!contractTermMonths || contractTermMonths <= 0) {
+    if (!contractTermMonths || Number(contractTermMonths) <= 0) {
       setError('Prazo do contrato (meses) não definido na aba Cobrança.')
       return
     }
@@ -207,7 +207,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
     }
 
     // Show confirmation
-    const totalInvoices = contractTermMonths * clientUCs.length
+    const totalInvoices = Number(contractTermMonths) * clientUCs.length
     const confirmMsg = `Gerar ${totalInvoices} faturas automaticamente?\n\n` +
       `${contractTermMonths} meses × ${clientUCs.length} UCs\n` +
       `Início: ${firstBillingDate}\n` +
@@ -236,7 +236,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
 
       // Generate invoices for each UC and each month
       for (const uc of clientUCs) {
-        for (let i = 0; i < contractTermMonths; i++) {
+        for (let i = 0; i < Number(contractTermMonths); i++) {
           // Calculate reference month
           const refMonth = startDate.getMonth() + i
           const refYear = startDate.getFullYear() + Math.floor(refMonth / 12)
@@ -372,7 +372,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
-              onClick={handleAutoGenerateInvoices}
+              onClick={() => { void handleAutoGenerateInvoices() }}
               disabled={saving}
               style={{
                 padding: '8px 16px',
@@ -520,7 +520,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleCreateInvoice}
+                onClick={() => { void handleCreateInvoice() }}
                 disabled={saving}
                 style={{
                   padding: '7px 16px',
@@ -553,7 +553,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
           .sort()
           .reverse()
           .map((month) => {
-            const monthInvoices = invoicesByMonth[month]
+            const monthInvoices = invoicesByMonth[month] ?? []
             const complete = isMonthComplete(monthInvoices)
             const monthDate = new Date(month + 'T00:00:00')
             const monthLabel = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -653,7 +653,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteInvoice(inv.id)}
+                            onClick={() => { void handleDeleteInvoice(inv.id) }}
                             style={{
                               padding: '4px 8px',
                               borderRadius: 4,
@@ -763,7 +763,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleRegisterPayment}
+                onClick={() => { void handleRegisterPayment() }}
                 disabled={saving}
                 style={{
                   padding: '8px 16px',
@@ -888,7 +888,7 @@ export function FaturasTab({ client }: FaturasTabProps) {
               </button>
               <button
                 type="button"
-                onClick={handleUpdateInvoice}
+                onClick={() => { void handleUpdateInvoice() }}
                 disabled={saving}
                 style={{
                   padding: '8px 16px',

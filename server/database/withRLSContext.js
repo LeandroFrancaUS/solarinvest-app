@@ -22,9 +22,11 @@
 // LEGACY API (backward compat - sets only app.current_user_id):
 //   const userSql = createUserScopedSql(db.sql, userId_string)   // deprecated
 //
-// Fail-closed: passing { userId, role } where either value is absent throws an
-// error immediately so that misconfigured callers are caught at development time
-// rather than silently falling back to service-level access.
+// Fail-closed: the new object API ({ userId, role }) throws immediately on any
+// of these conditions so that misconfigured callers are caught at development
+// time rather than silently falling back to service-level access:
+//   - userId or role absent / empty
+//   - sql driver does not expose .transaction() (RLS context cannot be set)
 //
 // Service / admin queries that use db.sql directly (migrations, audit log, etc.)
 // do NOT go through this helper and therefore set no session context - the RLS
@@ -39,7 +41,8 @@
  * @param {Object|string|null} options
  *   Object form (new API):
  *     { userId: string, role: string }
- *     Both fields are required; throws if either is missing.
+ *     Both fields are required; throws if either is missing or if the driver
+ *     does not expose sql.transaction() (fail-closed — no silent fallback).
  *   String form (legacy, deprecated):
  *     userId string (sets only app.current_user_id, no role context).
  *     Pass null/empty to get raw sql back (service bypass).
@@ -65,12 +68,16 @@ export function createUserScopedSql(sql, options) {
     const safeUserId = userId.trim()
     const safeRole   = role.trim()
 
-    // Graceful fallback: if the driver version does not expose .transaction(),
-    // log a warning and return raw sql.  The RLS context will not be set but
-    // application-layer checks still provide a security layer.
+    // Fail-closed: if the driver does not expose .transaction(), the RLS context
+    // cannot be safely injected in a single round-trip.  Returning raw sql here
+    // would silently bypass all RLS policies, so we throw instead.  Callers must
+    // use a Neon driver version that supports sql.transaction([]).
     if (typeof sql?.transaction !== 'function') {
-      console.warn('[rls] sql.transaction not available; RLS context not set for user', safeUserId)
-      return sql
+      const err = new Error(
+        '[rls] sql.transaction not available; RLS context cannot be set — database driver must support transaction batching'
+      )
+      err.statusCode = 503
+      throw err
     }
 
     /**

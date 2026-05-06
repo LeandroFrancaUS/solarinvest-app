@@ -52,7 +52,7 @@ function isBillingActive(client: PortfolioClientRow): boolean {
   }
   // Must have term months defined
   const termMonths = client.contractual_term_months ?? client.term_months ?? client.prazo_meses ?? 0
-  if (termMonths <= 0) {
+  if (Number(termMonths) <= 0) {
     return false
   }
   return true
@@ -117,7 +117,8 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
     }
   }
 
-  const installments = client.installments_json ?? []
+  const installmentsRaw = client.installments_json
+  const installments: InstallmentPayment[] = Array.isArray(installmentsRaw) ? installmentsRaw : []
 
   // If no installments, billing is inactive
   if (installments.length === 0) {
@@ -144,7 +145,7 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
       unpaidCount++
 
       // Calculate due date for this installment
-      const dueDate = calculateInstallmentDueDate(client, inst.number)
+      const dueDate = calculateInstallmentDueDate(client, inst.number ?? 0)
       if (dueDate) {
         const diffMs = dueDate.getTime() - today.getTime()
         const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
@@ -175,8 +176,8 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
       label: CLIENT_PAYMENT_STATUS_LABELS.em_atraso,
       unpaidCount,
       overdueCount,
-      daysUntilNextDue: daysUntilNextDue ?? undefined,
-      nextDueDate: nextDueDate ?? undefined,
+      ...(daysUntilNextDue !== null ? { daysUntilNextDue } : undefined),
+      ...(nextDueDate !== null ? { nextDueDate } : undefined),
     }
   }
 
@@ -186,8 +187,8 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
       label: CLIENT_PAYMENT_STATUS_LABELS.vencido,
       unpaidCount,
       overdueCount,
-      daysUntilNextDue: daysUntilNextDue ?? undefined,
-      nextDueDate: nextDueDate ?? undefined,
+      ...(daysUntilNextDue !== null ? { daysUntilNextDue } : undefined),
+      ...(nextDueDate !== null ? { nextDueDate } : undefined),
     }
   }
 
@@ -205,7 +206,7 @@ export function getClientPaymentStatus(client: PortfolioClientRow): ClientPaymen
     label: CLIENT_PAYMENT_STATUS_LABELS.pendente,
     unpaidCount,
     overdueCount: 0,
-    daysUntilNextDue: daysUntilNextDue ?? undefined,
-    nextDueDate: nextDueDate ?? undefined,
+    ...(daysUntilNextDue !== null ? { daysUntilNextDue } : undefined),
+    ...(nextDueDate !== null ? { nextDueDate } : undefined),
   }
 }

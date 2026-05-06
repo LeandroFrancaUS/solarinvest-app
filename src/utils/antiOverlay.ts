@@ -101,7 +101,7 @@ function scheduleNeutralization(nodes: Iterable<Element>): void {
   const processBatch = (startIndex: number) => {
     const endIndex = Math.min(startIndex + BATCH_SIZE, uniqueNodes.length)
     for (let index = startIndex; index < endIndex; index += 1) {
-      neutralizeNode(uniqueNodes[index])
+      neutralizeNode(uniqueNodes[index]!)
     }
 
     if (endIndex < uniqueNodes.length) {

@@ -9,7 +9,6 @@ import type {
   DashboardAlert,
   DashboardNotificationPreference,
   AlertSeverity,
-  AlertType,
 } from '../../types/operationalDashboard.js'
 
 /**
@@ -244,7 +243,7 @@ export function groupAlertsByEntity(alerts: DashboardAlert[]): Record<string, Da
       if (!acc[alert.entityType]) {
         acc[alert.entityType] = []
       }
-      acc[alert.entityType].push(alert)
+      acc[alert.entityType]!.push(alert)
       return acc
     },
     {} as Record<string, DashboardAlert[]>

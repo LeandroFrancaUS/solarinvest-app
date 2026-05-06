@@ -349,11 +349,11 @@ function calcularAnaliseVenda(
     margem_liquida_sem_comissao_percent: margem_liquida_sem_comissao * 100,
     lucro_liquido_final_rs,
     margem_liquida_final_percent: margem_liquida_final * 100,
-    preco_minimo_aceitavel_rs,
+    ...(preco_minimo_aceitavel_rs !== undefined ? { preco_minimo_aceitavel_rs } : undefined),
     preco_minimo_saudavel_rs,
-    preco_ideal_rs,
+    ...(preco_ideal_rs !== undefined ? { preco_ideal_rs } : undefined),
     desconto_maximo_percent,
-  }
+  } as Partial<AnaliseFinanceiraOutput>
 }
 
 function calcularAnaliseLeasing(
@@ -578,5 +578,5 @@ export function calcularAnaliseFinanceira(
     preco_minimo_saudavel_rs: vendaResult.preco_minimo_saudavel_rs,
     ...leasingResult,
     ...kpis,
-  }
+  } as AnaliseFinanceiraOutput
 }

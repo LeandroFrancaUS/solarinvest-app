@@ -49,7 +49,7 @@ function AddUserModal({ onClose, onCreated }: AddUserModalProps) {
     try {
       const req: CreateUserRequest = {
         email: email.trim().toLowerCase(),
-        displayName: displayName.trim() || undefined,
+        ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
         permissions,
       }
       await createUser(req)

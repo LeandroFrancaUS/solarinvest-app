@@ -113,6 +113,7 @@ declare global {
     readonly NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY?: string
     readonly VITE_API_BASE_URL?: string
     readonly BASE_URL?: string
+    readonly VITE_AUTH_COOKIE_NAME?: string
   }
 
   interface ImportMeta {

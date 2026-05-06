@@ -48,7 +48,7 @@ export function parseQuantityToken(token: string): QuantityParseResult | null {
   if (!trailing) {
     return null
   }
-  const rawNumber = trailing[1]
+  const rawNumber = trailing[1]!
   const parsed = toNumberFlexible(rawNumber)
   if (parsed === null || Number.isNaN(parsed)) {
     return null

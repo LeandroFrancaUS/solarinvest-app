@@ -127,7 +127,7 @@ function RowActions({ user, onRefresh }: RowActionsProps) {
   const [pendingAction, setPendingAction] = useState<{ message: string; action: () => Promise<void>; destructive?: boolean } | null>(null)
 
   function requestConfirm(message: string, action: () => Promise<void>, destructive?: boolean) {
-    setPendingAction({ message, action, destructive })
+    setPendingAction({ message, action, ...(destructive !== undefined ? { destructive } : {}) })
   }
 
   async function executeConfirmed() {
@@ -154,7 +154,7 @@ function RowActions({ user, onRefresh }: RowActionsProps) {
       {pendingAction && (
         <ConfirmDialog
           message={pendingAction.message}
-          destructive={pendingAction.destructive}
+          {...(pendingAction.destructive !== undefined ? { destructive: pendingAction.destructive } : {})}
           onConfirm={() => { void executeConfirmed() }}
           onCancel={() => setPendingAction(null)}
         />

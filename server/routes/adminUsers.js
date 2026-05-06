@@ -571,3 +571,121 @@ export async function handleAdminUserCreate(req, res, { sendJson, body }) {
     failedPermissions: failedGrants.length > 0 ? failedGrants.map((g) => g.perm) : undefined,
   })
 }
+
+// ── Route registry ────────────────────────────────────────────────────────────
+// Registers all /api/admin/users routes on the given router.
+// Extracted from the handler.js inline if-chain (PR 22).
+//
+// Routes registered:
+//   GET  /api/admin/users                           — list users
+//   POST /api/admin/users                           — create user
+//   POST /api/admin/users/:id/approve|block|revoke|role  — user status/role actions
+//   DELETE /api/admin/users/:id                     — permanent deletion
+//   POST   /api/admin/users/:id/permissions/:perm   — grant Stack Auth permission
+//   DELETE /api/admin/users/:id/permissions/:perm   — revoke Stack Auth permission
+
+/**
+ * @param {ReturnType<import('../router.js').createRouter>} router
+ * @param {{
+ *   readJsonBody:      (req: object) => Promise<object>,
+ *   isAdminRateLimited:(req: object) => boolean,
+ *   sendJson:          (res: object, status: number, payload: object) => void,
+ *   sendNoContent:     (res: object) => void,
+ * }} moduleCtx
+ */
+export function registerAdminUsersRoutes(router, { readJsonBody, isAdminRateLimited, sendJson, sendNoContent }) {
+  // ── GET /api/admin/users  or  POST /api/admin/users ─────────────────────
+  router.register('*', '/api/admin/users', async (req, res) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') {
+      res.setHeader('Allow', 'GET,POST,OPTIONS')
+      sendNoContent(res)
+      return
+    }
+    if (method === 'GET') {
+      const requestUrl = new URL(req.url, 'http://localhost')
+      await handleAdminUsersListRequest(req, res, { sendJson, requestUrl })
+    } else if (method === 'POST') {
+      if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+      const body = await readJsonBody(req)
+      await handleAdminUserCreate(req, res, { sendJson, body })
+    } else {
+      sendJson(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── POST /api/admin/users/:id/approve ────────────────────────────────────
+  router.register('*', '/api/admin/users/:id/approve', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const userId = reqCtx.params.id
+    const body = await readJsonBody(req)
+    await handleAdminUserApprove(req, res, { sendJson, userId, body })
+  })
+
+  // ── POST /api/admin/users/:id/block ──────────────────────────────────────
+  router.register('*', '/api/admin/users/:id/block', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const userId = reqCtx.params.id
+    const body = await readJsonBody(req)
+    await handleAdminUserBlock(req, res, { sendJson, userId, body })
+  })
+
+  // ── POST /api/admin/users/:id/revoke ─────────────────────────────────────
+  router.register('*', '/api/admin/users/:id/revoke', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const userId = reqCtx.params.id
+    const body = await readJsonBody(req)
+    await handleAdminUserRevoke(req, res, { sendJson, userId, body })
+  })
+
+  // ── POST /api/admin/users/:id/role ────────────────────────────────────────
+  router.register('*', '/api/admin/users/:id/role', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const userId = reqCtx.params.id
+    const body = await readJsonBody(req)
+    await handleAdminUserRole(req, res, { sendJson, userId, body })
+  })
+
+  // ── POST/DELETE /api/admin/users/:id/permissions/:perm ───────────────────
+  router.register('*', '/api/admin/users/:id/permissions/:perm', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'POST,DELETE,OPTIONS'); sendNoContent(res); return }
+    if ((method === 'POST' || method === 'DELETE') && isAdminRateLimited(req)) {
+      sendJson(res, 429, { error: 'Too many requests. Try again later.' })
+      return
+    }
+    const userId = reqCtx.params.id
+    const permId = decodeURIComponent(reqCtx.params.perm)
+    if (method === 'POST') {
+      await handleAdminUserGrantPermission(req, res, { sendJson, userId, permId })
+    } else if (method === 'DELETE') {
+      await handleAdminUserRevokePermission(req, res, { sendJson, userId, permId })
+    } else {
+      sendJson(res, 405, { error: 'Método não suportado.' })
+    }
+  })
+
+  // ── DELETE /api/admin/users/:id ───────────────────────────────────────────
+  // Registered after the action-verb routes so param routes with extra segments
+  // (/:id/approve, etc.) are tried first during the two-pass match.
+  router.register('*', '/api/admin/users/:id', async (req, res, reqCtx) => {
+    const method = req.method?.toUpperCase() ?? 'GET'
+    if (method === 'OPTIONS') { res.setHeader('Allow', 'DELETE,OPTIONS'); sendNoContent(res); return }
+    if (method !== 'DELETE') { sendJson(res, 405, { error: 'Método não suportado.' }); return }
+    if (isAdminRateLimited(req)) { sendJson(res, 429, { error: 'Too many requests. Try again later.' }); return }
+    const userId = reqCtx.params.id
+    await handleAdminUserDelete(req, res, { sendJson, userId })
+  })
+}

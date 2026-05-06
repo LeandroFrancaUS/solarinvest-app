@@ -183,7 +183,7 @@ describe('computeROI', () => {
     const resultadoPadrao = computeROI(createBaseForm({ taxa_minima_r_mes: 50, taxa_minima_mensal: 50 }))
     const resultadoTaxaAlta = computeROI(createBaseForm({ taxa_minima_r_mes: 200, taxa_minima_mensal: 200 }))
 
-    expect(resultadoTaxaAlta.economia[0]).toBeLessThan(resultadoPadrao.economia[0])
+    expect(resultadoTaxaAlta.economia[0]!).toBeLessThan(resultadoPadrao.economia[0]!)
 
     const paybackPadrao = resultadoPadrao.payback ?? Number.POSITIVE_INFINITY
     const paybackTaxaAlta = resultadoTaxaAlta.payback ?? Number.POSITIVE_INFINITY
@@ -205,9 +205,9 @@ describe('computeROI', () => {
     const comTaxa = computeROI(createBaseForm({ ...comum, aplica_taxa_minima: true }))
     const semTaxa = computeROI(createBaseForm({ ...comum, aplica_taxa_minima: false }))
 
-    expect(comTaxa.economia[0]).toBeLessThan(semTaxa.economia[0])
-    expect(semTaxa.economia[0]).toBeCloseTo(300, 6)
-    expect(comTaxa.economia[0]).toBeCloseTo(250, 6)
+    expect(comTaxa.economia[0]!).toBeLessThan(semTaxa.economia[0]!)
+    expect(semTaxa.economia[0]!).toBeCloseTo(300, 6)
+    expect(comTaxa.economia[0]!).toBeCloseTo(250, 6)
   })
 
   it('ignora encargos de TUSD quando a taxa mínima é desativada', () => {
@@ -219,15 +219,15 @@ describe('computeROI', () => {
       taxa_minima_mensal: 50,
       taxa_minima_r_mes: 50,
       tusd_percentual: 35,
-      tusd_tipo_cliente: 'residencial',
+      tusd_tipo_cliente: 'residencial' as const,
       tusd_ano_referencia: 2025,
     }
 
     const comTaxa = computeROI(createBaseForm({ ...base, aplica_taxa_minima: true }))
     const semTaxa = computeROI(createBaseForm({ ...base, aplica_taxa_minima: false }))
 
-    expect(comTaxa.economia[0]).toBeLessThan(semTaxa.economia[0])
-    expect(semTaxa.economia[0]).toBeCloseTo(300, 6)
+    expect(comTaxa.economia[0]!).toBeLessThan(semTaxa.economia[0]!)
+    expect(semTaxa.economia[0]!).toBeCloseTo(300, 6)
   })
 
   it('projeta inflação energética de forma composta anualmente (8%)', () => {
@@ -244,8 +244,8 @@ describe('computeROI', () => {
       }),
     )
 
-    const economiaAno1 = resultado.economia[0]
-    const economiaAno2 = resultado.economia[12]
+    const economiaAno1 = resultado.economia[0]!
+    const economiaAno2 = resultado.economia[12]!
 
     expect(economiaAno1).toBeCloseTo(500, 6)
     expect(economiaAno2).toBeCloseTo(500 * Math.pow(1.08, 1), 6)
@@ -265,8 +265,8 @@ describe('computeROI', () => {
       }),
     )
 
-    const economiaAno1 = resultado.economia[0]
-    const economiaAno3 = resultado.economia[24]
+    const economiaAno1 = resultado.economia[0]!
+    const economiaAno3 = resultado.economia[24]!
 
     expect(economiaAno1).toBeCloseTo(400, 6)
     expect(economiaAno3).toBeCloseTo(400 * Math.pow(1.05, 2), 6)

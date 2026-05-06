@@ -11,7 +11,7 @@ import {
   usePortfolioRemove,
   usePortfolioDelete,
 } from '../hooks/useClientPortfolio'
-import type { PortfolioClientRow, ContractAttachment, InstallmentPayment } from '../types/clientPortfolio'
+import type { PortfolioClientRow, ContractAttachment, InstallmentPayment, ContractType, ContractStatus } from '../types/clientPortfolio'
 import { DUE_DAY_OPTIONS } from '../types/clientPortfolio'
 import {
   buildProjetoForm,
@@ -87,29 +87,6 @@ function formatDate(value: string | null | undefined): string {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR')
 }
 
-/**
- * Calculates the remaining months in a contract.
- * Returns null when there is not enough data to compute.
- * Never returns a negative value (minimum is 0).
- */
-function calcRemainingMonths(
-  totalMonths: number | null | undefined,
-  contractStartDate: string | null | undefined,
-  fallbackDate?: string | null,
-): number | null {
-  const term = totalMonths ?? null
-  if (!term || term <= 0) return null
-  const startRaw = contractStartDate || fallbackDate
-  if (!startRaw) return null
-  const start = new Date(startRaw)
-  if (isNaN(start.getTime())) return null
-  const now = new Date()
-  const elapsed =
-    (now.getFullYear() - start.getFullYear()) * 12 +
-    (now.getMonth() - start.getMonth())
-  return Math.max(0, Math.round(term - elapsed))
-}
-
 function toTrimmedString(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
@@ -138,7 +115,7 @@ function parseInstallmentsJson(value: unknown): InstallmentPayment[] {
   if (Array.isArray(value)) return value as InstallmentPayment[]
   if (typeof value === 'string') {
     try {
-      const parsed = JSON.parse(value)
+      const parsed: unknown = JSON.parse(value)
       if (Array.isArray(parsed)) return parsed as InstallmentPayment[]
     } catch {
       // ignore malformed JSON
@@ -538,7 +515,7 @@ function getInstallmentProgress(client: PortfolioClientRow): {
 
   const toFiniteNumber = (v: unknown): number | null => {
     if (v === null || v === undefined || v === '') return null
-    const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(',', '.')) : NaN
     return Number.isFinite(n) && n > 0 ? n : null
   }
 
@@ -748,7 +725,7 @@ function ClientCard({
     if (value === null || value === undefined || value === '') return null
     const parsed = typeof value === 'number'
       ? value
-      : Number(String(value).replace(',', '.'))
+      : typeof value === 'string' ? Number(value.replace(',', '.')) : NaN
     return Number.isFinite(parsed) ? parsed : null
   }
 
@@ -791,7 +768,7 @@ function ClientCard({
 
   // WiFi / monitoring badge
   const wifiStatus = client.wifi_status ?? (client.metadata?.wifi_status as string | null | undefined) ?? null
-  const wifiBadge = (wifiStatus && WIFI_BADGE_MAP[wifiStatus]) ?? WIFI_BADGE_DEFAULT
+  const wifiBadge = (wifiStatus ? WIFI_BADGE_MAP[wifiStatus] : undefined) ?? WIFI_BADGE_DEFAULT
 
   const rawPhone = client.phone ?? ''
   const formattedPhone = rawPhone ? formatTelefone(rawPhone) : null
@@ -985,7 +962,7 @@ function DetailTabBar({ activeTab, onChange, showPlano, showFaturas, cobrancaEna
       id: 'cobranca',
       label: '💰 Cobrança',
       disabled: !cobrancaEnabled,
-      title: cobrancaEnabled ? undefined : (cobrancaDisabledReason ?? 'Indisponível'),
+      ...(cobrancaEnabled ? {} : { title: cobrancaDisabledReason ?? 'Indisponível' }),
     },
     { id: 'faturas', label: '🧾 Faturas', hidden: !showFaturas, title: 'Faturas sob titularidade da SolarInvest' },
     { id: 'notas', label: '📝 Notas' },
@@ -1024,7 +1001,7 @@ function EditarTab({
   editMode: boolean
   onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const initialUcBeneficiarias = useMemo(() => getBeneficiaryUCs(client), [client])
   const hasUcBeneficiaria = initialUcBeneficiarias.length > 0
   const [showUcBeneficiariaField, setShowUcBeneficiariaField] = useState(hasUcBeneficiaria)
@@ -1045,7 +1022,7 @@ function EditarTab({
     term_months: client.term_months != null ? String(client.term_months) : '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     client_name: client.name ?? '',
     client_document: client.document ?? '',
     client_phone: client.phone ?? '',
@@ -1095,7 +1072,7 @@ function EditarTab({
         email: form.client_email || client.email,
         city: form.client_city || client.city,
         state: form.client_state || client.state,
-        address: form.client_address || client.address,
+        address: form.client_address || client.address || null,
         distribuidora: form.distribuidora || client.distribuidora,
         uc: form.uc_geradora || client.uc,
         uc_beneficiaria: beneficiaryUCs[0] ?? null,
@@ -1117,7 +1094,7 @@ function EditarTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -1324,7 +1301,7 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     contract_file_name: client.contract_file_name ?? '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     contract_type: client.contract_type ?? 'leasing',
     contract_status: client.contract_status ?? 'draft',
     source_proposal_id: client.source_proposal_id ?? '',
@@ -1419,7 +1396,7 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   useEffect(() => {
@@ -1465,13 +1442,13 @@ function ContratoTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
         <div style={{ display: 'grid', gap: 10 }}>
           <label className="pf-label" style={labelSty}>
             Tipo de Contrato
-            <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            <select value={form.contract_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_type: e.target.value as ContractType }))} disabled={!editMode} style={inputStyle}>
               {Object.entries(CONTRACT_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
           <label className="pf-label" style={labelSty}>
             Status do Contrato
-            <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))} disabled={!editMode} style={inputStyle}>
+            <select value={form.contract_status ?? ''} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value as ContractStatus }))} disabled={!editMode} style={inputStyle}>
               <option value="draft">Rascunho</option>
               <option value="active">Ativo</option>
               <option value="signed">Assinado</option>
@@ -1747,7 +1724,7 @@ function ProjetoTab({
   editMode: boolean
   onRegisterSave?: (fn: (() => Promise<void>) | null) => void
 }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // Financial project linked to this client in Gestão Financeira
@@ -1767,7 +1744,7 @@ function ProjetoTab({
 
   const [form, setForm] = useState<ProjetoFormData>(() => buildProjetoForm(client))
 
-  const resetForm = () => setForm(buildProjetoForm(client))
+  const _resetForm = () => setForm(buildProjetoForm(client))
 
   async function handleSave() {
     const validationError = validateProjetoSave(form)
@@ -1809,7 +1786,7 @@ function ProjetoTab({
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -1984,7 +1961,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   const { isAdmin, isOffice, isFinanceiro } = useStackRbac()
   const canManageBilling = isAdmin || isOffice || isFinanceiro
 
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [paymentModal, setPaymentModal] = useState<{ installmentNumber: number; valor: number; vencimento: string } | null>(null)
   const [paymentProof, setPaymentProof] = useState<{ receipt_number: string; transaction_number: string }>({ receipt_number: '', transaction_number: '' })
@@ -2041,7 +2018,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     setConfirmedPayments(buildConfirmedMap(client.installments_json))
     setValorOverrides(buildValorOverrideMap(client.installments_json))
-   
+
   }, [client.installments_json])
   const [form, setForm] = useState({
     due_day: client.due_day != null ? String(client.due_day) : '5',
@@ -2057,7 +2034,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
     first_billing_date: client.first_billing_date?.slice(0, 10) ?? '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     due_day: client.due_day != null ? String(client.due_day) : '5',
     reading_day: client.reading_day != null ? String(client.reading_day) : '',
     auto_reminder_enabled: client.auto_reminder_enabled ?? true,
@@ -2169,7 +2146,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   // "Último Vencimento Previsto" = due date of the last generated installment
   const ultimoVencimentoPrevisto = useMemo(() => {
     if (installments.length === 0) return null
-    return installments[installments.length - 1].data_vencimento
+    return installments[installments.length - 1]!.data_vencimento
   }, [installments])
 
   // "Próxima cobrança recorrente" = first installment whose due date is today or in the future
@@ -2265,7 +2242,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -2784,7 +2761,7 @@ function CobrancaTab({ client, onSaved, editMode, onRegisterSave }: { client: Po
 // Usina Tab — UF configuration reuse
 // ─────────────────────────────────────────────────────────────────────────────
 function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
 
   const [ufData, setUfData] = useState<UfConfigData>({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
@@ -2796,10 +2773,10 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
+    wifi_status: (client.wifi_status ?? (client.metadata?.wifi_status as PortfolioClientRow['wifi_status'])) ?? '',
   })
 
-  const resetUfData = () => setUfData({
+  const _resetUfData = () => setUfData({
     potencia_modulo_wp: client.potencia_modulo_wp != null ? String(client.potencia_modulo_wp) : '',
     numero_modulos: client.numero_modulos != null ? String(client.numero_modulos) : '',
     modelo_modulo: client.modelo_modulo ?? '',
@@ -2809,7 +2786,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
     geracao_estimada_kwh: client.geracao_estimada_kwh != null ? String(client.geracao_estimada_kwh) : '',
     potencia_kwp: client.system_kwp != null ? String(client.system_kwp) : '',
     tipo_rede: client.tipo_rede ?? '',
-    wifi_status: client.wifi_status ?? (client.metadata?.wifi_status as string) ?? '',
+    wifi_status: (client.wifi_status ?? (client.metadata?.wifi_status as PortfolioClientRow['wifi_status'])) ?? '',
   })
 
   const handleFieldChange = useCallback((field: keyof UfConfigData, value: string) => {
@@ -2877,12 +2854,12 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} installationStatus={client.installation_status} />
+      <UfConfigurationFields data={ufData} onChange={handleFieldChange} readOnly={!editMode} {...(client.installation_status !== undefined ? { installationStatus: client.installation_status } : {})} />
     </div>
   )
 }
@@ -2896,7 +2873,7 @@ function UsinaTab({ client, onSaved, editMode, onRegisterSave }: { client: Portf
 // If energy_profile is null, the UI must show empty — not fallback to proposal.
 // ─────────────────────────────────────────────────────────────────────────────
 function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client: PortfolioClientRow; onSaved: (patch: Partial<PortfolioClientRow>) => void; editMode: boolean; onRegisterSave?: (fn: (() => Promise<void>) | null) => void }) {
-  const [saving, setSaving] = useState(false)
+  const [_saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const prazoUnificado = client.contractual_term_months ?? client.prazo_meses ?? null
 
@@ -2912,7 +2889,7 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
     prazo_meses: prazoUnificado != null ? String(prazoUnificado) : '',
   })
 
-  const resetForm = () => setForm({
+  const _resetForm = () => setForm({
     modalidade: client.modalidade ?? 'leasing',
     kwh_mes_contratado: client.kwh_mes_contratado != null ? String(client.kwh_mes_contratado) : (client.kwh_contratado != null ? String(client.kwh_contratado) : ''),
     desconto_percentual: client.desconto_percentual != null ? String(client.desconto_percentual) : '',
@@ -2954,7 +2931,7 @@ function PlanoLeasingTab({ client, onSaved, editMode, onRegisterSave }: { client
   useEffect(() => {
     onRegisterSave?.(() => handleSaveRef.current())
     return () => { onRegisterSave?.(null) }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [])
 
   const inputStyle: React.CSSProperties = {
@@ -3140,8 +3117,9 @@ function AddClientModal({
 
   const distribuidorasData = useMemo(() => getDistribuidorasFallback(), [])
   const distribuidorasList = useMemo(() => {
-    if (form.state && distribuidorasData.distribuidorasPorUf[form.state]) {
-      return distribuidorasData.distribuidorasPorUf[form.state]
+    const porUf = form.state ? distribuidorasData.distribuidorasPorUf[form.state] : undefined
+    if (porUf) {
+      return porUf
     }
     const all = Object.values(distribuidorasData.distribuidorasPorUf).flat()
     return [...new Set(all)].sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -3156,7 +3134,7 @@ function AddClientModal({
   async function handleCepChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setForm((f) => ({ ...f, cep: val }))
-    setErrors((prev) => ({ ...prev, cep: undefined }))
+    setErrors((prev) => { const { cep: _cep, ...rest } = prev; return rest })
     setCepError(null)
     setGlobalError(null)
     const digits = val.replace(/\D/g, '')
@@ -3177,7 +3155,7 @@ function AddClientModal({
               : f.address,
             distribuidora: '',
           }))
-          setErrors((prev) => ({ ...prev, city: undefined, state: undefined, address: undefined }))
+          setErrors((prev) => { const { city: _c, state: _s, address: _a, ...rest } = prev; return rest })
         } else {
           setCepError('CEP não encontrado')
         }
@@ -3312,7 +3290,7 @@ function AddClientModal({
                 value={form.state}
                 onChange={(e) => {
                   setForm((f) => ({ ...f, state: e.target.value, distribuidora: '' }))
-                  setErrors((prev) => ({ ...prev, state: undefined, distribuidora: undefined }))
+                  setErrors((prev) => { const { state: _s, distribuidora: _d, ...rest } = prev; return rest })
                   setGlobalError(null)
                 }}
                 style={{ ...inputStyle, borderColor: errors.state ? 'var(--ds-danger)' : undefined }}
@@ -3347,7 +3325,7 @@ function AddClientModal({
               value={form.distribuidora}
               onChange={(e) => {
                 setForm((f) => ({ ...f, distribuidora: e.target.value }))
-                setErrors((prev) => ({ ...prev, distribuidora: undefined }))
+                setErrors((prev) => { const { distribuidora: _d, ...rest } = prev; return rest })
                 setGlobalError(null)
               }}
               style={{ ...inputStyle, borderColor: errors.distribuidora ? 'var(--ds-danger)' : undefined }}
@@ -3563,6 +3541,12 @@ function ClientDetailPanel({
     )
   }
 
+  const cobrancaGating = resolveCobrancaGating(displayClient)
+  const cobrancaTabProps = {
+    cobrancaEnabled: cobrancaGating.enabled,
+    ...(cobrancaGating.reason !== undefined ? { cobrancaDisabledReason: cobrancaGating.reason } : {}),
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -3616,7 +3600,7 @@ function ClientDetailPanel({
           showPlano={displayClient.contract_type === 'leasing'}
           showFaturas={displayClient.is_contratante_titular === false}
           cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
-          cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
+          {...(resolveCobrancaGating(displayClient).reason !== undefined ? { cobrancaDisabledReason: resolveCobrancaGating(displayClient).reason } : {})}
         />
 
         {/* Global edit controls */}
@@ -3657,7 +3641,7 @@ function ClientDetailPanel({
               </div>
             )}
             <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+              <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} />
             </div>
             {resolveCobrancaGating(displayClient).enabled && (
               <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
@@ -3690,7 +3674,7 @@ function ClientDetailPanel({
             {activeTab === 'usina' && <UsinaTab key={`usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'contrato' && <ContratoTab key={`contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
-            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+            {activeTab === 'projeto' && <ProjetoTab key={`projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} editMode={false} />}
             {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
             {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
             {activeTab === 'notas' && <NotasTab key={`notas-${refreshKey}`} client={displayClient} />}
@@ -3744,8 +3728,7 @@ function ClientDetailPanel({
               onChange={setActiveTab}
               showPlano={displayClient.contract_type === 'leasing'}
               showFaturas={displayClient.is_contratante_titular === false}
-              cobrancaEnabled={resolveCobrancaGating(displayClient).enabled}
-              cobrancaDisabledReason={resolveCobrancaGating(displayClient).reason}
+              {...cobrancaTabProps}
             />
 
             {/* Global edit controls */}
@@ -3786,7 +3769,7 @@ function ClientDetailPanel({
                   </div>
                 )}
                 <div style={{ display: activeTab === 'projeto' ? undefined : 'none' }}>
-                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} />
+                  <ProjetoTab client={displayClient} editMode={editMode} onRegisterSave={(fn) => registerTabSave('projeto', fn)} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} />
                 </div>
                 {resolveCobrancaGating(displayClient).enabled && (
                   <div style={{ display: activeTab === 'cobranca' ? undefined : 'none' }}>
@@ -3819,7 +3802,7 @@ function ClientDetailPanel({
                 {activeTab === 'usina' && <UsinaTab key={`fs-usina-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'contrato' && <ContratoTab key={`fs-contrato-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'plano' && displayClient.contract_type === 'leasing' && <PlanoLeasingTab key={`fs-plano-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
-                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} onOpenFinancialProject={onOpenFinancialProject} editMode={false} />}
+                {activeTab === 'projeto' && <ProjetoTab key={`fs-projeto-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})} editMode={false} />}
                 {activeTab === 'cobranca' && resolveCobrancaGating(displayClient).enabled && <CobrancaTab key={`fs-cobranca-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} editMode={false} />}
                 {activeTab === 'faturas' && displayClient.is_contratante_titular === false && <FaturasTab key={`fs-faturas-${refreshKey}`} client={displayClient} onSaved={handleTabSaved} />}
                 {activeTab === 'notas' && <NotasTab key={`fs-notas-${refreshKey}`} client={displayClient} />}
@@ -3911,7 +3894,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
     // Helper: numeric value for wallet consumption sort
     const toFiniteNum = (v: unknown): number => {
       if (v === null || v === undefined || v === '') return -Infinity
-      const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'))
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(',', '.')) : NaN
       return Number.isFinite(n) ? n : -Infinity
     }
 
@@ -4374,7 +4357,7 @@ export function ClientPortfolioPage({ onBack, onClientRemovedFromPortfolio, onOp
               onRemovedFromPortfolio={handleRemovedFromPortfolio}
               onDeleted={handleDeleted}
               onToast={showToast}
-              onOpenFinancialProject={onOpenFinancialProject}
+              {...(onOpenFinancialProject ? { onOpenFinancialProject } : {})}
             />
           </div>
         )}

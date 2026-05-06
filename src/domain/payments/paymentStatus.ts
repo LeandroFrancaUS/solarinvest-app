@@ -94,7 +94,7 @@ export function getMonthlyPaymentStatus(
   dueDate.setHours(0, 0, 0, 0)
 
   // Calculate first day of the reference month
-  const [year, month] = payment.referenceMonth.split('-').map(Number)
+  const [year = 0, month = 0] = payment.referenceMonth.split('-').map(Number)
   const firstDayOfMonth = new Date(year, month - 1, 1)
   firstDayOfMonth.setHours(0, 0, 0, 0)
 
@@ -168,7 +168,7 @@ export function getPortfolioPaymentStatus(
 
   // Count each status type
   const paidCount = statuses.filter((s) => s === 'PAGO').length
-  const pendenteCount = statuses.filter((s) => s === 'PENDENTE').length
+  const _pendenteCount = statuses.filter((s) => s === 'PENDENTE').length
   const vencidoCount = statuses.filter((s) => s === 'VENCIDO').length
   const atrasadoCount = statuses.filter((s) => s === 'ATRASADO').length
 

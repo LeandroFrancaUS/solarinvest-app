@@ -256,7 +256,7 @@ export function mapClientFormToPortfolioPayload(source: ClienteDadosInput): Clie
     client_zip: pickFirstNonEmpty(source.cep)?.replace(/\D/g, ''),
     uc_geradora: pickFirstNonEmpty(source.ucGeradora, source.uc),
     uc_beneficiaria: firstBeneficiary,
-  }
+  } as ClientFormPortfolioPayload
 }
 
 // ─── Main function ────────────────────────────────────────────────────────────

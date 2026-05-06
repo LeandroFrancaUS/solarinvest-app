@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { listFinancialAnalyses, SavedFinancialAnalysis } from '../services/financialAnalysesApi'
+import { listFinancialAnalyses, type SavedFinancialAnalysis } from '../services/financialAnalysesApi'
 
 export default function FinancialAnalysesPage() {
   const [data, setData] = useState<SavedFinancialAnalysis[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    listFinancialAnalyses()
+    void listFinancialAnalyses()
       .then(setData)
       .finally(() => setLoading(false))
   }, [])
@@ -23,7 +23,7 @@ export default function FinancialAnalysesPage() {
             <div>
               <div className="font-semibold">{a.analysis_name}</div>
               <div className="text-sm text-gray-500">
-                {a.mode.toUpperCase()} • {new Date(a.created_at).toLocaleString()}
+                {a.mode.toUpperCase()} • {new Date(a.created_at).toLocaleString('pt-BR')}
               </div>
             </div>
 
@@ -66,11 +66,11 @@ function exportAnalysisPdf(a: SavedFinancialAnalysis) {
       </head>
       <body>
         <h1>${a.analysis_name}</h1>
-        <div class="meta">${a.mode.toUpperCase()} • ${new Date(a.created_at).toLocaleString()}</div>
+        <div class="meta">${a.mode.toUpperCase()} • ${new Date(a.created_at).toLocaleString('pt-BR')}</div>
 
         <div class="card">
           <h3>Resumo</h3>
-          <pre>${JSON.stringify(a.payload_json.result ?? {}, null, 2)}</pre>
+          <pre>${JSON.stringify((a.payload_json as { result?: unknown }).result ?? {}, null, 2)}</pre>
         </div>
 
         <script>
