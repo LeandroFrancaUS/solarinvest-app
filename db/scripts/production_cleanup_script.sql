@@ -1,4 +1,13 @@
 -- ============================================================================
+-- ⚠️  DO NOT AUTORUN — MANUAL NEON SQL EDITOR SCRIPT ONLY
+-- ============================================================================
+--
+-- This file is NOT a database migration and must NEVER be placed in
+-- db/migrations/ or executed automatically.  It must only be run manually
+-- via the Neon SQL Editor after taking a full pg_dump backup and reviewing
+-- every block.  See db/PRODUCTION_CLEANUP_README.md for full instructions.
+--
+-- ============================================================================
 -- SCRIPT DE LIMPEZA PARA PRODUÇÃO — NEON SQL EDITOR
 -- ============================================================================
 --

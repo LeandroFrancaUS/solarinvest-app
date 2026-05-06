@@ -19,6 +19,9 @@
 
 const BASE_URL = (process.env.BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 
+/** Maximum time (ms) to wait for any single HTTP response. */
+const REQUEST_TIMEOUT_MS = 10_000
+
 let failures = 0
 
 // ---------------------------------------------------------------------------
@@ -35,8 +38,28 @@ async function check(name, fn) {
   }
 }
 
+/**
+ * Fetch a URL with a hard timeout.  Throws if the server does not respond
+ * within REQUEST_TIMEOUT_MS milliseconds so a hung endpoint cannot stall the
+ * entire pipeline indefinitely.
+ */
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function getJson(path) {
-  const res = await fetch(`${BASE_URL}${path}`)
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`)
   const contentType = res.headers.get('content-type') ?? ''
   if (!contentType.includes('application/json')) {
     throw new Error(`Expected JSON but got content-type="${contentType}" (HTTP ${res.status})`)
@@ -90,7 +113,7 @@ async function runProtectedEndpointChecks() {
 
   for (const path of ['/api/clients', '/api/proposals', '/api/storage']) {
     await check(`${path} — server responds (no 500)`, async () => {
-      const res = await fetch(`${BASE_URL}${path}`)
+      const res = await fetchWithTimeout(`${BASE_URL}${path}`)
       if (!EXPECTED_STATUSES.has(res.status)) {
         throw new Error(
           `HTTP ${res.status} — expected 200/401/403 (server up) but got a server error`,

@@ -17,3 +17,7 @@ build/
 test-*.mjs
 test-anexo-discovery.mjs
 debug/
+
+# CI/debug artifacts
+typecheck_errors.txt
+lint_full_output.txt
