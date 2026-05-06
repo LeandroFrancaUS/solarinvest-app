@@ -9,20 +9,7 @@ import { ActionBar } from './components/layout/ActionBar'
 import { InfoTooltip, labelWithTooltip } from './components/InfoTooltip'
 
 import {
-  selectCreditoMensal,
-  selectInflacaoMensal,
-  selectBuyoutLinhas,
-  selectKcAjustado,
-  selectMensalidades,
-  selectTarifaDescontada,
-  selectMensalidadesPorAno,
-  type SimulationState,
-  type BuyoutLinha,
-} from './selectors'
-import {
   calcularTaxaMinima,
-  tarifaDescontada as tarifaDescontadaCalc,
-  tarifaProjetadaCheia,
   type EntradaModo,
 } from './utils/calcs'
 import { getIrradiacaoPorEstado, hasEstadoMinimo, IRRADIACAO_FALLBACK } from './utils/irradiacao'
@@ -45,7 +32,7 @@ import {
   renderPrintableBuyoutTableToHtml,
   type PrintVariant,
 } from './lib/pdf/printRenderers'
-import { buildPrintableData, clonePrintableData } from './lib/pdf/buildPrintableData'
+import { clonePrintableData } from './lib/pdf/buildPrintableData'
 import { usePrintOrchestration } from './lib/pdf/usePrintOrchestration'
 import type { StructuredBudget, StructuredItem } from './utils/structuredBudgetParser'
 import {
@@ -67,9 +54,8 @@ import {
   type TipoSistema,
   type VendaForm,
 } from './lib/finance/roi'
-import { calcTusdEncargoMensal, DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
+import { DEFAULT_TUSD_ANO_REFERENCIA } from './lib/finance/tusd'
 import type { TipoClienteTUSD } from './lib/finance/tusd'
-import { estimateMonthlyGenerationKWh, estimateMonthlyKWh } from './lib/energy/generation'
 import { clearClientHighlights, highlightMissingFields } from './lib/ui/fieldHighlight'
 import { buildRequiredFieldsLeasing } from './lib/validation/buildRequiredFieldsLeasing'
 import { buildRequiredFieldsVenda } from './lib/validation/buildRequiredFieldsVenda'
@@ -91,23 +77,11 @@ import {
 } from './lib/locale/br-number'
 import { MONEY_INPUT_PLACEHOLDER, useBRNumberField } from './lib/locale/useBRNumberField'
 import {
-  calcPotenciaSistemaKwp,
-  calcProjectedCostsByConsumption,
   formatBRL,
-  getRedeByPotencia,
 } from './lib/pricing/pricingPorKwp'
-import { calcularPrecheckNormativo } from './domain/normas/precheckNormativo'
 import {
-  formatTipoLigacaoLabel,
   type TipoLigacaoNorma,
 } from './domain/normas/padraoEntradaRules'
-import {
-  getAutoEligibility,
-  normalizeInstallType,
-  normalizeSystemType,
-  type InstallType,
-  type SystemType,
-} from './lib/pricing/autoEligibility'
 import { normalizeProposalId } from './lib/ids'
 import {
   getVendaSnapshot,
@@ -115,16 +89,13 @@ import {
   vendaActions,
   vendaStore,
   type ModoVenda,
-  type VendaKitItem,
   type VendaSnapshot,
 } from './store/useVendaStore'
-import { getPotenciaModuloW, type PropostaState } from './lib/selectors/proposta'
 import {
   getLeasingSnapshot,
   getInitialLeasingSnapshot,
   leasingActions,
   useLeasingStore,
-  useLeasingValorDeMercadoEstimado,
   type LeasingCorresponsavel,
   type LeasingContratoDados,
   type LeasingContratoProprietario,
@@ -158,13 +129,12 @@ import { useContractModalState } from './hooks/useContractModalState'
 import { useNotificacoes } from './hooks/useNotificacoes'
 import { usePropostaEnvioModal } from './hooks/usePropostaEnvioModal'
 import { useLeasingFinanciamentoState } from './features/simulacoes/useLeasingFinanciamentoState'
+import { useSimulationOutputState } from './features/simulacoes/useSimulationOutputState'
 import { usePrecheckNormativo } from './features/simulacoes/usePrecheckNormativo'
 import { useUsinaConfigState } from './features/simulacoes/useUsinaConfigState'
 import type { ClienteContratoPayload } from './types/contratoTypes'
 import { useSolarInvestAppController } from './app/useSolarInvestAppController'
 import {
-  ANALISE_ANOS_PADRAO,
-  DIAS_MES_PADRAO,
   INITIAL_VALUES,
   PAINEL_OPCOES,
   UF_LABELS,
@@ -185,19 +155,12 @@ import { useVendasConfigStore, vendasConfigSelectors } from './store/useVendasCo
 import { useVendasSimulacoesStore } from './store/useVendasSimulacoesStore'
 import type { VendasSimulacao } from './store/useVendasSimulacoesStore'
 import {
-  calcularComposicaoUFV,
-  type Inputs as ComposicaoUFVInputs,
-} from './lib/venda/calcComposicaoUFV'
-import {
   DEFAULT_OCR_DPI,
   type BudgetUploadProgress,
 } from './app/services/budgetUpload'
 import type {
-  BuyoutResumo,
-  BuyoutRow,
   ClienteDados,
   PrintableProposalImage,
-  MensalidadeRow,
   PrintableProposalProps,
   TipoInstalacao,
   UfvComposicaoSoloValores,
@@ -263,7 +226,7 @@ import { convertClientToClosedDeal } from './services/deals/convert-client-to-cl
 import type { ConsultantForResolution } from './domain/clients/consultant-resolution'
 import { useAnaliseFinanceiraState } from './features/simulacoes/useAnaliseFinanceiraState'
 import { SimuladorPage } from './features/simulador/SimuladorPage'
-import { cloneImpostosOverrides, parseNumericInput, toNumberSafe } from './utils/vendasHelpers'
+import { cloneImpostosOverrides } from './utils/vendasHelpers'
 import { formatWhatsappPhoneNumber } from './utils/phoneUtils'
 import { Field, FieldError } from './components/ui/Field'
 import { ClientesPage } from './pages/ClientesPage'
@@ -337,6 +300,8 @@ import {
 } from './features/propostas/proposalHelpers'
 import { useProposalImageActions } from './features/simulacoes/useProposalImageActions'
 import { useSimuladorTabActions } from './features/simulacoes/useSimuladorTabActions'
+import { useComposicaoUsinaCalculo } from './features/simulacoes/useComposicaoUsinaCalculo'
+import { useUsinaDimensionamento } from './features/simulacoes/useUsinaDimensionamento'
 import { useProposalSaveActions } from './features/propostas/useProposalSaveActions'
 import { useProposalListActions } from './features/propostas/useProposalListActions'
 import { useClientAddressLookup } from './features/clientes/useClientAddressLookup'
@@ -404,14 +369,7 @@ function normalizeTipoInstalacao(value?: string | null): TipoInstalacao {
 
 
 
-const TUSD_TO_SEGMENTO: Record<TipoClienteTUSD, SegmentoCliente> = {
-  residencial: 'residencial' as SegmentoCliente,
-  comercial: 'comercial' as SegmentoCliente,
-  cond_vertical: 'cond_vertical' as SegmentoCliente,
-  cond_horizontal: 'cond_horizontal' as SegmentoCliente,
-  industrial: 'industrial' as SegmentoCliente,
-  outros: 'outros' as SegmentoCliente,
-} as Record<TipoClienteTUSD, SegmentoCliente>
+
 
 const SEGMENTO_TO_TUSD: Record<SegmentoCliente, TipoClienteTUSD> = {
   '': 'residencial' as TipoClienteTUSD,
@@ -453,21 +411,10 @@ const numbersAreClose = (
   return Math.abs(a - b) <= tolerance
 }
 
-const sumComposicaoValores = <T extends Record<string, number>>(valores: T): number => {
-  return (
-    Math.round(
-      Object.values(valores).reduce((acc, valor) => (Number.isFinite(valor) ? acc + Number(valor) : acc), 0) * 100,
-    ) / 100
-  )
-}
-
 const ECONOMIA_ESTIMATIVA_PADRAO_ANOS = 5
 
 
 type NotificacaoTipo = 'success' | 'info' | 'error'
-
-const normalizeCurrencyNumber = (value: number | null) =>
-  value === null ? null : Math.round(value * 100) / 100
 
 const describeBudgetProgress = (progress: BudgetUploadProgress | null) => {
   if (!progress) {
@@ -2172,64 +2119,6 @@ export default function App() {
     onChange: handleBudgetTotalValueChange,
   })
 
-  const handleComposicaoTelhadoChange = useCallback(
-    (campo: keyof UfvComposicaoTelhadoValores, valor: string) => {
-      const parsed = parseNumericInput(valor)
-      const normalizado = normalizeCurrencyNumber(parsed)
-      const finalValue = normalizado === null ? 0 : normalizado
-      setComposicaoTelhado((prev) => {
-        if (prev[campo] === finalValue) {
-          return prev
-        }
-        return { ...prev, [campo]: finalValue }
-      })
-      if (campo === 'lucroBruto') {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
-      }
-    },
-    [currentBudgetId, updateVendasSimulacao],
-  )
-
-  const handleComposicaoSoloChange = useCallback(
-    (campo: keyof UfvComposicaoSoloValores, valor: string) => {
-      const parsed = parseNumericInput(valor)
-      const normalizado = normalizeCurrencyNumber(parsed)
-      const finalValue = normalizado === null ? 0 : normalizado
-      setComposicaoSolo((prev) => {
-        if (prev[campo] === finalValue) {
-          return prev
-        }
-        return { ...prev, [campo]: finalValue }
-      })
-      if (campo === 'lucroBruto') {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
-      }
-    },
-    [currentBudgetId, updateVendasSimulacao],
-  )
-
-  const handleMargemManualInput = useCallback(
-    (valor: number | null) => {
-      if (valor === null || !Number.isFinite(valor)) {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
-        return
-      }
-      const finalValue = normalizeCurrencyNumber(valor)
-      if (finalValue === null) {
-        updateVendasSimulacao(currentBudgetId, { margemManualValor: null })
-        return
-      }
-      updateVendasSimulacao(currentBudgetId, { margemManualValor: finalValue })
-      setComposicaoTelhado((prev) =>
-        numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
-      )
-      setComposicaoSolo((prev) =>
-        numbersAreClose(prev.lucroBruto, finalValue) ? prev : { ...prev, lucroBruto: finalValue },
-      )
-    },
-    [currentBudgetId, updateVendasSimulacao],
-  )
-
 
   const handleDescontosConfigChange = useCallback(
     (valor: number | null) => {
@@ -2246,17 +2135,6 @@ export default function App() {
     onChange: handleDescontosConfigChange,
   })
 
-  const handleCapexBaseResumoChange = useCallback(
-    (valor: number | null) => {
-      if (valor === null) {
-        updateVendasSimulacao(currentBudgetId, { capexBaseManual: null })
-        return
-      }
-      const sanitized = Number.isFinite(valor) ? Math.max(0, Number(valor)) : 0
-      updateVendasSimulacao(currentBudgetId, { capexBaseManual: sanitized })
-    },
-    [currentBudgetId, updateVendasSimulacao],
-  )
 
   const validateVendaForm = useCallback((form: VendaForm) => {
     const errors: Record<string, string> = {}
@@ -3335,1089 +3213,123 @@ export default function App() {
     }
   }, [clienteUf, ufTarifa])
 
-  const eficienciaNormalizada = useMemo(() => {
-    if (eficiencia <= 0) return 0
-    if (eficiencia >= 1.5) return eficiencia / 100
-    return eficiencia
-  }, [eficiencia])
-
-  const baseIrradiacao = useMemo(
-    () => (irradiacao > 0 ? irradiacao : 0),
-    [irradiacao],
-  )
-
-  const diasMesNormalizado = useMemo(
-    () => (diasMes > 0 ? diasMes : 0),
-    [diasMes],
-  )
-
-  const vendaPotenciaCalculada = useMemo(() => {
-    const dias = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
-    return calcPotenciaSistemaKwp({
-      consumoKwhMes: kcKwhMes,
-      irradiacao: baseIrradiacao,
-      performanceRatio: eficienciaNormalizada,
-      diasMes: dias,
-      potenciaModuloWp: potenciaModulo,
-    })
-  }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, kcKwhMes, potenciaModulo])
-
-  const numeroModulosInformado = useMemo(() => {
-    if (typeof numeroModulosManual !== 'number') return null
-    if (!Number.isFinite(numeroModulosManual) || numeroModulosManual <= 0) return null
-    return Math.max(1, Math.round(numeroModulosManual))
-  }, [numeroModulosManual])
-
-  const numeroModulosCalculado = useMemo(() => {
-    if (potenciaFonteManual) {
-      const manual = Number(vendaForm.potencia_instalada_kwp)
-      if (Number.isFinite(manual) && manual > 0 && potenciaModulo > 0) {
-        const estimado = Math.round((manual * 1000) / potenciaModulo)
-        if (Number.isFinite(estimado) && estimado > 0) {
-          return estimado
-        }
-      }
-    }
-
-    if (vendaPotenciaCalculada?.quantidadeModulos) {
-      return vendaPotenciaCalculada.quantidadeModulos
-    }
-
-    if (vendaPotenciaCalculada?.potenciaKwp && potenciaModulo > 0) {
-      const estimado = Math.ceil((vendaPotenciaCalculada.potenciaKwp * 1000) / potenciaModulo)
-      if (Number.isFinite(estimado) && estimado > 0) {
-        return estimado
-      }
-    }
-
-    return 0
-  }, [
-    potenciaFonteManual,
-    potenciaModulo,
-    vendaForm.potencia_instalada_kwp,
-    vendaPotenciaCalculada?.potenciaKwp,
-    vendaPotenciaCalculada?.quantidadeModulos,
-  ])
-
-  const potenciaInstaladaKwp = useMemo(() => {
-    if (potenciaFonteManual) {
-      const manual = Number(vendaForm.potencia_instalada_kwp)
-      if (Number.isFinite(manual) && manual > 0) {
-        return Math.round(manual * 100) / 100
-      }
-    }
-
-    const modulos = numeroModulosInformado ?? numeroModulosCalculado
-    if (modulos && potenciaModulo > 0) {
-      return (modulos * potenciaModulo) / 1000
-    }
-
-    return vendaPotenciaCalculada?.potenciaKwp ?? 0
-  }, [
-    numeroModulosInformado,
-    numeroModulosCalculado,
-    potenciaModulo,
-    potenciaFonteManual,
-    vendaForm.potencia_instalada_kwp,
-    vendaPotenciaCalculada?.potenciaKwp,
-  ])
-  const ufNorma = useMemo(() => {
-    const uf =
-      cliente.uf ||
-      leasingContrato.ucGeradoraTitularDraft?.endereco.uf ||
-      leasingContrato.ucGeradoraTitular?.endereco.uf ||
-      ufTarifa
-    return (uf ?? '').toUpperCase()
-  }, [
-    cliente.uf,
-    leasingContrato.ucGeradoraTitular?.endereco.uf,
-    leasingContrato.ucGeradoraTitularDraft?.endereco.uf,
-    ufTarifa,
-  ])
-  const precheckNormativo = useMemo(
-    () =>
-      calcularPrecheckNormativo({
-        uf: ufNorma,
-        tipoRede,
-        potenciaKw: potenciaInstaladaKwp,
-      }),
-    [potenciaInstaladaKwp, tipoRede, ufNorma],
-  )
-  const normCompliance = precheckNormativo.compliance
-  const tipoRedeCompatMessage = useMemo(() => {
-    if (!normCompliance) {
-      return ''
-    }
-
-    if (normCompliance.status === 'FORA_DA_NORMA' || normCompliance.status === 'LIMITADO') {
-      return `Padrão de entrada: atenção — potência acima do limite do padrão atual (${normCompliance.uf}). Clique para revisar.`
-    }
-
-    return ''
-  }, [normCompliance])
-  const normComplianceBanner = useMemo(() => {
-    if (!normCompliance) {
-      if (precheckNormativo.status === 'INDETERMINADO') {
-        return {
-          tone: 'neutral',
-          title: 'Pré-check normativo (padrão de entrada)',
-          statusLabel: 'INDETERMINADO',
-          message: precheckNormativo.observacoes.join(' '),
-          details: [] as string[],
-        }
-      }
-      return {
-        tone: 'neutral',
-        title: 'Pré-check normativo (padrão de entrada)',
-        statusLabel: 'PENDENTE',
-        message: 'Informe UF, tipo de rede e potência para validar o padrão de entrada.',
-        details: [] as string[],
-      }
-    }
-
-    const tipoLabel = formatTipoLigacaoLabel(normCompliance.tipoLigacao)
-    const formatKw = (value?: number | null) =>
-      value != null
-        ? formatNumberBRWithOptions(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-        : null
-    const details: string[] = []
-    if (normCompliance.kwMaxPermitido != null) {
-      const limiteLabel = formatKw(normCompliance.kwMaxPermitido)
-      details.push(`Limite ${tipoLabel}: ${limiteLabel} kW.`)
-    }
-    const isAboveLimit =
-      normCompliance.status === 'FORA_DA_NORMA' || normCompliance.status === 'LIMITADO'
-    if (isAboveLimit && normCompliance.upgradeTo && normCompliance.kwMaxUpgrade != null) {
-      const limiteUpgradeLabel = formatKw(normCompliance.kwMaxUpgrade)
-      details.push(
-        `Upgrade sugerido: ${formatTipoLigacaoLabel(normCompliance.upgradeTo)} até ${limiteUpgradeLabel} kW.`,
-      )
-    }
-
-    const statusMap = {
-      OK: { tone: 'ok', label: 'Dentro do limite', message: 'Dentro do limite do padrão informado.' },
-      WARNING: {
-        tone: 'error',
-        label: 'Regra provisória',
-        message: 'Regra provisória: valide com a distribuidora antes do envio.',
-      },
-      FORA_DA_NORMA: {
-        tone: 'error',
-        label: 'Acima do limite',
-        message: 'A potência informada está acima do limite do padrão atual.',
-      },
-      LIMITADO: {
-        tone: 'danger',
-        label: 'Acima do limite',
-        message: 'A potência informada excede o limite mesmo com upgrade.',
-      },
-    } as const
-
-    const statusInfo = statusMap[normCompliance.status]
-    return {
-      tone: statusInfo.tone,
-      title: `Pré-check normativo (padrão de entrada)`,
-      statusLabel: statusInfo.label,
-      message: statusInfo.message,
-      details,
-    }
-  }, [normCompliance, precheckNormativo, ufNorma])
-  useEffect(() => {
-    setPrecheckClienteCiente(false)
-    setPrecheckModalClienteCiente(false)
-  }, [
-    normCompliance?.status,
-    normCompliance?.uf,
-    normCompliance?.tipoLigacao,
-    normCompliance?.potenciaInversorKw,
-    normCompliance?.kwMaxPermitido,
-    normCompliance?.kwMaxUpgrade,
-  ])
-  useEffect(() => {
-    if (!precheckModalData || !normCompliance) {
-      return
-    }
-
-    setPrecheckModalData(normCompliance)
-  }, [normCompliance, precheckModalData])
-  useEffect(() => {
-    if (!normCompliance) {
-      if (precheckNormativo.status === 'INDETERMINADO') {
-        removePrecheckObservation()
-      }
-      return
-    }
-
-    const observation = buildPrecheckObservationBlock({
-      result: normCompliance,
-      action: 'proceed',
-      clienteCiente: precheckClienteCiente,
-    })
-
-    if (!isPrecheckObservationTextValid(observation)) {
-      return
-    }
-
-    upsertPrecheckObservation(observation)
-  }, [
-    buildPrecheckObservationBlock,
-    isPrecheckObservationTextValid,
-    normCompliance,
-    precheckClienteCiente,
-    precheckNormativo.status,
-    removePrecheckObservation,
-    upsertPrecheckObservation,
-  ])
-
-  const ensureNormativePrecheck = useCallback(async (): Promise<boolean> => {
-    if (!normCompliance) {
-      return true
-    }
-
-    if (normCompliance.status === 'OK' || normCompliance.status === 'WARNING') {
-      return true
-    }
-
-    const decision = await requestPrecheckDecision(normCompliance)
-    if (decision.action === 'cancel') {
-      return false
-    }
-
-    if (decision.action === 'adjust_current') {
-      const limite = normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
-      applyNormativeAdjustment({ potenciaKw: limite })
-      await Promise.resolve()
-      return true
-    }
-
-    if (decision.action === 'adjust_upgrade') {
-      const limite =
-        normCompliance.kwMaxUpgrade ?? normCompliance.kwMaxPermitido ?? normCompliance.potenciaInversorKw
-      const tipo = normCompliance.upgradeTo ?? normCompliance.tipoLigacao
-      applyNormativeAdjustment({ potenciaKw: limite, tipoLigacao: tipo })
-      await Promise.resolve()
-      return true
-    }
-
-    if (decision.action === 'proceed' && decision.clienteCiente) {
-      setPrecheckClienteCiente(true)
-      return true
-    }
-
-    return false
-  }, [
-    applyNormativeAdjustment,
-    normCompliance,
-    requestPrecheckDecision,
-    setPrecheckClienteCiente,
-  ])
-
-  const numeroModulosEstimado = useMemo(() => {
-    if (numeroModulosInformado) return numeroModulosInformado
-    return numeroModulosCalculado
-  }, [numeroModulosInformado, numeroModulosCalculado])
-
-  const vendaAutoPotenciaKwp = useMemo(() => vendaPotenciaCalculada?.potenciaKwp ?? null, [
-    vendaPotenciaCalculada?.potenciaKwp,
-  ])
-
-  const installTypeNormalized = useMemo<InstallType | null>(() => {
-    if (tipoInstalacao === 'solo') return 'solo'
-    if (tipoInstalacao === 'outros') return 'outros'
-    return normalizeInstallType('telhado')
-  }, [tipoInstalacao])
-
-  const systemTypeNormalized = useMemo<SystemType | null>(
-    () => normalizeSystemType(tipoSistema === 'OFF_GRID' ? 'offgrid' : tipoSistema.toLowerCase()),
-    [tipoSistema],
-  )
-
-  const potenciaKwpElegivel = useMemo(
-    () => (Number.isFinite(potenciaInstaladaKwp) && potenciaInstaladaKwp > 0 ? potenciaInstaladaKwp : null),
-    [potenciaInstaladaKwp],
-  )
-
-  const tipoRedeAutoSugestao = useMemo<TipoRede | null>(() => {
-    if (autoPricingRede) {
-      return autoPricingRede === 'mono' ? 'monofasico' : 'trifasico'
-    }
-
-    if (!Number.isFinite(potenciaInstaladaKwp) || potenciaInstaladaKwp <= 0) {
-      return null
-    }
-
-    const rede = getRedeByPotencia(potenciaInstaladaKwp)
-    return rede === 'mono' ? 'monofasico' : 'trifasico'
-  }, [autoPricingRede, potenciaInstaladaKwp])
-
-  useEffect(() => {
-    if (tipoRedeControle !== 'auto') {
-      return
-    }
-    if (!tipoRedeAutoSugestao) {
-      return
-    }
-    if (tipoRede === tipoRedeAutoSugestao) {
-      return
-    }
-    setTipoRede(tipoRedeAutoSugestao)
-  }, [tipoRede, tipoRedeAutoSugestao, tipoRedeControle])
-
-  const margemLucroPadraoFracao = useMemo(() => {
-    const percentual = Number(vendasConfig.margem_operacional_padrao_percent)
-    if (!Number.isFinite(percentual)) return 0
-    return Math.max(0, percentual) / 100
-  }, [vendasConfig.margem_operacional_padrao_percent])
-
-  const comissaoPadraoFracao = useMemo(() => {
-    const percentual = Number(vendasConfig.comissao_default_percent)
-    if (!Number.isFinite(percentual)) return 0
-    return Math.max(0, percentual) / 100
-  }, [vendasConfig.comissao_default_percent])
-
-  const autoBudgetFallbackMessage = useMemo(() => {
-    switch (autoBudgetReasonCode) {
-      case 'INSTALL_NOT_ELIGIBLE':
-        return 'Instalação em solo/outros exige orçamento personalizado. Modo manual ativado.'
-      case 'SYSTEM_NOT_ELIGIBLE':
-        return 'Sistemas híbridos ou off-grid exigem orçamento personalizado. Modo manual ativado.'
-      case 'KWP_LIMIT':
-        return 'Para sistemas acima de 90 kWp, o orçamento é realizado de forma personalizada. Modo manual ativado.'
-      case 'MISSING_SELECTION':
-        return 'Selecione o tipo de instalação e o tipo de sistema para continuar.'
-      default:
-        return autoBudgetReason ?? ''
-    }
-  }, [autoBudgetReason, autoBudgetReasonCode])
-
-  useEffect(() => {
-    const eligibility = getAutoEligibility({
-      installType: installTypeNormalized,
-      systemType: systemTypeNormalized,
-      kwp: potenciaKwpElegivel,
-    })
-
-    setAutoBudgetReason(eligibility.reason ?? null)
-    setAutoBudgetReasonCode(eligibility.reasonCode ?? null)
-
-    if (modoOrcamento !== 'auto') {
-      setAutoKitValor(null)
-      setAutoCustoFinal(null)
-      setAutoPricingRede(null)
-      setAutoPricingVersion(null)
-      return
-    }
-
-    if (!eligibility.eligible) {
-      setModoOrcamento('manual')
-      setAutoKitValor(null)
-      setAutoCustoFinal(null)
-      setAutoPricingRede(null)
-      setAutoPricingVersion(null)
-      return
-    }
-
-    const projectedCosts = calcProjectedCostsByConsumption({
-      consumoKwhMes: kcKwhMes,
-      uf: ufTarifa,
-      tarifaCheia,
-      descontoPercentual: desconto,
-      irradiacao: baseIrradiacao,
-      performanceRatio: eficienciaNormalizada,
-      diasMes: diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO,
-      potenciaModuloWp: potenciaModulo,
-      margemLucroPct: margemLucroPadraoFracao,
-      comissaoVendaPct: comissaoPadraoFracao,
-    })
-
-    if (!projectedCosts) {
-      setAutoKitValor(null)
-      setAutoCustoFinal(null)
-      setAutoPricingRede(null)
-      setAutoPricingVersion(null)
-      return
-    }
-
-    const custoFinalProjetado = isVendaDiretaTab
-      ? projectedCosts.custoFinalVenda
-      : projectedCosts.custoFinalLeasing
-
-    setAutoKitValor(projectedCosts.kitAtualizado)
-    setAutoCustoFinal(custoFinalProjetado)
-    setAutoPricingRede(projectedCosts.potenciaKwp > 23.22 ? 'trifasico' : 'mono')
-    setAutoPricingVersion('pricing_consumo_v3')
-
-  }, [
-    installTypeNormalized,
-    systemTypeNormalized,
-    modoOrcamento,
-    potenciaKwpElegivel,
-    setModoOrcamento,
-    kcKwhMes,
-    ufTarifa,
-    tarifaCheia,
-    desconto,
-    baseIrradiacao,
+  // ---------------------------------------------------------------------------
+  // Usina Dimensionamento hook — owns all dimensioning calcs, auto-budget,
+  // multi-UC generation sync, and vendaActions sync effects
+  // ---------------------------------------------------------------------------
+  const {
     eficienciaNormalizada,
+    baseIrradiacao,
     diasMesNormalizado,
-    potenciaModulo,
-    isVendaDiretaTab,
+    vendaAutoPotenciaKwp,
+    numeroModulosEstimado,
+    potenciaInstaladaKwp,
+    normCompliance,
+    normComplianceBanner,
+    tipoRedeCompatMessage,
+    ensureNormativePrecheck,
     margemLucroPadraoFracao,
     comissaoPadraoFracao,
-  ])
-
-  const parseUcBeneficiariaConsumo = (valor: string): number => {
-    const normalizado = valor.replace(/\./g, '').replace(',', '.')
-    const parsed = Number(normalizado)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return 0
-    }
-    return parsed
-  }
-
-  const consumoTotalUcsBeneficiarias = ucsBeneficiarias.reduce(
-    (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
-    0,
-  )
-
-  const consumoUcsExcedeInformado =
-    kcKwhMes > 0 && consumoTotalUcsBeneficiarias > kcKwhMes
-
-  const recalcularRateioAutomatico = (
-    lista: UcBeneficiariaFormState[],
-  ): UcBeneficiariaFormState[] => {
-    const totalConsumo = lista.reduce(
-      (acc, item) => acc + parseUcBeneficiariaConsumo(item.consumoKWh),
-      0,
-    )
-
-    if (totalConsumo <= 0) {
-      return lista
-    }
-
-    return lista.map((item) => {
-      const consumo = parseUcBeneficiariaConsumo(item.consumoKWh)
-      const percentual = consumo > 0 ? (consumo / totalConsumo) * 100 : 0
-      const percentualFormatado = Number.isFinite(percentual)
-        ? percentual.toFixed(2).replace('.', ',')
-        : '0'
-      return { ...item, rateioPercentual: percentualFormatado }
-    })
-  }
-
-  const vendaGeracaoParametros = useMemo(
-    () => ({
-      hsp: baseIrradiacao > 0 ? baseIrradiacao : 0,
-      pr: eficienciaNormalizada > 0 ? eficienciaNormalizada : 0,
-    }),
-    [baseIrradiacao, eficienciaNormalizada],
-  )
-
-  useEffect(() => {
-    const tusdValido: TipoClienteTUSD = vendaForm.tusd_tipo_cliente
-      ? normalizeTusdTipoClienteValue(vendaForm.tusd_tipo_cliente)
-      : INITIAL_VALUES.tusdTipoCliente
-    const segmentoPreferido = TUSD_TO_SEGMENTO[tusdValido] ?? INITIAL_VALUES.segmentoCliente
-    const segmentoAtual = vendaForm.segmento_cliente
-      ? normalizeTipoBasico(vendaForm.segmento_cliente)
-      : null
-    const segmentoResolvido: SegmentoCliente = segmentoAtual ?? segmentoPreferido
-    const tusdResolvido = SEGMENTO_TO_TUSD[segmentoResolvido] ?? INITIAL_VALUES.tusdTipoCliente
-
-    updateSegmentoCliente(segmentoResolvido, {
-      updateVenda: segmentoAtual !== segmentoResolvido,
-    })
-    updateTusdTipoCliente(tusdResolvido, {
-      updateVenda: tusdValido !== tusdResolvido,
-      reset: false,
-    })
-  }, [
-    updateSegmentoCliente,
-    updateTusdTipoCliente,
-    vendaForm.segmento_cliente,
-    vendaForm.tusd_tipo_cliente,
-  ])
-
-  useEffect(() => {
-    const tipoAtual = normalizeTipoSistemaValue(vendaForm.tipo_sistema)
-    if (tipoAtual && tipoAtual !== tipoSistema) {
-      setTipoSistema(tipoAtual)
-    }
-  }, [setTipoSistema, tipoSistema, vendaForm.tipo_sistema])
-
-  const areaInstalacao = useMemo(() => {
-    if (numeroModulosEstimado <= 0) return 0
-    const fator = tipoInstalacao === 'solo' ? 7 : 3.3
-    return Math.round(numeroModulosEstimado * fator)
-  }, [numeroModulosEstimado, tipoInstalacao])
-
-  const geracaoMensalKwh = useMemo(() => {
-    if (potenciaInstaladaKwp <= 0) {
-      return 0
-    }
-    const estimada = estimateMonthlyGenerationKWh({
-      potencia_instalada_kwp: potenciaInstaladaKwp,
-      irradiacao_kwh_m2_dia: baseIrradiacao,
-      performance_ratio: eficienciaNormalizada,
-      dias_mes: diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO,
-    })
-    return estimada > 0 ? estimada : 0
-  }, [baseIrradiacao, diasMesNormalizado, eficienciaNormalizada, potenciaInstaladaKwp])
-
-  const coletarAlertasProposta = useCallback(() => {
-    const alertas: string[] = []
-
-    if (consumoUcsExcedeInformado) {
-      alertas.push(
-        `A soma dos consumos das UCs beneficiárias (${formatNumberBRWithOptions(consumoTotalUcsBeneficiarias, {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        })} kWh/mês) excede o consumo mensal informado (${formatNumberBRWithOptions(kcKwhMes, {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        })} kWh/mês).`,
-      )
-    }
-
-    return alertas
-  }, [consumoTotalUcsBeneficiarias, consumoUcsExcedeInformado, kcKwhMes])
-
-  const confirmarAlertasGerarProposta = useCallback(() => {
-    const alertas = coletarAlertasProposta()
-
-    if (!alertas.length) {
-      return true
-    }
-
-    const mensagem = `${
-      alertas.length === 1 ? 'Encontramos um alerta:' : 'Encontramos alguns alertas:'
-    }\n\n- ${alertas.join('\n- ')}\n\nPressione "OK" para gerar a proposta assim mesmo ou "Cancelar" para voltar e ajustar os valores.`
-
-    return window.confirm(mensagem)
-  }, [coletarAlertasProposta])
-
-  const handleMultiUcToggle = useCallback(
-    (checked: boolean) => {
-      setMultiUcAtivo(checked)
-      if (checked) {
-        multiUcConsumoAnteriorRef.current = kcKwhMes
-        setMultiUcEnergiaGeradaTouched(false)
-        setMultiUcRows((prev) => {
-          if (prev.length > 0) {
-            return prev
-          }
-          const novoId = multiUcIdCounterRef.current
-          multiUcIdCounterRef.current += 1
-          return [applyTarifasAutomaticas(createDefaultMultiUcRow(novoId), undefined, true)]
-        })
-        const sugeridoBase = geracaoMensalKwh > 0 ? geracaoMensalKwh : kcKwhMes
-        if (sugeridoBase > 0) {
-          setMultiUcEnergiaGeradaKWhState((prev) => (prev > 0 ? prev : Math.max(0, sugeridoBase)))
-        }
-      } else {
-        setMultiUcEnergiaGeradaTouched(false)
-        if (multiUcConsumoAnteriorRef.current != null) {
-          setKcKwhMes(multiUcConsumoAnteriorRef.current, 'auto')
-        }
-        multiUcConsumoAnteriorRef.current = null
-      }
-    },
-    [
-      applyTarifasAutomaticas,
-      geracaoMensalKwh,
-      kcKwhMes,
-      setKcKwhMes,
-    ],
-  )
-
-  useEffect(() => {
-    if (!multiUcAtivo) {
-      return
-    }
-    const sugerido = Math.max(0, geracaoMensalKwh)
-    setMultiUcEnergiaGeradaKWhState((prev) => {
-      if (multiUcEnergiaGeradaTouched && prev > 0) {
-        return prev
-      }
-      if (sugerido > 0 && Math.abs(prev - sugerido) > 0.1) {
-        return sugerido
-      }
-      return prev
-    })
-  }, [geracaoMensalKwh, multiUcAtivo, multiUcEnergiaGeradaTouched])
-
-  const diasMesConsiderado = diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO
-
-  const normalizarPotenciaKwp = useCallback((valor: number) => {
-    if (!Number.isFinite(valor) || valor <= 0) {
-      return 0
-    }
-    return Math.round(valor * 100) / 100
-  }, [])
-
-  const normalizarGeracaoMensal = useCallback((valor: number) => {
-    if (!Number.isFinite(valor) || valor <= 0) {
-      return 0
-    }
-    return Math.round(valor * 10) / 10
-  }, [])
-
-  const calcularPotenciaSistemaKwp = useCallback(
-    (modulos: number, potenciaModuloOverride?: number) => {
-      const potenciaWp =
-        Number.isFinite(potenciaModuloOverride) && (potenciaModuloOverride ?? 0) > 0
-          ? Number(potenciaModuloOverride)
-          : potenciaModulo
-      if (!Number.isFinite(modulos) || modulos <= 0) {
-        return 0
-      }
-      if (!Number.isFinite(potenciaWp) || potenciaWp <= 0) {
-        return 0
-      }
-      return (modulos * potenciaWp) / 1000
-    },
-    [potenciaModulo],
-  )
-
-  const estimarGeracaoPorPotencia = useCallback(
-    (potenciaKwp: number) => {
-      if (!Number.isFinite(potenciaKwp) || potenciaKwp <= 0) {
-        return 0
-      }
-      return estimateMonthlyGenerationKWh({
-        potencia_instalada_kwp: potenciaKwp,
-        irradiacao_kwh_m2_dia: baseIrradiacao,
-        performance_ratio: eficienciaNormalizada,
-        dias_mes: diasMesConsiderado,
-      })
-    },
-    [baseIrradiacao, eficienciaNormalizada, diasMesConsiderado],
-  )
-
-  const fatorGeracaoMensalCompleto = useMemo(() => {
-    if (baseIrradiacao <= 0 || eficienciaNormalizada <= 0 || diasMesConsiderado <= 0) {
-      return 0
-    }
-    return baseIrradiacao * eficienciaNormalizada * diasMesConsiderado
-  }, [baseIrradiacao, diasMesConsiderado, eficienciaNormalizada])
-
-  const calcularModulosPorGeracao = useCallback(
-    (geracaoAlvo: number, potenciaModuloOverride?: number) => {
-      if (!Number.isFinite(geracaoAlvo) || geracaoAlvo <= 0) {
-        return null
-      }
-      if (!Number.isFinite(fatorGeracaoMensalCompleto) || fatorGeracaoMensalCompleto <= 0) {
-        return null
-      }
-      const potenciaWp =
-        Number.isFinite(potenciaModuloOverride) && (potenciaModuloOverride ?? 0) > 0
-          ? Number(potenciaModuloOverride)
-          : potenciaModulo
-      if (!Number.isFinite(potenciaWp) || potenciaWp <= 0) {
-        return null
-      }
-      const potenciaNecessaria = geracaoAlvo / fatorGeracaoMensalCompleto
-      if (!Number.isFinite(potenciaNecessaria) || potenciaNecessaria <= 0) {
-        return null
-      }
-      const modulosCalculados = Math.ceil((potenciaNecessaria * 1000) / potenciaWp)
-      if (!Number.isFinite(modulosCalculados) || modulosCalculados <= 0) {
-        return null
-      }
-      return modulosCalculados
-    },
-    [fatorGeracaoMensalCompleto, potenciaModulo],
-  )
-
-  useEffect(() => {
-    const consumo = Number.isFinite(vendaForm.consumo_kwh_mes)
-      ? Number(vendaForm.consumo_kwh_mes)
-      : kcKwhMes
-    const tarifaAtual = Number.isFinite(vendaForm.tarifa_r_kwh)
-      ? Number(vendaForm.tarifa_r_kwh)
-      : tarifaCheia
-    const inflacaoEnergia = Number.isFinite(vendaForm.inflacao_energia_aa_pct)
-      ? Number(vendaForm.inflacao_energia_aa_pct)
-      : inflacaoAa
-    const aplicaTaxaMinima =
-      typeof vendaForm.aplica_taxa_minima === 'boolean' ? vendaForm.aplica_taxa_minima : true
-    const taxaMinimaCalculada = calcularTaxaMinima(tipoRede, Math.max(0, tarifaAtual))
-    const taxaMinimaEnergia = aplicaTaxaMinima
-      ? taxaMinimaInputEmpty
-        ? taxaMinimaCalculada
-        : Number.isFinite(taxaMinima)
-          ? Math.max(0, taxaMinima)
-          : 0
-      : 0
-    const taxaDesconto = Number.isFinite(vendaForm.taxa_desconto_aa_pct)
-      ? Number(vendaForm.taxa_desconto_aa_pct)
-      : 0
-
-    vendaActions.updateParametros({
-      consumo_kwh_mes: consumo > 0 ? consumo : 0,
-      tarifa_r_kwh: tarifaAtual > 0 ? tarifaAtual : 0,
-      inflacao_energia_aa: inflacaoEnergia > 0 ? inflacaoEnergia : 0,
-      taxa_minima_rs_mes: taxaMinimaEnergia > 0 ? taxaMinimaEnergia : 0,
-      taxa_desconto_aa: taxaDesconto > 0 ? taxaDesconto : 0,
-      horizonte_meses: 360,
-      uf: cliente.uf ?? '',
-      distribuidora: distribuidoraAneelEfetiva,
-      irradiacao_kwhm2_dia: baseIrradiacao > 0 ? baseIrradiacao : 0,
-      aplica_taxa_minima: aplicaTaxaMinima,
-    })
-  }, [
-    baseIrradiacao,
-    cliente.uf,
-    distribuidoraAneelEfetiva,
-    inflacaoAa,
-    kcKwhMes,
-    tarifaCheia,
-    taxaMinima,
-    taxaMinimaInputEmpty,
-    vendaForm.consumo_kwh_mes,
-    vendaForm.inflacao_energia_aa_pct,
-    vendaForm.tarifa_r_kwh,
-    vendaForm.aplica_taxa_minima,
-    vendaForm.taxa_desconto_aa_pct,
-    vendaForm.taxa_minima_r_mes,
-    recalcularTick,
-  ])
-
-  useEffect(() => {
-    const quantidadeInformada = Number.isFinite(vendaForm.quantidade_modulos)
-      ? Number(vendaForm.quantidade_modulos)
-      : null
-    const quantidadeFinal = quantidadeInformada ?? numeroModulosEstimado ?? 0
-    const potenciaSistema = Number.isFinite(vendaForm.potencia_instalada_kwp)
-      ? Number(vendaForm.potencia_instalada_kwp)
-      : potenciaInstaladaKwp
-    const geracaoEstimativa = Number.isFinite(vendaForm.geracao_estimada_kwh_mes)
-      ? Number(vendaForm.geracao_estimada_kwh_mes)
-      : geracaoMensalKwh
-
-    const potenciaState: PropostaState = {
-      orcamento: {
-        modulo: { potenciaW: potenciaModulo },
-      },
-    }
-    const potenciaModuloSeguro = getPotenciaModuloW(potenciaState)
-
-    vendaActions.updateConfiguracao({
-      potencia_modulo_wp: potenciaModuloSeguro,
-      n_modulos: Number.isFinite(quantidadeFinal) ? Math.max(0, Number(quantidadeFinal)) : 0,
-      potencia_sistema_kwp: potenciaSistema > 0 ? potenciaSistema : 0,
-      geracao_estimada_kwh_mes: geracaoEstimativa > 0 ? geracaoEstimativa : 0,
-      area_m2: areaInstalacao > 0 ? areaInstalacao : 0,
-      tipo_instalacao: tipoInstalacao,
-      segmento: segmentoCliente,
-      modelo_modulo: vendaForm.modelo_modulo ?? '',
-      modelo_inversor: vendaForm.modelo_inversor ?? '',
-      estrutura_suporte: vendaForm.estrutura_suporte ?? '',
-      tipo_sistema: tipoSistema,
-    })
-  }, [
+    autoBudgetFallbackMessage,
+    consumoTotalUcsBeneficiarias,
+    consumoUcsExcedeInformado,
+    recalcularRateioAutomatico,
     areaInstalacao,
     geracaoMensalKwh,
-    numeroModulosEstimado,
-    potenciaInstaladaKwp,
-    potenciaModulo,
-    segmentoCliente,
-    tipoSistema,
+    coletarAlertasProposta,
+    confirmarAlertasGerarProposta,
+    handleMultiUcToggle,
+    normalizarPotenciaKwp,
+    normalizarGeracaoMensal,
+    calcularPotenciaSistemaKwp,
+    estimarGeracaoPorPotencia,
+    calcularModulosPorGeracao,
+    geracaoDiariaKwh,
+    tipoRedeAutoSugestao,
+  } = useUsinaDimensionamento({
+    // useUsinaConfigState outputs
+    eficiencia,
+    diasMes,
     tipoInstalacao,
-    vendaForm.geracao_estimada_kwh_mes,
-    vendaForm.modelo_inversor,
-    vendaForm.modelo_modulo,
-    vendaForm.estrutura_suporte,
-    vendaForm.potencia_instalada_kwp,
-    vendaForm.quantidade_modulos,
-    recalcularTick,
-  ])
-
-  useEffect(() => {
-    const autonomia = kcKwhMes > 0 && geracaoMensalKwh > 0 ? geracaoMensalKwh / kcKwhMes : null
-    vendaActions.updateResultados({
-      autonomia_frac: autonomia,
-      energia_contratada_kwh_mes: kcKwhMes > 0 ? kcKwhMes : null,
-    })
-  }, [geracaoMensalKwh, kcKwhMes, recalcularTick])
-
-  useEffect(() => {
-    const itensNormalizados = budgetStructuredItems.map((item) => {
-      const normalizado: VendaKitItem = {
-        produto: item.produto ?? '',
-        descricao: item.descricao ?? '',
-        quantidade: Number.isFinite(item.quantidade) ? Number(item.quantidade) : null,
-        unidade: item.unidade?.trim() ? item.unidade.trim() : null,
-        precoUnit: Number.isFinite(item.precoUnitario) ? Number(item.precoUnitario) : null,
-        precoTotal: Number.isFinite(item.precoTotal) ? Number(item.precoTotal) : null,
-      }
-      if (item.codigo?.trim()) {
-        normalizado.codigo = item.codigo.trim()
-      }
-      if (item.modelo?.trim()) {
-        normalizado.modelo = item.modelo.trim()
-      }
-      if (item.fabricante?.trim()) {
-        normalizado.fabricante = item.fabricante.trim()
-      }
-      return normalizado
-    })
-    const valorTotal =
-      kitBudget.total != null && Number.isFinite(kitBudget.total)
-        ? Number(kitBudget.total)
-        : 0
-    vendaActions.updateOrcamento({ itens: itensNormalizados, valor_total_orcamento: valorTotal })
-  }, [budgetStructuredItems, kitBudget.total, recalcularTick])
-
-  useEffect(() => {
-    vendaActions.updatePagamento({
-      forma_pagamento: vendaForm.condicao,
-      moeda: 'BRL',
-      mdr_pix: Number.isFinite(vendaForm.taxa_mdr_pix_pct) ? Number(vendaForm.taxa_mdr_pix_pct) : 0,
-      mdr_debito: Number.isFinite(vendaForm.taxa_mdr_debito_pct) ? Number(vendaForm.taxa_mdr_debito_pct) : 0,
-      mdr_credito_avista: Number.isFinite(vendaForm.taxa_mdr_credito_vista_pct)
-        ? Number(vendaForm.taxa_mdr_credito_vista_pct)
-        : 0,
-      validade_proposta_txt: vendaForm.validade_proposta ?? '',
-      prazo_execucao_txt: vendaForm.prazo_execucao ?? '',
-      condicoes_adicionais_txt: vendaForm.condicoes_adicionais ?? '',
-    })
-  }, [
-    vendaForm.condicao,
-    vendaForm.condicoes_adicionais,
-    vendaForm.prazo_execucao,
-    vendaForm.taxa_mdr_credito_vista_pct,
-    vendaForm.taxa_mdr_debito_pct,
-    vendaForm.taxa_mdr_pix_pct,
-    vendaForm.validade_proposta,
-    recalcularTick,
-  ])
-
-  useEffect(() => {
-    const deveEstimarQuantidade =
-      !Number.isFinite(vendaForm.quantidade_modulos) || (vendaForm.quantidade_modulos ?? 0) <= 0
-
-    let updated = false
-    setVendaForm((prev) => {
-      const next = { ...prev }
-      const potenciaNormalizada = Math.round(potenciaInstaladaKwp * 100) / 100
-      if (
-        !potenciaFonteManual &&
-        potenciaNormalizada > 0 &&
-        !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizada, 0.005)
-      ) {
-        next.potencia_instalada_kwp = potenciaNormalizada
-        updated = true
-      }
-
-      const geracaoNormalizada = Math.round(geracaoMensalKwh * 10) / 10
-      if (geracaoNormalizada > 0 && !numbersAreClose(prev.geracao_estimada_kwh_mes, geracaoNormalizada, 0.05)) {
-        next.geracao_estimada_kwh_mes = geracaoNormalizada
-        updated = true
-      }
-
-      if (
-        deveEstimarQuantidade &&
-        numeroModulosEstimado > 0 &&
-        prev.quantidade_modulos !== numeroModulosEstimado
-      ) {
-        next.quantidade_modulos = numeroModulosEstimado
-        updated = true
-      }
-
-      return updated ? next : prev
-    })
-    if (updated) {
-      resetRetorno()
-    }
-  }, [
-    geracaoMensalKwh,
-    numeroModulosEstimado,
-    potenciaInstaladaKwp,
-    resetRetorno,
+    tipoSistema,
+    setTipoSistema,
+    tipoRede,
+    setTipoRede,
+    tipoRedeControle,
+    potenciaModulo,
     potenciaFonteManual,
-    vendaForm.quantidade_modulos,
-    recalcularTick,
-  ])
-
-  // Sincroniza Consumo (kWh/mês) com a geração estimada sempre que o sistema
-  // tiver potência suficiente para calcular geracaoMensalKwh e o consumo ainda
-  // não foi editado manualmente pelo usuário (consumoManual === false).
-  // Resolve o impasse em que o segundo efeito (abaixo) exige vendaAutoPotenciaKwp
-  // que, por sua vez, precisa de kcKwhMes > 0 — ovo-e-galinha.
-  useEffect(() => {
-    if (consumoManual) {
-      return
-    }
-
-    if (geracaoMensalKwh <= 0) {
-      return
-    }
-
-    const geracaoArredondada = Math.round(geracaoMensalKwh * 10) / 10
-
-    if (numbersAreClose(kcKwhMes, geracaoArredondada, 0.05)) {
-      return
-    }
-
-    setKcKwhMes(geracaoArredondada, 'auto')
-
-    setVendaForm((prev) => {
-      if (numbersAreClose(prev.consumo_kwh_mes ?? 0, geracaoArredondada, 0.05)) {
-        return prev
-      }
-      return { ...prev, consumo_kwh_mes: geracaoArredondada }
-    })
-
-    setVendaFormErrors((prev) => {
-      if (!prev.consumo_kwh_mes) {
-        return prev
-      }
-      const { consumo_kwh_mes: _omit, ...rest } = prev
-      return rest
-    })
-  }, [
-    consumoManual,
-    geracaoMensalKwh,
+    numeroModulosManual,
+    setNumeroModulosManual,
+    // App.tsx direct state
     kcKwhMes,
     setKcKwhMes,
-    setVendaForm,
-    setVendaFormErrors,
-    recalcularTick,
-  ])
-
-  useEffect(() => {
-    const { hsp, pr } = vendaGeracaoParametros
-    if (hsp <= 0 || pr <= 0) {
-      return
-    }
-
-    const potenciaManualValida =
-      potenciaFonteManual &&
-      Number.isFinite(vendaForm.potencia_instalada_kwp) &&
-      (vendaForm.potencia_instalada_kwp ?? 0) > 0
-    const potenciaBase = potenciaManualValida
-      ? Number(vendaForm.potencia_instalada_kwp)
-      : vendaAutoPotenciaKwp ?? null
-
-    if (!potenciaBase || potenciaBase <= 0) {
-      return
-    }
-
-    const estimada = estimateMonthlyKWh(potenciaBase, vendaGeracaoParametros)
-    if (estimada <= 0) {
-      return
-    }
-
-    const potenciaNormalizadaAuto = potenciaBase ? Math.round(potenciaBase * 100) / 100 : 0
-    const geracaoNormalizadaAuto = Math.round(estimada * 10) / 10
-
-    let consumoAtualizado = false
-    let geracaoAtualizada = false
-
-    setVendaForm((prev) => {
-      const updates: Partial<VendaForm> = {}
-      let changed = false
-
-      if (
-        potenciaNormalizadaAuto > 0 &&
-        !numbersAreClose(prev.potencia_instalada_kwp, potenciaNormalizadaAuto, 0.005)
-      ) {
-        updates.potencia_instalada_kwp = potenciaNormalizadaAuto
-        changed = true
-      }
-
-      if (
-        geracaoNormalizadaAuto > 0 &&
-        !numbersAreClose(prev.geracao_estimada_kwh_mes, geracaoNormalizadaAuto, 0.05)
-      ) {
-        updates.geracao_estimada_kwh_mes = geracaoNormalizadaAuto
-        geracaoAtualizada = true
-        changed = true
-      }
-
-      if (
-        !consumoManual &&
-        !numbersAreClose(prev.consumo_kwh_mes, geracaoNormalizadaAuto, 0.05)
-      ) {
-        updates.consumo_kwh_mes = geracaoNormalizadaAuto
-        consumoAtualizado = true
-        changed = true
-      }
-
-      if (!changed) {
-        return prev
-      }
-
-      return { ...prev, ...updates }
-    })
-
-    if (consumoAtualizado) {
-      setKcKwhMes(geracaoNormalizadaAuto)
-      setVendaFormErrors((prev) => {
-        if (!prev.consumo_kwh_mes) {
-          return prev
-        }
-        const { consumo_kwh_mes: _omit, ...rest } = prev
-        return rest
-      })
-    }
-
-    if (geracaoAtualizada) {
-      setVendaFormErrors((prev) => {
-        if (!prev.geracao_estimada_kwh_mes) {
-          return prev
-        }
-        const { geracao_estimada_kwh_mes: _omit, ...rest } = prev
-        return rest
-      })
-    }
-  }, [
+    irradiacao,
+    tarifaCheia,
+    desconto,
+    inflacaoAa,
+    ufTarifa,
+    taxaMinima,
+    taxaMinimaInputEmpty,
+    distribuidoraAneelEfetiva,
     consumoManual,
-    vendaAutoPotenciaKwp,
-    potenciaFonteManual,
-    vendaForm.potencia_instalada_kwp,
-    vendaGeracaoParametros,
-    setKcKwhMes,
-    setVendaFormErrors,
-    setVendaForm,
+    consumoAnteriorRef,
     recalcularTick,
-  ])
+    // vendaForm
+    vendaForm,
+    setVendaForm,
+    setVendaFormErrors,
+    resetRetorno,
+    // vendasConfig
+    vendasConfig,
+    // Budget / auto-pricing
+    budgetStructuredItems,
+    kitBudget,
+    modoOrcamento,
+    setModoOrcamento,
+    autoPricingRede,
+    autoBudgetReason,
+    autoBudgetReasonCode,
+    setAutoKitValor,
+    setAutoCustoFinal,
+    setAutoPricingRede,
+    setAutoPricingVersion,
+    setAutoBudgetReason,
+    setAutoBudgetReasonCode,
+    isVendaDiretaTab,
+    // Client / leasing context
+    cliente,
+    leasingContrato,
+    // Precheck normativo
+    precheckClienteCiente,
+    setPrecheckClienteCiente,
+    precheckModalData,
+    setPrecheckModalData,
+    setPrecheckModalClienteCiente,
+    buildPrecheckObservationBlock,
+    isPrecheckObservationTextValid,
+    upsertPrecheckObservation,
+    removePrecheckObservation,
+    requestPrecheckDecision,
+    applyNormativeAdjustment,
+    // TUSD/segmento callbacks
+    updateSegmentoCliente,
+    updateTusdTipoCliente,
+    // Multi-UC state
+    multiUcAtivo,
+    setMultiUcAtivo,
+    multiUcConsumoAnteriorRef,
+    multiUcIdCounterRef,
+    multiUcEnergiaGeradaTouched,
+    setMultiUcEnergiaGeradaTouched,
+    setMultiUcRows,
+    applyTarifasAutomaticas,
+    setMultiUcEnergiaGeradaKWhState,
+    // UC beneficiárias
+    ucsBeneficiarias,
+    segmentoCliente,
+  })
 
-  useEffect(() => {
-    const consumoAnterior = consumoAnteriorRef.current
-    if (consumoAnterior === kcKwhMes) {
-      return
-    }
 
-    consumoAnteriorRef.current = kcKwhMes
-
-    setNumeroModulosManual((valorAtual) => {
-      if (valorAtual === '') {
-        return valorAtual
-      }
-
-      if (kcKwhMes <= 0) {
-        return ''
-      }
-
-      const valorArredondado = Math.round(Number(valorAtual))
-      if (!Number.isFinite(valorArredondado)) {
-        return ''
-      }
-
-      if (valorArredondado === numeroModulosCalculado) {
-        return ''
-      }
-
-      return valorAtual
-    })
-  }, [kcKwhMes, numeroModulosCalculado, recalcularTick])
-
-  const geracaoDiariaKwh = useMemo(
-    () => (geracaoMensalKwh > 0 && diasMesNormalizado > 0 ? geracaoMensalKwh / diasMesNormalizado : 0),
-    [geracaoMensalKwh, diasMesNormalizado],
-  )
 
   const encargosFixos = useMemo(
     () => Math.max(0, bandeiraEncargo + encargosFixosExtras),
@@ -4539,1207 +3451,175 @@ export default function App() {
     return 'NONE'
   }, [entradaConsiderada, entradaModo])
 
-  const composicaoTelhadoCalculo = useMemo(() => {
-    const input: ComposicaoUFVInputs = {
-      projeto: toNumberSafe(composicaoTelhado.projeto),
-      instalacao: toNumberSafe(composicaoTelhado.instalacao),
-      material_ca: toNumberSafe(composicaoTelhado.materialCa),
-      crea: toNumberSafe(composicaoTelhado.crea),
-      art: toNumberSafe(composicaoTelhado.art),
-      placa: toNumberSafe(composicaoTelhado.placa),
-      capex_base_manual: capexBaseManualValor ?? null,
-      comissao_liquida_input: toNumberSafe(composicaoTelhado.comissaoLiquida),
-      comissao_tipo: vendasConfig.comissao_default_tipo,
-      comissao_percent_base: vendasConfig.comissao_percent_base,
-      teto_comissao_percent: vendasConfig.teto_comissao_percent,
-      margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
-      margem_manual_valor:
-        margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
-      usar_margem_manual: margemManualAtiva,
-      valor_total_orcamento: valorOrcamentoConsiderado,
-      descontos: toNumberSafe(descontosValor),
-      preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
-      arredondar_venda_para: arredondarPasso,
-      desconto_max_percent_sem_aprovacao: vendasConfig.desconto_max_percent_sem_aprovacao,
-      workflow_aprovacao_ativo: vendasConfig.workflow_aprovacao_ativo,
-      regime: vendasConfig.regime_tributario_default,
-      imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
-      incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
-      ...(vendasConfig.impostosRegime_overrides
-        ? { impostosRegime: vendasConfig.impostosRegime_overrides }
-        : {}),
-    }
-
-    return calcularComposicaoUFV(input)
-  }, [
-    capexBaseManualValor,
-    arredondarPasso,
-    composicaoTelhado.art,
-    composicaoTelhado.crea,
-    composicaoTelhado.instalacao,
-    composicaoTelhado.materialCa,
-    composicaoTelhado.placa,
-    composicaoTelhado.projeto,
-    composicaoTelhado.comissaoLiquida,
-    descontosValor,
-    margemManualAtiva,
-    margemManualValor,
-    valorOrcamentoConsiderado,
-    vendasConfig.comissao_default_tipo,
-    vendasConfig.comissao_percent_base,
-    vendasConfig.teto_comissao_percent,
-    vendasConfig.margem_operacional_padrao_percent,
-    vendasConfig.preco_minimo_percent_sobre_capex,
-    vendasConfig.desconto_max_percent_sem_aprovacao,
-    vendasConfig.workflow_aprovacao_ativo,
-    vendasConfig.regime_tributario_default,
-    vendasConfig.imposto_retido_aliquota_default,
-    vendasConfig.impostosRegime_overrides,
-    vendasConfig.incluirImpostosNoCAPEX_default,
-    recalcularTick,
-  ])
-
-  const composicaoSoloCalculo = useMemo(() => {
-    const extrasSolo =
-      toNumberSafe(composicaoSolo.estruturaSolo) +
-      toNumberSafe(composicaoSolo.tela) +
-      toNumberSafe(composicaoSolo.portaoTela) +
-      toNumberSafe(composicaoSolo.maoObraTela) +
-      toNumberSafe(composicaoSolo.casaInversor) +
-      toNumberSafe(composicaoSolo.brita) +
-      toNumberSafe(composicaoSolo.terraplanagem) +
-      toNumberSafe(composicaoSolo.trafo) +
-      toNumberSafe(composicaoSolo.rede)
-
-    const input: ComposicaoUFVInputs = {
-      projeto: toNumberSafe(composicaoSolo.projeto),
-      instalacao: toNumberSafe(composicaoSolo.instalacao),
-      material_ca: toNumberSafe(composicaoSolo.materialCa) + extrasSolo,
-      crea: toNumberSafe(composicaoSolo.crea),
-      art: toNumberSafe(composicaoSolo.art),
-      placa: toNumberSafe(composicaoSolo.placa),
-      capex_base_manual: capexBaseManualValor ?? null,
-      comissao_liquida_input: toNumberSafe(composicaoSolo.comissaoLiquida),
-      comissao_tipo: vendasConfig.comissao_default_tipo,
-      comissao_percent_base: vendasConfig.comissao_percent_base,
-      teto_comissao_percent: vendasConfig.teto_comissao_percent,
-      margem_operacional_padrao_percent: vendasConfig.margem_operacional_padrao_percent,
-      margem_manual_valor:
-        margemManualAtiva && margemManualValor !== undefined ? margemManualValor : null,
-      usar_margem_manual: margemManualAtiva,
-      valor_total_orcamento: valorOrcamentoConsiderado,
-      descontos: toNumberSafe(descontosValor),
-      preco_minimo_percent_sobre_capex: vendasConfig.preco_minimo_percent_sobre_capex,
-      arredondar_venda_para: arredondarPasso,
-      desconto_max_percent_sem_aprovacao: vendasConfig.desconto_max_percent_sem_aprovacao,
-      workflow_aprovacao_ativo: vendasConfig.workflow_aprovacao_ativo,
-      regime: vendasConfig.regime_tributario_default,
-      imposto_retido_aliquota: toNumberSafe(vendasConfig.imposto_retido_aliquota_default),
-      incluirImpostosNoCAPEX: vendasConfig.incluirImpostosNoCAPEX_default,
-      ...(vendasConfig.impostosRegime_overrides
-        ? { impostosRegime: vendasConfig.impostosRegime_overrides }
-        : {}),
-    }
-
-    return calcularComposicaoUFV(input)
-  }, [
-    capexBaseManualValor,
-    arredondarPasso,
-    composicaoSolo.art,
-    composicaoSolo.crea,
-    composicaoSolo.instalacao,
-    composicaoSolo.materialCa,
-    composicaoSolo.placa,
-    composicaoSolo.projeto,
-    composicaoSolo.comissaoLiquida,
-    composicaoSolo.estruturaSolo,
-    composicaoSolo.tela,
-    composicaoSolo.portaoTela,
-    composicaoSolo.maoObraTela,
-    composicaoSolo.casaInversor,
-    composicaoSolo.brita,
-    composicaoSolo.terraplanagem,
-    composicaoSolo.trafo,
-    composicaoSolo.rede,
-    descontosValor,
-    margemManualAtiva,
-    margemManualValor,
-    valorOrcamentoConsiderado,
-    vendasConfig.comissao_default_tipo,
-    vendasConfig.comissao_percent_base,
-    vendasConfig.teto_comissao_percent,
-    vendasConfig.margem_operacional_padrao_percent,
-    vendasConfig.preco_minimo_percent_sobre_capex,
-    vendasConfig.desconto_max_percent_sem_aprovacao,
-    vendasConfig.workflow_aprovacao_ativo,
-    vendasConfig.regime_tributario_default,
-    vendasConfig.imposto_retido_aliquota_default,
-    vendasConfig.impostosRegime_overrides,
-    vendasConfig.incluirImpostosNoCAPEX_default,
-    recalcularTick,
-  ])
-
-  const capexBaseResumoValor = useMemo(() => {
-    if (typeof capexBaseManualValor === 'number') {
-      return capexBaseManualValor
-    }
-    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
-    const valor = calculoAtual?.capex_base
-    return Number.isFinite(valor ?? Number.NaN) ? Math.max(0, Number(valor)) : 0
-  }, [capexBaseManualValor, tipoInstalacao, composicaoSoloCalculo, composicaoTelhadoCalculo])
-
-  const margemOperacionalResumoValor = useMemo(() => {
-    if (margemManualAtiva && margemManualValor !== undefined) {
-      return margemManualValor
-    }
-    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
-    const valor = calculoAtual?.margem_operacional_valor
-    if (!Number.isFinite(valor ?? Number.NaN)) {
-      return null
-    }
-    return Math.round(Number(valor) * 100) / 100
-  }, [
-    margemManualAtiva,
-    margemManualValor,
-    tipoInstalacao,
-    composicaoSoloCalculo?.margem_operacional_valor,
-    composicaoTelhadoCalculo?.margem_operacional_valor,
-  ])
-
-  const handleMargemOperacionalResumoChange = useCallback(
-    (valor: number | null) => {
-      if (valor === null || !Number.isFinite(valor)) {
-        handleMargemManualInput(null)
-        return
-      }
-      const finalValue = normalizeCurrencyNumber(valor)
-      if (finalValue === null) {
-        handleMargemManualInput(null)
-        return
-      }
-      handleMargemManualInput(finalValue)
-
-      const capexBaseAtual =
-        tipoInstalacao === 'solo'
-          ? composicaoSoloCalculo?.capex_base
-          : composicaoTelhadoCalculo?.capex_base
-
-      const baseComOrcamento = (capexBaseAtual ?? 0) + Math.max(0, valorOrcamentoConsiderado)
-
-      if (Number.isFinite(baseComOrcamento) && baseComOrcamento > 0) {
-        const percent = (finalValue / baseComOrcamento) * 100
-        const percentClamped = Math.min(Math.max(percent, 0), 80)
-        const percentNormalizado = Math.round(percentClamped * 10000) / 10000
-        if (
-          !numbersAreClose(
-            percentNormalizado,
-            vendasConfig.margem_operacional_padrao_percent,
-            0.0001,
-          )
-        ) {
-          updateVendasConfig({ margem_operacional_padrao_percent: percentNormalizado })
-        }
-      }
-    },
-    [
-      composicaoSoloCalculo?.capex_base,
-      composicaoTelhadoCalculo?.capex_base,
-      handleMargemManualInput,
-      tipoInstalacao,
-      updateVendasConfig,
-      valorOrcamentoConsiderado,
-      vendasConfig.margem_operacional_padrao_percent,
-    ],
-  )
-
-  const capexBaseResumoField = useBRNumberField({
-    mode: 'money',
-    value: capexBaseResumoValor,
-    onChange: handleCapexBaseResumoChange,
-  })
-
-  const capexBaseResumoSettingsField = useBRNumberField({
-    mode: 'money',
-    value: capexBaseResumoValor,
-    onChange: handleCapexBaseResumoChange,
-  })
-
-  const margemOperacionalResumoField = useBRNumberField({
-    mode: 'money',
-    value: margemOperacionalResumoValor ?? null,
-    onChange: handleMargemOperacionalResumoChange,
-  })
-
-  const margemOperacionalResumoSettingsField = useBRNumberField({
-    mode: 'money',
-    value: margemOperacionalResumoValor ?? null,
-    onChange: handleMargemOperacionalResumoChange,
-  })
-
-  useEffect(() => {
-    const calculoAtual = tipoInstalacao === 'solo' ? composicaoSoloCalculo : composicaoTelhadoCalculo
-    const valores = calculoAtual ?? {
-      capex_base: 0,
-      margem_operacional_valor: 0,
-      venda_total: 0,
-      venda_liquida: 0,
-      comissao_liquida_valor: 0,
-      imposto_retido_valor: 0,
-      impostos_regime_valor: 0,
-      impostos_totais_valor: 0,
-      capex_total: 0,
-      total_contrato_R$: 0,
-      regime_breakdown: [],
-    }
-
-    vendaActions.updateComposicao({
-      ...valores,
-      regime_breakdown: valores.regime_breakdown.map((item) => ({ ...item })),
-      descontos: toNumberSafe(descontosValor),
-    })
-    const custoReferencia = Number.isFinite(valores.capex_total)
-      ? Number(valores.capex_total)
-      : null
-    if (custoImplantacaoReferencia == null) {
-      vendaActions.updateResumoProposta({ custo_implantacao_referencia: custoReferencia })
-    }
-  }, [
-    descontosValor,
-    composicaoSoloCalculo,
+  const {
+    handleComposicaoTelhadoChange,
+    handleComposicaoSoloChange,
     composicaoTelhadoCalculo,
+    composicaoSoloCalculo,
+    capexBaseResumoValor,
+    capexBaseResumoField,
+    capexBaseResumoSettingsField,
+    margemOperacionalResumoField,
+    margemOperacionalResumoSettingsField,
+    composicaoTelhadoTotal,
+    composicaoSoloTotal,
+    valorVendaTelhado,
+    valorVendaSolo,
+    capex,
+    custoFinalProjetadoCanonico,
+    capexSolarInvest,
+    leasingValorDeMercadoEstimado,
+  } = useComposicaoUsinaCalculo({
+    composicaoTelhado,
+    setComposicaoTelhado,
+    composicaoSolo,
+    setComposicaoSolo,
+    capexManualOverride,
+    setCapexManualOverride,
+    capexBaseManualValor,
+    arredondarPasso,
+    vendasConfig,
+    margemManualAtiva,
+    margemManualValor,
+    descontosValor,
+    valorOrcamentoConsiderado,
+    tipoInstalacao,
+    analiseFinanceiraResult,
+    autoCustoFinal,
+    modoOrcamento,
+    recalcularTick,
     custoImplantacaoReferencia,
-    tipoInstalacao,
-    recalcularTick,
-  ])
-
-  const composicaoTelhadoTotal = useMemo(() => {
-    if (composicaoTelhadoCalculo) {
-      return Math.round(composicaoTelhadoCalculo.venda_total * 100) / 100
-    }
-    return sumComposicaoValores(composicaoTelhado)
-  }, [composicaoTelhadoCalculo, composicaoTelhado])
-
-  const composicaoSoloTotal = useMemo(() => {
-    if (composicaoSoloCalculo) {
-      return Math.round(composicaoSoloCalculo.venda_total * 100) / 100
-    }
-    return sumComposicaoValores(composicaoSolo)
-  }, [composicaoSoloCalculo, composicaoSolo])
-
-  const valorVendaTelhado = useMemo(() => {
-    const capexBaseCalculadoValor = Number(composicaoTelhadoCalculo?.capex_base)
-    const capexBaseFallback =
-      toNumberSafe(composicaoTelhado.projeto) +
-      toNumberSafe(composicaoTelhado.instalacao) +
-      toNumberSafe(composicaoTelhado.materialCa) +
-      toNumberSafe(composicaoTelhado.crea) +
-      toNumberSafe(composicaoTelhado.art) +
-      toNumberSafe(composicaoTelhado.placa)
-    const capexBase = Number.isFinite(capexBaseCalculadoValor)
-      ? Math.max(0, capexBaseCalculadoValor)
-      : Math.max(0, capexBaseFallback)
-
-    const margemManualValorNormalizado = Number(margemManualValor)
-    const margemManualNormalizada =
-      margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
-        ? Math.max(0, margemManualValorNormalizado)
-        : null
-    const margemCalculadaValor = Number(
-      composicaoTelhadoCalculo?.margem_operacional_valor,
-    )
-    const margemOperacional =
-      margemManualNormalizada ??
-      (Number.isFinite(margemCalculadaValor)
-        ? Math.max(0, margemCalculadaValor)
-        : Math.max(0, toNumberSafe(composicaoTelhado.lucroBruto)))
-
-    const total =
-      Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
-
-    return Math.round(total * 100) / 100
-  }, [
-    composicaoTelhado.art,
-    composicaoTelhado.crea,
-    composicaoTelhado.instalacao,
-    composicaoTelhado.lucroBruto,
-    composicaoTelhado.materialCa,
-    composicaoTelhado.placa,
-    composicaoTelhado.projeto,
-    composicaoTelhadoCalculo?.capex_base,
-    composicaoTelhadoCalculo?.margem_operacional_valor,
-    margemManualAtiva,
-    margemManualValor,
-    valorOrcamentoConsiderado,
-  ])
-
-  const valorVendaSolo = useMemo(() => {
-    const capexBaseCalculadoValor = Number(composicaoSoloCalculo?.capex_base)
-    const extrasSolo =
-      toNumberSafe(composicaoSolo.estruturaSolo) +
-      toNumberSafe(composicaoSolo.tela) +
-      toNumberSafe(composicaoSolo.portaoTela) +
-      toNumberSafe(composicaoSolo.maoObraTela) +
-      toNumberSafe(composicaoSolo.casaInversor) +
-      toNumberSafe(composicaoSolo.brita) +
-      toNumberSafe(composicaoSolo.terraplanagem) +
-      toNumberSafe(composicaoSolo.trafo) +
-      toNumberSafe(composicaoSolo.rede)
-    const capexBaseFallback =
-      toNumberSafe(composicaoSolo.projeto) +
-      toNumberSafe(composicaoSolo.instalacao) +
-      (toNumberSafe(composicaoSolo.materialCa) + extrasSolo) +
-      toNumberSafe(composicaoSolo.crea) +
-      toNumberSafe(composicaoSolo.art) +
-      toNumberSafe(composicaoSolo.placa)
-    const capexBase = Number.isFinite(capexBaseCalculadoValor)
-      ? Math.max(0, capexBaseCalculadoValor)
-      : Math.max(0, capexBaseFallback)
-
-    const margemManualValorNormalizado = Number(margemManualValor)
-    const margemManualNormalizada =
-      margemManualAtiva && Number.isFinite(margemManualValorNormalizado)
-        ? Math.max(0, margemManualValorNormalizado)
-        : null
-    const margemCalculadaValor = Number(
-      composicaoSoloCalculo?.margem_operacional_valor,
-    )
-    const margemOperacional =
-      margemManualNormalizada ??
-      (Number.isFinite(margemCalculadaValor)
-        ? Math.max(0, margemCalculadaValor)
-        : Math.max(0, toNumberSafe(composicaoSolo.lucroBruto)))
-
-    const total =
-      Math.max(0, valorOrcamentoConsiderado) + capexBase + margemOperacional
-
-    return Math.round(total * 100) / 100
-  }, [
-    composicaoSolo.art,
-    composicaoSolo.brita,
-    composicaoSolo.casaInversor,
-    composicaoSolo.crea,
-    composicaoSolo.instalacao,
-    composicaoSolo.lucroBruto,
-    composicaoSolo.maoObraTela,
-    composicaoSolo.materialCa,
-    composicaoSolo.placa,
-    composicaoSolo.portaoTela,
-    composicaoSolo.projeto,
-    composicaoSolo.rede,
-    composicaoSolo.estruturaSolo,
-    composicaoSolo.tela,
-    composicaoSolo.terraplanagem,
-    composicaoSolo.trafo,
-    composicaoSoloCalculo?.capex_base,
-    composicaoSoloCalculo?.margem_operacional_valor,
-    margemManualAtiva,
-    margemManualValor,
-    valorOrcamentoConsiderado,
-  ])
-
-  useEffect(() => {
-    const margemCalculada =
-      margemManualAtiva && margemManualValor !== undefined
-        ? margemManualValor
-        : (tipoInstalacao === 'solo'
-            ? composicaoSoloCalculo?.margem_operacional_valor
-            : composicaoTelhadoCalculo?.margem_operacional_valor) ?? 0
-    setComposicaoTelhado((prev) =>
-      numbersAreClose(prev.lucroBruto, margemCalculada) ? prev : { ...prev, lucroBruto: margemCalculada },
-    )
-    setComposicaoSolo((prev) =>
-      numbersAreClose(prev.lucroBruto, margemCalculada) ? prev : { ...prev, lucroBruto: margemCalculada },
-    )
-  }, [
-    margemManualAtiva,
-    margemManualValor,
-    composicaoTelhadoCalculo?.margem_operacional_valor,
-    composicaoSoloCalculo?.margem_operacional_valor,
-    tipoInstalacao,
-    recalcularTick,
-  ])
-
-  const valorVendaAtual = tipoInstalacao === 'solo' ? valorVendaSolo : valorVendaTelhado
-
-  const capex = useMemo(() => {
-    const projected = calcProjectedCostsByConsumption({
-      consumoKwhMes: kcKwhMes,
-      uf: ufTarifa,
-      tarifaCheia,
-      descontoPercentual: desconto,
-      irradiacao: baseIrradiacao,
-      performanceRatio: eficienciaNormalizada,
-      diasMes: diasMesNormalizado > 0 ? diasMesNormalizado : DIAS_MES_PADRAO,
-      potenciaModuloWp: potenciaModulo,
-      margemLucroPct: margemLucroPadraoFracao,
-      comissaoVendaPct: comissaoPadraoFracao,
-    })
-    if (projected) {
-      return Math.max(0, projected.custoBaseProjeto)
-    }
-    return potenciaInstaladaKwp * precoPorKwp
-  }, [
-    baseIrradiacao,
+    vendaActions,
+    currentBudgetId,
+    updateVendasSimulacao,
+    updateVendasConfig,
     kcKwhMes,
+    ufTarifa,
+    tarifaCheia,
     desconto,
-    diasMesNormalizado,
+    baseIrradiacao,
     eficienciaNormalizada,
-    kcKwhMes,
+    diasMesNormalizado,
     potenciaInstaladaKwp,
     potenciaModulo,
     precoPorKwp,
-    tarifaCheia,
-    ufTarifa,
     margemLucroPadraoFracao,
     comissaoPadraoFracao,
-  ])
-
-  const custoFinalProjetadoCanonico = useMemo(() => {
-    // Este valor é o "Preço ideal" da Análise Financeira — corresponde ao
-    // valorBaseOriginalAtivo (VM contratual) para o cálculo de buyout.
-    // Prioridade:
-    //   1. preco_ideal_rs     — "Preço Ideal" da AF (venda com margem-alvo configurada).
-    //      É o valor canônico exibido na página de Análise Financeira como "Preço Ideal".
-    //   2. preco_minimo_saudavel_rs — fallback quando preco_ideal não está disponível
-    //      (ex.: modo leasing, ou sem margem-alvo configurada).
-    //   3. autoCustoFinal     — engine de auto-pricing (quando modoOrcamento === 'auto').
-    //   4. valorVendaAtual    — valor informado manualmente.
-    //   5. capex              — CAPEX bruto como último recurso.
-    // NÃO confundir com CAPEX do orçamento PDF nem com mensalidade.
-    const precoIdeal = analiseFinanceiraResult?.preco_ideal_rs
-    if (Number.isFinite(precoIdeal) && precoIdeal != null && precoIdeal > 0) {
-      console.info('[current-sale-value] recompute', {
-        source: 'preco_ideal_rs',
-        value: precoIdeal,
-        isReady: true,
-      })
-      return precoIdeal
-    }
-
-    const precoMinSaudavel = analiseFinanceiraResult?.preco_minimo_saudavel_rs
-    if (Number.isFinite(precoMinSaudavel) && precoMinSaudavel != null && precoMinSaudavel > 0) {
-      console.info('[current-sale-value] recompute', {
-        source: 'preco_minimo_saudavel_rs',
-        value: precoMinSaudavel,
-        isReady: true,
-      })
-      return precoMinSaudavel
-    }
-
-    const auto = Number(autoCustoFinal)
-    if (modoOrcamento === 'auto' && Number.isFinite(auto) && auto > 0) {
-      console.info('[current-sale-value] recompute', {
-        source: 'autoCustoFinal',
-        value: auto,
-        isReady: true,
-      })
-      return auto
-    }
-
-    const venda = Number(valorVendaAtual)
-    if (Number.isFinite(venda) && venda > 0) {
-      console.info('[current-sale-value] recompute', {
-        source: 'valorVendaAtual',
-        value: venda,
-        isReady: true,
-      })
-      return venda
-    }
-
-    console.info('[current-sale-value] recompute', {
-      source: 'capex-fallback',
-      value: Math.max(0, capex),
-      isReady: false,
-      reasons: [
-        analiseFinanceiraResult == null ? 'analiseFinanceiraResult ausente (afCustoKit <= 0 ou consumo <= 0?)' : null,
-        !analiseFinanceiraResult?.preco_ideal_rs ? 'preco_ideal_rs ausente' : null,
-        !analiseFinanceiraResult?.preco_minimo_saudavel_rs ? 'preco_minimo_saudavel_rs ausente' : null,
-      ].filter(Boolean),
-    })
-    return Math.max(0, capex)
-  }, [analiseFinanceiraResult, autoCustoFinal, capex, modoOrcamento, valorVendaAtual])
-
-  const capexSolarInvest = useMemo(
-    () => Math.max(0, custoFinalProjetadoCanonico * 0.7),
-    [custoFinalProjetadoCanonico],
-  )
-
-  const leasingValorDeMercadoEstimado = useLeasingValorDeMercadoEstimado()
-
-  useEffect(() => {
-    if (capexManualOverride) {
-      return
-    }
-    const valorVendaBruto =
-      Number.isFinite(valorVendaAtual) && valorVendaAtual > 0 ? valorVendaAtual : 0
-    const normalizedCapex = Math.max(valorVendaBruto - descontosValor, 0)
-    let changed = false
-    setVendaForm((prev) => {
-      if (Math.abs((prev.capex_total ?? 0) - normalizedCapex) < 0.005) {
-        return prev
-      }
-      changed = true
-      return { ...prev, capex_total: normalizedCapex }
-    })
-    if (changed) {
-      setVendaFormErrors((prev) => {
-        if (!prev.capex_total) {
-          return prev
-        }
-        const { capex_total: _removed, ...rest } = prev
-        return rest
-      })
-      resetRetorno()
-    }
-  }, [
-    capexManualOverride,
-    descontosValor,
+    setVendaForm,
+    setVendaFormErrors,
     resetRetorno,
-    valorVendaAtual,
-    recalcularTick,
-  ])
+  })
 
-  const simulationState = useMemo<SimulationState>(() => {
-    // Mantemos o valor de mercado (vm0) amarrado ao custo final projetado canônico neste mesmo memo
-    // para evitar dependências de ordem que poderiam reaparecer em merges futuros. Assim garantimos
-    // uma única fonte de verdade entre a projeção principal e o fluxo de buyout.
-    const valorMercadoBase = Math.max(0, custoFinalProjetadoCanonico)
-    const descontoDecimal = Math.max(0, Math.min(descontoConsiderado / 100, 1))
-    const inflacaoAnual = Math.max(-0.99, inflacaoAa / 100)
-    const prazoContratualMeses = Math.max(0, Math.floor(prazoMesesConsiderado))
-    const prazoLeasingMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
-    const prazoMensalidades = Math.max(prazoContratualMeses, prazoLeasingMeses)
-    const aplicaTaxaMinima = vendaForm.aplica_taxa_minima ?? true
-    const tusdPercentual = Math.max(0, tusdPercent)
-    const tusdSubtipoNormalizado = tusdSubtipo.trim()
-    const tusdSimValue = tusdSimultaneidade != null ? Math.max(0, tusdSimultaneidade) : null
-    const tusdTarifaValue = tusdTarifaRkwh != null ? Math.max(0, tusdTarifaRkwh) : null
-    const tusdAno = Number.isFinite(tusdAnoReferencia)
-      ? Math.max(1, Math.trunc(tusdAnoReferencia))
-      : DEFAULT_TUSD_ANO_REFERENCIA
-    const taxaMinimaCalculadaBase = calcularTaxaMinima(tipoRede, Math.max(0, tarifaCheia))
-    const taxaMinimaFonte = taxaMinimaInputEmpty
-      ? taxaMinimaCalculadaBase
-      : Number.isFinite(taxaMinima)
-        ? Math.max(0, taxaMinima)
-        : 0
-    return {
-      kcKwhMes: Math.max(0, kcKwhMes),
-      tarifaCheia: Math.max(0, tarifaCheia),
-      desconto: descontoDecimal,
-      inflacaoAa: inflacaoAnual,
-      prazoMeses: prazoMensalidades,
-      taxaMinima: taxaMinimaFonte,
-      encargosFixos,
-      entradaRs: Math.max(0, entradaConsiderada),
-      modoEntrada: modoEntradaNormalizado,
-      vm0: valorMercadoBase,
-      depreciacaoAa: Math.max(0, depreciacaoAa / 100),
-      ipcaAa: Math.max(0, ipcaAa / 100),
-      inadimplenciaAa: Math.max(0, inadimplenciaAa / 100),
-      tributosAa: Math.max(0, tributosAa / 100),
-      custosFixosM: Math.max(0, custosFixosM),
-      opexM: Math.max(0, opexM),
-      seguroM: Math.max(0, seguroM),
-      cashbackPct: Math.max(0, cashbackPct / 100),
-      pagosAcumManual: Math.max(0, pagosAcumAteM),
-      duracaoMeses: Math.max(0, Math.floor(duracaoMeses)),
-      geracaoMensalKwh: Math.max(0, geracaoMensalKwh),
-      consumoMensalKwh: Math.max(0, kcKwhMes),
-      mesReajuste: Math.min(Math.max(Math.round(mesReajuste) || 6, 1), 12),
-      mesReferencia: Math.min(Math.max(Math.round(mesReferencia) || 1, 1), 12),
-      tusdPercent: tusdPercentual,
-      tusdPercentualFioB: tusdPercentual,
-      tusdTipoCliente,
-      tusdSubtipo: tusdSubtipoNormalizado.length > 0 ? tusdSubtipoNormalizado : null,
-      tusdSimultaneidade: tusdSimValue,
-      tusdTarifaRkwh: tusdTarifaValue,
-      tusdAnoReferencia: tusdAno,
-      aplicaTaxaMinima,
-      cidKwhBase,
-      tipoRede,
-    }
-  }, [
-    bandeiraEncargo,
-    capex,
+  const {
+    leasingROI,
+    financiamentoROI,
+    financiamentoMensalidades,
+    parcelasSolarInvest,
+    leasingMensalidades,
+    tabelaBuyout,
+    buyoutResumo,
+    buyoutAceiteFinal,
+    buyoutReceitaRows,
+    buyoutMesAceiteFinal,
+    duracaoMesesExibicao,
+    economiaEstimativaValorCalculado,
+    printableData,
+  } = useSimulationOutputState({
     custoFinalProjetadoCanonico,
-    cashbackPct,
-    custosFixosM,
-    descontoConsiderado,
-    entradaConsiderada,
-    geracaoMensalKwh,
-    inflacaoAa,
-    inadimplenciaAa,
-    ipcaAa,
+    capex,
+    capexSolarInvest,
+    leasingValorDeMercadoEstimado,
     kcKwhMes,
-    mesReajuste,
-    modoEntradaNormalizado,
-    opexM,
-    pagosAcumAteM,
-    prazoMesesConsiderado,
-    leasingPrazoConsiderado,
-    seguroM,
     tarifaCheia,
+    inflacaoAa,
     taxaMinima,
     taxaMinimaInputEmpty,
-    tributosAa,
-    encargosFixosExtras,
-    depreciacaoAa,
-    duracaoMeses,
+    encargosFixos,
     cidKwhBase,
+    entradaConsiderada,
+    descontoConsiderado,
+    prazoMesesConsiderado,
+    leasingPrazoConsiderado,
+    modoEntradaNormalizado,
+    depreciacaoAa,
+    ipcaAa,
+    inadimplenciaAa,
+    tributosAa,
+    custosFixosM,
+    opexM,
+    seguroM,
+    cashbackPct,
+    pagosAcumAteM,
+    duracaoMeses,
+    seguroModo,
+    seguroReajuste,
+    seguroValorA,
+    seguroPercentualB,
+    oemBase,
+    oemInflacao,
+    jurosFinAa,
+    entradaFinPct,
+    prazoFinMeses,
+    bandeiraEncargo,
+    mostrarFinanciamento,
     tusdPercent,
     tusdTipoCliente,
     tusdSubtipo,
     tusdSimultaneidade,
     tusdTarifaRkwh,
     tusdAnoReferencia,
-    vendaForm.aplica_taxa_minima,
     tipoRede,
-  ])
-
-  const vm0 = simulationState.vm0
-
-  const inflacaoMensal = useMemo(() => selectInflacaoMensal(simulationState), [simulationState])
-  const mensalidades = useMemo(() => selectMensalidades(simulationState), [simulationState])
-  const mensalidadesPorAno = useMemo(() => selectMensalidadesPorAno(simulationState), [simulationState])
-  const creditoEntradaMensal = useMemo(() => selectCreditoMensal(simulationState), [simulationState])
-  const kcAjustado = useMemo(() => selectKcAjustado(simulationState), [simulationState])
-  const buyoutLinhas = useMemo(() => selectBuyoutLinhas(simulationState), [simulationState])
-
-  const tarifaAno = (ano: number) =>
-    tarifaProjetadaCheia(
-      simulationState.tarifaCheia,
-      simulationState.inflacaoAa,
-      (ano - 1) * 12 + 1,
-      simulationState.mesReajuste,
-      simulationState.mesReferencia,
-    )
-  const leasingBeneficios = useMemo(() => {
-    const valorInvestimento = Math.max(0, capexSolarInvest)
-    const prazoLeasingValido = leasingPrazoConsiderado > 0 ? leasingPrazoConsiderado : null
-    const economiaOpexAnual = prazoLeasingValido ? valorInvestimento * 0.015 : 0
-    const investimentoDiluirAnual = prazoLeasingValido ? valorInvestimento / prazoLeasingValido : 0
-
-    const contratoMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
-    const tusdTipoAtual = simulationState.tusdTipoCliente
-    const tusdSubtipoAtual = simulationState.tusdSubtipo
-    const tusdPercentAtual = simulationState.tusdPercent
-    const tusdSimAtual = simulationState.tusdSimultaneidade
-    const tusdTarifaAtual = simulationState.tusdTarifaRkwh
-    const tusdAnoAtual = simulationState.tusdAnoReferencia
-    const aplicaTaxaMinima = simulationState.aplicaTaxaMinima ?? true
-
-    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
-      const ano = i + 1
-      const inicioMes = (ano - 1) * 12 + 1
-      const fimMes = inicioMes + 11
-      let economiaEnergia = 0
-
-      for (let mes = inicioMes; mes <= fimMes; mes += 1) {
-        const tarifaCheiaMes = tarifaProjetadaCheia(
-          simulationState.tarifaCheia,
-          simulationState.inflacaoAa,
-          mes,
-          simulationState.mesReajuste,
-          simulationState.mesReferencia,
-        )
-        const tarifaDescontadaMes = tarifaDescontadaCalc(
-          simulationState.tarifaCheia,
-          simulationState.desconto,
-          simulationState.inflacaoAa,
-          mes,
-          simulationState.mesReajuste,
-          simulationState.mesReferencia,
-        )
-        const aplicaTaxaMinimaNoMes = aplicaTaxaMinima || mes > contratoMeses
-        const encargosFixosAplicados = aplicaTaxaMinimaNoMes ? encargosFixos : 0
-        const taxaMinimaMes = calcularTaxaMinima(tipoRede, tarifaCheiaMes)
-        const taxaMinimaAplicada = aplicaTaxaMinimaNoMes
-          ? Math.max(0, taxaMinima) > 0
-            ? Math.max(0, taxaMinima)
-            : taxaMinimaMes
-          : 0
-        const cidAplicado = aplicaTaxaMinimaNoMes ? simulationState.cidKwhBase * tarifaCheiaMes : 0
-        const custoSemSistemaMes =
-          kcKwhMes * tarifaCheiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
-        const dentroPrazoMes = contratoMeses > 0 ? mes <= contratoMeses : false
-        const custoComSistemaEnergiaMes = dentroPrazoMes ? kcKwhMes * tarifaDescontadaMes : 0
-        const custoComSistemaBaseMes =
-          custoComSistemaEnergiaMes + encargosFixosAplicados + taxaMinimaAplicada + cidAplicado
-        const tusdMes = aplicaTaxaMinimaNoMes
-          ? calcTusdEncargoMensal({
-              consumoMensal_kWh: kcKwhMes,
-              tarifaCheia_R_kWh: tarifaCheiaMes,
-              mes,
-              anoReferencia: tusdAnoAtual,
-              tipoCliente: tusdTipoAtual,
-              subTipo: tusdSubtipoAtual,
-              pesoTUSD: tusdPercentAtual,
-              tusd_R_kWh: tusdTarifaAtual,
-              simultaneidadePadrao: tusdSimAtual,
-            })
-          : 0
-        economiaEnergia += custoSemSistemaMes - (custoComSistemaBaseMes + tusdMes)
-      }
-
-      const dentroPrazoLeasing = prazoLeasingValido ? ano <= leasingPrazoConsiderado : false
-      const beneficioOpex = dentroPrazoLeasing ? economiaOpexAnual : 0
-      const beneficioInvestimento = dentroPrazoLeasing ? investimentoDiluirAnual : 0
-      return economiaEnergia + beneficioOpex + beneficioInvestimento
-    })
-  }, [
-    ANALISE_ANOS_PADRAO,
-    encargosFixos,
-    kcKwhMes,
-    leasingPrazoConsiderado,
-    simulationState.desconto,
-    simulationState.inflacaoAa,
-    simulationState.mesReajuste,
-    simulationState.mesReferencia,
-    simulationState.tarifaCheia,
-    taxaMinima,
-    capexSolarInvest,
-  ])
-
-  const leasingROI = useMemo(() => {
-    const acc: number[] = []
-    let acumulado = 0
-    leasingBeneficios.forEach((beneficio) => {
-      acumulado += beneficio
-      acc.push(acumulado)
-    })
-    return acc
-  }, [leasingBeneficios])
-
-  const taxaMensalFin = useMemo(() => Math.pow(1 + jurosFinAa / 100, 1 / 12) - 1, [jurosFinAa])
-  const entradaFin = useMemo(() => (capex * entradaFinPct) / 100, [capex, entradaFinPct])
-  const valorFinanciado = useMemo(() => Math.max(0, capex - entradaFin), [capex, entradaFin])
-  const pmt = useMemo(() => {
-    if (valorFinanciado === 0) return 0
-    if (prazoFinMeses <= 0) return 0
-    if (taxaMensalFin === 0) return -(valorFinanciado / prazoFinMeses)
-    const fator = Math.pow(1 + taxaMensalFin, prazoFinMeses)
-    return -valorFinanciado * (taxaMensalFin * fator) / (fator - 1)
-  }, [valorFinanciado, taxaMensalFin, prazoFinMeses])
-
-  const custoOeM = (ano: number) => potenciaInstaladaKwp * oemBase * Math.pow(1 + oemInflacao / 100, ano - 1)
-  const custoSeguro = (ano: number) => {
-    if (seguroModo === 'A') {
-      return potenciaInstaladaKwp * seguroValorA * Math.pow(1 + seguroReajuste / 100, ano - 1)
-    }
-    return vm0 * (seguroPercentualB / 100) * Math.pow(1 + seguroReajuste / 100, ano - 1)
-  }
-
-  const financiamentoFluxo = useMemo(() => {
-    return Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => {
-      const ano = i + 1
-      const _economia = 12 * kcKwhMes * tarifaAno(ano)
-      const taxaMinimaAno = Math.max(0, taxaMinima) > 0
-        ? Math.max(0, taxaMinima)
-        : calcularTaxaMinima(tipoRede, tarifaAno(ano))
-      const custoSemSistemaMensal = Math.max(kcKwhMes * tarifaAno(ano), taxaMinimaAno)
-      const economiaAnual = 12 * Math.max(custoSemSistemaMensal - taxaMinimaAno, 0)
-      const inicioAno = (ano - 1) * 12
-      const mesesRestantes = Math.max(0, prazoFinMeses - inicioAno)
-      const mesesPagos = Math.min(12, mesesRestantes)
-      const custoParcela = mesesPagos * Math.abs(pmt)
-      const despesasSistema = custoParcela + custoOeM(ano) + custoSeguro(ano)
-      return economiaAnual - despesasSistema
-    })
-  }, [kcKwhMes, inflacaoAa, jurosFinAa, oemBase, oemInflacao, pmt, prazoFinMeses, seguroModo, seguroPercentualB, seguroReajuste, seguroValorA, tarifaCheia, taxaMinima, vm0, potenciaInstaladaKwp])
-
-  const financiamentoROI = useMemo(() => {
-    const valores: number[] = []
-    let acumulado = -entradaFin
-    financiamentoFluxo.forEach((fluxo) => {
-      acumulado += fluxo
-      valores.push(acumulado)
-    })
-    return valores
-  }, [entradaFin, financiamentoFluxo])
-
-  const financiamentoMensalidades = useMemo(() => {
-    const mesesValidos = Math.max(0, prazoFinMeses)
-    const anos = Math.ceil(mesesValidos / 12)
-    return Array.from({ length: anos }, () => Math.abs(pmt))
-  }, [pmt, prazoFinMeses])
-
-  const parcelasSolarInvest = useMemo(() => {
-    const lista: MensalidadeRow[] = []
-    let totalAcumulado = 0
-    const kcContratado =
-      simulationState.modoEntrada === 'REDUZ'
-        ? kcAjustado
-        : Math.max(0, simulationState.kcKwhMes)
-    const leasingAtivo = kcContratado > 0
-    const aplicaTaxaMinima = simulationState.aplicaTaxaMinima ?? true
-    const margemMinimaBase = aplicaTaxaMinima
-      ? Math.max(0, simulationState.taxaMinima) + Math.max(0, simulationState.encargosFixos)
-      : 0
-    const manutencaoPrevencaoSeguroMensal =
-      leasingAtivo ? Math.max(0, (simulationState.vm0 * 0.015) / 12) : 0
-    const limiteMeses = Math.max(0, Math.floor(leasingPrazoConsiderado * 12))
-    const mesesConsiderados = limiteMeses > 0 ? Math.min(mensalidades.length, limiteMeses) : mensalidades.length
-
-    for (let index = 0; index < mesesConsiderados; index += 1) {
-      const mensalidade = mensalidades[index]!
-      const mes = index + 1
-      const tarifaCheiaMes = tarifaProjetadaCheia(
-        simulationState.tarifaCheia,
-        simulationState.inflacaoAa,
-        mes,
-        simulationState.mesReajuste,
-        simulationState.mesReferencia,
-      )
-      const tarifaDescontadaMes = selectTarifaDescontada(simulationState, mes)
-      const energiaCheia = leasingAtivo ? Math.max(0, kcContratado * tarifaCheiaMes) : 0
-      const cidMensal = aplicaTaxaMinima ? Math.max(0, simulationState.cidKwhBase) * tarifaCheiaMes : 0
-      const margemMinima = margemMinimaBase + cidMensal
-      const mensalidadeCheia = Number(
-        Math.max(0, energiaCheia + margemMinima + manutencaoPrevencaoSeguroMensal).toFixed(2),
-      )
-      const tusdMensal = aplicaTaxaMinima
-        ? calcTusdEncargoMensal({
-            consumoMensal_kWh: kcContratado,
-            tarifaCheia_R_kWh: tarifaCheiaMes,
-            mes,
-            anoReferencia: simulationState.tusdAnoReferencia ?? null,
-            tipoCliente: simulationState.tusdTipoCliente ?? null,
-            subTipo: simulationState.tusdSubtipo ?? null,
-            pesoTUSD: simulationState.tusdPercent ?? null,
-            tusd_R_kWh: simulationState.tusdTarifaRkwh ?? null,
-            simultaneidadePadrao: simulationState.tusdSimultaneidade ?? null,
-          })
-        : 0
-      const tusdValor = Number(Math.max(0, tusdMensal).toFixed(2))
-      totalAcumulado += mensalidade
-      lista.push({
-        mes,
-        tarifaCheia: tarifaCheiaMes,
-        tarifaDescontada: tarifaDescontadaMes,
-        mensalidadeCheia,
-        tusd: tusdValor,
-        mensalidade: Number(mensalidade.toFixed(2)),
-        totalAcumulado: Number(totalAcumulado.toFixed(2)),
-      })
-    }
-
-    const tarifaPrimeiroMes = tarifaProjetadaCheia(
-      simulationState.tarifaCheia,
-      simulationState.inflacaoAa,
-      1,
-      simulationState.mesReajuste,
-      simulationState.mesReferencia,
-    )
-    const margemMinimaResumo = aplicaTaxaMinima
-      ? margemMinimaBase + simulationState.cidKwhBase * tarifaPrimeiroMes
-      : 0
-
-    return {
-      lista,
-      tarifaDescontadaBase: selectTarifaDescontada(simulationState, 1),
-      kcAjustado,
-      creditoMensal: creditoEntradaMensal,
-      margemMinima: margemMinimaResumo,
-      prazoEfetivo: mesesConsiderados,
-      totalPago: lista.length > 0 ? lista[lista.length - 1]!.totalAcumulado : 0,
-      inflacaoMensal,
-    }
-  }, [
-    creditoEntradaMensal,
-    inflacaoMensal,
-    kcAjustado,
-    mensalidades,
-    leasingPrazoConsiderado,
-    simulationState,
-  ])
-
-  const leasingMensalidades = useMemo(() => {
-    if (leasingPrazoConsiderado <= 0) {
-      return []
-    }
-    if (mensalidadesPorAno.length === 0) {
-      return []
-    }
-
-    return Array.from({ length: leasingPrazoConsiderado }, (_, index) => {
-      const valor = mensalidadesPorAno[index]
-      if (typeof valor === 'number') {
-        return valor
-      }
-      const ultimo = mensalidadesPorAno[mensalidadesPorAno.length - 1]
-      return typeof ultimo === 'number' ? ultimo : 0
-    })
-  }, [leasingPrazoConsiderado, mensalidadesPorAno])
-
-  const tabelaBuyout = useMemo<BuyoutRow[]>(() => {
-    const horizonte = Math.max(60, Math.floor(simulationState.duracaoMeses))
-    const linhasPorMes = new Map<number, BuyoutLinha>()
-    buyoutLinhas.forEach((linha) => {
-      linhasPorMes.set(linha.mes, linha)
-    })
-
-    const rows: BuyoutRow[] = []
-    let ultimoCashback = 0
-    let ultimoPrestacao = 0
-    for (let mes = 1; mes <= horizonte; mes += 1) {
-      const linha = linhasPorMes.get(mes)
-      if (linha) {
-        ultimoCashback = linha.cashback
-        ultimoPrestacao = linha.prestacaoAcum
-        rows.push({
-          mes,
-          tarifa: linha.tarifaCheia,
-          prestacaoEfetiva: linha.prestacaoEfetiva,
-          prestacaoAcum: linha.prestacaoAcum,
-          cashback: linha.cashback,
-          valorResidual: mes >= 7 && mes <= Math.floor(simulationState.duracaoMeses) ? linha.valorResidual : null,
-        })
-      } else {
-        const fator = Math.pow(1 + inflacaoMensal, Math.max(0, mes - 1))
-        const tarifaProjetada = simulationState.tarifaCheia * fator
-        rows.push({
-          mes,
-          tarifa: tarifaProjetada,
-          prestacaoEfetiva: 0,
-          prestacaoAcum: ultimoPrestacao,
-          cashback: ultimoCashback,
-          valorResidual: null,
-        })
-      }
-    }
-
-    const mesAceiteFinal = Math.floor(simulationState.duracaoMeses) + 1
-    const tarifaAceite = simulationState.tarifaCheia * Math.pow(1 + inflacaoMensal, Math.max(0, mesAceiteFinal - 1))
-    rows.push({
-      mes: mesAceiteFinal,
-      tarifa: tarifaAceite,
-      prestacaoEfetiva: 0,
-      prestacaoAcum: ultimoPrestacao,
-      cashback: ultimoCashback,
-      valorResidual: 0,
-    })
-
-    return rows
-  }, [buyoutLinhas, inflacaoMensal, simulationState])
-  const duracaoMesesNormalizada = Math.max(0, Math.floor(duracaoMeses))
-  const buyoutMesAceiteFinal = duracaoMesesNormalizada + 1
-  const duracaoMesesExibicao = Math.max(7, buyoutMesAceiteFinal)
-  const buyoutAceiteFinal = tabelaBuyout.find((row) => row.mes === buyoutMesAceiteFinal)
-  const buyoutReceitaRows = useMemo(
-    () => tabelaBuyout.filter((row) => row.mes >= 7 && row.mes <= duracaoMesesNormalizada),
-    [tabelaBuyout, duracaoMesesNormalizada],
-  )
-
-  const buyoutResumo: BuyoutResumo = {
-    // valorBaseOriginalAtivo = vm0 = Preço ideal da Análise Financeira (custoFinalProjetadoCanonico).
-    // É o valor-base/original do ativo no início do contrato — não é mensalidade nem CAPEX do PDF.
-    valorBaseOriginalAtivo: vm0,
-    vm0, // @deprecated: alias de compatibilidade com snapshots antigos
-    depreciacaoPct: depreciacaoAa,
-    infEnergia: inflacaoAa,
-    ipca: ipcaAa,
-    duracao: duracaoMeses,
-  }
-
-  const anosArray = useMemo(
-    () => Array.from({ length: ANALISE_ANOS_PADRAO }, (_, i) => i + 1),
-    [],
-  )
-
-  const vendaRetornoAuto = useMemo(() => {
-    if (!isVendaDiretaTab) {
-      return null
-    }
-    if (retornoProjetado) {
-      return retornoProjetado
-    }
-    const errors = validateVendaForm(vendaForm)
-    if (Object.keys(errors).length > 0) {
-      return null
-    }
-    try {
-      return computeROI(vendaForm)
-    } catch (error) {
-      console.warn('Não foi possível calcular o retorno para impressão.', error)
-      return null
-    }
-  }, [isVendaDiretaTab, retornoProjetado, validateVendaForm, vendaForm])
-
-  const economiaEstimativaValorCalculado = useMemo(() => {
-    if (!isVendaDiretaTab) {
-      return null
-    }
-    if (!vendaRetornoAuto || !Array.isArray(vendaRetornoAuto.economia)) {
-      return null
-    }
-    const horizonteMeses = Math.max(1, ECONOMIA_ESTIMATIVA_PADRAO_ANOS * 12)
-    const valores = vendaRetornoAuto.economia.slice(0, horizonteMeses)
-    const total = valores.reduce((acc, valor) => acc + Math.max(0, Number(valor ?? 0)), 0)
-    if (!Number.isFinite(total) || total <= 0) {
-      return null
-    }
-    return total
-  }, [isVendaDiretaTab, vendaRetornoAuto])
-
-  useEffect(() => {
-    if (!isVendaDiretaTab) {
-      vendaActions.updateResumoProposta({
-        economia_estimativa_valor: null,
-        economia_estimativa_horizonte_anos: null,
-      })
-      return
-    }
-    vendaActions.updateResumoProposta({
-      economia_estimativa_valor: economiaEstimativaValorCalculado,
-      economia_estimativa_horizonte_anos:
-        economiaEstimativaValorCalculado != null ? ECONOMIA_ESTIMATIVA_PADRAO_ANOS : null,
-    })
-  }, [economiaEstimativaValorCalculado, isVendaDiretaTab, recalcularTick])
-
-  const printableData = useMemo<PrintableProposalProps>(
-    () => buildPrintableData({
-      vendaSnapshot: getVendaSnapshot(),
-      cliente,
-      currentBudgetId,
-      isVendaDiretaTab,
-      potenciaInstaladaKwp,
-      geracaoMensalKwh,
-      numeroModulosEstimado,
-      potenciaModulo,
-      tipoSistema,
-      tipoRede,
-      segmentoCliente,
-      tipoInstalacao,
-      tipoInstalacaoOutro,
-      tipoEdificacaoOutro,
-      tusdTipoCliente,
-      tusdSubtipo,
-      areaInstalacao,
-      capex,
-      descontoConsiderado,
-      kcKwhMes,
-      tarifaCheia,
-      distribuidoraAneelEfetiva,
-      valorOrcamentoConsiderado,
-      valorVendaTelhado,
-      valorVendaSolo,
-      margemManualAtiva,
-      margemManualValor,
-      descontosValor,
-      arredondarPasso,
-      valorTotalPropostaNormalizado,
-      valorTotalPropostaState,
-      custoImplantacaoReferencia,
-      parcelasSolarInvest,
-      leasingPrazoConsiderado,
-      leasingValorDeMercadoEstimado,
-      mostrarValorMercadoLeasing,
-      inflacaoAa,
-      leasingContrato,
-      leasingROI,
-      financiamentoFluxo,
-      financiamentoROI,
-      mostrarFinanciamento,
-      tabelaBuyout,
-      buyoutResumo,
-      composicaoTelhado,
-      composicaoSolo,
-      composicaoTelhadoTotal,
-      composicaoSoloTotal,
-      composicaoTelhadoCalculo,
-      composicaoSoloCalculo,
-      vendasConfig,
-      vendaForm,
-      vendaRetornoAuto,
-      parsedVendaPdf,
-      multiUcPrintableResumo,
-      ucsBeneficiarias,
-      budgetStructuredItems,
-      propostaImagens,
-      configuracaoUsinaObservacoes,
-      modoOrcamento,
-      autoCustoFinal,
-      anosArray,
-    }),
-    [
-      composicaoSolo,
-      composicaoSoloTotal,
-      composicaoTelhado,
-      composicaoTelhadoTotal,
-      composicaoSoloCalculo,
-      composicaoTelhadoCalculo,
-      vendasConfig.comissao_default_tipo,
-      vendasConfig.comissao_percent_base,
-      vendasConfig.teto_comissao_percent,
-      vendasConfig.margem_operacional_padrao_percent,
-      vendasConfig.preco_minimo_percent_sobre_capex,
-      vendasConfig.desconto_max_percent_sem_aprovacao,
-      vendasConfig.workflow_aprovacao_ativo,
-      vendasConfig.regime_tributario_default,
-      vendasConfig.imposto_retido_aliquota_default,
-      vendasConfig.impostosRegime_overrides,
-      vendasConfig.incluirImpostosNoCAPEX_default,
-      vendasConfig.exibir_precos_unitarios,
-      vendasConfig.exibir_margem,
-      vendasConfig.exibir_comissao,
-      vendasConfig.exibir_impostos,
-      vendasConfig.mostrar_quebra_impostos_no_pdf_cliente,
-      vendasConfig.observacao_padrao_proposta,
-      margemManualAtiva,
-      margemManualValor,
-      descontosValor,
-      arredondarPasso,
-      areaInstalacao,
-      currentBudgetId,
-      anosArray,
-      buyoutResumo,
-      capex,
-      custoFinalProjetadoCanonico,
-      cliente,
-      descontoConsiderado,
-      financiamentoFluxo,
-      financiamentoROI,
-      geracaoMensalKwh,
-      kcKwhMes,
-      leasingROI,
-      mostrarFinanciamento,
-      numeroModulosEstimado,
-      parcelasSolarInvest,
-      duracaoMeses,
-      distribuidoraAneelEfetiva,
-      tipoInstalacao,
-      tipoInstalacaoOutro,
-      tipoSistema,
-      segmentoCliente,
-      tusdSubtipo,
-      tusdTipoCliente,
-      valorOrcamentoConsiderado,
-      valorVendaSolo,
-      valorVendaTelhado,
-      potenciaInstaladaKwp,
-      potenciaModulo,
-      tabelaBuyout,
-      tarifaCheia,
-      inflacaoAa,
-      isVendaDiretaTab,
-      vendaForm,
-      vendaRetornoAuto,
-      parsedVendaPdf,
-      budgetStructuredItems,
-      leasingValorDeMercadoEstimado,
-      multiUcPrintableResumo,
-      valorTotalPropostaNormalizado,
-      valorTotalPropostaState,
-      custoImplantacaoReferencia,
-      propostaImagens,
-      configuracaoUsinaObservacoes,
-      ucsBeneficiarias,
-      vendaSnapshotSignal,
-      leasingSnapshotSignal,
-      leasingContrato,
-    ],
-  )
+    mesReajuste,
+    mesReferencia,
+    encargosFixosExtras,
+    geracaoMensalKwh,
+    potenciaInstaladaKwp,
+    vendaForm,
+    isVendaDiretaTab,
+    retornoProjetado,
+    validateVendaForm,
+    recalcularTick,
+    cliente,
+    currentBudgetId,
+    numeroModulosEstimado,
+    potenciaModulo,
+    tipoSistema,
+    segmentoCliente,
+    tipoInstalacao,
+    tipoInstalacaoOutro,
+    tipoEdificacaoOutro,
+    areaInstalacao,
+    distribuidoraAneelEfetiva,
+    valorOrcamentoConsiderado,
+    valorVendaTelhado,
+    valorVendaSolo,
+    margemManualAtiva,
+    margemManualValor,
+    descontosValor,
+    arredondarPasso,
+    valorTotalPropostaNormalizado,
+    valorTotalPropostaState,
+    custoImplantacaoReferencia,
+    composicaoTelhado,
+    composicaoSolo,
+    composicaoTelhadoTotal,
+    composicaoSoloTotal,
+    composicaoTelhadoCalculo,
+    composicaoSoloCalculo,
+    vendasConfig,
+    parsedVendaPdf,
+    multiUcPrintableResumo,
+    ucsBeneficiarias,
+    budgetStructuredItems,
+    propostaImagens,
+    configuracaoUsinaObservacoes,
+    modoOrcamento,
+    autoCustoFinal,
+    mostrarValorMercadoLeasing,
+    leasingContrato,
+    vendaSnapshotSignal,
+    leasingSnapshotSignal,
+  })
 
   const resolvePreviewToolbarMessage = useCallback(
     (customMessage?: string) => {
