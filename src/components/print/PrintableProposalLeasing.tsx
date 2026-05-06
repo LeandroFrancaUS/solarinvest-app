@@ -16,6 +16,10 @@ import { agrupar, type Linha } from '../../lib/pdf/grouping'
 import { anosAlvoEconomia } from '../../lib/finance/years'
 import { calcularEconomiaAcumuladaPorAnos } from '../../lib/finance/economia'
 import type { SegmentoCliente } from '../../lib/finance/roi'
+import {
+  calcMensalidadesPorAno,
+  calcEconomiaTotalAteAno,
+} from '../../lib/finance/leasingProposal'
 import { sanitizePrintableText } from '../../utils/textSanitizer'
 import { calcularTaxaMinima } from '../../utils/calcs'
 
@@ -769,79 +773,29 @@ function PrintableProposalLeasingInner(
     return 5
   }, [prazoContratual])
 
-  // TODO(F13): migrar para calcMensalidadesPorAno de src/lib/finance/leasingProposal.ts
-  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
-  const mensalidadesPorAno = useMemo(() => {
-    const anosConsiderados = Array.from({ length: prazoContratualTotalAnos }, (_, index) => index + 1)
-
-    const linhas = anosConsiderados.map((ano) => {
-      const fator = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, ano - 1))
-      const tarifaAno = tarifaCheiaBase * fator
-      const tarifaComDesconto = tarifaAno * (1 - descontoFracao)
-      const tusdMedio = tusdMedioPorAno[ano] ?? 0
-      const mensalidadeSolarInvest = energiaContratadaBase * tarifaComDesconto
-      const mensalidadeDistribuidora = energiaContratadaBase * tarifaAno + custosFixosContaEnergia
-      const encargosDistribuidora = tusdMedio + taxaMinimaMensal
-      const despesaMensalEstimada = mensalidadeSolarInvest + encargosDistribuidora
-      return {
-        ano,
-        tarifaCheiaAno: tarifaAno,
-        tarifaComDesconto,
-        mensalidadeSolarInvest,
-        mensalidadeDistribuidora,
-        encargosDistribuidora,
-        despesaMensalEstimada,
-      }
-    })
-
-    const anosTusdOrdenados = Object.keys(tusdMedioPorAno)
-      .map((chave) => Number(chave))
-      .filter((valor) => Number.isFinite(valor) && valor > 0)
-      .sort((a, b) => a - b)
-
-    let tusdPosContrato = 0
-    for (let index = anosTusdOrdenados.length - 1; index >= 0; index -= 1) {
-      const ano = anosTusdOrdenados[index]
-      if (ano === undefined) continue
-      if (ano <= prazoContratualTotalAnos) {
-
-        const valorTusd = tusdMedioPorAno[ano]
-        if (Number.isFinite(valorTusd)) {
-
-          tusdPosContrato = Math.max(0, valorTusd ?? 0)
-          break
-        }
-      }
-    }
-
-    const anoPosContrato = prazoContratualTotalAnos + 1
-    const fatorPosContrato = Math.pow(1 + Math.max(-0.99, inflacaoEnergiaFracao), Math.max(0, anoPosContrato - 1))
-    const tarifaAnoPosContrato = tarifaCheiaBase * fatorPosContrato
-    const mensalidadeDistribuidoraPosContrato = energiaContratadaBase * tarifaAnoPosContrato + custosFixosContaEnergia
-    const encargosDistribuidoraPosContrato = Math.max(0, tusdPosContrato + taxaMinimaMensal)
-    const despesaMensalPosContrato = encargosDistribuidoraPosContrato
-
-    linhas.push({
-      ano: anoPosContrato,
-      tarifaCheiaAno: tarifaAnoPosContrato,
-      tarifaComDesconto: 0,
-      encargosDistribuidora: encargosDistribuidoraPosContrato,
-      mensalidadeSolarInvest: 0,
-      mensalidadeDistribuidora: mensalidadeDistribuidoraPosContrato,
-      despesaMensalEstimada: despesaMensalPosContrato,
-    })
-
-    return linhas
-  }, [
-    custosFixosContaEnergia,
-    descontoFracao,
-    energiaContratadaBase,
-    inflacaoEnergiaFracao,
-    prazoContratualTotalAnos,
-    taxaMinimaMensal,
-    tusdMedioPorAno,
-    tarifaCheiaBase,
-  ])
+  const mensalidadesPorAno = useMemo(
+    () =>
+      calcMensalidadesPorAno({
+        prazoContratualTotalAnos,
+        tarifaCheiaBase,
+        inflacaoEnergiaFracao,
+        descontoFracao,
+        energiaContratadaBase,
+        custosFixosContaEnergia,
+        taxaMinimaMensal,
+        tusdMedioPorAno,
+      }),
+    [
+      custosFixosContaEnergia,
+      descontoFracao,
+      energiaContratadaBase,
+      inflacaoEnergiaFracao,
+      prazoContratualTotalAnos,
+      taxaMinimaMensal,
+      tusdMedioPorAno,
+      tarifaCheiaBase,
+    ],
+  )
 
   const prazoContratualMeses = prazoContratual > 0 ? prazoContratual : PRAZO_LEASING_PADRAO_MESES
   const prazoEconomiaMeses = prazoContratualMeses
@@ -861,41 +815,9 @@ function PrintableProposalLeasingInner(
     return filtrados.length > 0 ? filtrados : alvos
   }, [anos, prazoEconomiaMeses])
 
-  // TODO(F13): migrar para calcObterBeneficio de src/lib/finance/leasingProposal.ts
-  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
-  const obterBeneficioPorAno = useCallback(
-    (ano: number): number => {
-      if (!Array.isArray(leasingROI) || leasingROI.length === 0) {
-        return 0
-      }
-
-      const totalAnos = leasingROI.length
-
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return 0
-      }
-
-      const indice = Math.min(totalAnos, Math.max(1, Math.ceil(ano))) - 1
-      return leasingROI[indice] ?? 0
-    },
-    [leasingROI],
-  )
-
-  // TODO(F13): migrar para calcEconomiaTotalAteAno de src/lib/finance/leasingProposal.ts
-  // Ver: docs/FINANCIAL_AUDIT_REPORT.md F13
   const calcularEconomiaTotalAteAno = useCallback(
-    (ano: number): number => {
-      if (!Number.isFinite(ano) || ano <= 0) {
-        return 0
-      }
-
-      const beneficioBase = obterBeneficioPorAno(ano)
-      const deveAdicionarUsina = valorMercadoUsina > 0 && prazoContratualAnos > 0 && ano >= prazoContratualAnos
-      const beneficioTotal = deveAdicionarUsina ? beneficioBase + valorMercadoUsina : beneficioBase
-
-      return Math.max(0, beneficioTotal)
-    },
-    [obterBeneficioPorAno, prazoContratualAnos, valorMercadoUsina],
+    (ano: number): number => calcEconomiaTotalAteAno(leasingROI, ano, prazoContratualAnos, valorMercadoUsina),
+    [leasingROI, prazoContratualAnos, valorMercadoUsina],
   )
 
   const _economiaProjetada = useMemo(() => {
