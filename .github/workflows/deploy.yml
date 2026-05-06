@@ -10,7 +10,8 @@ on:
 jobs:
   # --------------------------------------------------------------------------
   # staging — Runs automatically after CI passes on main.
-  # Validates migration safety, builds a Vercel preview deployment, and runs
+  # Validates migration safety, clones a Neon staging branch and runs
+  # migrations against it, builds a Vercel preview deployment, and runs
   # smoke tests against it.  No production gate is required for this job.
   # --------------------------------------------------------------------------
   staging:
@@ -42,6 +43,32 @@ jobs:
       - name: Run migration safety check
         run: npm run deploy:safety-check
 
+      # ── Neon staging branch ──────────────────────────────────────────────
+      # Create a temporary branch off the production Neon database, run all
+      # pending migrations against it, then delete it.  This validates that
+      # migrations apply cleanly before production is touched.
+      - name: Create Neon staging branch
+        id: neon_staging
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch_name: staging/deploy-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Run migrations on Neon staging branch
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ steps.neon_staging.outputs.db_url }}
+
+      - name: Delete Neon staging branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: staging/deploy-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+      # ── End Neon staging branch ──────────────────────────────────────────
+
       - name: Pull Vercel preview environment
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -64,8 +91,13 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      - name: Run smoke tests against preview
+      - name: Run contracts/leasing smoke tests against preview
         run: node scripts/smoke-contracts-leasing.mjs
+        env:
+          BASE_URL: ${{ steps.deploy_preview.outputs.preview_url }}
+
+      - name: Run API smoke tests against preview
+        run: npm run smoke:api
         env:
           BASE_URL: ${{ steps.deploy_preview.outputs.preview_url }}
 

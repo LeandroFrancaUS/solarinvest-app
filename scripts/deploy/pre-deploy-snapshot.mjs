@@ -25,6 +25,8 @@ const TABLES = [
   'proposals',
   'storage',
   'projects',
+  'client_contracts',
+  'client_invoices',
   'financial_entries',
   'app_user_access',
   'operational_tasks',

@@ -6,10 +6,25 @@
  * the deploy pipeline can block unreviewed destructive migrations.
  *
  * Risk levels:
- *   HIGH  — unguarded destructive statements (no IF EXISTS / WHERE clause).
- *           Exits with code 1.  Requires explicit human approval before merge.
- *   MEDIUM — guarded destructive statements (IF EXISTS / conditional blocks).
- *           Logged as warnings but does not block the deploy.
+ *   HIGH     — unguarded destructive statements (no IF EXISTS / WHERE clause),
+ *              or targeted hard-deletes using hardcoded row IDs.
+ *              Exits with code 1.  Requires explicit human approval before merge.
+ *   MEDIUM   — guarded destructive statements (IF EXISTS / conditional blocks),
+ *              or UPDATE/DELETE with hardcoded row IDs (data-surgery patterns).
+ *              Logged as warnings but does not block the deploy.
+ *   APPROVED — file contains a `-- SAFETY-APPROVED: <reason>` annotation;
+ *              HIGH findings for that file are downgraded to informational and
+ *              no longer block the deploy.
+ *
+ * SAFETY-APPROVED override
+ *   Add the following comment anywhere in a migration file to acknowledge that
+ *   its HIGH-risk patterns have been reviewed and deliberately approved:
+ *
+ *     -- SAFETY-APPROVED: <one-line reason>
+ *
+ *   The annotation must appear in the raw SQL (before comment stripping) so
+ *   that it is visible in code review.  Approved files are still reported in
+ *   the output for traceability.
  *
  * The check runs purely as static analysis — no database connection required.
  */
@@ -46,6 +61,14 @@ const HIGH_RISK_PATTERNS = [
     pattern: /\bDELETE\s+FROM\s+\S+\s*;/i,
   },
   {
+    id: 'delete_with_hardcoded_id',
+    label: 'DELETE FROM with hardcoded row ID (WHERE id = N or WHERE id IN (N, ...))',
+    // Matches DELETE FROM ... WHERE ... id = <literal> or id IN (...<literal>...)
+    // Uses [^;]* to stay within a single SQL statement (up to the semicolon).
+    // Uses [^)]* inside the IN list to match any digit within the parentheses.
+    pattern: /\bDELETE\s+FROM\b[^;]*\bWHERE\b[^;]*\bid\s*(?:=\s*\d+|\bIN\b\s*\([^)]*\d)/i,
+  },
+  {
     id: 'drop_column_unguarded',
     label: 'DROP COLUMN without IF EXISTS',
     pattern: /\bDROP\s+COLUMN\s+(?!IF\s+EXISTS\b)/i,
@@ -74,7 +97,32 @@ const MEDIUM_RISK_PATTERNS = [
     label: 'DROP INDEX without IF EXISTS',
     pattern: /\bDROP\s+INDEX\s+(?!CONCURRENTLY\s+IF\s+EXISTS\b)(?!IF\s+EXISTS\b)/i,
   },
+  {
+    id: 'dml_with_hardcoded_id',
+    label: 'DML with hardcoded row ID (UPDATE/DELETE WHERE id = N or id IN (N, ...))',
+    // Matches UPDATE or DELETE statements that filter by a literal integer ID.
+    // These are data-surgery patterns that target specific production rows and
+    // warrant review, but are not unconditionally blocking.
+    // Uses [^)]* inside the IN list to match any digit within the parentheses.
+    pattern: /\b(?:UPDATE|DELETE\s+FROM)\b[^;]*\bWHERE\b[^;]*\bid\s*(?:=\s*\d+|\bIN\b\s*\([^)]*\d)/i,
+  },
 ]
+
+// ---------------------------------------------------------------------------
+// SAFETY-APPROVED override
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the SAFETY-APPROVED reason line if the raw (un-stripped) SQL file
+ * contains an explicit override annotation, or null if it does not.
+ *
+ * The annotation must be of the form:
+ *   -- SAFETY-APPROVED: <reason>
+ */
+function getSafetyApproval(rawSql) {
+  const match = rawSql.match(/--\s*SAFETY-APPROVED\s*:\s*(.+)/i)
+  return match ? match[1].trim() : null
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,11 +164,16 @@ function run() {
 
   const highRiskFindings = []
   const mediumRiskFindings = []
+  const approvedFindings = []
 
   for (const file of files) {
     const filePath = path.join(MIGRATIONS_DIR, file)
     const rawSql = fs.readFileSync(filePath, 'utf8')
     const sql = stripComments(rawSql)
+
+    // Check for SAFETY-APPROVED annotation before stripping comments so that
+    // the annotation is visible in code review (it lives in raw SQL comments).
+    const approvalReason = getSafetyApproval(rawSql)
 
     const fileHighRisks = []
     const fileMediumRisks = []
@@ -141,7 +194,12 @@ function run() {
     }
 
     if (fileHighRisks.length > 0) {
-      highRiskFindings.push({ file, patterns: fileHighRisks })
+      if (approvalReason) {
+        // HIGH findings are downgraded: human has explicitly approved them.
+        approvedFindings.push({ file, patterns: fileHighRisks, reason: approvalReason })
+      } else {
+        highRiskFindings.push({ file, patterns: fileHighRisks })
+      }
     }
     if (fileMediumRisks.length > 0) {
       mediumRiskFindings.push({ file, patterns: fileMediumRisks })
@@ -153,6 +211,20 @@ function run() {
     console.log(`⚠️  MEDIUM-RISK findings (${mediumRiskFindings.length} file(s)) — guarded; no action required:\n`)
     for (const { file, patterns } of mediumRiskFindings) {
       console.log(`   ${file}`)
+      for (const p of patterns) {
+        console.log(`     · ${p}`)
+      }
+    }
+    console.log()
+  }
+
+  // Print approved-HIGH summary (informational — blocked patterns that have been
+  // explicitly acknowledged with a SAFETY-APPROVED annotation)
+  if (approvedFindings.length > 0) {
+    console.log(`ℹ️  SAFETY-APPROVED overrides (${approvedFindings.length} file(s)) — HIGH patterns acknowledged by human review:\n`)
+    for (const { file, patterns, reason } of approvedFindings) {
+      console.log(`   ${file}`)
+      console.log(`     Approval reason: ${reason}`)
       for (const p of patterns) {
         console.log(`     · ${p}`)
       }
@@ -173,7 +245,9 @@ function run() {
     console.error(
       '[safety-check] Deploy blocked: one or more migrations contain unguarded destructive SQL.\n' +
         '               Review the files above, ensure the intent is correct, and obtain human\n' +
-        '               approval before merging to main.',
+        '               approval before merging to main.\n' +
+        '               Once approved, add the following annotation to each flagged file:\n' +
+        '                 -- SAFETY-APPROVED: <one-line reason>',
     )
     process.exit(1)
   }
