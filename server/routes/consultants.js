@@ -182,7 +182,8 @@ export async function handleConsultantsCreateRequest(req, res, { sendJson, getSc
   let consultantCode = null
   for (let attempt = 0; attempt < 10; attempt++) {
     const candidate = generateConsultantCode()
-    if (!await isCodeTaken(sql, candidate)) {
+    const taken = await isCodeTaken(sql, candidate)
+    if (!taken) {
       consultantCode = candidate
       break
     }

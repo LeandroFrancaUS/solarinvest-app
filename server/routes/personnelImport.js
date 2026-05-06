@@ -53,7 +53,7 @@ export async function handlePersonnelImportableUsers(req, res, { sendJson, getSc
     return
   }
 
-  const rows = await searchImportableUsers(sql, q.toLowerCase())
+  const rows = await searchImportableUsers(sql, q ? q.toLowerCase() : '')
   if (rows === null) {
     sendJson(200, { users: [] })
     return
@@ -99,7 +99,7 @@ export async function handlePersonnelImportableClients(req, res, { sendJson, get
     return
   }
 
-  const rows = await searchImportableClients(sql, q.toLowerCase())
+  const rows = await searchImportableClients(sql, q ? q.toLowerCase() : '')
   if (rows === null) {
     sendJson(200, { clients: [] })
     return

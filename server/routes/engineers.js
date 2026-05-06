@@ -137,7 +137,8 @@ export async function handleEngineersCreateRequest(req, res, { sendJson, getScop
   let engineerCode = null
   for (let attempt = 0; attempt < 10; attempt++) {
     const candidate = generateEngineerCode()
-    if (!await isCodeTaken(sql, candidate)) {
+    const taken = await isCodeTaken(sql, candidate)
+    if (!taken) {
       engineerCode = candidate
       break
     }
